@@ -1,6 +1,10 @@
 import { env } from "cloudflare:workers";
 
 import {
+  advanceAutonomousSimulation,
+  hasLivingAgentState,
+} from "@/lib/autonomous-simulation";
+import {
   advanceWorld,
   applyWorldCommand,
   catchUpTicks,
@@ -142,10 +146,18 @@ export async function getAuthoritativeWorld(now = Date.now()) {
   await ensureWorld(now);
   const current = await loadWorld();
   const ticks = catchUpTicks(current, now);
-  if (ticks === 0) return current;
+  if (ticks === 0 && hasLivingAgentState(current)) return current;
+
   return mutateWorld((fresh) => {
     const freshTicks = catchUpTicks(fresh, now);
-    return freshTicks > 0 ? advanceWorld(fresh, freshTicks, now) : fresh;
+    if (freshTicks > 0) {
+      const advanced = advanceWorld(fresh, freshTicks, now);
+      return advanceAutonomousSimulation(advanced, freshTicks, now);
+    }
+    if (hasLivingAgentState(fresh)) return fresh;
+    const hydrated = advanceAutonomousSimulation(fresh, 0, now);
+    hydrated.version += 1;
+    return hydrated;
   });
 }
 
@@ -165,6 +177,11 @@ export async function executeWorldCommand(
         : command.type === "accept_offer"
           ? 1
           : 1;
-    return advanceWorld(commanded, reactionTicks, now + reactionTicks);
+    const advanced = advanceWorld(commanded, reactionTicks, now + reactionTicks);
+    return advanceAutonomousSimulation(
+      advanced,
+      reactionTicks,
+      now + reactionTicks,
+    );
   });
 }
