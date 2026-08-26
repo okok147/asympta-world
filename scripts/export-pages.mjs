@@ -52,8 +52,9 @@ if (!response.ok) {
 
 let html = await response.text();
 html = html
-  .replaceAll('href="/assets/', 'href="./assets/')
-  .replaceAll('src="/assets/', 'src="./assets/')
+  .replaceAll('"/assets/', '"./assets/')
+  .replaceAll('\\"/assets/', '\\"./assets/')
+  .replaceAll("'/assets/", "'./assets/")
   .replaceAll('href="/favicon.svg', 'href="./favicon.svg')
   .replaceAll('src="/favicon.svg', 'src="./favicon.svg');
 
@@ -63,10 +64,13 @@ await writeFile(path.join(outputDir, ".nojekyll"), "");
 
 const exported = await readFile(path.join(outputDir, "index.html"), "utf8");
 if (
-  exported.includes('href="/assets/') ||
-  exported.includes('src="/assets/')
+  exported.includes('"/assets/') ||
+  exported.includes('\\"/assets/') ||
+  exported.includes("'/assets/")
 ) {
-  throw new Error("Static export still contains root-relative client assets.");
+  throw new Error(
+    "Static export still contains a root-relative client asset reference.",
+  );
 }
 
 console.log("GitHub Pages export ready at pages-dist/");
