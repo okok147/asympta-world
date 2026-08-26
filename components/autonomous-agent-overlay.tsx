@@ -86,10 +86,20 @@ function saveLocalState(value: Record<string, LocalEconomyAgent>) {
 function scanAgentHosts() {
   const result = new Map<string, HTMLButtonElement>();
   document.querySelectorAll<HTMLButtonElement>(".world-agent").forEach((node) => {
-    const name = node.querySelector<HTMLElement>(".agent-label strong")?.textContent?.trim();
+    const name = node
+      .querySelector<HTMLElement>(".agent-label strong")
+      ?.textContent?.trim();
     if (name) result.set(name, node);
   });
   return result;
+}
+
+function sameHosts(
+  current: Map<string, HTMLButtonElement>,
+  next: Map<string, HTMLButtonElement>,
+) {
+  if (current.size !== next.size) return false;
+  return [...next.entries()].every(([name, node]) => current.get(name) === node);
 }
 
 function moveLocalAgents(hosts: Map<string, HTMLButtonElement>) {
@@ -98,8 +108,10 @@ function moveLocalAgents(hosts: Map<string, HTMLButtonElement>) {
     const top = Number.parseFloat(node.style.top) || node.offsetTop;
     const angle = Math.random() * Math.PI * 2;
     const distance = 12 + Math.random() * 24;
-    node.style.left = String(clamp(left + Math.cos(angle) * distance, MIN_X, MAX_X)) + "px";
-    node.style.top = String(clamp(top + Math.sin(angle) * distance, MIN_Y, MAX_Y)) + "px";
+    node.style.left =
+      String(clamp(left + Math.cos(angle) * distance, MIN_X, MAX_X)) + "px";
+    node.style.top =
+      String(clamp(top + Math.sin(angle) * distance, MIN_Y, MAX_Y)) + "px";
   });
 }
 
@@ -109,7 +121,9 @@ function choose<T>(values: T[]) {
 
 export function AutonomousAgentOverlay() {
   const [shared, setShared] = useState<SharedSnapshot | null>(null);
-  const [mode, setMode] = useState<"probing" | "shared" | "local">("probing");
+  const [mode, setMode] = useState<"probing" | "shared" | "local">(
+    "probing",
+  );
   const [hosts, setHosts] = useState<Map<string, HTMLButtonElement>>(new Map());
   const [localBubbles, setLocalBubbles] = useState<Record<string, Bubble>>({});
   const localEconomyRef = useRef<Record<string, LocalEconomyAgent>>({});
@@ -117,7 +131,6 @@ export function AutonomousAgentOverlay() {
   useEffect(() => {
     localEconomyRef.current = readLocalState();
     let cancelled = false;
-    let timer: number | undefined;
 
     const refresh = async () => {
       try {
@@ -138,21 +151,21 @@ export function AutonomousAgentOverlay() {
     };
 
     void refresh();
-    timer = window.setInterval(refresh, 2600);
+    const timer = window.setInterval(refresh, 2600);
     return () => {
       cancelled = true;
-      if (timer) window.clearInterval(timer);
+      window.clearInterval(timer);
     };
   }, []);
 
   useEffect(() => {
-    let timer: number | undefined;
-    const scan = () => setHosts(scanAgentHosts());
-    scan();
-    timer = window.setInterval(scan, 900);
-    return () => {
-      if (timer) window.clearInterval(timer);
+    const scan = () => {
+      const next = scanAgentHosts();
+      setHosts((current) => (sameHosts(current, next) ? current : next));
     };
+    scan();
+    const timer = window.setInterval(scan, 900);
+    return () => window.clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -317,7 +330,7 @@ export function AutonomousAgentOverlay() {
         .filter(
           (agent) =>
             agent.thought &&
-            agent.thought.expiresAt >= Date.now() - 1200,
+            agent.thought.expiresAt >= shared.worldTime - 1200,
         )
         .sort(
           (a, b) =>
