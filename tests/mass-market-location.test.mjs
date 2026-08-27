@@ -8,6 +8,11 @@ import {
   MARKET_STRATEGIES,
   runMassMarketStress,
 } from "../lib/mass-market-simulation.ts";
+import {
+  buildTerritoryAtlas,
+  TERRITORY_ATLAS_COUNT,
+  TERRITORY_ATLAS_SIDE,
+} from "../lib/territory-atlas.ts";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 
@@ -102,4 +107,26 @@ test("native agents remain visible after crossing away from the starter geo cell
   assert.match(presence, /visibility: visible !important/);
   assert.match(starter, /data-starter-district="away"/);
   assert.match(template, /<GeoAgentPresenceRuntime \/>/);
+});
+
+test("Earth exposes a searchable enterable atlas with more than 500 real geo-cell territories", async () => {
+  const atlas = buildTerritoryAtlas("geo-9000-18000");
+  assert.equal(TERRITORY_ATLAS_SIDE, 25);
+  assert.equal(TERRITORY_ATLAS_COUNT, 625);
+  assert.equal(atlas.length, 625);
+  assert.equal(new Set(atlas.map((territory) => territory.cellId)).size, 625);
+  assert.ok(atlas.every((territory) => Number.isFinite(territory.center.lat) && Number.isFinite(territory.center.lng)));
+  assert.ok(atlas.some((territory) => territory.label === "Home Territory"));
+
+  const [runtime, template] = await Promise.all([
+    readFile(path.join(root, "components/territory-atlas-runtime.tsx"), "utf8"),
+    readFile(path.join(root, "app/template.tsx"), "utf8"),
+  ]);
+  assert.match(runtime, /Open 625 territory atlas/);
+  assert.match(runtime, /Select one of 625 territories/);
+  assert.match(runtime, /ENTER TERRITORY/);
+  assert.match(runtime, /territory_list/);
+  assert.match(runtime, /territory_enter/);
+  assert.match(runtime, /evidence-backed places/);
+  assert.match(template, /<TerritoryAtlasRuntime \/>/);
 });
