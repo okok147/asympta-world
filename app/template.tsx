@@ -7,11 +7,11 @@ import { AgentTaskMenu } from "@/components/agent-task-menu";
 import { AnimalAvatarRuntime } from "@/components/animal-avatar-runtime";
 import { AsymptaPerceptionSystem } from "@/components/asympta-perception-system";
 import { BusinessWorkflowRuntime } from "@/components/business-workflow-runtime";
+import { ClientEarthSharedWorld } from "@/components/client-earth-shared-world";
 import { ClientUnifiedAgentInterface } from "@/components/client-unified-agent-interface";
 import { CommunityStoreFounderRuntime } from "@/components/community-store-founder-runtime";
 import { CommunityV2Runtime } from "@/components/community-v2-runtime";
 import { ContinuousAgentMotion } from "@/components/continuous-agent-motion";
-import { EarthScaleWorldRuntime } from "@/components/earth-scale-world-runtime";
 import { LatentCityRuntime } from "@/components/latent-city-runtime";
 import { MinimalWorldPresentation } from "@/components/minimal-world-presentation";
 import { MissionSocietyRuntime } from "@/components/mission-society-runtime";
@@ -45,7 +45,7 @@ export default function WorldTemplate({ children }: { children: ReactNode }) {
       <WebMcpScenarioRuntime />
       <SemanticDialogueLabels />
       <AsymptaPerceptionSystem />
-      <EarthScaleWorldRuntime />
+      <ClientEarthSharedWorld />
       {children}
     </>
   );
