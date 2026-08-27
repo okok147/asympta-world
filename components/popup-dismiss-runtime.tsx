@@ -111,14 +111,12 @@ export function PopupDismissRuntime() {
   }, []);
 
   useEffect(() => {
-    const route = targets.route;
-    if (!route) return;
-    route.style.display = routeDismissed ? "none" : "";
-    if (routeDismissed) route.setAttribute("aria-hidden", "true");
-    else route.removeAttribute("aria-hidden");
+    const root = document.documentElement;
+    const hidden = routeDismissed && Boolean(targets.route);
+    if (hidden) root.dataset.routeComparisonDismissed = "true";
+    else delete root.dataset.routeComparisonDismissed;
     return () => {
-      route.style.display = "";
-      route.removeAttribute("aria-hidden");
+      delete root.dataset.routeComparisonDismissed;
     };
   }, [routeDismissed, targets.route]);
 
@@ -183,6 +181,9 @@ export function PopupDismissRuntime() {
       <style>{`
         .places-directory-panel,
         .webmcp-scenario-picker { position: relative !important; }
+        html[data-route-comparison-dismissed="true"] .route-visit-card {
+          display: none !important;
+        }
         .asympta-runtime-popup-close {
           position: absolute;
           z-index: 12;
