@@ -9,6 +9,7 @@ import { AsymptaPerceptionSystem } from "@/components/asympta-perception-system"
 import { BusinessWorkflowRuntime } from "@/components/business-workflow-runtime";
 import { ClientEarthSharedWorld } from "@/components/client-earth-shared-world";
 import { ClientUnifiedAgentInterface } from "@/components/client-unified-agent-interface";
+import { CommunityDiscoveryBuilderRuntime } from "@/components/community-discovery-builder-runtime";
 import { CommunityStoreFounderRuntime } from "@/components/community-store-founder-runtime";
 import { CommunityV2Runtime } from "@/components/community-v2-runtime";
 import { ContinuousAgentMotion } from "@/components/continuous-agent-motion";
@@ -48,6 +49,7 @@ export default function WorldTemplate({ children }: { children: ReactNode }) {
       <AsymptaPerceptionSystem />
       <ClientEarthSharedWorld />
       <StarterDistrictIntegration />
+      <CommunityDiscoveryBuilderRuntime />
       {children}
     </>
   );
