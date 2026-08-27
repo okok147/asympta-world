@@ -39,6 +39,7 @@ type ProcessDetail = {
 const MISSIONS_KEY = "asympta-user-missions-v1";
 const SCENARIO_KEY = "asympta-webmcp-scenario-run-v1";
 const EFFECT_MS = 1800;
+const COMPLETION_SIGNAL = /(完成|complete|completed|done|建立|built|開放|opened|購買|bought|交易|成交|delivered|delivery|發佈|posted|released)/i;
 const PARTICLES = Array.from({ length: 14 }, (_, index) => {
   const angle = (Math.PI * 2 * index) / 14 - Math.PI / 2;
   const distance = 42 + (index % 3) * 10;
@@ -148,6 +149,7 @@ export function TaskCelebrationRuntime() {
       const text = label + " " + String(detail.detail ?? "");
       if (progress < 100 && tone !== "done") return;
       if (tone === "done" && progress > 0 && progress < 96) return;
+      if (!COMPLETION_SIGNAL.test(text)) return;
       fire(
         "process:" + trimLabel(text).toLowerCase(),
         label || String(detail.detail ?? "Task complete"),
