@@ -43,15 +43,14 @@ test("starter district follows the first real geolocation cell and disappears af
   assert.match(integration, /preview/);
 });
 
-test("Your Agent and resident animals use a readable common visual scale", async () => {
+test("Your Agent and resident animals use readable full badge scales", async () => {
   const [integration] = await sources();
-  assert.match(integration, /\.city-agent,\.community-agent \{\s*width:20px!important;\s*height:20px!important;/s);
-  assert.match(integration, /\.mission-user-agent \.shared-agent-animal-body \{\s*width:20px!important;\s*height:20px!important;/s);
-  assert.match(integration, /agent-portrait\.mission-agent-portrait \{\s*width:28px!important;\s*height:28px!important;/s);
-  assert.match(integration, /data-animal-family="long-ear"/);
-  assert.match(integration, /data-animal-family="bird"/);
-  assert.match(integration, /data-animal-family="aquatic"/);
-  assert.match(integration, /city-agent-body::after/);
+  assert.match(integration, /\.city-agent,\.community-agent \{ width:30px!important; height:30px!important; \}/);
+  assert.match(integration, /\.mission-user-agent \.shared-agent-animal-body \{[\s\S]*width:44px!important; height:44px!important;/);
+  assert.match(integration, /agent-portrait\.mission-agent-portrait \{ width:50px!important; height:50px!important;/);
+  assert.match(integration, /background-image:var\(--animal-badge-image\)!important/);
+  assert.match(integration, /city-agent-body::before,\.city-agent-body::after/);
+  assert.match(integration, /display:none!important; content:none!important/);
 });
 
 test("mobile controls occupy separate safe zones and large panels retire colliding controls", async () => {
@@ -62,6 +61,7 @@ test("mobile controls occupy separate safe zones and large panels retire collidi
   assert.match(integration, /\.need-composer \{ z-index:136!important; \}/);
   assert.match(integration, /data-asympta-overlay="places"/);
   assert.match(integration, /data-asympta-overlay="earth"/);
+  assert.match(integration, /data-asympta-overlay="discovery"/);
   assert.match(integration, /data-asympta-overlay="agent"/);
   assert.match(integration, /max-height:calc\(100svh - 190px\)/);
   assert.match(integration, /bottom:max\(78px,calc\(env\(safe-area-inset-bottom\) \+ 78px\)\)/);
