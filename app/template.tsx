@@ -7,6 +7,7 @@ import { AgentTaskMenu } from "@/components/agent-task-menu";
 import { AnimalAvatarRuntime } from "@/components/animal-avatar-runtime";
 import { AsymptaPerceptionSystem } from "@/components/asympta-perception-system";
 import { BusinessWorkflowRuntime } from "@/components/business-workflow-runtime";
+import { ClientUnifiedAgentInterface } from "@/components/client-unified-agent-interface";
 import { CommunityStoreFounderRuntime } from "@/components/community-store-founder-runtime";
 import { CommunityV2Runtime } from "@/components/community-v2-runtime";
 import { ContinuousAgentMotion } from "@/components/continuous-agent-motion";
@@ -17,7 +18,6 @@ import { PersistentUserAgentPresence } from "@/components/persistent-user-agent-
 import { RealWorldPacingRuntime } from "@/components/real-world-pacing-runtime";
 import { SemanticDialogueLabels } from "@/components/semantic-dialogue-labels";
 import { TaskProcessRuntime } from "@/components/task-process-runtime";
-import { UnifiedAgentInterfaceRuntime } from "@/components/unified-agent-interface-runtime";
 import { UserAgentAura } from "@/components/user-agent-aura";
 import { WebMcpScenarioRuntime } from "@/components/webmcp-scenario-runtime";
 
@@ -36,7 +36,7 @@ export default function WorldTemplate({ children }: { children: ReactNode }) {
       <PersistentUserAgentPresence />
       <AgentTaskMenu />
       <AnimalAvatarRuntime />
-      <UnifiedAgentInterfaceRuntime />
+      <ClientUnifiedAgentInterface />
       <TaskProcessRuntime />
       <AgentSpatialInteractionRuntime />
       <RealWorldPacingRuntime />
