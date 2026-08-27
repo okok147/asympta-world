@@ -32,8 +32,8 @@ export type CityNeed =
   | "automation"
   | "rest";
 
-export type CityAgentStatus = "idle" | "walking" | "interacting" | "working";
 export type CityAvatar = "human" | "cat" | "fox" | "rabbit" | "bear";
+export type CityAgentStatus = "idle" | "walking" | "interacting" | "working";
 
 export type CityProduct = {
   id: string;
@@ -68,27 +68,6 @@ export type CityBusiness = {
   actions: CityActionId[];
 };
 
-export type CityAgentMemory = {
-  businessId: string;
-  visits: number;
-  spent: number;
-  satisfaction: number;
-};
-
-export type CityAgentTraits = {
-  thrift: number;
-  quality: number;
-  curiosity: number;
-  sociability: number;
-  patience: number;
-};
-
-export type CityAgentThought = {
-  label: string;
-  kind: "food" | "deal" | "service" | "resource" | "work" | "search" | "status";
-  until: number;
-};
-
 export type CityAgent = {
   id: string;
   name: string;
@@ -105,7 +84,13 @@ export type CityAgent = {
   hunger: number;
   resources: number;
   inventory: Record<string, number>;
-  traits: CityAgentTraits;
+  traits: {
+    thrift: number;
+    quality: number;
+    curiosity: number;
+    sociability: number;
+    patience: number;
+  };
   preferredKinds: CityBusinessKind[];
   missionNeed: CityNeed;
   ownerGoal: string;
@@ -115,8 +100,17 @@ export type CityAgent = {
   interactionUntil?: number;
   pendingAction?: CityActionId;
   nextDecisionAt: number;
-  thought?: CityAgentThought;
-  memory: CityAgentMemory[];
+  thought?: {
+    label: string;
+    kind: "food" | "deal" | "service" | "resource" | "work" | "search" | "status";
+    until: number;
+  };
+  memory: Array<{
+    businessId: string;
+    visits: number;
+    spent: number;
+    satisfaction: number;
+  }>;
 };
 
 export type CityTransaction = {
@@ -164,30 +158,24 @@ const NAMES = [
   "Ari", "Momo", "Kai", "Yuki", "Noa", "Coco", "Theo", "Fia", "Remy", "Eli",
   "Uma", "Leo", "Ivy", "Bo", "Mika",
 ];
-
 const AVATARS: CityAvatar[] = ["human", "cat", "fox", "rabbit", "bear"];
 const NEEDS: CityNeed[] = [
-  "meal",
-  "groceries",
-  "repair",
-  "design",
-  "print",
-  "delivery",
-  "learning",
-  "workspace",
-  "automation",
+  "meal", "groceries", "repair", "design", "print", "delivery", "learning", "workspace", "automation",
+];
+const ALL_KINDS: CityBusinessKind[] = [
+  "cafe", "grocery", "bakery", "repair", "design", "print", "courier", "learning", "coworking", "automation",
 ];
 
 const NEED_LABEL: Record<CityNeed, string> = {
-  meal: "找食物",
-  groceries: "買日用品",
-  repair: "找維修",
-  design: "找設計",
-  print: "找印刷",
+  meal: "尋找食物",
+  groceries: "購買日用品",
+  repair: "尋找維修",
+  design: "尋找設計",
+  print: "尋找印刷",
   delivery: "安排配送",
-  learning: "學技能",
-  workspace: "找工作位",
-  automation: "找自動化",
+  learning: "學習技能",
+  workspace: "尋找工作位",
+  automation: "尋找自動化",
   rest: "休息",
 };
 
@@ -204,6 +192,10 @@ const BUSINESS_NEEDS: Record<CityBusinessKind, CityNeed[]> = {
   automation: ["automation"],
 };
 
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
 function hash(value: string) {
   let h = 2166136261;
   for (let index = 0; index < value.length; index += 1) {
@@ -218,17 +210,7 @@ function random01(seed: string) {
   return ((value ^ (value >>> 15)) >>> 0) / 4294967295;
 }
 
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value));
-}
-
-function product(
-  id: string,
-  name: string,
-  price: number,
-  stock: number,
-  tags: string[],
-): CityProduct {
+function product(id: string, name: string, price: number, stock: number, tags: string[]): CityProduct {
   return { id, name, price, stock, maxStock: stock, tags };
 }
 
@@ -243,189 +225,123 @@ function service(
   return { id, name, price, minutes, slots, maxSlots: slots, tags };
 }
 
+function business(
+  id: string,
+  name: string,
+  kind: CityBusinessKind,
+  x: number,
+  y: number,
+  seed: number,
+  reputation: number,
+  treasury: number,
+  products: CityProduct[],
+  services: CityService[],
+  actions: CityActionId[],
+): CityBusiness {
+  return { id, name, kind, x, y, seed, reputation, treasury, products, services, actions };
+}
+
 export function seedCityBusinesses(): CityBusiness[] {
   return [
-    {
-      id: "corner-cafe",
-      name: "Corner Cafe",
-      kind: "cafe",
-      x: 155,
-      y: 180,
-      seed: 11,
-      reputation: 82,
-      treasury: 420,
-      products: [
+    business(
+      "corner-cafe", "Corner Cafe", "cafe", 155, 180, 11, 82, 420,
+      [
         product("coffee", "Coffee", 8, 28, ["food", "drink", "energy"]),
         product("tea", "Tea", 7, 24, ["food", "drink"]),
         product("sandwich", "Sandwich", 14, 18, ["food", "meal"]),
       ],
-      services: [service("catering", "Small catering", 68, 60, 5, ["food", "event"])],
-      actions: ["browse_products", "check_stock", "buy_product", "book_service", "inquire"],
-    },
-    {
-      id: "market-grocer",
-      name: "Market Grocer",
-      kind: "grocery",
-      x: 405,
-      y: 120,
-      seed: 23,
-      reputation: 76,
-      treasury: 680,
-      products: [
+      [service("catering", "Small catering", 68, 60, 5, ["food", "event"])],
+      ["browse_products", "check_stock", "buy_product", "book_service", "inquire"],
+    ),
+    business(
+      "market-grocer", "Market Grocer", "grocery", 405, 120, 23, 76, 680,
+      [
         product("fruit-box", "Fruit box", 12, 24, ["food", "grocery"]),
         product("rice-pack", "Rice pack", 15, 20, ["food", "grocery"]),
         product("daily-kit", "Daily kit", 22, 16, ["grocery", "resource"]),
       ],
-      services: [service("weekly-basket", "Weekly basket", 54, 15, 8, ["grocery", "delivery"])],
-      actions: ["browse_products", "check_stock", "buy_product", "book_service", "sell_resource", "inquire"],
-    },
-    {
-      id: "hearth-bakery",
-      name: "Hearth Bakery",
-      kind: "bakery",
-      x: 735,
-      y: 150,
-      seed: 37,
-      reputation: 88,
-      treasury: 510,
-      products: [
+      [service("weekly-basket", "Weekly basket", 54, 15, 8, ["grocery", "delivery"])],
+      ["browse_products", "check_stock", "buy_product", "book_service", "sell_resource", "inquire"],
+    ),
+    business(
+      "hearth-bakery", "Hearth Bakery", "bakery", 735, 150, 37, 88, 510,
+      [
         product("milk-bun", "Milk bun", 6, 26, ["food", "meal"]),
         product("bread-loaf", "Bread loaf", 11, 20, ["food", "grocery"]),
         product("cake-slice", "Cake slice", 9, 16, ["food", "treat"]),
       ],
-      services: [service("custom-cake", "Custom cake", 58, 120, 4, ["food", "event"])],
-      actions: ["browse_products", "check_stock", "buy_product", "book_service", "request_quote", "inquire"],
-    },
-    {
-      id: "pixel-repair",
-      name: "Pixel Repair",
-      kind: "repair",
-      x: 1015,
-      y: 205,
-      seed: 41,
-      reputation: 84,
-      treasury: 720,
-      products: [product("cable-kit", "Cable kit", 16, 18, ["repair", "resource"])],
-      services: [
+      [service("custom-cake", "Custom cake", 58, 120, 4, ["food", "event"])],
+      ["browse_products", "check_stock", "buy_product", "book_service", "request_quote", "inquire"],
+    ),
+    business(
+      "pixel-repair", "Pixel Repair", "repair", 1015, 205, 41, 84, 720,
+      [product("cable-kit", "Cable kit", 16, 18, ["repair", "resource"])],
+      [
         service("diagnostic", "Device diagnostic", 18, 20, 10, ["repair"]),
         service("battery-fix", "Battery fix", 42, 45, 7, ["repair"]),
         service("screen-fix", "Screen repair", 72, 90, 5, ["repair"]),
       ],
-      actions: ["browse_products", "check_stock", "buy_product", "book_service", "request_quote", "inquire"],
-    },
-    {
-      id: "soft-form-studio",
-      name: "Soft Form Studio",
-      kind: "design",
-      x: 230,
-      y: 420,
-      seed: 53,
-      reputation: 91,
-      treasury: 980,
-      products: [product("icon-pack", "Icon pack", 34, 12, ["design", "digital"])],
-      services: [
+      ["browse_products", "check_stock", "buy_product", "book_service", "request_quote", "inquire"],
+    ),
+    business(
+      "soft-form-studio", "Soft Form Studio", "design", 230, 420, 53, 91, 980,
+      [product("icon-pack", "Icon pack", 34, 12, ["design", "digital"])],
+      [
         service("visual-concept", "Visual concept", 76, 120, 5, ["design"]),
         service("brand-sprint", "Brand sprint", 132, 180, 3, ["design", "branding"]),
       ],
-      actions: ["browse_products", "buy_product", "book_service", "request_quote", "inquire"],
-    },
-    {
-      id: "tiny-print",
-      name: "Tiny Print",
-      kind: "print",
-      x: 520,
-      y: 365,
-      seed: 67,
-      reputation: 79,
-      treasury: 610,
-      products: [
+      ["browse_products", "buy_product", "book_service", "request_quote", "inquire"],
+    ),
+    business(
+      "tiny-print", "Tiny Print", "print", 520, 365, 67, 79, 610,
+      [
         product("posters-10", "10 posters", 18, 20, ["print"]),
         product("cards-50", "50 cards", 24, 18, ["print"]),
       ],
-      services: [service("rush-print", "Rush print", 36, 45, 7, ["print", "delivery"])],
-      actions: ["browse_products", "check_stock", "buy_product", "book_service", "request_quote", "inquire"],
-    },
-    {
-      id: "swift-courier",
-      name: "Swift Courier",
-      kind: "courier",
-      x: 850,
-      y: 370,
-      seed: 71,
-      reputation: 81,
-      treasury: 740,
-      products: [product("parcel-kit", "Parcel kit", 6, 30, ["delivery", "resource"])],
-      services: [
+      [service("rush-print", "Rush print", 36, 45, 7, ["print", "delivery"])],
+      ["browse_products", "check_stock", "buy_product", "book_service", "request_quote", "inquire"],
+    ),
+    business(
+      "swift-courier", "Swift Courier", "courier", 850, 370, 71, 81, 740,
+      [product("parcel-kit", "Parcel kit", 6, 30, ["delivery", "resource"])],
+      [
         service("local-delivery", "Local delivery", 16, 35, 12, ["delivery"]),
         service("same-day", "Same-day delivery", 28, 60, 6, ["delivery"]),
       ],
-      actions: ["browse_products", "buy_product", "book_service", "deliver", "request_quote", "inquire"],
-    },
-    {
-      id: "little-learning",
-      name: "Little Learning",
-      kind: "learning",
-      x: 1040,
-      y: 515,
-      seed: 83,
-      reputation: 86,
-      treasury: 560,
-      products: [product("workbook", "Practice workbook", 12, 22, ["learning"] )],
-      services: [
+      ["browse_products", "buy_product", "book_service", "deliver", "request_quote", "inquire"],
+    ),
+    business(
+      "little-learning", "Little Learning", "learning", 1040, 515, 83, 86, 560,
+      [product("workbook", "Practice workbook", 12, 22, ["learning"])],
+      [
         service("skill-session", "Skill session", 32, 50, 8, ["learning"]),
         service("mentor-hour", "Mentor hour", 48, 60, 5, ["learning"]),
       ],
-      actions: ["browse_products", "buy_product", "book_service", "request_quote", "inquire"],
-    },
-    {
-      id: "quiet-desk",
-      name: "Quiet Desk",
-      kind: "coworking",
-      x: 390,
-      y: 620,
-      seed: 97,
-      reputation: 78,
-      treasury: 830,
-      products: [product("day-pass", "Desk day pass", 18, 28, ["workspace"] )],
-      services: [
+      ["browse_products", "buy_product", "book_service", "request_quote", "inquire"],
+    ),
+    business(
+      "quiet-desk", "Quiet Desk", "coworking", 390, 620, 97, 78, 830,
+      [product("day-pass", "Desk day pass", 18, 28, ["workspace"])],
+      [
         service("focus-booth", "Focus booth", 12, 60, 9, ["workspace", "rest"]),
         service("meeting-room", "Meeting room", 34, 60, 5, ["workspace"]),
       ],
-      actions: ["browse_products", "check_stock", "buy_product", "book_service", "inquire"],
-    },
-    {
-      id: "loop-lab",
-      name: "Loop Lab",
-      kind: "automation",
-      x: 760,
-      y: 610,
-      seed: 109,
-      reputation: 89,
-      treasury: 1100,
-      products: [product("template-pack", "Workflow templates", 28, 16, ["automation", "digital"] )],
-      services: [
+      ["browse_products", "check_stock", "buy_product", "book_service", "inquire"],
+    ),
+    business(
+      "loop-lab", "Loop Lab", "automation", 760, 610, 109, 89, 1100,
+      [product("template-pack", "Workflow templates", 28, 16, ["automation", "digital"])],
+      [
         service("automation-audit", "Automation audit", 56, 70, 6, ["automation"]),
         service("small-workflow", "Small workflow", 118, 150, 4, ["automation"]),
       ],
-      actions: ["browse_products", "buy_product", "book_service", "request_quote", "inquire"],
-    },
+      ["browse_products", "buy_product", "book_service", "request_quote", "inquire"],
+    ),
   ];
 }
 
 function preferredKinds(index: number): CityBusinessKind[] {
-  const all: CityBusinessKind[] = [
-    "cafe",
-    "grocery",
-    "bakery",
-    "repair",
-    "design",
-    "print",
-    "courier",
-    "learning",
-    "coworking",
-    "automation",
-  ];
-  return [all[index % all.length], all[(index * 3 + 4) % all.length]];
+  return [ALL_KINDS[index % ALL_KINDS.length], ALL_KINDS[(index * 3 + 4) % ALL_KINDS.length]];
 }
 
 export function seedCityAgents(now = Date.now(), count = 100): CityAgent[] {
@@ -434,10 +350,9 @@ export function seedCityAgents(now = Date.now(), count = 100): CityAgent[] {
     const missionNeed = NEEDS[index % NEEDS.length];
     const x = 80 + random01(id + ":x") * 1040;
     const y = 75 + random01(id + ":y") * 610;
-    const name = NAMES[index % NAMES.length] + " " + String(Math.floor(index / NAMES.length) + 1);
     return {
       id,
-      name,
+      name: NAMES[index % NAMES.length] + " " + String(Math.floor(index / NAMES.length) + 1),
       ownerId: "resident-user-" + String(index + 1).padStart(3, "0"),
       ownerLabel: "Resident " + String(index + 1).padStart(3, "0"),
       avatar: AVATARS[index % AVATARS.length],
@@ -485,13 +400,12 @@ export function deriveAgentNeed(agent: CityAgent): CityNeed {
   return agent.missionNeed;
 }
 
-export function businessAveragePrice(business: CityBusiness) {
+export function businessAveragePrice(businessState: CityBusiness) {
   const prices = [
-    ...business.products.map((item) => item.price),
-    ...business.services.map((item) => item.price),
+    ...businessState.products.map((item) => item.price),
+    ...businessState.services.map((item) => item.price),
   ];
-  if (prices.length === 0) return 0;
-  return prices.reduce((total, value) => total + value, 0) / prices.length;
+  return prices.length === 0 ? 0 : prices.reduce((total, price) => total + price, 0) / prices.length;
 }
 
 export function chooseBusinessForAgent(
@@ -499,50 +413,42 @@ export function chooseBusinessForAgent(
   agent: CityAgent,
   need: CityNeed,
 ): CityBusiness | undefined {
-  const candidates = businesses.filter((business) => BUSINESS_NEEDS[business.kind].includes(need));
-  const pool = candidates.length > 0 ? candidates : businesses;
+  const matching = businesses.filter((candidate) => BUSINESS_NEEDS[candidate.kind].includes(need));
+  const pool = matching.length > 0 ? matching : businesses;
   return pool
-    .map((business) => {
-      const distance = Math.hypot(business.x - agent.x, business.y - agent.y);
-      const memory = agent.memory.find((entry) => entry.businessId === business.id);
-      const preference = agent.preferredKinds.includes(business.kind) ? 18 : 0;
-      const quality = business.reputation * (0.3 + agent.traits.quality * 0.7);
-      const thriftPenalty = businessAveragePrice(business) * agent.traits.thrift * 0.55;
+    .map((candidate) => {
+      const memory = agent.memory.find((entry) => entry.businessId === candidate.id);
+      const distance = Math.hypot(candidate.x - agent.x, candidate.y - agent.y);
+      const preference = agent.preferredKinds.includes(candidate.kind) ? 18 : 0;
+      const quality = candidate.reputation * (0.3 + agent.traits.quality * 0.7);
+      const thriftPenalty = businessAveragePrice(candidate) * agent.traits.thrift * 0.55;
       const distancePenalty = distance * (0.018 + (1 - agent.traits.patience) * 0.012);
       const familiarity = memory ? memory.satisfaction * 0.14 + Math.min(12, memory.visits * 1.6) : 0;
       const curiosity = memory ? 0 : agent.traits.curiosity * 9;
       return {
-        business,
+        business: candidate,
         score: preference + quality + familiarity + curiosity - thriftPenalty - distancePenalty,
       };
     })
-    .sort((a, b) => b.score - a.score)[0]?.business;
+    .sort((left, right) => right.score - left.score)[0]?.business;
 }
 
 export function needDialogue(need: CityNeed) {
   return NEED_LABEL[need];
 }
 
-export function listBusinessActions(business: CityBusiness) {
-  return business.actions.map((action) => ({
-    action,
-    label:
-      action === "browse_products"
-        ? "瀏覽商品"
-        : action === "check_stock"
-          ? "查看庫存"
-          : action === "buy_product"
-            ? "購買商品"
-            : action === "book_service"
-              ? "預約服務"
-              : action === "request_quote"
-                ? "取得報價"
-                : action === "sell_resource"
-                  ? "出售資源"
-                  : action === "deliver"
-                    ? "配送"
-                    : "詢問",
-  }));
+export function listBusinessActions(businessState: CityBusiness) {
+  const labels: Record<CityActionId, string> = {
+    browse_products: "瀏覽商品",
+    check_stock: "查看庫存",
+    buy_product: "購買商品",
+    book_service: "預約服務",
+    request_quote: "取得報價",
+    sell_resource: "出售資源",
+    deliver: "配送",
+    inquire: "詢問",
+  };
+  return businessState.actions.map((action) => ({ action, label: labels[action] }));
 }
 
 export function searchCityBusinesses(
@@ -550,67 +456,41 @@ export function searchCityBusinesses(
   query = "",
   kind?: CityBusinessKind,
 ) {
-  const clean = query.trim().toLowerCase();
+  const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
   return state.businesses
-    .filter((business) => !kind || business.kind === kind)
-    .filter((business) => {
-      if (!clean) return true;
+    .filter((candidate) => !kind || candidate.kind === kind)
+    .filter((candidate) => {
+      if (terms.length === 0) return true;
       const haystack = [
-        business.name,
-        business.kind,
-        ...business.products.flatMap((item) => [item.name, ...item.tags]),
-        ...business.services.flatMap((item) => [item.name, ...item.tags]),
+        candidate.name,
+        candidate.kind,
+        ...candidate.products.flatMap((item) => [item.name, ...item.tags]),
+        ...candidate.services.flatMap((item) => [item.name, ...item.tags]),
       ]
         .join(" ")
         .toLowerCase();
-      return clean.split(/\s+/).every((term) => haystack.includes(term));
+      return terms.every((term) => haystack.includes(term));
     })
-    .map((business) => ({
-      id: business.id,
-      name: business.name,
-      kind: business.kind,
-      reputation: business.reputation,
-      x: business.x,
-      y: business.y,
-      products: business.products.length,
-      services: business.services.length,
-      actions: business.actions,
+    .map((candidate) => ({
+      id: candidate.id,
+      name: candidate.name,
+      kind: candidate.kind,
+      reputation: candidate.reputation,
+      x: candidate.x,
+      y: candidate.y,
+      products: candidate.products.length,
+      services: candidate.services.length,
+      actions: candidate.actions,
     }));
-}
-
-function transactionId(now: number, agentId: string, businessId: string) {
-  return "city-tx-" + now.toString(36) + "-" + hash(agentId + businessId + String(now)).toString(36);
-}
-
-function updateAgentMemory(
-  agent: CityAgent,
-  business: CityBusiness,
-  spent: number,
-  satisfaction: number,
-) {
-  const existing = agent.memory.find((entry) => entry.businessId === business.id);
-  if (existing) {
-    existing.visits += 1;
-    existing.spent += spent;
-    existing.satisfaction = clamp((existing.satisfaction * 0.72) + satisfaction * 0.28, 0, 100);
-  } else {
-    agent.memory.push({
-      businessId: business.id,
-      visits: 1,
-      spent,
-      satisfaction,
-    });
-    agent.memory = agent.memory.slice(-8);
-  }
 }
 
 function cloneState(state: LatentCityState): LatentCityState {
   return {
     ...state,
-    businesses: state.businesses.map((business) => ({
-      ...business,
-      products: business.products.map((item) => ({ ...item })),
-      services: business.services.map((item) => ({ ...item })),
+    businesses: state.businesses.map((candidate) => ({
+      ...candidate,
+      products: candidate.products.map((item) => ({ ...item })),
+      services: candidate.services.map((item) => ({ ...item })),
     })),
     agents: state.agents.map((agent) => ({
       ...agent,
@@ -624,6 +504,22 @@ function cloneState(state: LatentCityState): LatentCityState {
   };
 }
 
+function remember(agent: CityAgent, businessState: CityBusiness, spent: number, satisfaction: number) {
+  const existing = agent.memory.find((entry) => entry.businessId === businessState.id);
+  if (existing) {
+    existing.visits += 1;
+    existing.spent += spent;
+    existing.satisfaction = clamp(existing.satisfaction * 0.72 + satisfaction * 0.28, 0, 100);
+    return;
+  }
+  agent.memory.push({ businessId: businessState.id, visits: 1, spent, satisfaction });
+  agent.memory = agent.memory.slice(-8);
+}
+
+function txId(now: number, agentId: string, businessId: string) {
+  return "city-tx-" + now.toString(36) + "-" + hash(agentId + businessId + String(now)).toString(36);
+}
+
 export function executeCityAction(
   state: LatentCityState,
   input: CityActionInput,
@@ -631,9 +527,9 @@ export function executeCityAction(
 ): CityActionResult {
   const next = cloneState(state);
   next.worldTime = now;
-  const business = next.businesses.find((candidate) => candidate.id === input.businessId);
-  if (!business) return { ok: false, state, summary: "Business not found." };
-  if (!business.actions.includes(input.action)) {
+  const businessState = next.businesses.find((candidate) => candidate.id === input.businessId);
+  if (!businessState) return { ok: false, state, summary: "Business not found." };
+  if (!businessState.actions.includes(input.action)) {
     return { ok: false, state, summary: "Action is not available at this business." };
   }
 
@@ -641,36 +537,35 @@ export function executeCityAction(
     ? next.agents.find((candidate) => candidate.id === input.agentId)
     : undefined;
   const payerCredits = agent?.wallet ?? next.externalCredits;
-  const ownerId = agent?.ownerId ?? "webmcp-user";
-  const agentId = agent?.id ?? "your-agent";
   const quantity = clamp(Math.floor(input.quantity ?? 1), 1, 8);
 
   if (input.action === "browse_products") {
     return {
       ok: true,
       state: next,
-      summary: business.name + " has " + String(business.products.length) + " products and " + String(business.services.length) + " services.",
+      summary:
+        businessState.name + " has " + String(businessState.products.length) +
+        " products and " + String(businessState.services.length) + " services.",
     };
   }
-
   if (input.action === "check_stock") {
-    const stock = business.products.reduce((total, item) => total + item.stock, 0);
+    const stock = businessState.products.reduce((total, item) => total + item.stock, 0);
     return { ok: true, state: next, summary: "Stock checked.", stock };
   }
-
   if (input.action === "request_quote") {
-    const item = business.services.find((candidate) => candidate.id === input.itemId) ?? business.services[0];
-    const productItem = business.products.find((candidate) => candidate.id === input.itemId) ?? business.products[0];
-    const base = item?.price ?? productItem?.price ?? businessAveragePrice(business) || 10;
-    const quote = Math.round(base * (0.94 + business.reputation / 1000) * quantity);
-    return { ok: true, state: next, summary: "Quote prepared by " + business.name + ".", quote };
+    const serviceItem =
+      businessState.services.find((candidate) => candidate.id === input.itemId) ?? businessState.services[0];
+    const productItem =
+      businessState.products.find((candidate) => candidate.id === input.itemId) ?? businessState.products[0];
+    const base = serviceItem?.price ?? productItem?.price ?? (businessAveragePrice(businessState) || 10);
+    const quote = Math.round(base * (0.94 + businessState.reputation / 1000) * quantity);
+    return { ok: true, state: next, summary: "Quote prepared by " + businessState.name + ".", quote };
   }
-
   if (input.action === "inquire") {
     return {
       ok: true,
       state: next,
-      summary: business.name + " answered the enquiry" + (input.note ? ": " + input.note : "."),
+      summary: businessState.name + " answered the enquiry" + (input.note ? ": " + input.note : "."),
     };
   }
 
@@ -679,13 +574,15 @@ export function executeCityAction(
   let itemId = input.itemId;
 
   if (input.action === "buy_product") {
-    const item = business.products.find((candidate) => candidate.id === input.itemId) ?? business.products.find((candidate) => candidate.stock > 0);
+    const item =
+      businessState.products.find((candidate) => candidate.id === input.itemId) ??
+      businessState.products.find((candidate) => candidate.stock > 0);
     if (!item) return { ok: false, state, summary: "No product is available." };
     if (item.stock < quantity) return { ok: false, state, summary: "Not enough stock." };
     credits = item.price * quantity;
     if (payerCredits < credits) return { ok: false, state, summary: "Not enough credits." };
     item.stock -= quantity;
-    business.treasury += credits;
+    businessState.treasury += credits;
     if (agent) {
       agent.wallet -= credits;
       agent.inventory[item.id] = (agent.inventory[item.id] ?? 0) + quantity;
@@ -697,15 +594,17 @@ export function executeCityAction(
       next.externalCredits -= credits;
     }
     itemId = item.id;
-    summary = "Bought " + String(quantity) + " × " + item.name + " from " + business.name + ".";
+    summary = "Bought " + String(quantity) + " × " + item.name + " from " + businessState.name + ".";
   } else if (input.action === "book_service") {
-    const item = business.services.find((candidate) => candidate.id === input.itemId) ?? business.services.find((candidate) => candidate.slots > 0);
+    const item =
+      businessState.services.find((candidate) => candidate.id === input.itemId) ??
+      businessState.services.find((candidate) => candidate.slots > 0);
     if (!item) return { ok: false, state, summary: "No service slot is available." };
     if (item.slots <= 0) return { ok: false, state, summary: "Service is fully booked." };
     credits = item.price;
     if (payerCredits < credits) return { ok: false, state, summary: "Not enough credits." };
     item.slots -= 1;
-    business.treasury += credits;
+    businessState.treasury += credits;
     if (agent) {
       agent.wallet -= credits;
       agent.energy = clamp(agent.energy - 3, 0, 100);
@@ -713,39 +612,39 @@ export function executeCityAction(
       next.externalCredits -= credits;
     }
     itemId = item.id;
-    summary = "Booked " + item.name + " at " + business.name + ".";
+    summary = "Booked " + item.name + " at " + businessState.name + ".";
   } else if (input.action === "sell_resource") {
     if (!agent) return { ok: false, state, summary: "An agent is required to sell resources." };
-    if (agent.resources < quantity) return { ok: false, state, summary: "Agent does not have enough resources." };
-    credits = Math.min(business.treasury, quantity * 8);
+    if (agent.resources < quantity) return { ok: false, state, summary: "Agent lacks resources." };
+    credits = Math.min(businessState.treasury, quantity * 8);
     if (credits <= 0) return { ok: false, state, summary: "Business cannot buy resources now." };
     agent.resources -= quantity;
     agent.wallet += credits;
-    business.treasury -= credits;
-    summary = "Sold " + String(quantity) + " resource units to " + business.name + ".";
+    businessState.treasury -= credits;
+    summary = "Sold " + String(quantity) + " resource units to " + businessState.name + ".";
   } else if (input.action === "deliver") {
     if (!agent) return { ok: false, state, summary: "An agent is required for delivery work." };
-    credits = Math.min(7, business.treasury);
-    business.treasury -= credits;
+    credits = Math.min(7, businessState.treasury);
+    businessState.treasury -= credits;
     agent.wallet += credits;
     agent.energy = clamp(agent.energy - 6, 0, 100);
-    summary = "Completed a delivery for " + business.name + ".";
+    summary = "Completed a delivery for " + businessState.name + ".";
   }
 
   const satisfaction = clamp(
-    business.reputation * 0.72 + (agent ? agent.traits.quality * 18 : 8) - credits * 0.035,
+    businessState.reputation * 0.72 + (agent ? agent.traits.quality * 18 : 8) - credits * 0.035,
     35,
     100,
   );
-  if (agent) updateAgentMemory(agent, business, Math.max(0, credits), satisfaction);
-  business.reputation = clamp(business.reputation + (satisfaction - 70) * 0.004, 45, 98);
+  if (agent) remember(agent, businessState, Math.max(0, credits), satisfaction);
+  businessState.reputation = clamp(businessState.reputation + (satisfaction - 70) * 0.004, 45, 98);
   next.transactions = [
     {
-      id: transactionId(now, agentId, business.id),
+      id: txId(now, agent?.id ?? "your-agent", businessState.id),
       at: now,
-      agentId,
-      ownerId,
-      businessId: business.id,
+      agentId: agent?.id ?? "your-agent",
+      ownerId: agent?.ownerId ?? "webmcp-user",
+      businessId: businessState.id,
       action: input.action,
       itemId,
       quantity,
@@ -761,14 +660,14 @@ export function executeCityAction(
 export function restoreCitySupply(state: LatentCityState, now = Date.now()) {
   const next = cloneState(state);
   next.worldTime = now;
-  next.businesses.forEach((business) => {
-    business.products.forEach((item) => {
+  for (const businessState of next.businesses) {
+    for (const item of businessState.products) {
       if (item.stock < item.maxStock) item.stock = Math.min(item.maxStock, item.stock + 1);
-    });
-    business.services.forEach((item) => {
+    }
+    for (const item of businessState.services) {
       if (item.slots < item.maxSlots) item.slots = Math.min(item.maxSlots, item.slots + 1);
-    });
-  });
+    }
+  }
   return next;
 }
 
