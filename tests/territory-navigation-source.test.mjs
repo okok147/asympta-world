@@ -21,6 +21,23 @@ test("ships a second selectable territory that Your Agent crosses through the Ea
   assert.match(template, /<TerritoryNavigationRuntime \/>/);
 });
 
+test("asks for explicit confirmation before crossing into another territory", async () => {
+  const [confirmation, template] = await Promise.all([
+    readFile(path.join(root, "components/territory-confirmation-runtime.tsx"), "utf8"),
+    readFile(path.join(root, "app/template.tsx"), "utf8"),
+  ]);
+  assert.match(confirmation, /\.territory-marker/);
+  assert.match(confirmation, /event\.stopImmediatePropagation\(\)/);
+  assert.match(confirmation, /data-territory-confirmed-once/);
+  assert.match(confirmation, /Go to this territory\?/);
+  assert.match(confirmation, />STAY</);
+  assert.match(confirmation, />GO </);
+  assert.match(confirmation, /marker\.click\(\)/);
+  assert.match(confirmation, /Escape/);
+  assert.match(template, /<TerritoryConfirmationRuntime \/>/);
+  assert.ok(template.indexOf("<TerritoryConfirmationRuntime />") > template.indexOf("<TerritoryNavigationRuntime />"));
+});
+
 test("the neighbour territory is not empty and uses normal Earth evidence and place processing", async () => {
   const territory = await readFile(path.join(root, "components/territory-navigation-runtime.tsx"), "utf8");
   assert.match(territory, /Neighbour Commons/);
