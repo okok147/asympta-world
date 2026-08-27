@@ -31,6 +31,7 @@ import { SemanticDialogueLabels } from "@/components/semantic-dialogue-labels";
 import { StarterDistrictIntegration } from "@/components/starter-district-integration";
 import { TaskCelebrationRuntime } from "@/components/task-celebration-runtime";
 import { TaskProcessRuntime } from "@/components/task-process-runtime";
+import { TerritoryAtlasRuntime } from "@/components/territory-atlas-runtime";
 import { TerritoryConfirmationRuntime } from "@/components/territory-confirmation-runtime";
 import { TerritoryNavigationRuntime } from "@/components/territory-navigation-runtime";
 import { UserAgentAura } from "@/components/user-agent-aura";
@@ -72,6 +73,7 @@ export default function WorldTemplate({ children }: { children: ReactNode }) {
       <StarterDistrictIntegration />
       <GeoAgentPresenceRuntime />
       <MarketTrajectoryRuntime />
+      <TerritoryAtlasRuntime />
       <CommunityDiscoveryBuilderRuntime />
       <DiscoveryPlaceGrowthRuntime />
       <TerritoryNavigationRuntime />
