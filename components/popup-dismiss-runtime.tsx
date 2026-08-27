@@ -16,6 +16,19 @@ const EMPTY_TARGETS: PopupTargets = {
   scenario: null,
 };
 
+const CLOSE_SELECTOR = [
+  '[data-asympta-runtime-close="true"]',
+  '[data-slot="sheet-close"]',
+  'button[aria-label^="Close"]',
+  'button[aria-label^="Cancel"]',
+  ".earth-close",
+  ".community-close",
+  ".city-inspector-close",
+  ".discovery-close",
+  ".territory-confirm-close",
+  ".agent-task-close",
+].join(", ");
+
 function isVisible(node: HTMLElement) {
   const style = window.getComputedStyle(node);
   const rect = node.getBoundingClientRect();
@@ -153,9 +166,7 @@ export function PopupDismissRuntime() {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       const candidates = Array.from(
-        document.querySelectorAll<HTMLButtonElement>(
-          '[data-asympta-runtime-close="true"], [data-slot="sheet-close"], button[aria-label^="Close"], button[aria-label^="Cancel"]',
-        ),
+        document.querySelectorAll<HTMLButtonElement>(CLOSE_SELECTOR),
       ).filter((button) => isVisible(button));
       if (!candidates.length) return;
       candidates.sort((left, right) => ancestorZIndex(right) - ancestorZIndex(left));
