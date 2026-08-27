@@ -80,7 +80,7 @@ function placeNode(name: string) {
 
 function refreshDirectoryLabels(total: number, extraVisible: number) {
   const button = document.querySelector<HTMLElement>(".places-directory-button span");
-  if (button) button.textContent = `Places · ${total}`;
+  if (button) button.dataset.totalPlaces = String(total);
   const summary = document.querySelector<HTMLElement>(".places-summary span:first-child");
   if (summary) {
     const base = Number.parseInt(summary.textContent ?? "0", 10) || 0;
@@ -166,6 +166,8 @@ export function DiscoveryPlaceGrowthRuntime() {
 
   return <>
     <style>{`
+      .places-directory-button span[data-total-places]{font-size:0!important}
+      .places-directory-button span[data-total-places]::after{content:"Places · " attr(data-total-places);font-family:var(--pixel-font);font-size:.31rem;letter-spacing:.035em}
       .discovery-directory-divider{grid-column:1/-1;margin:5px 3px 1px;padding-top:5px;border-top:1px solid rgba(111,124,114,.1);color:#879087;font-family:var(--pixel-font);font-size:.27rem;letter-spacing:.05em;text-transform:uppercase}
       .place-row.is-earth-discovered{border-color:rgba(115,149,107,.09);background:rgba(115,149,107,.035)}
       .place-row.is-earth-discovered .place-row-icon{background:rgba(115,149,107,.08);color:#6c8d62}
