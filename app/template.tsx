@@ -18,6 +18,7 @@ import { MissionSocietyRuntime } from "@/components/mission-society-runtime";
 import { PersistentUserAgentPresence } from "@/components/persistent-user-agent-presence";
 import { RealWorldPacingRuntime } from "@/components/real-world-pacing-runtime";
 import { SemanticDialogueLabels } from "@/components/semantic-dialogue-labels";
+import { StarterDistrictIntegration } from "@/components/starter-district-integration";
 import { TaskProcessRuntime } from "@/components/task-process-runtime";
 import { UserAgentAura } from "@/components/user-agent-aura";
 import { WebMcpScenarioRuntime } from "@/components/webmcp-scenario-runtime";
@@ -46,6 +47,7 @@ export default function WorldTemplate({ children }: { children: ReactNode }) {
       <SemanticDialogueLabels />
       <AsymptaPerceptionSystem />
       <ClientEarthSharedWorld />
+      <StarterDistrictIntegration />
       {children}
     </>
   );
