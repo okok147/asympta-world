@@ -630,7 +630,8 @@ export function TaskProcessRuntime() {
           Math.max(0, record.stages.length - 1),
         );
         let recentDelta = record.recentDelta;
-        let awardedSubtaskIds = [...record.awardedSubtaskIds];
+        if (recentDelta && recentDelta.until < now) recentDelta = undefined;
+        const awardedSubtaskIds = [...record.awardedSubtaskIds];
 
         mission.subtasks.forEach((subtask, index) => {
           if (subtask.status !== "completed" || awardedSubtaskIds.includes(subtask.id)) return;
@@ -797,10 +798,7 @@ export function TaskProcessRuntime() {
   const activeStage = activeRecord
     ? activeRecord.stages[Math.min(activeRecord.currentStageIndex, activeRecord.stages.length - 1)]
     : undefined;
-  const recentDelta =
-    activeRecord?.recentDelta && activeRecord.recentDelta.until >= Date.now()
-      ? activeRecord.recentDelta.label
-      : undefined;
+  const recentDelta = activeRecord?.recentDelta?.label;
 
   return (
     <>
