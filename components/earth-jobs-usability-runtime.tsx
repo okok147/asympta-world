@@ -98,8 +98,8 @@ export function EarthJobsUsabilityRuntime() {
       }
 
       .earth-panel[data-earth-jobs-panel="true"] .earth-list {
-        max-height: min(230px, 34svh) !important;
-        overscroll-behavior: contain;
+        max-height: min(190px, 28svh) !important;
+        overscroll-behavior-y: auto !important;
         touch-action: pan-y !important;
       }
 
