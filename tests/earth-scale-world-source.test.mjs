@@ -27,7 +27,7 @@ test("builds a planet-scale blank geolocation substrate from virtualized communi
   assert.match(runtime, /data-earth-world/);
   assert.match(runtime, /\.latent-city-layer/);
   assert.match(runtime, /\.community-layer/);
-  assert.match(template, /<EarthScaleWorldRuntime \/>/);
+  assert.match(template, /<ClientEarthSharedWorld \/>/);
 });
 
 test("rewards people for uploading local store information and brightens places as information improves", async () => {
