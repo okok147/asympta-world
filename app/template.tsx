@@ -1,11 +1,13 @@
 import type { ReactNode } from "react";
 
-import { BusinessWorldRuntime } from "@/components/business-world-runtime";
+import { BusinessWorkflowRuntime } from "@/components/business-workflow-runtime";
+import { ContinuousAgentMotion } from "@/components/continuous-agent-motion";
 
 export default function WorldTemplate({ children }: { children: ReactNode }) {
   return (
     <>
-      <BusinessWorldRuntime />
+      <ContinuousAgentMotion />
+      <BusinessWorkflowRuntime />
       {children}
     </>
   );
