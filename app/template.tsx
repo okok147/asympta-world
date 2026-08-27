@@ -7,6 +7,7 @@ import { ContinuousAgentMotion } from "@/components/continuous-agent-motion";
 import { LatentCityRuntime } from "@/components/latent-city-runtime";
 import { MinimalWorldPresentation } from "@/components/minimal-world-presentation";
 import { MissionSocietyRuntime } from "@/components/mission-society-runtime";
+import { SemanticDialogueLabels } from "@/components/semantic-dialogue-labels";
 import { UserAgentAura } from "@/components/user-agent-aura";
 
 export default function WorldTemplate({ children }: { children: ReactNode }) {
@@ -20,6 +21,7 @@ export default function WorldTemplate({ children }: { children: ReactNode }) {
       <BusinessWorkflowRuntime />
       <MissionSocietyRuntime />
       <AgentTaskMenu />
+      <SemanticDialogueLabels />
       {children}
     </>
   );
