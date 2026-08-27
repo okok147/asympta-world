@@ -9,64 +9,62 @@ function isJobsPanel(panel: HTMLElement) {
   return panel.querySelector("header strong")?.textContent?.trim() === "Opportunity Mode";
 }
 
-function markPanels() {
-  document.querySelectorAll<HTMLElement>(PANEL_SELECTOR).forEach((panel) => {
-    if (isJobsPanel(panel)) panel.setAttribute(JOBS_ATTRIBUTE, "true");
-    else panel.removeAttribute(JOBS_ATTRIBUTE);
-  });
-}
-
 /**
- * Earth panels are rendered inside the draggable/zoomable world viewport.
- * The viewport intentionally consumes pointer and wheel input, but a long jobs
- * panel must behave like a normal scroll surface. Stop those gestures at the
- * panel boundary so they never become canvas pan/zoom gestures.
+ * Earth panels live inside a draggable / zoomable viewport. A long jobs panel
+ * must keep its own scroll and controls without leaking those gestures into the
+ * world canvas. Bind at the panel itself so inputs/buttons still receive their
+ * native pointer events before propagation stops.
  */
 export function EarthJobsUsabilityRuntime() {
   useEffect(() => {
-    const stopWorldGesture = (event: Event) => {
-      const target = event.target as HTMLElement | null;
-      const panel = target?.closest<HTMLElement>(`[${JOBS_ATTRIBUTE}="true"]`);
-      if (!panel) return;
-      event.stopPropagation();
+    const boundPanels = new Set<HTMLElement>();
+    const stopWorldGesture = (event: Event) => event.stopPropagation();
+    const stopWorldWheel = (event: WheelEvent) => event.stopPropagation();
+
+    const bindPanel = (panel: HTMLElement) => {
+      if (boundPanels.has(panel)) return;
+      boundPanels.add(panel);
+      panel.setAttribute(JOBS_ATTRIBUTE, "true");
+      panel.addEventListener("pointerdown", stopWorldGesture);
+      panel.addEventListener("pointermove", stopWorldGesture);
+      panel.addEventListener("pointerup", stopWorldGesture);
+      panel.addEventListener("pointercancel", stopWorldGesture);
+      panel.addEventListener("wheel", stopWorldWheel, { passive: true });
+      panel.addEventListener("touchstart", stopWorldGesture, { passive: true });
+      panel.addEventListener("touchmove", stopWorldGesture, { passive: true });
     };
 
-    const onWheel = (event: WheelEvent) => {
-      const target = event.target as HTMLElement | null;
-      const panel = target?.closest<HTMLElement>(`[${JOBS_ATTRIBUTE}="true"]`);
-      if (!panel) return;
-
-      // Let the panel consume the wheel naturally. Only stop propagation so
-      // HomePage.onWheel cannot reinterpret it as world zoom.
-      event.stopPropagation();
+    const unbindPanel = (panel: HTMLElement) => {
+      panel.removeAttribute(JOBS_ATTRIBUTE);
+      panel.removeEventListener("pointerdown", stopWorldGesture);
+      panel.removeEventListener("pointermove", stopWorldGesture);
+      panel.removeEventListener("pointerup", stopWorldGesture);
+      panel.removeEventListener("pointercancel", stopWorldGesture);
+      panel.removeEventListener("wheel", stopWorldWheel);
+      panel.removeEventListener("touchstart", stopWorldGesture);
+      panel.removeEventListener("touchmove", stopWorldGesture);
+      boundPanels.delete(panel);
     };
 
-    const scan = () => markPanels();
+    const scan = () => {
+      const livePanels = new Set(
+        Array.from(document.querySelectorAll<HTMLElement>(PANEL_SELECTOR)).filter(isJobsPanel),
+      );
+
+      livePanels.forEach(bindPanel);
+      Array.from(boundPanels).forEach((panel) => {
+        if (!panel.isConnected || !livePanels.has(panel)) unbindPanel(panel);
+      });
+    };
+
     const first = window.setTimeout(scan, 0);
     const observer = new MutationObserver(scan);
     observer.observe(document.body, { childList: true, subtree: true });
 
-    document.addEventListener("pointerdown", stopWorldGesture, true);
-    document.addEventListener("pointermove", stopWorldGesture, true);
-    document.addEventListener("pointerup", stopWorldGesture, true);
-    document.addEventListener("pointercancel", stopWorldGesture, true);
-    document.addEventListener("wheel", onWheel, { capture: true, passive: true });
-    document.addEventListener("touchstart", stopWorldGesture, { capture: true, passive: true });
-    document.addEventListener("touchmove", stopWorldGesture, { capture: true, passive: true });
-
     return () => {
       window.clearTimeout(first);
       observer.disconnect();
-      document.removeEventListener("pointerdown", stopWorldGesture, true);
-      document.removeEventListener("pointermove", stopWorldGesture, true);
-      document.removeEventListener("pointerup", stopWorldGesture, true);
-      document.removeEventListener("pointercancel", stopWorldGesture, true);
-      document.removeEventListener("wheel", onWheel, true);
-      document.removeEventListener("touchstart", stopWorldGesture, true);
-      document.removeEventListener("touchmove", stopWorldGesture, true);
-      document
-        .querySelectorAll<HTMLElement>(`[${JOBS_ATTRIBUTE}="true"]`)
-        .forEach((panel) => panel.removeAttribute(JOBS_ATTRIBUTE));
+      Array.from(boundPanels).forEach(unbindPanel);
     };
   }, []);
 
@@ -110,7 +108,16 @@ export function EarthJobsUsabilityRuntime() {
       .earth-panel[data-earth-jobs-panel="true"] textarea,
       .earth-panel[data-earth-jobs-panel="true"] select {
         pointer-events: auto !important;
+      }
+
+      .earth-panel[data-earth-jobs-panel="true"] button {
         touch-action: manipulation;
+      }
+
+      .earth-panel[data-earth-jobs-panel="true"] input,
+      .earth-panel[data-earth-jobs-panel="true"] textarea,
+      .earth-panel[data-earth-jobs-panel="true"] select {
+        touch-action: auto;
       }
 
       .earth-panel[data-earth-jobs-panel="true"] .earth-action {
