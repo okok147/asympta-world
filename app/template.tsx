@@ -13,6 +13,7 @@ import { CommunityDiscoveryBuilderRuntime } from "@/components/community-discove
 import { CommunityStoreFounderRuntime } from "@/components/community-store-founder-runtime";
 import { CommunityV2Runtime } from "@/components/community-v2-runtime";
 import { ContinuousAgentMotion } from "@/components/continuous-agent-motion";
+import { DiscoveryPlaceGrowthRuntime } from "@/components/discovery-place-growth-runtime";
 import { LatentCityRuntime } from "@/components/latent-city-runtime";
 import { MinimalWorldPresentation } from "@/components/minimal-world-presentation";
 import { MissionSocietyRuntime } from "@/components/mission-society-runtime";
@@ -22,6 +23,7 @@ import { SemanticDialogueLabels } from "@/components/semantic-dialogue-labels";
 import { StarterDistrictIntegration } from "@/components/starter-district-integration";
 import { TaskProcessRuntime } from "@/components/task-process-runtime";
 import { UserAgentAura } from "@/components/user-agent-aura";
+import { WebMcpComparisonRouterRuntime } from "@/components/webmcp-comparison-router-runtime";
 import { WebMcpScenarioRuntime } from "@/components/webmcp-scenario-runtime";
 
 export default function WorldTemplate({ children }: { children: ReactNode }) {
@@ -42,6 +44,7 @@ export default function WorldTemplate({ children }: { children: ReactNode }) {
       <ClientUnifiedAgentInterface />
       <TaskProcessRuntime />
       <AgentSpatialInteractionRuntime />
+      <WebMcpComparisonRouterRuntime />
       <RealWorldPacingRuntime />
       <AgentShoppingRouterRuntime />
       <WebMcpScenarioRuntime />
@@ -50,6 +53,7 @@ export default function WorldTemplate({ children }: { children: ReactNode }) {
       <ClientEarthSharedWorld />
       <StarterDistrictIntegration />
       <CommunityDiscoveryBuilderRuntime />
+      <DiscoveryPlaceGrowthRuntime />
       {children}
     </>
   );
