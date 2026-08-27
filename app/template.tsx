@@ -17,6 +17,7 @@ import { DiscoveryPlaceGrowthRuntime } from "@/components/discovery-place-growth
 import { LatentCityRuntime } from "@/components/latent-city-runtime";
 import { MinimalWorldPresentation } from "@/components/minimal-world-presentation";
 import { MissionSocietyRuntime } from "@/components/mission-society-runtime";
+import { MobilePinchZoomRuntime } from "@/components/mobile-pinch-zoom-runtime";
 import { PersistentUserAgentPresence } from "@/components/persistent-user-agent-presence";
 import { RealWorldPacingRuntime } from "@/components/real-world-pacing-runtime";
 import { SemanticDialogueLabels } from "@/components/semantic-dialogue-labels";
@@ -50,6 +51,7 @@ export default function WorldTemplate({ children }: { children: ReactNode }) {
       <AgentShoppingRouterRuntime />
       <WebMcpScenarioRuntime />
       <SemanticDialogueLabels />
+      <MobilePinchZoomRuntime />
       <AsymptaPerceptionSystem />
       <ClientEarthSharedWorld />
       <StarterDistrictIntegration />
