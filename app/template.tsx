@@ -25,6 +25,7 @@ import { ScenarioInputCleanupRuntime } from "@/components/scenario-input-cleanup
 import { SemanticDialogueLabels } from "@/components/semantic-dialogue-labels";
 import { StarterDistrictIntegration } from "@/components/starter-district-integration";
 import { TaskProcessRuntime } from "@/components/task-process-runtime";
+import { TerritoryConfirmationRuntime } from "@/components/territory-confirmation-runtime";
 import { TerritoryNavigationRuntime } from "@/components/territory-navigation-runtime";
 import { UserAgentAura } from "@/components/user-agent-aura";
 import { WebMcpComparisonRouterRuntime } from "@/components/webmcp-comparison-router-runtime";
@@ -62,6 +63,7 @@ export default function WorldTemplate({ children }: { children: ReactNode }) {
       <CommunityDiscoveryBuilderRuntime />
       <DiscoveryPlaceGrowthRuntime />
       <TerritoryNavigationRuntime />
+      <TerritoryConfirmationRuntime />
       {children}
     </>
   );
