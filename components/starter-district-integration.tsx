@@ -12,7 +12,7 @@ type EarthSnapshot = {
 };
 
 type DistrictMode = "preview" | "active" | "away";
-type OverlayMode = "none" | "places" | "earth" | "agent" | "inspector";
+type OverlayMode = "none" | "places" | "earth" | "discovery" | "agent" | "inspector";
 
 function readEarth(): EarthSnapshot | null {
   try {
@@ -52,6 +52,7 @@ function syncStarterDistrict() {
 }
 
 function detectOverlay(): OverlayMode {
+  if (document.querySelector(".discovery-builder-panel")) return "discovery";
   if (document.querySelector(".earth-panel")) return "earth";
   if (document.querySelector(".places-directory-panel")) return "places";
   if (document.querySelector(".agent-task-panel")) return "agent";
@@ -88,31 +89,21 @@ export function StarterDistrictIntegration() {
       html[data-earth-world="true"][data-starter-district="preview"] .latent-city-layer,
       html[data-earth-world="true"][data-starter-district="active"] .latent-city-layer,
       html[data-earth-world="true"][data-starter-district="preview"] .community-layer,
-      html[data-earth-world="true"][data-starter-district="active"] .community-layer {
-        display:block!important;
-      }
+      html[data-earth-world="true"][data-starter-district="active"] .community-layer { display:block!important; }
       html[data-earth-world="true"][data-starter-district="preview"] .route-market-store,
       html[data-earth-world="true"][data-starter-district="active"] .route-market-store,
       html[data-earth-world="true"][data-starter-district="preview"] .community-founded-place,
-      html[data-earth-world="true"][data-starter-district="active"] .community-founded-place {
-        display:block!important;
-      }
+      html[data-earth-world="true"][data-starter-district="active"] .community-founded-place { display:block!important; }
       html[data-earth-world="true"][data-starter-district="preview"] .world-agent:not(.mission-user-agent),
-      html[data-earth-world="true"][data-starter-district="active"] .world-agent:not(.mission-user-agent) {
-        display:grid!important;
-      }
+      html[data-earth-world="true"][data-starter-district="active"] .world-agent:not(.mission-user-agent) { display:grid!important; }
       html[data-earth-world="true"][data-starter-district="preview"] .places-directory-control,
-      html[data-earth-world="true"][data-starter-district="active"] .places-directory-control {
-        display:grid!important;
-      }
+      html[data-earth-world="true"][data-starter-district="active"] .places-directory-control { display:grid!important; }
       html[data-earth-world="true"][data-starter-district="away"] .latent-city-layer,
       html[data-earth-world="true"][data-starter-district="away"] .community-layer,
       html[data-earth-world="true"][data-starter-district="away"] .route-market-store,
       html[data-earth-world="true"][data-starter-district="away"] .community-founded-place,
       html[data-earth-world="true"][data-starter-district="away"] .world-agent:not(.mission-user-agent),
-      html[data-earth-world="true"][data-starter-district="away"] .places-directory-control {
-        display:none!important;
-      }
+      html[data-earth-world="true"][data-starter-district="away"] .places-directory-control { display:none!important; }
 
       /* No fake road network in Earth mode. Places exist; imported/default routes do not. */
       html[data-earth-world="true"] .latent-city-streets { display:none!important; }
@@ -120,128 +111,25 @@ export function StarterDistrictIntegration() {
       html[data-earth-world="true"][data-starter-district="active"] .earth-cell.is-center .earth-cell-empty { display:none!important; }
       html[data-earth-world="true"][data-starter-district="preview"] .earth-cell.is-center::after,
       html[data-earth-world="true"][data-starter-district="active"] .earth-cell.is-center::after {
-        content:"STARTER DISTRICT";
-        position:absolute;
-        right:9px;
-        top:8px;
-        color:rgba(92,111,99,.35);
-        font-family:var(--pixel-font);
-        font-size:.27rem;
-        letter-spacing:.05em;
+        content:"STARTER DISTRICT"; position:absolute; right:9px; top:8px; color:rgba(92,111,99,.35); font-family:var(--pixel-font); font-size:.27rem; letter-spacing:.05em;
       }
 
-      /* Resident agents are readable animals, not 9px dust. Perception still scales them down at distance. */
-      .city-agent,.community-agent {
-        width:20px!important;
-        height:20px!important;
-      }
+      /* Full kawaii badge residents. Perception scales the art at distance; the base renderer is never a dust-dot. */
+      .city-agent,.community-agent { width:30px!important; height:30px!important; }
       .city-agent-body,.community-agent-body {
-        inset:2px!important;
-        border-width:1px!important;
-        box-shadow:0 0 0 2px rgba(79,98,86,.035);
+        inset:0!important; border:0!important; border-radius:50%!important; box-shadow:none!important;
+        background-color:transparent!important; background-image:var(--animal-badge-image)!important; background-position:center!important; background-repeat:no-repeat!important; background-size:contain!important;
       }
-      .city-agent-thought,.community-agent-thought {
-        left:15px!important;
-        bottom:20px!important;
-      }
-      .city-agent[data-animal-id] .city-agent-body::before,
-      .community-agent[data-animal-id] .community-agent-body::before {
-        left:1px!important;
-        top:-5px!important;
-        width:5px!important;
-        height:5px!important;
-        border-radius:2px 2px 0 0!important;
-        background:var(--animal-dark,#59645c)!important;
-        box-shadow:8px 0 var(--animal-dark,#59645c)!important;
-        opacity:.94!important;
-      }
-      .city-agent[data-animal-family="round"] .city-agent-body::before,
-      .community-agent[data-animal-family="round"] .community-agent-body::before {
-        top:-2px!important;
-        border-radius:50%!important;
-        opacity:.58!important;
-      }
-      .city-agent[data-animal-family="long-ear"] .city-agent-body::before,
-      .community-agent[data-animal-family="long-ear"] .community-agent-body::before {
-        width:4px!important;
-        height:8px!important;
-        top:-8px!important;
-        box-shadow:9px 0 var(--animal-dark)!important;
-      }
-      .city-agent[data-animal-family="horned"] .city-agent-body::before,
-      .community-agent[data-animal-family="horned"] .community-agent-body::before {
-        width:4px!important;
-        height:7px!important;
-        top:-7px!important;
-        transform:rotate(-10deg);
-        box-shadow:9px 1px var(--animal-dark)!important;
-      }
-      .city-agent[data-animal-family="bird"] .city-agent-body::before,
-      .community-agent[data-animal-family="bird"] .community-agent-body::before {
-        left:13px!important;
-        top:6px!important;
-        width:6px!important;
-        height:4px!important;
-        border-radius:1px!important;
-        background:var(--animal-accent)!important;
-        box-shadow:none!important;
-      }
-      .city-agent[data-animal-family="aquatic"] .city-agent-body::before,
-      .community-agent[data-animal-family="aquatic"] .community-agent-body::before {
-        left:-5px!important;
-        top:6px!important;
-        width:5px!important;
-        height:5px!important;
-        border-radius:50%!important;
-        background:var(--animal-accent)!important;
-        box-shadow:20px 0 var(--animal-accent)!important;
-      }
-      .city-agent[data-animal-id] .city-agent-body::after,
-      .community-agent[data-animal-id] .community-agent-body::after {
-        content:"";
-        position:absolute;
-        left:4px;
-        top:6px;
-        width:2px;
-        height:2px;
-        border-radius:50%;
-        background:var(--animal-dark,#59645c);
-        box-shadow:6px 0 var(--animal-dark,#59645c);
-        opacity:.72;
-      }
+      .city-agent-body::before,.city-agent-body::after,.community-agent-body::before,.community-agent-body::after { display:none!important; content:none!important; box-shadow:none!important; }
+      .city-agent-thought,.community-agent-thought { left:24px!important; bottom:30px!important; }
 
-      /* Your Agent uses the same animal scale/language. The aura is identity, not the avatar itself. */
-      .world-agent.mission-user-agent .agent-portrait.mission-agent-portrait {
-        width:28px!important;
-        height:28px!important;
-        display:grid!important;
-        place-items:center!important;
-      }
+      /* Your Agent shares the same badge renderer; only the aura communicates ownership. */
+      .world-agent.mission-user-agent .agent-portrait.mission-agent-portrait { width:50px!important; height:50px!important; display:grid!important; place-items:center!important; overflow:visible!important; }
       .mission-user-agent .shared-agent-animal-body {
-        width:20px!important;
-        height:20px!important;
-        border-width:1px!important;
-        box-shadow:0 0 0 2px rgba(88,104,94,.04)!important;
+        width:44px!important; height:44px!important; border:0!important; border-radius:50%!important; box-shadow:none!important;
+        background-color:transparent!important; background-image:var(--animal-badge-image)!important; background-position:center!important; background-repeat:no-repeat!important; background-size:contain!important;
       }
-      .mission-user-agent .shared-agent-animal-body::before {
-        left:1px!important;
-        top:-5px!important;
-        width:5px!important;
-        height:5px!important;
-        border-radius:2px 2px 0 0!important;
-        box-shadow:8px 0 var(--animal-dark,#59645c)!important;
-      }
-      .mission-user-agent .shared-agent-animal-body::after {
-        left:4px!important;
-        top:7px!important;
-        width:2px!important;
-        height:2px!important;
-        background:var(--animal-dark,#59645c)!important;
-        box-shadow:6px 0 var(--animal-dark,#59645c)!important;
-      }
-      .mission-user-agent[data-animal-family="long-ear"] .shared-agent-animal-body::before { width:4px!important;height:8px!important;top:-8px!important;box-shadow:9px 0 var(--animal-dark)!important; }
-      .mission-user-agent[data-animal-family="bird"] .shared-agent-animal-body::before { left:15px!important;top:7px!important;width:6px!important;height:4px!important;box-shadow:none!important;background:var(--animal-accent)!important; }
-      .mission-user-agent[data-animal-family="aquatic"] .shared-agent-animal-body::before { left:-5px!important;top:7px!important;width:5px!important;height:5px!important;border-radius:50%!important;box-shadow:21px 0 var(--animal-accent)!important;background:var(--animal-accent)!important; }
+      .mission-user-agent .shared-agent-animal-body::before,.mission-user-agent .shared-agent-animal-body::after { display:none!important; content:none!important; box-shadow:none!important; }
 
       /* Starter district places stay subtle, but visible enough to explain the community at a glance. */
       html[data-earth-world="true"][data-starter-district="preview"] .latent-business,
@@ -252,106 +140,49 @@ export function StarterDistrictIntegration() {
       /* Collision-free control dock: zoom -> places -> Earth on the left; agent controls on the right. */
       .asympta-zoom-control { z-index:132!important; }
       .places-directory-control { z-index:131!important; top:max(56px,calc(env(safe-area-inset-top) + 56px))!important; }
-      .earth-control {
-        z-index:130!important;
-        top:max(98px,calc(env(safe-area-inset-top) + 98px))!important;
-        width:min(330px,calc(100vw - 218px))!important;
-      }
-      .earth-bar {
-        display:flex!important;
-        flex-wrap:wrap!important;
-        width:max-content!important;
-        max-width:100%!important;
-        border-radius:15px!important;
-      }
+      .earth-control { z-index:130!important; top:max(98px,calc(env(safe-area-inset-top) + 98px))!important; width:min(350px,calc(100vw - 218px))!important; }
+      .earth-bar { display:flex!important; flex-wrap:wrap!important; width:max-content!important; max-width:100%!important; border-radius:15px!important; }
       html[data-starter-district="preview"] .earth-bar>.earth-pill:nth-child(2),
       html[data-starter-district="active"] .earth-bar>.earth-pill:nth-child(2) { display:none!important; }
-      .earth-status {
-        left:max(12px,env(safe-area-inset-left))!important;
-        top:max(142px,calc(env(safe-area-inset-top) + 142px))!important;
-        bottom:auto!important;
-        max-width:190px;
-        overflow:hidden;
-        text-overflow:ellipsis;
-        white-space:nowrap;
-      }
+      .earth-status { left:max(12px,env(safe-area-inset-left))!important; top:max(142px,calc(env(safe-area-inset-top) + 142px))!important; bottom:auto!important; max-width:210px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
       .agent-task-control { z-index:134!important; }
       .need-composer { z-index:136!important; }
 
-      /* Opening one large surface temporarily retires controls that could physically collide with it. */
+      /* Opening one large surface retires controls that could physically collide with it. */
       html[data-asympta-overlay="places"] .earth-control,
       html[data-asympta-overlay="places"] .earth-status,
-      html[data-asympta-overlay="earth"] .places-directory-control {
-        opacity:0!important;
-        pointer-events:none!important;
-      }
-      .earth-control,.earth-status,.places-directory-control,.agent-task-control {
-        transition:opacity 160ms ease!important;
-      }
+      html[data-asympta-overlay="earth"] .places-directory-control,
+      html[data-asympta-overlay="discovery"] .places-directory-control,
+      html[data-asympta-overlay="discovery"] .earth-status { opacity:0!important; pointer-events:none!important; }
+      .earth-control,.earth-status,.places-directory-control,.agent-task-control { transition:opacity 160ms ease!important; }
 
-      /* Inspectors always stop above the composer instead of covering it. */
-      .earth-inspector,.city-business-inspector,.community-inspector {
-        max-height:calc(100svh - 190px)!important;
-      }
+      /* Inspectors/panels always stop above the composer instead of covering it. */
+      .earth-inspector,.city-business-inspector,.community-inspector,.discovery-builder-panel { max-height:calc(100svh - 190px)!important; }
 
       @media(max-width:620px) {
+        .city-agent,.community-agent { width:27px!important; height:27px!important; }
+        .city-agent-thought,.community-agent-thought { left:21px!important; bottom:27px!important; }
+        .world-agent.mission-user-agent .agent-portrait.mission-agent-portrait { width:46px!important; height:46px!important; }
+        .mission-user-agent .shared-agent-animal-body { width:40px!important; height:40px!important; }
         .asympta-zoom-control { left:max(9px,env(safe-area-inset-left))!important; top:max(10px,env(safe-area-inset-top))!important; }
         .places-directory-control { left:max(9px,env(safe-area-inset-left))!important; top:max(54px,calc(env(safe-area-inset-top) + 54px))!important; }
-        .earth-control {
-          left:max(9px,env(safe-area-inset-left))!important;
-          top:max(94px,calc(env(safe-area-inset-top) + 94px))!important;
-          width:184px!important;
-        }
-        .earth-bar {
-          display:grid!important;
-          grid-template-columns:repeat(2,minmax(0,1fr))!important;
-          width:184px!important;
-          gap:3px!important;
-          padding:4px!important;
-          border-radius:15px!important;
-        }
-        .earth-pill {
-          justify-content:center!important;
-          min-width:0!important;
-          min-height:28px!important;
-          padding:0 5px!important;
-          font-size:.31rem!important;
-          white-space:nowrap;
-        }
+        .earth-control { left:max(9px,env(safe-area-inset-left))!important; top:max(94px,calc(env(safe-area-inset-top) + 94px))!important; width:196px!important; }
+        .earth-bar { display:grid!important; grid-template-columns:repeat(2,minmax(0,1fr))!important; width:196px!important; gap:3px!important; padding:4px!important; border-radius:15px!important; }
+        .earth-pill { justify-content:center!important; min-width:0!important; min-height:28px!important; padding:0 5px!important; font-size:.3rem!important; white-space:nowrap; }
         .earth-bar>.earth-pill:last-child:nth-child(odd) { grid-column:1 / -1; }
-        .earth-status {
-          left:max(9px,env(safe-area-inset-left))!important;
-          top:max(196px,calc(env(safe-area-inset-top) + 196px))!important;
-          bottom:auto!important;
-          max-width:184px!important;
-        }
+        .earth-status { left:max(9px,env(safe-area-inset-left))!important; top:max(196px,calc(env(safe-area-inset-top) + 196px))!important; bottom:auto!important; max-width:196px!important; }
         .agent-live-status { width:148px!important; }
-        .places-directory-panel,.earth-panel {
-          width:min(310px,calc(100vw - 18px))!important;
-          max-height:calc(100svh - 190px)!important;
-          overflow:auto!important;
-        }
-        .earth-inspector,.city-business-inspector,.community-inspector {
-          left:9px!important;
-          right:9px!important;
-          top:auto!important;
-          bottom:max(78px,calc(env(safe-area-inset-bottom) + 78px))!important;
-          width:auto!important;
-          max-height:calc(100svh - 188px)!important;
-        }
+        .places-directory-panel,.earth-panel,.discovery-builder-panel { width:min(310px,calc(100vw - 18px))!important; max-height:calc(100svh - 190px)!important; overflow:auto!important; }
+        .earth-inspector,.city-business-inspector,.community-inspector { left:9px!important; right:9px!important; top:auto!important; bottom:max(78px,calc(env(safe-area-inset-bottom) + 78px))!important; width:auto!important; max-height:calc(100svh - 188px)!important; }
         html[data-asympta-overlay="earth"] .agent-task-control,
         html[data-asympta-overlay="places"] .agent-task-control,
+        html[data-asympta-overlay="discovery"] .agent-task-control,
         html[data-asympta-overlay="agent"] .earth-control,
         html[data-asympta-overlay="agent"] .earth-status,
-        html[data-asympta-overlay="agent"] .places-directory-control {
-          opacity:0!important;
-          pointer-events:none!important;
-        }
+        html[data-asympta-overlay="agent"] .places-directory-control { opacity:0!important; pointer-events:none!important; }
       }
 
-      @media(prefers-reduced-motion:reduce) {
-        .earth-control,.earth-status,.places-directory-control,.agent-task-control { transition:none!important; }
-      }
+      @media(prefers-reduced-motion:reduce) { .earth-control,.earth-status,.places-directory-control,.agent-task-control { transition:none!important; } }
     `}</style>
   );
 }
