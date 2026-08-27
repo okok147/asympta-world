@@ -74,3 +74,21 @@ test("task completion creates a non-blocking celebration without replaying histo
   assert.match(celebration, /scenarioReadyRef\.current/);
   assert.match(template, /<TaskCelebrationRuntime \/>/);
 });
+
+test("Earth jobs panel scrolls independently from the draggable and zoomable world", async () => {
+  const [jobs, template] = await Promise.all([
+    readFile(path.join(root, "components/earth-jobs-usability-runtime.tsx"), "utf8"),
+    readFile(path.join(root, "app/template.tsx"), "utf8"),
+  ]);
+
+  assert.match(jobs, /Opportunity Mode/);
+  assert.match(jobs, /data-earth-jobs-panel/);
+  assert.match(jobs, /overflow-y: auto/);
+  assert.match(jobs, /touch-action: pan-y/);
+  assert.match(jobs, /overscroll-behavior: contain/);
+  assert.match(jobs, /panel\.addEventListener\("wheel"/);
+  assert.match(jobs, /panel\.addEventListener\("pointerdown"/);
+  assert.match(jobs, /event\.stopPropagation\(\)/);
+  assert.doesNotMatch(jobs, /document\.addEventListener\("pointerdown".*true/);
+  assert.match(template, /<EarthJobsUsabilityRuntime \/>/);
+});
