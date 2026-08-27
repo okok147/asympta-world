@@ -12,5 +12,16 @@ export function ClientUnifiedAgentInterface() {
     return () => window.cancelAnimationFrame(frame);
   }, []);
 
-  return mounted ? <UnifiedAgentInterfaceRuntime /> : null;
+  if (!mounted) return null;
+
+  return (
+    <>
+      <style>{`
+        .agent-task-control > .agent-task-button { order:1; }
+        .agent-task-control > .agent-live-status { order:2; }
+        .agent-task-control > .agent-task-panel { order:3; }
+      `}</style>
+      <UnifiedAgentInterfaceRuntime />
+    </>
+  );
 }
