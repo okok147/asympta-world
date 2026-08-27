@@ -11,6 +11,7 @@ import { MissionSocietyRuntime } from "@/components/mission-society-runtime";
 import { PersistentUserAgentPresence } from "@/components/persistent-user-agent-presence";
 import { SemanticDialogueLabels } from "@/components/semantic-dialogue-labels";
 import { UserAgentAura } from "@/components/user-agent-aura";
+import { UserTaskProcessRuntime } from "@/components/user-task-process-runtime";
 
 export default function WorldTemplate({ children }: { children: ReactNode }) {
   return (
@@ -24,6 +25,7 @@ export default function WorldTemplate({ children }: { children: ReactNode }) {
       <MissionSocietyRuntime />
       <PersistentUserAgentPresence />
       <AgentTaskMenu />
+      <UserTaskProcessRuntime />
       <SemanticDialogueLabels />
       <AsymptaPerceptionSystem />
       {children}
