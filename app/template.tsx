@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { AgentStatusColorBridge } from "@/components/agent-status-color-bridge";
+import { AgentTaskMenu } from "@/components/agent-task-menu";
 import { BusinessWorkflowRuntime } from "@/components/business-workflow-runtime";
 import { ContinuousAgentMotion } from "@/components/continuous-agent-motion";
 import { MinimalWorldPresentation } from "@/components/minimal-world-presentation";
@@ -16,6 +17,7 @@ export default function WorldTemplate({ children }: { children: ReactNode }) {
       <ContinuousAgentMotion />
       <BusinessWorkflowRuntime />
       <MissionSocietyRuntime />
+      <AgentTaskMenu />
       {children}
     </>
   );
