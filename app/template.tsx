@@ -16,7 +16,9 @@ import { CommunityV2Runtime } from "@/components/community-v2-runtime";
 import { ContinuousAgentMotion } from "@/components/continuous-agent-motion";
 import { DiscoveryPlaceGrowthRuntime } from "@/components/discovery-place-growth-runtime";
 import { EarthJobsUsabilityRuntime } from "@/components/earth-jobs-usability-runtime";
+import { GeoAgentPresenceRuntime } from "@/components/geo-agent-presence-runtime";
 import { LatentCityRuntime } from "@/components/latent-city-runtime";
+import { LocationAccessRuntime } from "@/components/location-access-runtime";
 import { MinimalWorldPresentation } from "@/components/minimal-world-presentation";
 import { MissionSocietyRuntime } from "@/components/mission-society-runtime";
 import { MobilePinchZoomRuntime } from "@/components/mobile-pinch-zoom-runtime";
@@ -65,7 +67,9 @@ export default function WorldTemplate({ children }: { children: ReactNode }) {
       <MobilePinchZoomRuntime />
       <AsymptaPerceptionSystem />
       <ClientEarthSharedWorld />
+      <LocationAccessRuntime />
       <StarterDistrictIntegration />
+      <GeoAgentPresenceRuntime />
       <CommunityDiscoveryBuilderRuntime />
       <DiscoveryPlaceGrowthRuntime />
       <TerritoryNavigationRuntime />
