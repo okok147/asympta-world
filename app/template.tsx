@@ -35,6 +35,7 @@ import { TerritoryAtlasRuntime } from "@/components/territory-atlas-runtime";
 import { TerritoryConfirmationRuntime } from "@/components/territory-confirmation-runtime";
 import { TerritoryNavigationRuntime } from "@/components/territory-navigation-runtime";
 import { UserAgentAura } from "@/components/user-agent-aura";
+import { UserAgentMotionGuardRuntime } from "@/components/user-agent-motion-guard-runtime";
 import { WebMcpComparisonRouterRuntime } from "@/components/webmcp-comparison-router-runtime";
 import { WebMcpScenarioRuntime } from "@/components/webmcp-scenario-runtime";
 
@@ -52,6 +53,7 @@ export default function WorldTemplate({ children }: { children: ReactNode }) {
       <UserAgentAura />
       <AgentStatusColorBridge />
       <ContinuousAgentMotion />
+      <UserAgentMotionGuardRuntime />
       <BusinessWorkflowRuntime />
       <MissionSocietyRuntime />
       <PersistentUserAgentPresence />
