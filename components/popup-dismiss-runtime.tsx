@@ -219,6 +219,6 @@ export function PopupDismissRuntime() {
             "route-comparison-runtime-close",
           )
         : null}
-    </>,
+    </>
   );
 }
