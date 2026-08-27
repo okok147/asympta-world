@@ -38,23 +38,42 @@ test("WebMCP scenario input clears after both completion and failure", async () 
   assert.match(template, /<ScenarioInputCleanupRuntime \/>/);
 });
 
-test("interactive popup surfaces expose explicit close controls plus Escape fallback", async () => {
-  const [popup, template] = await Promise.all([
+test("popup dismissal preserves the previous WebMCP picker while other panels keep explicit close controls", async () => {
+  const [popup, scenario, template] = await Promise.all([
     readFile(path.join(root, "components/popup-dismiss-runtime.tsx"), "utf8"),
+    readFile(path.join(root, "components/webmcp-scenario-runtime.tsx"), "utf8"),
     readFile(path.join(root, "app/template.tsx"), "utf8"),
   ]);
 
   assert.match(popup, /\.places-directory-panel/);
   assert.match(popup, /\.route-visit-card/);
-  assert.match(popup, /\.webmcp-scenario-picker/);
   assert.match(popup, /data-asympta-runtime-close="true"/);
   assert.match(popup, /Close places directory/);
   assert.match(popup, /Close comparison card/);
-  assert.match(popup, /Close scenario picker/);
+  assert.doesNotMatch(popup, /\.webmcp-scenario-picker/);
+  assert.doesNotMatch(popup, /Close scenario picker/);
   assert.match(popup, /event\.key !== "Escape"/);
   assert.match(popup, /\[data-slot="sheet-close"\]/);
   assert.match(popup, /button\[aria-label\^="Close"\]/);
+  assert.match(scenario, /\.webmcp-scenario-picker/);
+  assert.match(scenario, /event\.key === "Escape"/);
+  assert.match(scenario, /input\.blur\(\)/);
   assert.match(template, /<PopupDismissRuntime \/>/);
+});
+
+test("Your Agent motion guard continuously owns stalled target movement and protects against home resets", async () => {
+  const [guard, template] = await Promise.all([
+    readFile(path.join(root, "components/user-agent-motion-guard-runtime.tsx"), "utf8"),
+    readFile(path.join(root, "app/template.tsx"), "utf8"),
+  ]);
+
+  assert.match(guard, /guardOwnsMotion/);
+  assert.match(guard, /lastObservedMotionAt/);
+  assert.match(guard, /resetToHome/);
+  assert.match(guard, /activeTarget && \(guardOwnsMotion \|\| stalledFor > 360\)/);
+  assert.match(guard, /writePosition\(host, nextX, nextY\)/);
+  assert.match(guard, /const speed = reducedMotion \? 22 : 52/);
+  assert.match(template, /<UserAgentMotionGuardRuntime \/>/);
 });
 
 test("task completion creates a non-blocking celebration without replaying history", async () => {
