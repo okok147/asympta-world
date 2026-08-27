@@ -111,6 +111,23 @@ test("defaults to a minimal agent-only canvas with icon and color status", async
   assert.match(template, /<AgentStatusColorBridge \/>/);
 });
 
+test("gives only the user mission agent a persistent colored aura", async () => {
+  const [aura, template] = await Promise.all([
+    readFile(path.join(root, "components/user-agent-aura.tsx"), "utf8"),
+    readFile(path.join(root, "app/template.tsx"), "utf8"),
+  ]);
+
+  assert.match(aura, /\.mission-user-agent::before/);
+  assert.match(aura, /\.mission-user-agent::after/);
+  assert.match(aura, /rgba\(121, 149, 214/);
+  assert.match(aura, /is-world-encountering::before/);
+  assert.match(aura, /agent-state-deal::before/);
+  assert.match(aura, /agent-state-workflow::before/);
+  assert.match(aura, /prefers-reduced-motion: reduce/);
+  assert.doesNotMatch(aura, /\.world-agent::before/);
+  assert.match(template, /<UserAgentAura \/>/);
+});
+
 test("includes responsive, safe-area, pixel-art, and reduced-motion rules", async () => {
   const css = await readFile(path.join(root, "app/globals.css"), "utf8");
   assert.match(css, /@media \(max-width: 900px\)/);
