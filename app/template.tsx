@@ -12,6 +12,7 @@ import { PersistentUserAgentPresence } from "@/components/persistent-user-agent-
 import { SemanticDialogueLabels } from "@/components/semantic-dialogue-labels";
 import { UserAgentAura } from "@/components/user-agent-aura";
 import { UserTaskProcessRuntime } from "@/components/user-task-process-runtime";
+import { WebMcpScenarioRuntime } from "@/components/webmcp-scenario-runtime";
 
 export default function WorldTemplate({ children }: { children: ReactNode }) {
   return (
@@ -26,6 +27,7 @@ export default function WorldTemplate({ children }: { children: ReactNode }) {
       <PersistentUserAgentPresence />
       <AgentTaskMenu />
       <UserTaskProcessRuntime />
+      <WebMcpScenarioRuntime />
       <SemanticDialogueLabels />
       <AsymptaPerceptionSystem />
       {children}
