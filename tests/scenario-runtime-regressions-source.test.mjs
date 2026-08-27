@@ -37,3 +37,40 @@ test("WebMCP scenario input clears after both completion and failure", async () 
   assert.match(cleanup, /requestAnimationFrame\(clearScenarioInput\)/);
   assert.match(template, /<ScenarioInputCleanupRuntime \/>/);
 });
+
+test("interactive popup surfaces expose explicit close controls plus Escape fallback", async () => {
+  const [popup, template] = await Promise.all([
+    readFile(path.join(root, "components/popup-dismiss-runtime.tsx"), "utf8"),
+    readFile(path.join(root, "app/template.tsx"), "utf8"),
+  ]);
+
+  assert.match(popup, /\.places-directory-panel/);
+  assert.match(popup, /\.route-visit-card/);
+  assert.match(popup, /\.webmcp-scenario-picker/);
+  assert.match(popup, /data-asympta-runtime-close="true"/);
+  assert.match(popup, /Close places directory/);
+  assert.match(popup, /Close comparison card/);
+  assert.match(popup, /Close scenario picker/);
+  assert.match(popup, /event\.key !== "Escape"/);
+  assert.match(popup, /\[data-slot="sheet-close"\]/);
+  assert.match(popup, /button\[aria-label\^="Close"\]/);
+  assert.match(template, /<PopupDismissRuntime \/>/);
+});
+
+test("task completion creates a non-blocking celebration without replaying history", async () => {
+  const [celebration, template] = await Promise.all([
+    readFile(path.join(root, "components/task-celebration-runtime.tsx"), "utf8"),
+    readFile(path.join(root, "app/template.tsx"), "utf8"),
+  ]);
+
+  assert.match(celebration, /asympta:task-process/);
+  assert.match(celebration, /asympta:user-task-process/);
+  assert.match(celebration, /status === "completed"/);
+  assert.match(celebration, /progress < 100/);
+  assert.match(celebration, /task-celebration-particle/);
+  assert.match(celebration, /pointer-events: none/);
+  assert.match(celebration, /prefers-reduced-motion/);
+  assert.match(celebration, /missionsReadyRef\.current/);
+  assert.match(celebration, /scenarioReadyRef\.current/);
+  assert.match(template, /<TaskCelebrationRuntime \/>/);
+});
