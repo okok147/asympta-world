@@ -61,3 +61,19 @@ test("all ten WebMCP scenarios gain a real multi-candidate comparison layer befo
   assert.match(template, /<WebMcpComparisonRouterRuntime \/>/);
   assert.ok(template.indexOf("<WebMcpComparisonRouterRuntime />") > template.indexOf("<AgentSpatialInteractionRuntime />"));
 });
+
+test("comparison normalization survives legacy object-shaped product and service collections", async () => {
+  const comparison = await readFile(path.join(root, "components/webmcp-comparison-router-runtime.tsx"), "utf8");
+  assert.match(comparison, /function collection\(value: unknown\)/);
+  assert.match(comparison, /Array\.isArray\(value\)/);
+  assert.match(comparison, /Object\.values\(record\)/);
+  assert.match(comparison, /normalizeProduct/);
+  assert.match(comparison, /normalizeService/);
+  assert.match(comparison, /normalizeBusiness\(inspected\.business\)/);
+  assert.match(comparison, /normalizeBusinesses\(broad\.businesses\)/);
+  assert.match(comparison, /row\.stock \?\? row\.available \?\? row\.availability/);
+  assert.match(comparison, /row\.slots \?\? row\.available \?\? row\.availability \?\? row\.capacity/);
+  assert.match(comparison, /Comparison is an enhancement, never a single point of failure/);
+  assert.doesNotMatch(comparison, /\(business\.products \?\? \[\]\)\.filter/);
+  assert.doesNotMatch(comparison, /\(business\.services \?\? \[\]\)\.filter/);
+});
