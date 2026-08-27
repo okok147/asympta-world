@@ -102,7 +102,7 @@ async function ensureNeighbourCommunity(territory: Territory) {
 }
 
 export function TerritoryNavigationRuntime() {
-  const idleTimer = useRef<number | null>(null);
+  const lastDockActivity = useRef(0);
   const [worldPlane, setWorldPlane] = useState<HTMLElement | null>(null);
   const [viewport, setViewport] = useState<HTMLElement | null>(null);
   const [activeCellId, setActiveCellId] = useState<string | null>(null);
@@ -113,12 +113,8 @@ export function TerritoryNavigationRuntime() {
   const [placeCounts, setPlaceCounts] = useState<Record<string, number>>({});
 
   const wakeDock = () => {
+    lastDockActivity.current = Date.now();
     setDockOpen(true);
-    if (idleTimer.current) window.clearTimeout(idleTimer.current);
-    idleTimer.current = window.setTimeout(() => {
-      if (document.querySelector(".earth-panel,.places-directory-panel,.discovery-builder-panel")) return;
-      setDockOpen(false);
-    }, DOCK_IDLE_MS);
   };
 
   useEffect(() => {
@@ -141,20 +137,28 @@ export function TerritoryNavigationRuntime() {
     const first = window.setTimeout(sync, 0);
     const timer = window.setInterval(sync, 420);
     const onPointer = () => {
-      if (document.documentElement.dataset.worldDockOpen === "true") wakeDock();
+      if (document.documentElement.dataset.worldDockOpen === "true") lastDockActivity.current = Date.now();
     };
     window.addEventListener("pointerdown", onPointer, { passive: true });
     return () => {
       window.clearTimeout(first);
       window.clearInterval(timer);
-      if (idleTimer.current) window.clearTimeout(idleTimer.current);
       window.removeEventListener("pointerdown", onPointer);
     };
   }, []);
 
   useEffect(() => {
     document.documentElement.dataset.worldDockOpen = dockOpen ? "true" : "false";
-    return () => { delete document.documentElement.dataset.worldDockOpen; };
+    if (!dockOpen) return () => { delete document.documentElement.dataset.worldDockOpen; };
+    if (!lastDockActivity.current) lastDockActivity.current = Date.now();
+    const timer = window.setInterval(() => {
+      const hasOpenSurface = Boolean(document.querySelector(".earth-panel,.places-directory-panel,.discovery-builder-panel"));
+      if (!hasOpenSurface && Date.now() - lastDockActivity.current >= DOCK_IDLE_MS) setDockOpen(false);
+    }, 520);
+    return () => {
+      window.clearInterval(timer);
+      delete document.documentElement.dataset.worldDockOpen;
+    };
   }, [dockOpen]);
 
   const territories = useMemo<Territory[]>(() => {
@@ -202,11 +206,8 @@ export function TerritoryNavigationRuntime() {
       html[data-world-dock-open="false"] .places-directory-control,
       html[data-world-dock-open="false"] .earth-control,
       html[data-world-dock-open="false"] .earth-status { opacity:0!important; pointer-events:none!important; transform:translateY(-4px) scale(.98)!important; }
-      html[data-world-dock-open="true"] .asympta-zoom-control,
-      html[data-world-dock-open="true"] .places-directory-control,
-      html[data-world-dock-open="true"] .earth-control,
-      html[data-world-dock-open="true"] .earth-status { opacity:1!important; pointer-events:auto!important; }
-      .asympta-zoom-control,.places-directory-control,.earth-control,.earth-status { transition:opacity 170ms ease,transform 170ms ease!important; }
+      html[data-world-dock-open="true"] .asympta-zoom-control { left:max(49px,calc(env(safe-area-inset-left) + 49px))!important; }
+      .asympta-zoom-control,.places-directory-control,.earth-control,.earth-status { transition:opacity 170ms ease,transform 170ms ease,left 170ms ease!important; }
       .world-dock-toggle { position:absolute;z-index:160;left:max(10px,env(safe-area-inset-left));top:max(10px,env(safe-area-inset-top));display:grid;place-items:center;width:31px;height:31px;border:1px solid rgba(112,123,115,.1);border-radius:50%;background:rgba(248,247,241,.48);color:#748079;box-shadow:0 5px 18px rgba(49,60,53,.04);backdrop-filter:blur(10px);opacity:.22;cursor:pointer;transition:opacity 160ms ease,transform 160ms ease}
       .world-dock-toggle:hover,.world-dock-toggle:focus-visible,html[data-world-dock-open="true"] .world-dock-toggle{opacity:.9;transform:scale(1.04);outline:none}
       .world-dock-toggle svg{width:13px;height:13px}
@@ -221,7 +222,7 @@ export function TerritoryNavigationRuntime() {
       html[data-earth-world="true"][data-living-territory="true"] .community-founded-place { display:block!important; }
       html[data-earth-world="true"][data-living-territory="true"] .world-agent:not(.mission-user-agent) { display:grid!important; }
       html[data-earth-world="true"][data-living-territory="true"] .places-directory-control { display:grid!important; }
-      @media(max-width:620px){.world-dock-toggle{left:max(8px,env(safe-area-inset-left));top:max(8px,env(safe-area-inset-top));width:30px;height:30px}.territory-marker{width:132px;min-height:48px;padding:5px 7px}.territory-marker strong{font-size:.43rem}}
+      @media(max-width:620px){.world-dock-toggle{left:max(8px,env(safe-area-inset-left));top:max(8px,env(safe-area-inset-top));width:30px;height:30px}html[data-world-dock-open="true"] .asympta-zoom-control{left:max(46px,calc(env(safe-area-inset-left) + 46px))!important}.territory-marker{width:132px;min-height:48px;padding:5px 7px}.territory-marker strong{font-size:.43rem}}
       @media(prefers-reduced-motion:reduce){.world-dock-toggle,.territory-marker,.asympta-zoom-control,.places-directory-control,.earth-control,.earth-status{transition:none!important}}
     `}</style>
 
