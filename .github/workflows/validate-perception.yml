@@ -1,0 +1,38 @@
+name: Validate perception system
+
+on:
+  push:
+    branches:
+      - feat/webapp-city-clean
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Validate source and economy invariants
+        run: |
+          npm run lint
+          npx tsc -p tsconfig.app.json --noEmit
+          npm run test:engine
+          node --test tests/latent-city-source.test.mjs
+
+      - name: Build
+        run: npm run build
+
+      - name: Validate rendered product
+        run: npm run test:rendered
