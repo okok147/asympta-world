@@ -20,10 +20,12 @@ import { MinimalWorldPresentation } from "@/components/minimal-world-presentatio
 import { MissionSocietyRuntime } from "@/components/mission-society-runtime";
 import { MobilePinchZoomRuntime } from "@/components/mobile-pinch-zoom-runtime";
 import { PersistentUserAgentPresence } from "@/components/persistent-user-agent-presence";
+import { PopupDismissRuntime } from "@/components/popup-dismiss-runtime";
 import { RealWorldPacingRuntime } from "@/components/real-world-pacing-runtime";
 import { ScenarioInputCleanupRuntime } from "@/components/scenario-input-cleanup-runtime";
 import { SemanticDialogueLabels } from "@/components/semantic-dialogue-labels";
 import { StarterDistrictIntegration } from "@/components/starter-district-integration";
+import { TaskCelebrationRuntime } from "@/components/task-celebration-runtime";
 import { TaskProcessRuntime } from "@/components/task-process-runtime";
 import { TerritoryConfirmationRuntime } from "@/components/territory-confirmation-runtime";
 import { TerritoryNavigationRuntime } from "@/components/territory-navigation-runtime";
@@ -35,6 +37,8 @@ export default function WorldTemplate({ children }: { children: ReactNode }) {
   return (
     <>
       <MinimalWorldPresentation />
+      <PopupDismissRuntime />
+      <TaskCelebrationRuntime />
       <CitySchemaGuardRuntime />
       <LatentCityRuntime />
       <CommunityV2Runtime />
