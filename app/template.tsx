@@ -11,6 +11,7 @@ import { ClientUnifiedAgentInterface } from "@/components/client-unified-agent-i
 import { CommunityStoreFounderRuntime } from "@/components/community-store-founder-runtime";
 import { CommunityV2Runtime } from "@/components/community-v2-runtime";
 import { ContinuousAgentMotion } from "@/components/continuous-agent-motion";
+import { EarthScaleWorldRuntime } from "@/components/earth-scale-world-runtime";
 import { LatentCityRuntime } from "@/components/latent-city-runtime";
 import { MinimalWorldPresentation } from "@/components/minimal-world-presentation";
 import { MissionSocietyRuntime } from "@/components/mission-society-runtime";
@@ -44,6 +45,7 @@ export default function WorldTemplate({ children }: { children: ReactNode }) {
       <WebMcpScenarioRuntime />
       <SemanticDialogueLabels />
       <AsymptaPerceptionSystem />
+      <EarthScaleWorldRuntime />
       {children}
     </>
   );
