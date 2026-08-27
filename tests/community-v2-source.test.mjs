@@ -133,7 +133,8 @@ test("ships exactly one hundred kawaii badge animal identities shared by the use
   assert.match(runtime, /CUTE · random from 100/);
   assert.match(runtime, /\.community-agent/);
   assert.match(runtime, /\.city-agent/);
-  assert.match(runtime, /data-animal-family/);
+  assert.match(runtime, /node\.dataset\.animalFamily = visual\.family/);
+  assert.match(runtime, /--animal-badge-image/);
   assert.match(template, /<AnimalAvatarRuntime \/>/);
 });
 
