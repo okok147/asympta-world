@@ -7,11 +7,12 @@ import { fileURLToPath } from "node:url";
 const root = fileURLToPath(new URL("..", import.meta.url));
 
 test("renders Your Agent with the same compact animal-body language as other agents", async () => {
-  const [runtime, animal, mission, template] = await Promise.all([
+  const [runtime, animal, mission, template, boundary] = await Promise.all([
     readFile(path.join(root, "components/unified-agent-interface-runtime.tsx"), "utf8"),
     readFile(path.join(root, "components/animal-avatar-runtime.tsx"), "utf8"),
     readFile(path.join(root, "components/mission-society-runtime.tsx"), "utf8"),
     readFile(path.join(root, "app/template.tsx"), "utf8"),
+    readFile(path.join(root, "components/client-unified-agent-interface.tsx"), "utf8"),
   ]);
   assert.match(runtime, /mission-user-agent \.mission-pixel-person \{ display:none!important; \}/);
   assert.match(runtime, /shared-agent-animal-body/);
@@ -23,7 +24,9 @@ test("renders Your Agent with the same compact animal-body language as other age
   assert.match(animal, /--animal-accent/);
   assert.match(animal, /--animal-dark/);
   assert.match(mission, /mission-pixel-person/);
-  assert.match(template, /<UnifiedAgentInterfaceRuntime \/>/);
+  assert.match(template, /<ClientUnifiedAgentInterface \/>/);
+  assert.match(boundary, /requestAnimationFrame/);
+  assert.match(boundary, /mounted \? <UnifiedAgentInterfaceRuntime \/> : null/);
 });
 
 test("keeps a live agent status in the menu bar and updates from real agent events", async () => {
