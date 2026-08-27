@@ -52,6 +52,36 @@ test("uses D1 as the shared authority and a transparent local mirror fallback", 
   assert.equal(JSON.parse(hosting).d1, "DB");
 });
 
+test("ships a user-owned mission society with persistent encounters and WebMCP controls", async () => {
+  const [mission, motion, template] = await Promise.all([
+    readFile(path.join(root, "components/mission-society-runtime.tsx"), "utf8"),
+    readFile(path.join(root, "components/continuous-agent-motion.tsx"), "utf8"),
+    readFile(path.join(root, "app/template.tsx"), "utf8"),
+  ]);
+
+  for (const phase of ["approach", "greet", "discuss", "deal", "close", "depart"]) {
+    assert.match(mission, new RegExp('"' + phase + '"'));
+  }
+  for (const tool of [
+    "submit_user_goal",
+    "observe_user_missions",
+    "inspect_encounter",
+    "nudge_mission_strategy",
+  ]) {
+    assert.match(mission, new RegExp('name: "' + tool + '"'));
+  }
+  assert.match(mission, /minDurationMs: 8200/);
+  assert.match(mission, /document\.addEventListener\("submit", onSubmit, true\)/);
+  assert.match(mission, /mission-user-agent/);
+  assert.match(mission, /__ASYMPTA_MISSION_WEBMCP__/);
+  assert.match(motion, /requestAnimationFrame\(animate\)/);
+  assert.match(motion, /SOCIAL_DISTANCE/);
+  assert.match(motion, /business-thought-icons/);
+  assert.match(motion, /partnerSymbols/);
+  assert.doesNotMatch(motion, /<strong>\{thought\.text\}<\/strong>/);
+  assert.match(template, /<MissionSocietyRuntime \/>/);
+});
+
 test("includes responsive, safe-area, pixel-art, and reduced-motion rules", async () => {
   const css = await readFile(path.join(root, "app/globals.css"), "utf8");
   assert.match(css, /@media \(max-width: 900px\)/);
