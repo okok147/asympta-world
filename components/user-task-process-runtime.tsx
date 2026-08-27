@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -67,17 +68,16 @@ type InventoryItem = {
 };
 
 type InventoryState = { version: 1; items: InventoryItem[] };
+type ProcessTone = "planning" | "moving" | "talking" | "working" | "done" | "transaction" | "blocked";
 type ProcessUpdate = {
   id: string;
   at: number;
   label: string;
   detail: string;
   progress: number;
-  tone: "planning" | "moving" | "talking" | "working" | "done" | "transaction" | "blocked";
+  tone: ProcessTone;
 };
-
 type DerivedProcess = Omit<ProcessUpdate, "at">;
-
 type BehaviorDetail = {
   actorName?: string;
   message?: string;
@@ -330,9 +330,10 @@ export function UserTaskProcessRuntime() {
   const [updates, setUpdates] = useState<ProcessUpdate[]>([]);
 
   useEffect(() => {
-    setUpdates(readJson<ProcessUpdate[]>(UPDATES_KEY, []));
-    setInventory(readJson<InventoryState>(INVENTORY_KEY, { version: 1, items: [] }));
-
+    const initialize = window.setTimeout(() => {
+      setUpdates(readJson<ProcessUpdate[]>(UPDATES_KEY, []));
+      setInventory(readJson<InventoryState>(INVENTORY_KEY, { version: 1, items: [] }));
+    }, 0);
     const onBehavior = (event: Event) => {
       const next = behaviorProcess((event as CustomEvent<BehaviorDetail>).detail ?? {});
       if (!next) return;
@@ -341,7 +342,10 @@ export function UserTaskProcessRuntime() {
       setUpdates((current) => appendUpdate(next, current));
     };
     window.addEventListener("asympta:agent-behavior", onBehavior);
-    return () => window.removeEventListener("asympta:agent-behavior", onBehavior);
+    return () => {
+      window.clearTimeout(initialize);
+      window.removeEventListener("asympta:agent-behavior", onBehavior);
+    };
   }, []);
 
   useEffect(() => {
@@ -349,9 +353,9 @@ export function UserTaskProcessRuntime() {
       const nextAgentHost = document.querySelector<HTMLElement>(".mission-user-agent");
       const nextMenuHost = document.querySelector<HTMLElement>(".agent-task-panel");
       const nextResourceHost = document.querySelector<HTMLElement>(".agent-resource-row");
-      if (nextAgentHost !== agentHost) setAgentHost(nextAgentHost);
-      if (nextMenuHost !== menuHost) setMenuHost(nextMenuHost);
-      if (nextResourceHost !== resourceHost) setResourceHost(nextResourceHost);
+      setAgentHost((current) => (current === nextAgentHost ? current : nextAgentHost));
+      setMenuHost((current) => (current === nextMenuHost ? current : nextMenuHost));
+      setResourceHost((current) => (current === nextResourceHost ? current : nextResourceHost));
 
       const missions = readJson<Mission[]>(MISSIONS_KEY, []);
       const encounters = readJson<Encounter[]>(ENCOUNTERS_KEY, []);
@@ -395,7 +399,7 @@ export function UserTaskProcessRuntime() {
       window.clearTimeout(initial);
       window.clearInterval(timer);
     };
-  }, [agentHost, menuHost, resourceHost]);
+  }, []);
 
   const visibleInventory = useMemo(() => inventory.items.slice(0, 6), [inventory.items]);
   const visibleUpdates = useMemo(() => updates.slice(0, 4), [updates]);
@@ -550,7 +554,7 @@ export function UserTaskProcessRuntime() {
               data-tone={process.tone}
               role="status"
               aria-label={process.label + ". " + process.detail}
-              style={{ "--task-progress": String(Math.max(0, Math.min(100, process.progress))) + "%" } as React.CSSProperties}
+              style={{ "--task-progress": String(Math.max(0, Math.min(100, process.progress))) + "%" } as CSSProperties}
             >
               <strong>{process.label}</strong>
               <small>{process.detail}</small>
