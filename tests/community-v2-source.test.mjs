@@ -116,7 +116,7 @@ test("lets the community research and found new stores with screenshot evidence 
   assert.match(template, /<CommunityStoreFounderRuntime \/>/);
 });
 
-test("ships exactly one hundred cute animal identities shared by the user and world agents", async () => {
+test("ships exactly one hundred kawaii badge animal identities shared by the user and world agents", async () => {
   const [catalog, runtime, template] = await Promise.all([
     readFile(path.join(root, "lib/animal-catalog.ts"), "utf8"),
     readFile(path.join(root, "components/animal-avatar-runtime.tsx"), "utf8"),
@@ -128,7 +128,8 @@ test("ships exactly one hundred cute animal identities shared by the user and wo
   assert.equal(new Set(ids).size, 100);
   for (const animal of ["cat","fox","capybara","red-panda","axolotl","octopus","dragon","unicorn"]) assert.ok(ids.includes(animal));
   assert.match(runtime, /asympta-user-animal-v2/);
-  assert.match(runtime, /Choose from 100 cute animal agents/);
+  assert.match(runtime, /Choose from 100 kawaii badge animal agents/);
+  assert.match(runtime, /animalBadgeDataUri/);
   assert.match(runtime, /CUTE · random from 100/);
   assert.match(runtime, /\.community-agent/);
   assert.match(runtime, /\.city-agent/);
