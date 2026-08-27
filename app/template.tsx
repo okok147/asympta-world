@@ -15,6 +15,7 @@ import { CommunityStoreFounderRuntime } from "@/components/community-store-found
 import { CommunityV2Runtime } from "@/components/community-v2-runtime";
 import { ContinuousAgentMotion } from "@/components/continuous-agent-motion";
 import { DiscoveryPlaceGrowthRuntime } from "@/components/discovery-place-growth-runtime";
+import { EarthJobsUsabilityRuntime } from "@/components/earth-jobs-usability-runtime";
 import { LatentCityRuntime } from "@/components/latent-city-runtime";
 import { MinimalWorldPresentation } from "@/components/minimal-world-presentation";
 import { MissionSocietyRuntime } from "@/components/mission-society-runtime";
@@ -39,6 +40,7 @@ export default function WorldTemplate({ children }: { children: ReactNode }) {
       <MinimalWorldPresentation />
       <PopupDismissRuntime />
       <TaskCelebrationRuntime />
+      <EarthJobsUsabilityRuntime />
       <CitySchemaGuardRuntime />
       <LatentCityRuntime />
       <CommunityV2Runtime />
