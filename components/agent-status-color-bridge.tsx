@@ -32,8 +32,11 @@ function dialogueState(node: HTMLElement) {
 }
 
 function syncAgent(node: HTMLElement) {
+  const desired = "agent-state-" + dialogueState(node);
+  const current = STATE_CLASSES.find((className) => node.classList.contains(className));
+  if (current === desired) return;
   for (const className of STATE_CLASSES) node.classList.remove(className);
-  node.classList.add("agent-state-" + dialogueState(node));
+  node.classList.add(desired);
 }
 
 function syncAllAgents() {
