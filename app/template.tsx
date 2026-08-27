@@ -4,6 +4,7 @@ import { AgentStatusColorBridge } from "@/components/agent-status-color-bridge";
 import { AgentTaskMenu } from "@/components/agent-task-menu";
 import { AsymptaPerceptionSystem } from "@/components/asympta-perception-system";
 import { BusinessWorkflowRuntime } from "@/components/business-workflow-runtime";
+import { CommunityV2Runtime } from "@/components/community-v2-runtime";
 import { ContinuousAgentMotion } from "@/components/continuous-agent-motion";
 import { LatentCityRuntime } from "@/components/latent-city-runtime";
 import { MinimalWorldPresentation } from "@/components/minimal-world-presentation";
@@ -19,6 +20,7 @@ export default function WorldTemplate({ children }: { children: ReactNode }) {
     <>
       <MinimalWorldPresentation />
       <LatentCityRuntime />
+      <CommunityV2Runtime />
       <UserAgentAura />
       <AgentStatusColorBridge />
       <ContinuousAgentMotion />
