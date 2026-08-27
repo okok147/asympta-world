@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { AgentShoppingRouterRuntime } from "@/components/agent-shopping-router-runtime";
+import { AgentSpatialInteractionRuntime } from "@/components/agent-spatial-interaction-runtime";
 import { AgentStatusColorBridge } from "@/components/agent-status-color-bridge";
 import { AgentTaskMenu } from "@/components/agent-task-menu";
 import { AnimalAvatarRuntime } from "@/components/animal-avatar-runtime";
@@ -34,7 +36,9 @@ export default function WorldTemplate({ children }: { children: ReactNode }) {
       <AgentTaskMenu />
       <AnimalAvatarRuntime />
       <TaskProcessRuntime />
+      <AgentSpatialInteractionRuntime />
       <RealWorldPacingRuntime />
+      <AgentShoppingRouterRuntime />
       <WebMcpScenarioRuntime />
       <SemanticDialogueLabels />
       <AsymptaPerceptionSystem />
