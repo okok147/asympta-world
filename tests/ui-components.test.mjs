@@ -8,18 +8,7 @@ const root = fileURLToPath(new URL("..", import.meta.url));
 
 test("registers ten focused WebMCP tools through the imperative API", async () => {
   const source = await readFile(path.join(root, "app/page.tsx"), "utf8");
-  for (const tool of [
-    "observe_world",
-    "inspect_agent",
-    "inspect_business",
-    "inspect_need",
-    "post_need",
-    "create_offer",
-    "send_message",
-    "create_business",
-    "join_business",
-    "accept_offer",
-  ]) {
+  for (const tool of ["observe_world","inspect_agent","inspect_business","inspect_need","post_need","create_offer","send_message","create_business","join_business","accept_offer"]) {
     assert.match(source, new RegExp('name: "' + tool + '"'));
   }
   assert.match(source, /document\.modelContext\?\.registerTool/);
@@ -58,18 +47,8 @@ test("ships a user-owned mission society with persistent encounters and WebMCP c
     readFile(path.join(root, "components/continuous-agent-motion.tsx"), "utf8"),
     readFile(path.join(root, "app/template.tsx"), "utf8"),
   ]);
-
-  for (const phase of ["approach", "greet", "discuss", "deal", "close", "depart"]) {
-    assert.match(mission, new RegExp('"' + phase + '"'));
-  }
-  for (const tool of [
-    "submit_user_goal",
-    "observe_user_missions",
-    "inspect_encounter",
-    "nudge_mission_strategy",
-  ]) {
-    assert.match(mission, new RegExp('name: "' + tool + '"'));
-  }
+  for (const phase of ["approach","greet","discuss","deal","close","depart"]) assert.match(mission, new RegExp('"' + phase + '"'));
+  for (const tool of ["submit_user_goal","observe_user_missions","inspect_encounter","nudge_mission_strategy"]) assert.match(mission, new RegExp('name: "' + tool + '"'));
   assert.match(mission, /minDurationMs: 8200/);
   assert.match(mission, /document\.addEventListener\("submit", onSubmit, true\)/);
   assert.match(mission, /mission-user-agent/);
@@ -88,19 +67,7 @@ test("defaults to a minimal agent-only canvas with icon and color status", async
     readFile(path.join(root, "components/agent-status-color-bridge.tsx"), "utf8"),
     readFile(path.join(root, "app/template.tsx"), "utf8"),
   ]);
-
-  for (const hidden of [
-    "business-zone",
-    "relationship-layer",
-    "need-context",
-    "live-event",
-    "event-ribbon",
-    "business-flow-panel",
-    "mission-panel",
-    "plane-grid",
-  ]) {
-    assert.match(presentation, new RegExp("\\." + hidden));
-  }
+  for (const hidden of ["business-zone","relationship-layer","need-context","live-event","event-ribbon","business-flow-panel","mission-panel","plane-grid"]) assert.match(presentation, new RegExp("\\." + hidden));
   assert.match(presentation, /\.world-agent \.agent-label/);
   assert.match(presentation, /\.business-thought-icons svg/);
   assert.match(presentation, /\.need-composer:focus-within/);
@@ -116,7 +83,6 @@ test("gives only the user mission agent a persistent colored aura", async () => 
     readFile(path.join(root, "components/user-agent-aura.tsx"), "utf8"),
     readFile(path.join(root, "app/template.tsx"), "utf8"),
   ]);
-
   assert.match(aura, /\.mission-user-agent::before/);
   assert.match(aura, /\.mission-user-agent::after/);
   assert.match(aura, /rgba\(121, 149, 214/);
@@ -128,33 +94,31 @@ test("gives only the user mission agent a persistent colored aura", async () => 
   assert.match(template, /<UserAgentAura \/>/);
 });
 
-test("ships an elegant user-agent control menu with progress, resources, follow camera, animal forms and concise dialogue", async () => {
-  const [menu, template] = await Promise.all([
+test("persists user preferences and defaults the camera to follow the user agent", async () => {
+  const [menu, alias, template] = await Promise.all([
+    readFile(path.join(root, "components/agent-control-menu.tsx"), "utf8"),
     readFile(path.join(root, "components/agent-task-menu.tsx"), "utf8"),
     readFile(path.join(root, "app/template.tsx"), "utf8"),
   ]);
-
-  assert.match(menu, /agent-task-button/);
-  assert.match(menu, /conic-gradient/);
-  assert.match(menu, /Current mission/);
-  assert.match(menu, /Resources/);
-  assert.match(menu, /Camera follow/);
+  assert.match(alias, /agent-control-menu/);
+  assert.match(menu, /PREFS_KEY = "asympta-user-preferences-v1"/);
+  assert.match(menu, /cameraFollow: true/);
+  assert.match(menu, /menuOpen/);
+  assert.match(menu, /cameraX/);
+  assert.match(menu, /cameraY/);
+  assert.match(menu, /cameraScale/);
+  assert.match(menu, /localStorage\.setItem\(PREFS_KEY/);
   assert.match(menu, /requestAnimationFrame\(animate\)/);
   assert.match(menu, /data-user-avatar/);
-  for (const animal of ["cat", "fox", "rabbit", "bear"]) {
-    assert.match(menu, new RegExp('"' + animal + '"'));
-  }
-  for (const phrase of [
-    "Find food",
-    "Accept deal",
-    "Share skill",
-    "Find help",
-    "Trade resource",
-    "Do task",
-  ]) {
-    assert.match(menu, new RegExp(phrase));
-  }
+  assert.match(menu, /conic-gradient/);
+  assert.match(menu, /Resources/);
+  for (const animal of ["cat","fox","rabbit","bear"]) assert.match(menu, new RegExp('"' + animal + '"'));
   assert.match(template, /<AgentTaskMenu \/>/);
+});
+
+test("keeps dialogue short but semantically readable", async () => {
+  const labels = await readFile(path.join(root, "components/semantic-dialogue-labels.tsx"), "utf8");
+  for (const phrase of ["尋找食物","接受交易","交換技能","尋找協助","交易資源","執行任務","補充能量"]) assert.match(labels, new RegExp(phrase));
 });
 
 test("includes responsive, safe-area, pixel-art, and reduced-motion rules", async () => {
