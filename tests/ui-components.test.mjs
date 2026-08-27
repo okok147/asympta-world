@@ -82,6 +82,35 @@ test("ships a user-owned mission society with persistent encounters and WebMCP c
   assert.match(template, /<MissionSocietyRuntime \/>/);
 });
 
+test("defaults to a minimal agent-only canvas with icon and color status", async () => {
+  const [presentation, bridge, template] = await Promise.all([
+    readFile(path.join(root, "components/minimal-world-presentation.tsx"), "utf8"),
+    readFile(path.join(root, "components/agent-status-color-bridge.tsx"), "utf8"),
+    readFile(path.join(root, "app/template.tsx"), "utf8"),
+  ]);
+
+  for (const hidden of [
+    "business-zone",
+    "relationship-layer",
+    "need-context",
+    "live-event",
+    "event-ribbon",
+    "business-flow-panel",
+    "mission-panel",
+    "plane-grid",
+  ]) {
+    assert.match(presentation, new RegExp("\\." + hidden));
+  }
+  assert.match(presentation, /\.world-agent \.agent-label/);
+  assert.match(presentation, /\.business-thought-icons svg/);
+  assert.match(presentation, /\.need-composer:focus-within/);
+  assert.match(bridge, /MutationObserver/);
+  assert.match(bridge, /agent-state-/);
+  assert.match(bridge, /business-thought--/);
+  assert.match(template, /<MinimalWorldPresentation \/>/);
+  assert.match(template, /<AgentStatusColorBridge \/>/);
+});
+
 test("includes responsive, safe-area, pixel-art, and reduced-motion rules", async () => {
   const css = await readFile(path.join(root, "app/globals.css"), "utf8");
   assert.match(css, /@media \(max-width: 900px\)/);
