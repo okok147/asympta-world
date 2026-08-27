@@ -16,7 +16,8 @@ test("every completed local discovery immediately grows Places and appears in th
   assert.match(discovery, /earth_process_submission/);
   assert.match(growth, /asympta-earth-world-v1/);
   assert.match(growth, /basePlaceCount\(\) \+ nextPlaces\.length/);
-  assert.match(growth, /Places · \$\{total\}/);
+  assert.match(growth, /dataset\.totalPlaces = String\(total\)/);
+  assert.match(growth, /content:"Places · " attr\(data-total-places\)/);
   assert.match(growth, /Community discovered/);
   assert.match(growth, /is-earth-discovered/);
   assert.match(growth, /earth_travel_to/);
