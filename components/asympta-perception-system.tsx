@@ -231,17 +231,25 @@ export function AsymptaPerceptionSystem() {
           position: absolute;
           z-index: 94;
           left: max(12px, env(safe-area-inset-left));
-          bottom: max(14px, env(safe-area-inset-bottom));
+          top: max(14px, env(safe-area-inset-top));
+          bottom: auto;
           display: inline-flex;
           align-items: center;
           gap: 2px;
           padding: 3px;
-          border: 1px solid rgba(117, 126, 119, .14);
+          border: 1px solid rgba(117, 126, 119, .12);
           border-radius: 999px;
-          background: rgba(248,247,241,.7);
-          box-shadow: 0 7px 24px rgba(54,63,58,.07);
+          background: rgba(248,247,241,.62);
+          box-shadow: 0 6px 20px rgba(54,63,58,.055);
           backdrop-filter: blur(12px);
+          opacity: .46;
+          transition: opacity 180ms ease, background 180ms ease;
           pointer-events: auto;
+        }
+        .asympta-zoom-control:hover,
+        .asympta-zoom-control:focus-within {
+          opacity: 1;
+          background: rgba(248,247,241,.9);
         }
         .asympta-zoom-control button {
           display: grid;
@@ -274,7 +282,7 @@ export function AsymptaPerceptionSystem() {
         @media (max-width: 620px) {
           .asympta-zoom-control {
             left: max(9px, env(safe-area-inset-left));
-            bottom: max(10px, env(safe-area-inset-bottom));
+            top: max(10px, env(safe-area-inset-top));
           }
         }
 
@@ -282,7 +290,8 @@ export function AsymptaPerceptionSystem() {
           .city-agent,
           .city-agent .city-agent-body,
           .world-agent:not(.mission-user-agent),
-          .latent-business {
+          .latent-business,
+          .asympta-zoom-control {
             transition: none !important;
           }
         }
