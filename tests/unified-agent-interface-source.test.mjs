@@ -26,11 +26,15 @@ test("renders Your Agent with the same compact animal-body language as other age
   assert.match(mission, /mission-pixel-person/);
   assert.match(template, /<ClientUnifiedAgentInterface \/>/);
   assert.match(boundary, /requestAnimationFrame/);
-  assert.match(boundary, /mounted \? <UnifiedAgentInterfaceRuntime \/> : null/);
+  assert.match(boundary, /if \(!mounted\) return null/);
+  assert.match(boundary, /<UnifiedAgentInterfaceRuntime \/>/);
 });
 
 test("keeps a live agent status in the menu bar and updates from real agent events", async () => {
-  const runtime = await readFile(path.join(root, "components/unified-agent-interface-runtime.tsx"), "utf8");
+  const [runtime, boundary] = await Promise.all([
+    readFile(path.join(root, "components/unified-agent-interface-runtime.tsx"), "utf8"),
+    readFile(path.join(root, "components/client-unified-agent-interface.tsx"), "utf8"),
+  ]);
   assert.match(runtime, /agent-live-status/);
   assert.match(runtime, /asympta:user-task-process/);
   assert.match(runtime, /asympta:agent-behavior/);
@@ -40,6 +44,9 @@ test("keeps a live agent status in the menu bar and updates from real agent even
   assert.match(runtime, /is-world-encountering/);
   assert.match(runtime, /asympta-user-live-status-v1/);
   assert.match(runtime, /aria-live="polite"/);
+  assert.match(boundary, /agent-task-control > \.agent-task-button \{ order:1/);
+  assert.match(boundary, /agent-task-control > \.agent-live-status \{ order:2/);
+  assert.match(boundary, /agent-task-control > \.agent-task-panel \{ order:3/);
 });
 
 test("adds an expandable place directory directly below the zoom control", async () => {
