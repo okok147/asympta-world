@@ -48,6 +48,14 @@ type CitySnapshot = {
   transactions?: unknown[];
 };
 
+type LiveProcessSnapshot = {
+  label: string;
+  detail: string;
+  progress: number;
+  tone: string;
+  updatedAt: number;
+};
+
 type UserPreferences = {
   version: 1;
   cameraFollow: boolean;
@@ -139,12 +147,27 @@ function cameraNumbers(transform: string) {
   };
 }
 
+function processFromEvent(event: Event): LiveProcessSnapshot | null {
+  const detail = (event as CustomEvent<Record<string, unknown>>).detail ?? {};
+  const label = String(detail.label ?? "").trim();
+  if (!label) return null;
+  return {
+    label,
+    detail: String(detail.detail ?? "").trim(),
+    progress: Math.max(0, Math.min(100, Number(detail.progress ?? 0) || 0)),
+    tone: String(detail.tone ?? "working"),
+    updatedAt: Date.now(),
+  };
+}
+
 export function AgentTaskMenu() {
   const preferencesRef = useRef<UserPreferences>(DEFAULT_PREFERENCES);
+  const processClearRef = useRef<number | null>(null);
   const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
   const [missions, setMissions] = useState<MissionSnapshot[]>([]);
   const [encounters, setEncounters] = useState<EncounterSnapshot[]>([]);
   const [city, setCity] = useState<CitySnapshot>({});
+  const [liveProcess, setLiveProcess] = useState<LiveProcessSnapshot | null>(null);
   const [open, setOpen] = useState(false);
   const [follow, setFollow] = useState(false);
   const [avatar, setAvatar] = useState<AvatarKind>("human");
@@ -187,6 +210,28 @@ export function AgentTaskMenu() {
     return () => {
       window.clearTimeout(initialize);
       window.clearInterval(timer);
+    };
+  }, []);
+
+  useEffect(() => {
+    const onProcess = (event: Event) => {
+      const next = processFromEvent(event);
+      if (!next) return;
+      setLiveProcess(next);
+      if (processClearRef.current !== null) window.clearTimeout(processClearRef.current);
+      if (next.progress >= 100) {
+        processClearRef.current = window.setTimeout(() => {
+          setLiveProcess(null);
+          processClearRef.current = null;
+        }, 3600);
+      }
+    };
+    window.addEventListener("asympta:user-task-process", onProcess);
+    window.addEventListener("asympta:task-process", onProcess);
+    return () => {
+      window.removeEventListener("asympta:user-task-process", onProcess);
+      window.removeEventListener("asympta:task-process", onProcess);
+      if (processClearRef.current !== null) window.clearTimeout(processClearRef.current);
     };
   }, []);
 
@@ -293,14 +338,19 @@ export function AgentTaskMenu() {
 
   if (!portalHost) return null;
 
-  const progress = Math.max(0, Math.min(100, activeMission?.progress ?? 0));
+  const missionProgress = Math.max(0, Math.min(100, activeMission?.progress ?? 0));
+  const processProgress = liveProcess?.progress ?? 0;
+  const progress = liveProcess ? Math.max(missionProgress, processProgress) : missionProgress;
   const currentSubtask = activeMission?.subtasks.find((subtask) => subtask.status !== "completed");
   const completed = activeMission?.subtasks.filter((subtask) => subtask.status === "completed").length ?? 0;
   const totalTasks = activeMission?.subtasks.length ?? 0;
   const team = activeMission?.collaborators.length ?? 0;
   const cityCredits = Math.round(city.externalCredits ?? 0);
   const hasAgent = Boolean(document.querySelector(".mission-user-agent"));
-  const stage = activeEncounter?.phase ?? activeMission?.status ?? "idle";
+  const fallbackStage = activeEncounter?.phase ?? activeMission?.status ?? "idle";
+  const stage = liveProcess?.label ?? fallbackStage;
+  const missionLabel = activeMission?.title ?? (liveProcess ? liveProcess.detail || "WebMCP action" : "Waiting for goal");
+  const radarStage = activeMission || liveProcess ? stage : "Waiting for goal";
 
   return createPortal(
     <>
@@ -310,10 +360,69 @@ export function AgentTaskMenu() {
           right:max(14px,env(safe-area-inset-right)); display:grid; justify-items:end;
           gap:9px; pointer-events:none;
         }
+        .agent-task-radar-row { display:flex; align-items:center; gap:8px; pointer-events:auto; }
+        .agent-task-radar-status {
+          display:grid;
+          gap:2px;
+          width:min(228px,calc(100vw - 82px));
+          min-height:42px;
+          padding:7px 10px;
+          border:1px solid rgba(118,129,121,.16);
+          border-radius:13px;
+          background:rgba(248,247,241,.92);
+          box-shadow:0 7px 22px rgba(54,63,58,.07);
+          color:#58635c;
+          backdrop-filter:blur(14px);
+          pointer-events:none;
+        }
+        .agent-task-radar-status strong {
+          overflow:hidden;
+          color:#444f48;
+          font-size:.47rem;
+          font-weight:680;
+          line-height:1.2;
+          text-overflow:ellipsis;
+          white-space:nowrap;
+        }
+        .agent-task-radar-status span { display:flex; align-items:center; gap:5px; min-width:0; }
+        .agent-task-radar-status small {
+          overflow:hidden;
+          flex:1;
+          color:#78827b;
+          font-family:var(--pixel-font);
+          font-size:.29rem;
+          letter-spacing:.035em;
+          text-overflow:ellipsis;
+          text-transform:uppercase;
+          white-space:nowrap;
+        }
+        .agent-task-radar-status b {
+          color:#6b80ac;
+          font-family:var(--pixel-font);
+          font-size:.28rem;
+          font-weight:700;
+        }
+        .agent-task-radar-status i {
+          display:block;
+          height:2px;
+          margin-top:2px;
+          overflow:hidden;
+          border-radius:99px;
+          background:rgba(110,120,113,.1);
+        }
+        .agent-task-radar-status i::after {
+          content:"";
+          display:block;
+          width:${String(progress)}%;
+          height:100%;
+          border-radius:inherit;
+          background:#788db5;
+          transition:width 300ms ease;
+        }
         .agent-task-button,.agent-task-panel { pointer-events:auto; }
         .agent-task-button {
           position:relative; display:grid; place-items:center; width:44px; height:44px;
-          padding:3px; border:0; border-radius:50%; color:#59635d; cursor:pointer;
+          flex:0 0 44px; padding:3px; border:0; border-radius:50%; color:#59635d; cursor:pointer;
           background:conic-gradient(#768bb5 0deg,#768bb5 ${String(progress * 3.6)}deg,rgba(119,127,121,.16) ${String(progress * 3.6)}deg,rgba(119,127,121,.16) 360deg);
           box-shadow:0 5px 18px rgba(54,63,58,.09);
         }
@@ -365,7 +474,12 @@ export function AgentTaskMenu() {
           left:3px !important; top:3px !important; background:#77645a !important;
           box-shadow:16px 0 #77645a,4px 4px #806b60,8px 4px #806b60,12px 4px #806b60,0 8px #806b60,4px 8px #a58c7e,8px 8px #b9a193,12px 8px #a58c7e,16px 8px #806b60,4px 12px #806b60,8px 12px #806b60,12px 12px #806b60,4px 16px #806b60,8px 16px #806b60,12px 16px #806b60,0 20px #69584f,4px 20px #69584f,12px 20px #69584f,16px 20px #69584f !important;
         }
-        @media (max-width:620px) { .agent-task-control { top:max(10px,env(safe-area-inset-top)); right:max(10px,env(safe-area-inset-right)); } .agent-task-panel { width:min(276px,calc(100vw - 20px)); } }
+        @media (max-width:620px) {
+          .agent-task-control { top:max(10px,env(safe-area-inset-top)); right:max(10px,env(safe-area-inset-right)); }
+          .agent-task-radar-status { width:min(176px,calc(100vw - 74px)); padding:6px 8px; }
+          .agent-task-panel { width:min(276px,calc(100vw - 20px)); }
+        }
+        @media (prefers-reduced-motion:reduce) { .agent-task-radar-status i::after { transition:none; } }
       `}</style>
 
       <div
@@ -373,22 +487,29 @@ export function AgentTaskMenu() {
         onPointerDown={(event) => event.stopPropagation()}
         onWheel={(event) => event.stopPropagation()}
       >
-        <button
-          type="button"
-          className="agent-task-button"
-          aria-label="Open your agent task menu"
-          aria-expanded={open}
-          onClick={() => setOpen((value) => !value)}
-        >
-          {open ? <Menu aria-hidden="true" /> : <Target aria-hidden="true" />}
-        </button>
+        <div className="agent-task-radar-row">
+          <div className="agent-task-radar-status" aria-live="polite" aria-label={missionLabel + ". Stage " + radarStage + ". " + String(Math.round(progress)) + "%"}>
+            <strong>{missionLabel}</strong>
+            <span><small>{radarStage}</small><b>{activeMission || liveProcess ? String(Math.round(progress)) + "%" : "READY"}</b></span>
+            <i aria-hidden="true" />
+          </div>
+          <button
+            type="button"
+            className="agent-task-button"
+            aria-label="Open your agent task menu"
+            aria-expanded={open}
+            onClick={() => setOpen((value) => !value)}
+          >
+            {open ? <Menu aria-hidden="true" /> : <Target aria-hidden="true" />}
+          </button>
+        </div>
 
         {open ? (
           <section className="agent-task-panel" aria-label="Your agent task, city resources and preferences">
             <header>
               <span>
                 <small>{activeMission ? "Current mission" : "Your agent"}</small>
-                <strong>{activeMission?.title ?? "Ready for a goal"}</strong>
+                <strong>{missionLabel}</strong>
               </span>
               <button type="button" className="agent-task-close" aria-label="Close agent menu" onClick={() => setOpen(false)}>
                 <X aria-hidden="true" />
@@ -400,19 +521,18 @@ export function AgentTaskMenu() {
             </div>
             <div className="agent-task-row">
               <Target aria-hidden="true" />
-              <span>{currentSubtask?.title ?? "Waiting for a mission"}</span>
-              <strong>{progress}%</strong>
+              <span>{liveProcess?.detail || currentSubtask?.title || "Waiting for goal"}</span>
+              <strong>{Math.round(progress)}%</strong>
             </div>
             <div className="agent-task-row">
               <Check aria-hidden="true" />
               <span>Stage</span>
-              <strong>{stage}</strong>
+              <strong>{radarStage}</strong>
             </div>
 
             <div className="agent-task-divider" />
             <div className="agent-task-section-label">Resources</div>
             <div className="agent-resource-row">
-              <span className="agent-resource-pill"><Coins aria-hidden="true" />{activeMission ? Math.round(activeMission.budget) : 0} mission cr</span>
               <span className="agent-resource-pill"><Coins aria-hidden="true" />{cityCredits} city cr</span>
               <span className="agent-resource-pill"><Package aria-hidden="true" />{completed}/{totalTasks} outputs</span>
               <span className="agent-resource-pill"><Users aria-hidden="true" />{team} allies</span>
