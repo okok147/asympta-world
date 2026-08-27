@@ -62,6 +62,6 @@ test("mounts the scenario harness alongside the real city and mission runtimes",
   const template = await readFile(path.join(root, "app/template.tsx"), "utf8");
   assert.match(template, /<LatentCityRuntime \/>/);
   assert.match(template, /<MissionSocietyRuntime \/>/);
-  assert.match(template, /<UserTaskProcessRuntime \/>/);
+  assert.match(template, /<TaskProcessRuntime \/>/);
   assert.match(template, /<WebMcpScenarioRuntime \/>/);
 });
