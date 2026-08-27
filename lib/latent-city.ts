@@ -28,7 +28,7 @@ export type CityTransaction = {
 };
 export type LatentCityState = {
   version: 1; worldTime: number;
-  externalCredits: number; externalResources: number; externalInventory: Record<string, number>; externalServices: Record<string, number>;
+  externalCredits: number; externalUnlimitedCredits: boolean; externalResources: number; externalInventory: Record<string, number>; externalServices: Record<string, number>;
   businesses: CityBusiness[]; agents: CityAgent[]; transactions: CityTransaction[];
 };
 export type CityActionInput = { businessId: string; action: CityActionId; agentId?: string; itemId?: string; quantity?: number; note?: string };
@@ -89,7 +89,7 @@ export function seedCityAgents(now = Date.now(), count = 100): CityAgent[] {
   });
 }
 export function seedLatentCity(now = Date.now(), agentCount = 100): LatentCityState {
-  return { version: 1, worldTime: now, externalCredits: 500, externalResources: 3, externalInventory: {}, externalServices: {}, businesses: seedCityBusinesses(), agents: seedCityAgents(now, agentCount), transactions: [] };
+  return { version: 1, worldTime: now, externalCredits: 500, externalUnlimitedCredits: true, externalResources: 3, externalInventory: {}, externalServices: {}, businesses: seedCityBusinesses(), agents: seedCityAgents(now, agentCount), transactions: [] };
 }
 export function deriveAgentNeed(agent: CityAgent): CityNeed { if (agent.hunger >= 62) return "meal"; if (agent.energy <= 24) return "rest"; return agent.missionNeed; }
 export function businessAveragePrice(b: CityBusiness) { const prices = [...b.products.map((x) => x.price), ...b.services.map((x) => x.price)]; return prices.length ? prices.reduce((a, x) => a + x, 0) / prices.length : 0; }
@@ -117,7 +117,7 @@ export function searchCityBusinesses(state: LatentCityState, query = "", kind?: 
   }).map((b) => ({ id: b.id, name: b.name, kind: b.kind, reputation: b.reputation, x: b.x, y: b.y, products: b.products.length, services: b.services.length, actions: b.actions }));
 }
 function cloneState(state: LatentCityState): LatentCityState {
-  return { ...state, externalInventory: { ...(state.externalInventory ?? {}) }, externalServices: { ...(state.externalServices ?? {}) }, externalResources: state.externalResources ?? 3,
+  return { ...state, externalUnlimitedCredits: state.externalUnlimitedCredits ?? true, externalInventory: { ...(state.externalInventory ?? {}) }, externalServices: { ...(state.externalServices ?? {}) }, externalResources: state.externalResources ?? 3,
     businesses: state.businesses.map((b) => ({ ...b, products: b.products.map((x) => ({ ...x })), services: b.services.map((x) => ({ ...x })) })),
     agents: state.agents.map((a) => ({ ...a, inventory: { ...a.inventory }, traits: { ...a.traits }, preferredKinds: [...a.preferredKinds], memory: a.memory.map((m) => ({ ...m })), thought: a.thought ? { ...a.thought } : undefined })),
     transactions: [...state.transactions] };
@@ -147,7 +147,7 @@ export function executeCityAction(state: LatentCityState, input: CityActionInput
   if (!b.actions.includes(input.action)) return { ok: false, state, summary: "Action is not available at this business." };
   const agent = input.agentId && input.agentId !== "your-agent" ? next.agents.find((x) => x.id === input.agentId) : undefined;
   const isUser = input.agentId === "your-agent" || !input.agentId;
-  const payer = agent?.wallet ?? next.externalCredits; const quantity = clamp(Math.floor(input.quantity ?? 1), 1, 8);
+  const payer = agent?.wallet ?? (isUser && next.externalUnlimitedCredits ? Number.POSITIVE_INFINITY : next.externalCredits); const quantity = clamp(Math.floor(input.quantity ?? 1), 1, 8);
   if (input.action === "browse_products") return { ok: true, state: next, summary: b.name + " has " + b.products.length + " products and " + b.services.length + " services.", actorDelta: "+product info", businessDelta: "+visitor" };
   if (input.action === "check_stock") { const stock = b.products.reduce((a, x) => a + x.stock, 0); return { ok: true, state: next, summary: "Stock checked.", stock, actorDelta: "+stock info", businessDelta: "+enquiry" }; }
   if (input.action === "request_quote") {
@@ -163,27 +163,27 @@ export function executeCityAction(state: LatentCityState, input: CityActionInput
     if (item.stock < quantity) return { ok: false, state, summary: "Not enough stock." }; credits = item.price * quantity; if (payer < credits) return { ok: false, state, summary: "Not enough credits." };
     item.stock -= quantity; b.treasury += credits; itemId = item.id; resolvedName = item.name;
     if (agent) { agent.wallet -= credits; agent.inventory[item.id] = (agent.inventory[item.id] ?? 0) + quantity; if (item.tags.includes("food")) { agent.hunger = clamp(agent.hunger - 38 * quantity, 0, 100); agent.energy = clamp(agent.energy + 9 * quantity, 0, 100); } }
-    else { next.externalCredits -= credits; next.externalInventory[item.id] = (next.externalInventory[item.id] ?? 0) + quantity; }
+    else { if (!next.externalUnlimitedCredits) next.externalCredits -= credits; next.externalInventory[item.id] = (next.externalInventory[item.id] ?? 0) + quantity; }
     summary = "Bought " + quantity + " × " + item.name + " from " + b.name + ".";
   } else if (input.action === "book_service") {
     const item = b.services.find((x) => x.id === input.itemId) ?? b.services.find((x) => x.slots > 0); if (!item) return { ok: false, state, summary: "No service slot is available." };
     if (item.slots <= 0) return { ok: false, state, summary: "Service is fully booked." }; credits = item.price; if (payer < credits) return { ok: false, state, summary: "Not enough credits." };
     item.slots -= 1; b.treasury += credits; itemId = item.id; resolvedName = item.name;
-    if (agent) { agent.wallet -= credits; agent.energy = clamp(agent.energy - 3, 0, 100); } else { next.externalCredits -= credits; next.externalServices[item.id] = (next.externalServices[item.id] ?? 0) + 1; }
+    if (agent) { agent.wallet -= credits; agent.energy = clamp(agent.energy - 3, 0, 100); } else { if (!next.externalUnlimitedCredits) next.externalCredits -= credits; next.externalServices[item.id] = (next.externalServices[item.id] ?? 0) + 1; }
     summary = "Booked " + item.name + " at " + b.name + ".";
   } else if (input.action === "sell_resource") {
     const resources = agent?.resources ?? next.externalResources; if (resources < quantity) return { ok: false, state, summary: "Not enough resources." };
     credits = Math.min(b.treasury, quantity * 8); if (credits <= 0) return { ok: false, state, summary: "Business cannot buy resources now." };
-    b.treasury -= credits; resolvedName = "resource"; if (agent) { agent.resources -= quantity; agent.wallet += credits; } else { next.externalResources -= quantity; next.externalCredits += credits; }
+    b.treasury -= credits; resolvedName = "resource"; if (agent) { agent.resources -= quantity; agent.wallet += credits; } else { next.externalResources -= quantity; if (!next.externalUnlimitedCredits) next.externalCredits += credits; }
     summary = "Sold " + quantity + " resource units to " + b.name + ".";
   } else if (input.action === "deliver") {
-    credits = Math.min(7, b.treasury); b.treasury -= credits; resolvedName = "delivery"; if (agent) { agent.wallet += credits; agent.energy = clamp(agent.energy - 6, 0, 100); } else next.externalCredits += credits;
+    credits = Math.min(7, b.treasury); b.treasury -= credits; resolvedName = "delivery"; if (agent) { agent.wallet += credits; agent.energy = clamp(agent.energy - 6, 0, 100); } else if (!next.externalUnlimitedCredits) next.externalCredits += credits;
     summary = "Completed a delivery for " + b.name + ".";
   }
   const satisfaction = clamp(b.reputation * 0.72 + (agent ? agent.traits.quality * 18 : 8) - credits * 0.035, 35, 100); if (agent) remember(agent, b, Math.max(0, credits), satisfaction);
   b.reputation = clamp(b.reputation + (satisfaction - 70) * 0.004, 45, 98); const deltas = deltaLabels(input.action, credits, resolvedName, quantity);
   next.transactions = [{ id: txId(now, agent?.id ?? "your-agent", b.id), at: now, agentId: agent?.id ?? "your-agent", ownerId: agent?.ownerId ?? "current-user", businessId: b.id, action: input.action, itemId, itemName: resolvedName, quantity, credits, summary, actorDelta: deltas.actor, businessDelta: deltas.business }, ...next.transactions].slice(0, 120);
-  if (isUser) next.externalCredits = Math.max(0, next.externalCredits);
+  if (isUser && !next.externalUnlimitedCredits) next.externalCredits = Math.max(0, next.externalCredits);
   return { ok: true, state: next, summary, credits, actorDelta: deltas.actor, businessDelta: deltas.business };
 }
 
