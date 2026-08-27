@@ -27,7 +27,7 @@ test("ships a ten-business latent city with one hundred resident agents", async 
   assert.match(source, /actorDelta/);
   assert.match(source, /businessDelta/);
   assert.match(source, /item\.stock -= quantity/);
-  assert.match(source, /b\.treasury \+= credits/);
+  assert.match(source, /businessState\.treasury \+= credits/);
 });
 
 test("renders subtle generative businesses, living agents, inventory deltas and an on-demand inspector", async () => {
