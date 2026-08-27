@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
 
-import { AutonomousAgentOverlay } from "@/components/autonomous-agent-overlay";
+import { BusinessWorldRuntime } from "@/components/business-world-runtime";
 
 export default function WorldTemplate({ children }: { children: ReactNode }) {
   return (
     <>
-      <AutonomousAgentOverlay />
+      <BusinessWorldRuntime />
       {children}
     </>
   );
