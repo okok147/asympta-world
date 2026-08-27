@@ -7,13 +7,11 @@ import { createPortal } from "react-dom";
 type PopupTargets = {
   places: HTMLElement | null;
   route: HTMLElement | null;
-  scenario: HTMLElement | null;
 };
 
 const EMPTY_TARGETS: PopupTargets = {
   places: null,
   route: null,
-  scenario: null,
 };
 
 const CLOSE_SELECTOR = [
@@ -90,12 +88,9 @@ export function PopupDismissRuntime() {
       const next: PopupTargets = {
         places: document.querySelector<HTMLElement>(".places-directory-panel"),
         route: document.querySelector<HTMLElement>(".route-visit-card"),
-        scenario: document.querySelector<HTMLElement>(".webmcp-scenario-picker"),
       };
       setTargets((current) =>
-        current.places === next.places &&
-        current.route === next.route &&
-        current.scenario === next.scenario
+        current.places === next.places && current.route === next.route
           ? current
           : next,
       );
@@ -149,13 +144,6 @@ export function PopupDismissRuntime() {
     control?.click();
   }, []);
 
-  const closeScenario = useCallback(() => {
-    const input = document.querySelector<HTMLInputElement>(
-      '.need-composer input[aria-label="What do you need?"]',
-    );
-    input?.blur();
-  }, []);
-
   const closeRoute = useCallback(() => {
     setRouteDismissed(true);
   }, []);
@@ -179,8 +167,7 @@ export function PopupDismissRuntime() {
   return (
     <>
       <style>{`
-        .places-directory-panel,
-        .webmcp-scenario-picker { position: relative !important; }
+        .places-directory-panel { position: relative !important; }
         html[data-route-comparison-dismissed="true"] .route-visit-card {
           display: none !important;
         }
@@ -211,7 +198,6 @@ export function PopupDismissRuntime() {
         }
         .asympta-runtime-popup-close svg { width: 12px; height: 12px; }
         .places-directory-panel .places-directory-tools,
-        .webmcp-scenario-picker .webmcp-scenario-head,
         .route-visit-card header { padding-right: 31px; }
         @media (max-width: 620px) {
           .asympta-runtime-popup-close { top: 7px; right: 7px; width: 27px; height: 27px; }
@@ -233,14 +219,6 @@ export function PopupDismissRuntime() {
             "route-comparison-runtime-close",
           )
         : null}
-
-      {targets.scenario
-        ? createPortal(
-            <DismissButton label="Close scenario picker" onDismiss={closeScenario} />,
-            targets.scenario,
-            "scenario-picker-runtime-close",
-          )
-        : null}
-    </>
+    </>,
   );
 }
