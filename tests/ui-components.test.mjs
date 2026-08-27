@@ -130,7 +130,7 @@ test("gives only the user mission agent a persistent colored aura", async () => 
 
 test("ships an elegant user-agent control menu with progress, resources, follow camera, animal forms and concise dialogue", async () => {
   const [menu, template] = await Promise.all([
-    readFile(path.join(root, "components/agent-task-menu.tsx"), "utf8"),
+    readFile(path.join(root, "components/agent-control-menu.tsx"), "utf8"),
     readFile(path.join(root, "app/template.tsx"), "utf8"),
   ]);
 
