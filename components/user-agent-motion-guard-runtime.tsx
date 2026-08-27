@@ -72,14 +72,13 @@ function migrateCameraFollowDefault() {
 
 export function UserAgentMotionGuardRuntime() {
   useEffect(() => {
-    // The first-run camera should show the agent crossing the world rather than
-    // continuously pinning it to the exact centre of the screen. Users can
-    // still opt back into Camera follow from the agent menu.
     migrateCameraFollowDefault();
 
     let frame = 0;
     let host: HTMLElement | null = null;
     let lastTick = performance.now();
+    let lastObservedMotionAt = performance.now();
+    let guardOwnsMotion = false;
     let lastPoint: Point = {
       x: HOME_X,
       y: HOME_Y,
@@ -105,6 +104,8 @@ export function UserAgentMotionGuardRuntime() {
           Math.max(2400, Math.min(18000, Number(detail.durationMs ?? 6200) + 1800)),
       };
       fallbackRoamTarget = null;
+      guardOwnsMotion = false;
+      lastObservedMotionAt = performance.now();
     };
 
     const chooseFallbackRoam = (point: Point) => {
@@ -115,6 +116,7 @@ export function UserAgentMotionGuardRuntime() {
         y: clamp(point.y + Math.sin(angle) * radius, WORLD_MIN_Y, WORLD_MAX_Y),
         expiresAt: Date.now() + 9000,
       };
+      guardOwnsMotion = true;
     };
 
     const animate = (time: number) => {
@@ -128,6 +130,8 @@ export function UserAgentMotionGuardRuntime() {
         if (host) {
           const point = readPosition(host);
           lastPoint = { ...point, changedAt: time };
+          lastObservedMotionAt = time;
+          guardOwnsMotion = false;
           host.dataset.userMotionGuard = "active";
         }
         fallbackRoamTarget = null;
@@ -137,45 +141,57 @@ export function UserAgentMotionGuardRuntime() {
         let current = readPosition(host);
         const home = { x: HOME_X, y: HOME_Y };
 
-        // MissionSocietyRuntime historically re-renders the user agent with its
-        // home coordinates. Detect that large instantaneous jump and restore the
-        // last genuine motion position instead of letting React visually pin it.
+        // MissionSocietyRuntime can re-render the portal with home coordinates.
+        // Restore the latest real motion point immediately instead of allowing
+        // React to visually pin the user agent at home.
         const resetToHome =
           distance(current, home) < 1.5 &&
           distance(lastPoint, home) > 22 &&
-          time - lastPoint.changedAt < 1400;
+          time - lastPoint.changedAt < 1600;
         if (resetToHome) {
           writePosition(host, lastPoint.x, lastPoint.y);
           current = { x: lastPoint.x, y: lastPoint.y };
         }
 
+        // A position change we did not write ourselves means the primary
+        // ContinuousAgentMotion runtime is healthy again. Yield to it.
         const observedDelta = distance(current, lastPoint);
         if (observedDelta > 0.55) {
           lastPoint = { ...current, changedAt: time };
+          lastObservedMotionAt = time;
+          guardOwnsMotion = false;
         }
 
-        if (explicitTarget && explicitTarget.expiresAt < now) explicitTarget = null;
+        if (explicitTarget && explicitTarget.expiresAt < now) {
+          explicitTarget = null;
+          guardOwnsMotion = false;
+        }
         if (fallbackRoamTarget && fallbackRoamTarget.expiresAt < now) {
           fallbackRoamTarget = null;
+          guardOwnsMotion = false;
         }
 
         const activeTarget = explicitTarget ?? fallbackRoamTarget;
-        const stalledFor = time - lastPoint.changedAt;
+        const stalledFor = time - lastObservedMotionAt;
         const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-        // Only take over if the normal motion runtime has stopped changing the
-        // user-agent position. This keeps one effective owner during healthy runs.
-        if (activeTarget && stalledFor > 360) {
+        // Once the guard takes ownership, keep moving on EVERY animation frame.
+        // The previous implementation updated its own stall timestamp after one
+        // frame, which accidentally throttled movement to roughly one tiny step
+        // every 360 ms and made the user agent appear stationary.
+        if (activeTarget && (guardOwnsMotion || stalledFor > 360)) {
+          guardOwnsMotion = true;
           const dx = activeTarget.x - current.x;
           const dy = activeTarget.y - current.y;
           const remaining = Math.hypot(dx, dy);
           if (remaining <= 3) {
             if (explicitTarget === activeTarget) explicitTarget = null;
             if (fallbackRoamTarget === activeTarget) fallbackRoamTarget = null;
+            guardOwnsMotion = false;
             host.classList.remove("is-world-walking");
             host.classList.add("is-world-paused");
           } else {
-            const speed = reducedMotion ? 22 : 38;
+            const speed = reducedMotion ? 22 : 52;
             const step = Math.min(remaining, speed * dt);
             const nextX = current.x + (dx / remaining) * step;
             const nextY = current.y + (dy / remaining) * step;
@@ -190,8 +206,6 @@ export function UserAgentMotionGuardRuntime() {
           !host.classList.contains("is-world-encountering") &&
           stalledFor > 2600
         ) {
-          // A final safety net for the web build: if the normal roaming loop is
-          // absent or blocked, the user agent still behaves like a living agent.
           chooseFallbackRoam(lastPoint);
         }
       }
