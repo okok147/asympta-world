@@ -27,8 +27,8 @@ test("interactive popup surfaces always expose an explicit close affordance", ()
 
 test("popup dismissal also supports Escape and preserves native close controls", () => {
   assert.match(popupSource, /event\.key !== "Escape"/);
-  assert.match(popupSource, /\[data-slot=\\"sheet-close\\"\]/);
-  assert.match(popupSource, /button\[aria-label\^=\\"Close\\"\]/);
+  assert.match(popupSource, /\[data-slot="sheet-close"\]/);
+  assert.match(popupSource, /button\[aria-label\^="Close"\]/);
   assert.match(popupSource, /ancestorZIndex/);
 });
 
