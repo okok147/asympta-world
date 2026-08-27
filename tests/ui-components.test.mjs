@@ -128,6 +128,35 @@ test("gives only the user mission agent a persistent colored aura", async () => 
   assert.match(template, /<UserAgentAura \/>/);
 });
 
+test("ships an elegant user-agent control menu with progress, resources, follow camera, animal forms and concise dialogue", async () => {
+  const [menu, template] = await Promise.all([
+    readFile(path.join(root, "components/agent-task-menu.tsx"), "utf8"),
+    readFile(path.join(root, "app/template.tsx"), "utf8"),
+  ]);
+
+  assert.match(menu, /agent-task-button/);
+  assert.match(menu, /conic-gradient/);
+  assert.match(menu, /Current mission/);
+  assert.match(menu, /Resources/);
+  assert.match(menu, /Camera follow/);
+  assert.match(menu, /requestAnimationFrame\(animate\)/);
+  assert.match(menu, /data-user-avatar/);
+  for (const animal of ["cat", "fox", "rabbit", "bear"]) {
+    assert.match(menu, new RegExp('"' + animal + '"'));
+  }
+  for (const phrase of [
+    "Find food",
+    "Accept deal",
+    "Share skill",
+    "Find help",
+    "Trade resource",
+    "Do task",
+  ]) {
+    assert.match(menu, new RegExp(phrase));
+  }
+  assert.match(template, /<AgentTaskMenu \/>/);
+});
+
 test("includes responsive, safe-area, pixel-art, and reduced-motion rules", async () => {
   const css = await readFile(path.join(root, "app/globals.css"), "utf8");
   assert.match(css, /@media \(max-width: 900px\)/);
