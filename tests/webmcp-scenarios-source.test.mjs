@@ -29,7 +29,7 @@ test("ships exactly ten selectable WebMCP AI simulation scenarios", async () => 
 test("scenario autocomplete attaches to the existing need composer and supports keyboard selection", async () => {
   const source = await readFile(path.join(root, "components/webmcp-scenario-runtime.tsx"), "utf8");
   assert.match(source, /\.need-composer/);
-  assert.match(source, /input\[aria-label=\\"What do you need\?\\"\]/);
+  assert.match(source, /input\[aria-label="What do you need\?"\]/);
   assert.match(source, /webmcp-scenario-picker/);
   assert.match(source, /type to filter/);
   assert.match(source, /ArrowDown/);
