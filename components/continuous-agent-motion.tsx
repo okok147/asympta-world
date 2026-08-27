@@ -1,5 +1,23 @@
 "use client";
 
+import {
+  Activity,
+  Brain,
+  Check,
+  CircleHelp,
+  Coins,
+  Handshake,
+  Hammer,
+  MessageCircle,
+  Move,
+  Package,
+  Search,
+  Target,
+  Utensils,
+  Workflow,
+  Zap,
+  type LucideIcon,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -12,6 +30,23 @@ type ThoughtKind =
   | "resource"
   | "status"
   | "workflow";
+
+type IconSymbol =
+  | "energy"
+  | "food"
+  | "skill"
+  | "question"
+  | "talk"
+  | "deal"
+  | "payment"
+  | "resource"
+  | "search"
+  | "work"
+  | "complete"
+  | "target"
+  | "status"
+  | "workflow"
+  | "walk";
 
 type AgentHost = {
   name: string;
@@ -31,12 +66,17 @@ type MotionState = {
 
 type BehaviorIntent = {
   targetName?: string;
+  targetX?: number;
+  targetY?: number;
   expiresAt: number;
+  holdUntil: number;
+  encounterId?: string;
 };
 
 type Thought = {
   kind: ThoughtKind;
-  text: string;
+  symbols: IconSymbol[];
+  accessibleText: string;
   expiresAt: number;
 };
 
@@ -53,6 +93,17 @@ type BehaviorDetail = {
   kind: ThoughtKind;
   message: string;
   partnerMessage?: string;
+  symbols?: IconSymbol[];
+  partnerSymbols?: IconSymbol[];
+  durationMs?: number;
+  holdMs?: number;
+  encounterId?: string;
+};
+
+type MotionTargetDetail = {
+  agentName: string;
+  x: number;
+  y: number;
   durationMs?: number;
 };
 
@@ -60,6 +111,7 @@ const WORLD_MIN_X = 68;
 const WORLD_MAX_X = 1132;
 const WORLD_MIN_Y = 78;
 const WORLD_MAX_Y = 688;
+const SOCIAL_DISTANCE = 30;
 
 const ROLE_MATCH: Record<string, string[]> = {
   product: ["product strategist"],
@@ -73,6 +125,35 @@ const ROLE_MATCH: Record<string, string[]> = {
   automation: ["automation specialist"],
   operations: ["operations analyst"],
   copy: ["copywriter"],
+};
+
+const ICONS: Record<IconSymbol, LucideIcon> = {
+  energy: Zap,
+  food: Utensils,
+  skill: Brain,
+  question: CircleHelp,
+  talk: MessageCircle,
+  deal: Handshake,
+  payment: Coins,
+  resource: Package,
+  search: Search,
+  work: Hammer,
+  complete: Check,
+  target: Target,
+  status: Activity,
+  workflow: Workflow,
+  walk: Move,
+};
+
+const DEFAULT_SYMBOLS: Record<ThoughtKind, IconSymbol[]> = {
+  energy: ["energy"],
+  food: ["food", "question"],
+  skill: ["skill"],
+  enquiry: ["question", "talk"],
+  deal: ["deal", "payment"],
+  resource: ["resource"],
+  status: ["status"],
+  workflow: ["workflow", "work"],
 };
 
 function clamp(value: number, min: number, max: number) {
@@ -126,6 +207,37 @@ function chooseRoamTarget(state: MotionState) {
   state.speed = 19 + Math.random() * 29;
 }
 
+function readPosition(host: AgentHost, motion: Map<string, MotionState>) {
+  const state = motion.get(host.name);
+  if (state) return { x: state.x, y: state.y };
+  return {
+    x: Number.parseFloat(host.node.style.left) || host.node.offsetLeft || 500,
+    y: Number.parseFloat(host.node.style.top) || host.node.offsetTop || 360,
+  };
+}
+
+function meetingTargets(
+  actor: AgentHost,
+  partner: AgentHost,
+  motion: Map<string, MotionState>,
+) {
+  const first = readPosition(actor, motion);
+  const second = readPosition(partner, motion);
+  const dx = second.x - first.x;
+  const dy = second.y - first.y;
+  const distance = Math.hypot(dx, dy);
+  const ux = distance > 1 ? dx / distance : 1;
+  const uy = distance > 1 ? dy / distance : 0;
+  const midpointX = (first.x + second.x) / 2;
+  const midpointY = (first.y + second.y) / 2;
+  return {
+    actorX: clamp(midpointX - ux * SOCIAL_DISTANCE, WORLD_MIN_X, WORLD_MAX_X),
+    actorY: clamp(midpointY - uy * SOCIAL_DISTANCE, WORLD_MIN_Y, WORLD_MAX_Y),
+    partnerX: clamp(midpointX + ux * SOCIAL_DISTANCE, WORLD_MIN_X, WORLD_MAX_X),
+    partnerY: clamp(midpointY + uy * SOCIAL_DISTANCE, WORLD_MIN_Y, WORLD_MAX_Y),
+  };
+}
+
 export function ContinuousAgentMotion() {
   const hostsRef = useRef<Map<string, AgentHost>>(new Map());
   const motionRef = useRef<Map<string, MotionState>>(new Map());
@@ -170,28 +282,55 @@ export function ContinuousAgentMotion() {
       const actor = resolveHost(hosts, detail.actorName, detail.actorRole);
       const partner = resolveHost(hosts, detail.partnerName, detail.partnerRole);
       const now = Date.now();
-      const duration = clamp(detail.durationMs ?? 5200, 1600, 16000);
+      const duration = clamp(detail.durationMs ?? 6200, 5000, 18000);
+      const hold = clamp(detail.holdMs ?? duration - 900, 3200, duration);
+
+      if (actor && partner) {
+        const meeting = meetingTargets(actor, partner, motionRef.current);
+        behaviorRef.current[actor.name] = {
+          targetName: partner.name,
+          targetX: meeting.actorX,
+          targetY: meeting.actorY,
+          expiresAt: now + duration,
+          holdUntil: now + hold,
+          encounterId: detail.encounterId,
+        };
+        behaviorRef.current[partner.name] = {
+          targetName: actor.name,
+          targetX: meeting.partnerX,
+          targetY: meeting.partnerY,
+          expiresAt: now + duration,
+          holdUntil: now + hold,
+          encounterId: detail.encounterId,
+        };
+      } else if (actor) {
+        behaviorRef.current[actor.name] = {
+          expiresAt: now + duration,
+          holdUntil: 0,
+          encounterId: detail.encounterId,
+        };
+      }
 
       if (actor) {
-        behaviorRef.current[actor.name] = {
-          targetName: partner?.name,
-          expiresAt: now + duration,
-        };
         setThoughts((current) => ({
           ...current,
           [actor.name]: {
             kind: detail.kind,
-            text: detail.message,
+            symbols: detail.symbols?.slice(0, 3) ?? DEFAULT_SYMBOLS[detail.kind],
+            accessibleText: detail.message,
             expiresAt: now + duration,
           },
           ...(partner
             ? {
                 [partner.name]: {
-                  kind: "status" as const,
-                  text:
-                    detail.partnerMessage ??
-                    "Interacting with " + actor.name,
-                  expiresAt: now + Math.max(1600, duration - 700),
+                  kind: detail.kind,
+                  symbols:
+                    detail.partnerSymbols?.slice(0, 3) ??
+                    detail.symbols?.slice(0, 3).reverse() ??
+                    DEFAULT_SYMBOLS[detail.kind],
+                  accessibleText:
+                    detail.partnerMessage ?? "Interacting with " + actor.name,
+                  expiresAt: now + duration,
                 },
               }
             : {}),
@@ -199,8 +338,26 @@ export function ContinuousAgentMotion() {
       }
     };
 
+    const onMotionTarget = (event: Event) => {
+      const detail = (event as CustomEvent<MotionTargetDetail>).detail;
+      if (!detail?.agentName || !Number.isFinite(detail.x) || !Number.isFinite(detail.y)) {
+        return;
+      }
+      const now = Date.now();
+      behaviorRef.current[detail.agentName] = {
+        targetX: clamp(detail.x, WORLD_MIN_X, WORLD_MAX_X),
+        targetY: clamp(detail.y, WORLD_MIN_Y, WORLD_MAX_Y),
+        expiresAt: now + clamp(detail.durationMs ?? 5200, 2000, 12000),
+        holdUntil: 0,
+      };
+    };
+
     window.addEventListener("asympta:agent-behavior", onBehavior);
-    return () => window.removeEventListener("asympta:agent-behavior", onBehavior);
+    window.addEventListener("asympta:agent-motion-target", onMotionTarget);
+    return () => {
+      window.removeEventListener("asympta:agent-behavior", onBehavior);
+      window.removeEventListener("asympta:agent-motion-target", onMotionTarget);
+    };
   }, []);
 
   useEffect(() => {
@@ -241,23 +398,12 @@ export function ContinuousAgentMotion() {
         }
 
         const intent = behaviorRef.current[name];
-        if (intent && intent.expiresAt >= now && intent.targetName) {
-          const peer = motionRef.current.get(intent.targetName);
-          if (peer) {
-            const offsetAngle = (name.length * 0.89) % (Math.PI * 2);
-            state.targetX = clamp(
-              peer.x + Math.cos(offsetAngle) * 58,
-              WORLD_MIN_X,
-              WORLD_MAX_X,
-            );
-            state.targetY = clamp(
-              peer.y + Math.sin(offsetAngle) * 46,
-              WORLD_MIN_Y,
-              WORLD_MAX_Y,
-            );
-            state.speed = 36;
-            state.pauseUntil = 0;
-          }
+        const intentActive = Boolean(intent && intent.expiresAt >= now);
+        if (intentActive && Number.isFinite(intent?.targetX) && Number.isFinite(intent?.targetY)) {
+          state.targetX = intent?.targetX ?? state.targetX;
+          state.targetY = intent?.targetY ?? state.targetY;
+          state.speed = intent?.targetName ? 38 : 31;
+          state.pauseUntil = 0;
         }
 
         const dx = state.targetX - state.x;
@@ -267,9 +413,12 @@ export function ContinuousAgentMotion() {
         if (now < state.pauseUntil) {
           state.moving = false;
         } else if (distance <= 3) {
-          if (intent && intent.expiresAt >= now) {
-            state.pauseUntil = now + 260 + Math.random() * 650;
+          if (intentActive && intent?.targetName) {
             state.moving = false;
+            state.pauseUntil = Math.min(intent.expiresAt, now + 650);
+          } else if (intentActive && intent?.targetX !== undefined) {
+            state.moving = false;
+            state.pauseUntil = Math.min(intent.expiresAt, now + 520);
           } else if (Math.random() < 0.35) {
             state.pauseUntil = now + 500 + Math.random() * 2700;
             state.moving = false;
@@ -296,6 +445,10 @@ export function ContinuousAgentMotion() {
         node.style.top = state.y.toFixed(2) + "px";
         node.classList.toggle("is-world-walking", state.moving);
         node.classList.toggle("is-world-paused", !state.moving);
+        node.classList.toggle(
+          "is-world-encountering",
+          Boolean(intentActive && intent?.targetName),
+        );
       });
 
       frame = window.requestAnimationFrame(animate);
@@ -314,7 +467,9 @@ export function ContinuousAgentMotion() {
           .filter(([, intent]) => intent.expiresAt >= now)
           .map(([name]) => name),
       );
-      const candidates = hosts.filter((host) => !busy.has(host.name));
+      const candidates = hosts.filter(
+        (host) => !busy.has(host.name) && !host.node.classList.contains("mission-user-agent"),
+      );
       if (candidates.length === 0) return;
       const host = candidates[Math.floor(Math.random() * candidates.length)];
       const state = ambientRef.current[host.name];
@@ -327,34 +482,29 @@ export function ContinuousAgentMotion() {
         state.energy = clamp(state.energy + 40, 0, 100);
         thought = {
           kind: "energy",
-          text: "Ate food · energy " + String(Math.round(state.energy)),
+          symbols: ["food", "energy"],
+          accessibleText: "Eating to restore energy",
           expiresAt: now + 4000,
         };
       } else if (state.food <= 1 && Math.random() < 0.42) {
         thought = {
           kind: "food",
-          text: "Low food stock · looking for a seller",
+          symbols: ["food", "question"],
+          accessibleText: "Looking for food",
           expiresAt: now + 4200,
         };
       } else if (Math.random() < 0.38) {
-        const messages = [
-          "Any work nearby?",
-          "Who has spare capacity?",
-          "What is in demand?",
-          "Need help with a handoff?",
-        ];
         thought = {
           kind: "enquiry",
-          text: messages[Math.floor(Math.random() * messages.length)],
+          symbols: ["question", "search"],
+          accessibleText: "Looking for an opportunity or collaborator",
           expiresAt: now + 4100,
         };
       } else {
         thought = {
           kind: "status",
-          text:
-            Math.random() < 0.5
-              ? "Exploring nearby activity"
-              : "Watching market signals",
+          symbols: ["status", "search"],
+          accessibleText: "Watching nearby market activity",
           expiresAt: now + 3900,
         };
       }
@@ -374,9 +524,16 @@ export function ContinuousAgentMotion() {
         ),
       );
       for (const [name, intent] of Object.entries(behaviorRef.current)) {
-        if (intent.expiresAt < now) delete behaviorRef.current[name];
+        if (intent.expiresAt < now) {
+          delete behaviorRef.current[name];
+          const state = motionRef.current.get(name);
+          if (state) {
+            state.pauseUntil = 0;
+            chooseRoamTarget(state);
+          }
+        }
       }
-    }, 1000);
+    }, 900);
     return () => window.clearInterval(timer);
   }, []);
 
@@ -391,8 +548,12 @@ export function ContinuousAgentMotion() {
             opacity 180ms ease !important;
           will-change: left, top;
         }
-        .world-agent.is-world-walking .participant-sprite {
+        .world-agent.is-world-walking .participant-sprite,
+        .world-agent.is-world-walking .mission-pixel-person {
           animation: asympta-world-walk 520ms steps(2, end) infinite !important;
+        }
+        .world-agent.is-world-encountering {
+          z-index: 22;
         }
         .business-thought {
           position: absolute;
@@ -400,17 +561,16 @@ export function ContinuousAgentMotion() {
           left: 34px;
           bottom: calc(100% + 12px);
           display: grid;
-          gap: 3px;
-          width: max-content;
-          min-width: 106px;
-          max-width: 182px;
-          padding: 7px 8px 8px;
+          place-items: center;
+          min-width: 42px;
+          min-height: 34px;
+          padding: 6px 7px;
           border: 1px solid #9ca99f;
           border-left: 3px solid #8e9b91;
           border-radius: 4px;
           background: rgba(250, 249, 243, .97);
           box-shadow: 3px 3px 0 rgba(55, 67, 59, .08);
-          color: #343a35;
+          color: #4d5650;
           pointer-events: none;
           animation: asympta-business-bubble-in 220ms steps(3, end) both;
         }
@@ -424,19 +584,16 @@ export function ContinuousAgentMotion() {
         }
         .business-thought::before { left: 10px; bottom: -8px; width: 7px; height: 7px; }
         .business-thought::after { left: 4px; bottom: -14px; width: 4px; height: 4px; }
-        .business-thought small {
-          font-family: var(--pixel-font);
-          font-size: .34rem;
-          font-weight: 800;
-          letter-spacing: .08em;
-          line-height: 1;
-          text-transform: uppercase;
-          opacity: .72;
+        .business-thought-icons {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 4px;
         }
-        .business-thought strong {
-          font-size: .49rem;
-          line-height: 1.3;
-          font-weight: 680;
+        .business-thought-icons svg {
+          width: 13px;
+          height: 13px;
+          stroke-width: 1.8;
         }
         .business-thought--energy { border-left-color: #ba9b63; }
         .business-thought--food { border-left-color: #8aa477; }
@@ -454,11 +611,9 @@ export function ContinuousAgentMotion() {
           from { opacity: 0; transform: translateY(4px) scale(.96); }
           to { opacity: 1; transform: translateY(0) scale(1); }
         }
-        @media (max-width: 720px) {
-          .business-thought { min-width: 88px; max-width: 138px; }
-        }
         @media (prefers-reduced-motion: reduce) {
-          .world-agent.is-world-walking .participant-sprite { animation: none !important; }
+          .world-agent.is-world-walking .participant-sprite,
+          .world-agent.is-world-walking .mission-pixel-person { animation: none !important; }
           .business-thought { animation: none; }
         }
       `}</style>
@@ -469,10 +624,15 @@ export function ContinuousAgentMotion() {
         return createPortal(
           <span
             className={"business-thought business-thought--" + thought.kind}
-            aria-hidden="true"
+            aria-label={thought.accessibleText}
+            role="status"
           >
-            <small>{thought.kind}</small>
-            <strong>{thought.text}</strong>
+            <span className="business-thought-icons" aria-hidden="true">
+              {thought.symbols.map((symbol, index) => {
+                const Icon = ICONS[symbol];
+                return <Icon key={symbol + "-" + String(index)} />;
+              })}
+            </span>
           </span>,
           host.node,
           "business-thought-" + host.name,
