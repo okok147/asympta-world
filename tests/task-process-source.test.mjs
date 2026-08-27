@@ -18,36 +18,65 @@ test("gives the current user unlimited sandbox credits without changing resident
   assert.match(city, /externalServices\[item\.id\]/);
 });
 
-test("shows real task stages above Your Agent and persists a unified inventory", async () => {
+test("classifies user goals into distinct visible task processes", async () => {
+  const runtime = await readFile(
+    path.join(root, "components/task-process-runtime.tsx"),
+    "utf8",
+  );
+
+  for (const kind of [
+    "food",
+    "delivery",
+    "research",
+    "design",
+    "web",
+    "automation",
+    "learning",
+    "repair",
+    "business",
+    "generic",
+  ]) {
+    assert.match(runtime, new RegExp(kind + ": \\{"));
+  }
+
+  for (const process of [
+    "Reading the food request",
+    "Completing delivery",
+    "Analyzing the evidence",
+    "Creating the design",
+    "Building the web experience",
+    "Building the automation",
+    "Practicing the skill",
+    "Diagnosing the issue",
+  ]) {
+    assert.match(runtime, new RegExp(process));
+  }
+
+  assert.match(runtime, /taskKind\(mission\.title \+ " " \+ mission\.description\)/);
+  assert.match(runtime, /processLabel/);
+  assert.match(runtime, /asympta:task-process/);
+  assert.match(runtime, /task-process-bubble/);
+  assert.match(runtime, /Task process/);
+});
+
+test("updates persistent inventory after each completed task stage and merges city resources", async () => {
   const [runtime, template] = await Promise.all([
-    readFile(path.join(root, "components/user-task-process-runtime.tsx"), "utf8"),
+    readFile(path.join(root, "components/task-process-runtime.tsx"), "utf8"),
     readFile(path.join(root, "app/template.tsx"), "utf8"),
   ]);
 
-  for (const stage of [
-    "開始任務",
-    "尋找協作者",
-    "前往協作",
-    "討論方案",
-    "確認合作",
-    "執行任務",
-    "任務完成",
-    "完成互動",
-  ]) {
-    assert.match(runtime, new RegExp(stage));
-  }
-  assert.match(runtime, /asympta-user-inventory-v1/);
-  assert.match(runtime, /asympta-user-task-updates-v1/);
-  assert.match(runtime, /syncInventory/);
+  assert.match(runtime, /asympta-task-inventory-v1/);
+  assert.match(runtime, /awardedSubtaskIds/);
+  assert.match(runtime, /subtask\.status !== "completed"/);
+  assert.match(runtime, /asympta:task-inventory-updated/);
   assert.match(runtime, /externalInventory/);
   assert.match(runtime, /externalServices/);
-  assert.match(runtime, /missionOutputLabel/);
-  assert.match(runtime, /user-task-process-chip/);
-  assert.match(runtime, /bottom: calc\(100% \+ 46px\)/);
+  assert.match(runtime, /combinedInventory/);
+  assert.match(runtime, /Inventory/);
+  assert.match(runtime, /Current output/);
   assert.match(runtime, /∞ credits/);
-  assert.match(runtime, /user-inventory-section/);
-  assert.match(runtime, /user-process-history/);
-  assert.match(template, /<UserTaskProcessRuntime \/>/);
+  assert.match(template, /<TaskProcessRuntime \/>/);
+  assert.doesNotMatch(template, /<UserTaskProcessRuntime \/>/);
 });
 
 test("keeps zoom controls out of the lower conversation and composer region", async () => {
