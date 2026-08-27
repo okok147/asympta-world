@@ -10,6 +10,30 @@ export function SemanticDialogueLabels() {
       .business-thought--energy .business-thought-icons::after { content: "補充能量" !important; }
       .business-thought--status .business-thought-icons::after { content: "觀察中" !important; }
 
+      .need-composer > input {
+        opacity: 0.94 !important;
+        border: 1px solid rgba(94, 119, 184, 0.34) !important;
+        background: rgba(250, 249, 244, 0.92) !important;
+        color: #353d48 !important;
+        box-shadow:
+          0 0 0 3px rgba(112, 137, 205, 0.07),
+          0 4px 18px rgba(54, 63, 58, 0.08) !important;
+      }
+
+      .need-composer > input::placeholder {
+        color: rgba(72, 82, 98, 0.68) !important;
+        opacity: 1 !important;
+      }
+
+      .need-composer:focus-within > input {
+        opacity: 1 !important;
+        border-color: rgba(111, 89, 171, 0.48) !important;
+        background: rgba(252, 251, 247, 0.98) !important;
+        box-shadow:
+          0 0 0 4px rgba(126, 104, 183, 0.10),
+          0 5px 20px rgba(89, 75, 145, 0.12) !important;
+      }
+
       .need-composer > button {
         opacity: 0.96 !important;
         background: rgba(112, 137, 205, 0.26) !important;
