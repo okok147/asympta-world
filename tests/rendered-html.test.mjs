@@ -13,28 +13,25 @@ async function renderRoot() {
   return { response, html: await response.text() };
 }
 
-test("server render exposes the city-scale Asympta map surface", async () => {
+test("server render exposes only the map-first surface", async () => {
   const { response, html } = await renderRoot();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
-  assert.match(html, /ASYMPTA WORLD/);
-  assert.match(html, /city-scale coordination/);
-  assert.match(html, /CITY-SCALE LIVING WORLD/);
-  assert.match(html, /Ask once\. Watch the city coordinate\./);
-  assert.match(html, /Run the city order/);
-  assert.match(html, /Mori Paper Co\./);
-  assert.match(html, /North Mill/);
-  assert.match(html, /Harbour Courier/);
-  assert.match(html, /WebMCP/);
+  assert.match(html, /data-map-app="true"/);
+  assert.match(html, /Interactive city map/);
+  assert.match(html, /Toggle map color layer/);
   assert.match(html, /Zoom in/);
-  assert.match(html, /PIXEL CITY/);
-  assert.match(html, /\/order/);
+  assert.match(html, /Zoom out/);
+  assert.match(html, /Recenter map/);
 });
 
-test("server render communicates a simulated multi-party city without pretending commerce is live", async () => {
+test("old Asympta World demo chrome is absent from the rendered page", async () => {
   const { html } = await renderRoot();
-  assert.match(html, /Business-side agents receive, clarify, source, make, inspect and deliver through the same map/i);
-  assert.match(html, /Simulation/);
-  assert.match(html, /no real order, payment, message or shipment occurs/i);
-  assert.doesNotMatch(html, /22\.3193|114\.1694/);
+  assert.doesNotMatch(html, /ASYMPTA WORLD/);
+  assert.doesNotMatch(html, /WebMCP/);
+  assert.doesNotMatch(html, /Run the city order/);
+  assert.doesNotMatch(html, /Tell the city/);
+  assert.doesNotMatch(html, /Mori Paper Co\./);
+  assert.doesNotMatch(html, /North Mill/);
+  assert.doesNotMatch(html, /Agent/);
 });
