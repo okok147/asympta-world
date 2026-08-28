@@ -13,23 +13,26 @@ async function renderRoot() {
   return { response, html: await response.text() };
 }
 
-test("server render exposes the restored Asympta product surface", async () => {
+test("server render exposes the city-scale Asympta map surface", async () => {
   const { response, html } = await renderRoot();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   assert.match(html, /ASYMPTA WORLD/);
-  assert.match(html, /Humans live\. Agents coordinate\./);
-  assert.match(html, /One intention\. Every side moves\./);
-  assert.match(html, /Order flow/);
-  assert.match(html, /Dinner/);
+  assert.match(html, /city-scale coordination/);
+  assert.match(html, /CITY-SCALE LIVING WORLD/);
+  assert.match(html, /Ask once\. Watch the city coordinate\./);
+  assert.match(html, /Run the city order/);
+  assert.match(html, /Mori Paper Co\./);
+  assert.match(html, /North Mill/);
+  assert.match(html, /Harbour Courier/);
   assert.match(html, /WebMCP/);
-  assert.match(html, /Type \/order/);
+  assert.match(html, /\/order/);
 });
 
-test("server render communicates the real-world stakeholder model without pretending commerce is live", async () => {
+test("server render communicates a simulated multi-party city without pretending commerce is live", async () => {
   const { html } = await renderRoot();
-  assert.match(html, /customer, business, merchandiser, supplier, production, finance and delivery/i);
-  assert.match(html, /Simulated commerce/);
-  assert.match(html, /no real charge or shipment/i);
+  assert.match(html, /Business-side agents receive, clarify, source, make, inspect and deliver through the same map/i);
+  assert.match(html, /Simulation/);
+  assert.match(html, /no real order, payment, message or shipment occurs/i);
   assert.doesNotMatch(html, /22\.3193|114\.1694/);
 });
