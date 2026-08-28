@@ -9,7 +9,7 @@ import { SCENARIOS, SCENARIO_ORDER } from "../lib/living-world/scenarios.ts";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (relative) => readFile(path.join(root, relative), "utf8");
 
-test("five scenario families include a flagship 12-agent order flow", () => {
+test("five scenario families retain the flagship 12-agent order economy", () => {
   assert.deepEqual(SCENARIO_ORDER, ["order", "dinner", "work", "shopping", "email"]);
   const order = SCENARIOS.order;
   assert.equal(order.agents.length, 12);
@@ -20,7 +20,7 @@ test("five scenario families include a flagship 12-agent order flow", () => {
   assert.match(order.result.disclosure.en, /No real order, charge, message or shipment occurred/i);
 });
 
-test("the visible product returns to the calm Asympta language", async () => {
+test("the map itself is now the primary UI and follows the original city-reference language", async () => {
   const [page, layout, app, css] = await Promise.all([
     read("app/page.tsx"),
     read("app/layout.tsx"),
@@ -31,14 +31,20 @@ test("the visible product returns to the calm Asympta language", async () => {
   assert.match(layout, /asympta-restoration\.css/);
   assert.match(css, /--aw-paper:\s*#eeede6/);
   assert.match(css, /--aw-blue-deep:\s*#566b9b/);
-  assert.match(css, /\.aw-world__grid/);
+  assert.match(css, /\.aw-city-map__streets/);
+  assert.match(css, /\.aw-city-map__major/);
+  assert.match(css, /\.aw-city-map__block--red/);
   assert.match(css, /\.aw-language-menu/);
+  assert.match(app, /CITY-SCALE LIVING WORLD/);
+  assert.match(app, /Mori Paper Co\./);
+  assert.match(app, /North Mill/);
+  assert.match(app, /Harbour Courier/);
   assert.match(app, /aw-icon-button--language/);
   assert.match(app, />English</);
   assert.match(app, />繁體中文</);
 });
 
-test("order is visible from UI and slash command while all stakeholders remain in one world", async () => {
+test("personal, business, merchandising and supply actors share one continuous city", async () => {
   const [app, scenarios] = await Promise.all([
     read("components/asympta-world-experience.tsx"),
     read("lib/living-world/scenarios.ts"),
@@ -46,12 +52,14 @@ test("order is visible from UI and slash command while all stakeholders remain i
   assert.match(app, /\/order/);
   assert.match(app, /SCENARIO_ORDER/);
   assert.match(app, /WorldSceneInner/);
-  for (const term of ["Business receiving", "Merchandiser", "Warehouse", "Procurement", "Supplier", "Production", "Quality control", "Finance", "Carrier", "After-sales"]) {
+  for (const term of ["Business receiving agent", "Merchandiser", "Warehouse", "Procurement", "Supplier", "Production", "Quality control", "Finance", "Carrier", "After-sales"]) {
     assert.ok(scenarios.includes(term), `missing stakeholder: ${term}`);
   }
+  assert.match(scenarios, /Personal agent finds the store owner/);
+  assert.match(scenarios, /Business agents confirm the order/);
 });
 
-test("canonical engine and WebMCP remain mounted under the redesigned surface", async () => {
+test("movement and handoff choreography remain canonical engine state, not staged video", async () => {
   const [app, hook, engine] = await Promise.all([
     read("components/asympta-world-experience.tsx"),
     read("components/living-world/use-living-world.ts"),
@@ -62,6 +70,10 @@ test("canonical engine and WebMCP remain mounted under the redesigned surface", 
   assert.match(hook, /asympta_observe_coordination/);
   assert.match(hook, /asympta_submit_need/);
   assert.match(hook, /asympta_request_action/);
+  assert.match(engine, /CITY_SPAWNS/);
+  assert.match(engine, /cityStreetWaypoint/);
+  assert.match(engine, /dependentRecipients/);
+  assert.match(engine, /AGENT_SPEED_PER_MS = 0\.0088/);
   assert.match(engine, /requiresApproval/);
   assert.match(engine, /kind:\s*"task"/);
 });

@@ -24,6 +24,20 @@ test("order scenario creates a complete multi-party economic graph", () => {
   assert.equal(world.tasks.find((task) => task.id === "dispatch-approval")?.requiresApproval, true);
 });
 
+test("personal agent physically travels to the store before the business agent receives the order", () => {
+  let world = startScenario(createLivingWorld(20260828, 1_000), "order");
+  const start = world.agents.find((agent) => agent.id === "order-conductor")?.position;
+  world = advanceLivingWorld(world, 3_000);
+  const conductor = world.agents.find((agent) => agent.id === "order-conductor");
+  assert.ok(start && conductor);
+  assert.equal(world.tasks.find((task) => task.id === "customer-confirm")?.status, "moving");
+  assert.equal(world.tasks.find((task) => task.id === "business-receive")?.status, "queued");
+  assert.equal(conductor.status, "moving");
+  assert.notDeepEqual(conductor.position, start);
+  assert.equal(conductor.target.x, 34);
+  assert.equal(conductor.target.y, 45);
+});
+
 test("order pauses before simulated payment and dispatch, then resumes through delivery", () => {
   let world = startScenario(createLivingWorld(9, 2_000), "order");
   world = advanceLivingWorld(world, 120_000);
