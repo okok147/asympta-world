@@ -78,6 +78,18 @@ test("movement and handoff choreography remain canonical engine state, not stage
   assert.match(engine, /kind:\s*"task"/);
 });
 
+test("literal pixel raster and real zoom camera are part of the product", async () => {
+  const [app, css] = await Promise.all([read("components/asympta-world-experience.tsx"), read("app/asympta-restoration.css")]);
+  assert.match(app, /PIXEL_MAP_WIDTH = 256/);
+  assert.match(app, /<canvas[^>]+aw-pixel-city-map/);
+  assert.match(app, /snapPoint/);
+  assert.match(app, /onWheel=\{handleWheel\}/);
+  assert.match(app, /onPointerDown=\{handlePointerDown\}/);
+  assert.match(app, /aw-map-zoom/);
+  assert.match(css, /image-rendering:\s*pixelated/);
+  assert.match(css, /touch-action:\s*none/);
+});
+
 test("responsive, safe-area and reduced-motion rules remain explicit", async () => {
   const css = await read("app/asympta-restoration.css");
   for (const marker of ["@media (max-width: 1180px)", "@media (max-width: 900px)", "@media (max-width: 720px)", "@media (max-width: 430px)", "@media (max-height: 570px)", "@media (prefers-reduced-motion: reduce)", "env(safe-area-inset-top)", "env(safe-area-inset-bottom)"]) {

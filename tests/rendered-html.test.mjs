@@ -26,6 +26,8 @@ test("server render exposes the city-scale Asympta map surface", async () => {
   assert.match(html, /North Mill/);
   assert.match(html, /Harbour Courier/);
   assert.match(html, /WebMCP/);
+  assert.match(html, /Zoom in/);
+  assert.match(html, /PIXEL CITY/);
   assert.match(html, /\/order/);
 });
 
