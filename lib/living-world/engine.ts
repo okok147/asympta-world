@@ -20,11 +20,11 @@ import {
   type WorldSnapshot,
 } from "./types.ts";
 
-const STEP_MS = 80;
+const STEP_MS = 60;
 const EVENT_LIMIT = 180;
 const MESSAGE_LIFETIME_MS = 3_600;
 const PACKET_LIFETIME_MS = 3_900;
-const AGENT_SPEED_PER_MS = 0.0205;
+const AGENT_SPEED_PER_MS = 0.0088;
 const ARRIVAL_DISTANCE = 0.82;
 
 const text = (en: string, zh: string): LocalizedText => ({
@@ -78,6 +78,21 @@ const SPAWN_ARC: Point[] = [
   { x: 37, y: 76 },
 ];
 
+const CITY_SPAWNS: Record<string, Point> = {
+  "order-conductor": { x: 12, y: 70 },
+  "order-receiver": { x: 34, y: 45 },
+  "order-merchandiser": { x: 36, y: 47 },
+  "order-warehouse": { x: 44, y: 68 },
+  "order-procurement": { x: 35, y: 43 },
+  "order-supplier": { x: 70, y: 29 },
+  "order-workshop": { x: 51.5, y: 73.5 },
+  "order-quality": { x: 43, y: 22 },
+  "order-fulfilment": { x: 46, y: 70 },
+  "order-finance": { x: 58, y: 49 },
+  "order-carrier": { x: 87, y: 59 },
+  "order-support": { x: 24, y: 25 },
+};
+
 function taskDestination(task: AgentTask): Point {
   if (task.zone === "human") {
     return task.kind === "report" ? { x: 13, y: 69 } : { x: 12, y: 70 };
@@ -104,21 +119,40 @@ function convergenceSlot(world: LivingWorldState, agentId: string): Point {
   };
 }
 
+function cityStreetWaypoint(agent: LivingAgent, target: Point): Point {
+  const horizontalFirst = [...agent.id].reduce((total, char) => total + char.charCodeAt(0), 0) % 2 === 0;
+  const dx = Math.abs(target.x - agent.position.x);
+  const dy = Math.abs(target.y - agent.position.y);
+  if (horizontalFirst && dx > 1.1) return { x: target.x, y: agent.position.y };
+  if (!horizontalFirst && dy > 1.1) return { x: agent.position.x, y: target.y };
+  if (dx > 1.1) return { x: target.x, y: agent.position.y };
+  if (dy > 1.1) return { x: agent.position.x, y: target.y };
+  return target;
+}
+
 function moveAgent(agent: LivingAgent, target: Point, deltaMs: number) {
-  const dx = target.x - agent.position.x;
-  const dy = target.y - agent.position.y;
-  const remaining = Math.hypot(dx, dy);
+  const finalRemaining = distance(agent.position, target);
   agent.target = target;
-  if (remaining <= ARRIVAL_DISTANCE) {
+  if (finalRemaining <= ARRIVAL_DISTANCE) {
     agent.position = { ...target };
     return true;
   }
-  const travel = Math.min(remaining, AGENT_SPEED_PER_MS * deltaMs);
-  const nextX = agent.position.x + (dx / remaining) * travel;
-  const nextY = agent.position.y + (dy / remaining) * travel;
+
+  const waypoint = finalRemaining <= 2.2 ? target : cityStreetWaypoint(agent, target);
+  const dx = waypoint.x - agent.position.x;
+  const dy = waypoint.y - agent.position.y;
+  const segmentRemaining = Math.hypot(dx, dy);
+  if (segmentRemaining <= ARRIVAL_DISTANCE) {
+    agent.position = { ...waypoint };
+    return distance(agent.position, target) <= ARRIVAL_DISTANCE;
+  }
+
+  const travel = Math.min(segmentRemaining, AGENT_SPEED_PER_MS * deltaMs);
+  const nextX = agent.position.x + (dx / segmentRemaining) * travel;
+  const nextY = agent.position.y + (dy / segmentRemaining) * travel;
   agent.facing = nextX < agent.position.x ? "left" : "right";
   agent.position = { x: nextX, y: nextY };
-  return remaining - travel <= ARRIVAL_DISTANCE;
+  return distance(agent.position, target) <= ARRIVAL_DISTANCE;
 }
 
 export function locationContextForCoordinates(
@@ -168,7 +202,7 @@ export function createLivingWorld(
 function spawnAgents(world: LivingWorldState, scenarioId: ScenarioId) {
   const scenario = scenarioFor(scenarioId);
   return scenario.agents.map<LivingAgent>((profile, index) => {
-    const base = SPAWN_ARC[index] ?? {
+    const base = CITY_SPAWNS[profile.id] ?? SPAWN_ARC[index] ?? {
       x: 10 + ((index - SPAWN_ARC.length) % 8) * 9.5,
       y: 84 - Math.floor((index - SPAWN_ARC.length) / 8) * 8,
     };
@@ -447,6 +481,14 @@ function toolReady(world: LivingWorldState, task: AgentTask) {
   return run?.status === "succeeded";
 }
 
+function dependentRecipients(world: LivingWorldState, task: AgentTask) {
+  const recipients = world.tasks
+    .filter((candidate) => candidate.dependencies.includes(task.id))
+    .map((candidate) => candidate.agentId)
+    .filter((id) => id !== task.agentId);
+  return [...new Set(recipients)];
+}
+
 function completeTask(world: LivingWorldState, task: AgentTask, agent: LivingAgent) {
   task.status = "done";
   task.progress = 1;
@@ -457,7 +499,9 @@ function completeTask(world: LivingWorldState, task: AgentTask, agent: LivingAge
     agent.status = "sharing";
     agent.target = convergenceSlot(world, agent.id);
     agent.thought = text("Sharing what I found", "分享找到的資訊");
-    addMessage(world, agent.id, coordinatorId(world), task.completion, "result");
+    const recipients = dependentRecipients(world, task);
+    const targets = recipients.length ? recipients : [coordinatorId(world)];
+    for (const recipient of targets) addMessage(world, agent.id, recipient, task.completion, "result");
   } else if (task.kind === "interpret") {
     agent.status = "returning";
     agent.target = convergenceSlot(world, agent.id);
