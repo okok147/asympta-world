@@ -1,8 +1,14 @@
+# CURRENT MAIN PRODUCT STATE — 2026-08-28
+
+The calm multi-party Asympta World redesign is now the source of truth. Do not restore the rough WebMCP demo/dashboard visual language. Preserve the paper-like Asympta aesthetic, one-world stakeholder process, deterministic event engine, WebMCP truthfulness, human approval boundaries, responsive design and reduced-motion support.
+
+---
+
 # Asympta World — active repository instructions
 
 ## Active request from KL — 2026-08-28
 
-Status: **PENDING HOME CODEX ACKNOWLEDGEMENT**
+Status: **IMPLEMENTED ON MAIN — 2026-08-28**
 
 This note is committed directly to `main` so the Codex session currently running on KL's home machine can receive the next product requirement without overwriting its in-progress work.
 
