@@ -6,13 +6,28 @@ Status: **PENDING HOME CODEX ACKNOWLEDGEMENT**
 
 This note was committed directly to `main` so the Codex session running on KL's home machine can receive the next product requirement without overwriting its in-progress work.
 
-### 1. Mandatory acknowledgement to KL
+### 1. Mandatory, externally verifiable acknowledgement to KL
 
-As soon as you read this note, **before changing code**, reply in your current Codex conversation with:
+As soon as you read this note, **before changing feature code**, complete both acknowledgement steps below.
+
+1. Reply in your current Codex conversation with:
 
 > Received. I will extend Asympta World to visibly show the business-side order fulfilment flow—receiving the order, clarifying details, checking and preparing materials, packing, and shipping—while preserving the current agent process.
 
-Then continue the implementation. Do not say the request was received unless you have actually read this file and inspected the current repository state.
+2. Create `HOME_CODEX_ACKNOWLEDGEMENT.md` at the repository root with exactly this structure:
+
+```markdown
+# Home Codex acknowledgement
+
+Status: RECEIVED
+Request: Business-side order fulfilment flow
+Response: Received. I will add the requested feature.
+Acknowledged at: <actual UTC ISO-8601 timestamp>
+```
+
+Commit **only that acknowledgement file** with message `chore: acknowledge business fulfilment request` and push it to `main` before implementing the feature. Preserve any unrelated local or in-progress changes; do not stage them merely to send this acknowledgement.
+
+Only continue implementation after GitHub confirms that acknowledgement commit was pushed successfully. Do not say the request was received unless you have actually read this file and inspected the current repository state.
 
 ### 2. Product outcome
 
