@@ -1,0 +1,43 @@
+    { id: "delivery", stageId: "delivery", agentId: "order-carrier", title: t("Deliver before the deadline", "期限前完成派送"), thought: t("Protecting the final handoff", "守住最後交接"), completion: t("Delivered 16:34", "16:34 已交付"), zone: "external", durationMs: 1_350, dependencies: ["carrier-handoff"], kind: "specialist" },
+    { id: "after-sales", stageId: "complete", agentId: "order-support", title: t("Open the support path", "開啟售後支援"), thought: t("Keeping return and support available", "保持退貨與支援可用"), completion: t("Support path ready", "售後支援已準備"), zone: "context", durationMs: 900, dependencies: ["delivery"], toolId: "support.open", kind: "specialist" },
+    { id: "report", stageId: "complete", agentId: "order-conductor", title: t("Bring the whole journey home", "把完整流程帶回來"), thought: t("Compressing the audit trail into one result", "把稽核軌跡整理成一個結果"), completion: t("Complete order trace ready", "完整訂單軌跡已準備"), zone: "human", durationMs: 750, dependencies: ["after-sales"], kind: "report" },
+  ],
+  journey: [
+    { id: "intent", label: t("Human intention", "人的意圖"), shortLabel: t("Intent", "意圖"), organisation: t("Your side", "你的這一方"), zone: "human", taskIds: ["interpret"] },
+    { id: "business", label: t("Business receive + clarify", "商戶接單與釐清"), shortLabel: t("Business", "商戶"), organisation: t("Mori Paper Co.", "Mori Paper Co."), zone: "communication", taskIds: ["business-receive", "clarify", "customer-confirm"] },
+    { id: "materials", label: t("Inventory + supplier", "庫存與供應商"), shortLabel: t("Materials", "物料"), organisation: t("Mori Warehouse · North Mill", "Mori 倉庫 · North Mill"), zone: "market", taskIds: ["inventory-check", "supplier-quote", "material-prepare", "material-handoff", "material-receive"] },
+    { id: "production", label: t("Production", "生產"), shortLabel: t("Make", "製作"), organisation: t("Mori Workshop", "Mori 工場"), zone: "planning", taskIds: ["production-plan", "production-run"] },
+    { id: "quality", label: t("Quality + rework", "品質與返工"), shortLabel: t("Quality", "品質"), organisation: t("Mori QA", "Mori 品質"), zone: "research", taskIds: ["quality-check", "quality-rework", "quality-release"] },
+    { id: "dispatch", label: t("Pack + finance + approval", "包裝、財務與批准"), shortLabel: t("Approve", "批准"), organisation: t("Mori Fulfilment · Finance", "Mori 履約 · 財務"), zone: "convergence", taskIds: ["pack", "invoice-prepare", "dispatch-approval"] },
+    { id: "delivery", label: t("Carrier + delivery", "物流與交付"), shortLabel: t("Deliver", "交付"), organisation: t("Harbour Courier", "Harbour Courier"), zone: "external", taskIds: ["carrier-handoff", "delivery"] },
+    { id: "complete", label: t("After-sales + audit", "售後與稽核"), shortLabel: t("Complete", "完成"), organisation: t("Mori Care · Your side", "Mori 售後 · 你的這一方"), zone: "human", taskIds: ["after-sales", "report"] },
+  ],
+  result: {
+    eyebrow: t("Complete economic journey", "完整經濟流程"),
+    title: t("12 custom notebooks · delivered", "12 本客製筆記簿 · 已交付"),
+    subtitle: t("One human intention coordinated customer, merchant, supplier, production, finance, logistics and support.", "一個人的意圖協調了客戶、商戶、供應商、生產、財務、物流與售後。"),
+    facts: [
+      { label: t("Inventory", "庫存"), value: t("8 → 12", "8 → 12") },
+      { label: t("Quality", "品質"), value: t("1 rework · 12 pass", "1 件返工 · 12 合格") },
+      { label: t("Delivery", "交付"), value: t("16:34", "16:34") },
+    ],
+    reasons: [t("Clarification preserved the order instead of restarting it", "釐清規格後訂單直接延續，沒有重啟"), t("A four-unit shortage triggered a visible supplier handoff", "缺少四個單位觸發可見的供應商交接"), t("Quality failure caused real dependency rework before release", "品質失敗在放行前觸發真正依賴返工"), t("Payment and dispatch paused for human judgment", "付款與出貨在人的判斷前停下")],
+    resources: [{ label: t("Organisations", "組織"), value: t("7 sides", "7 方") }, { label: t("Tasks", "任務"), value: t("21 states", "21 個狀態") }, { label: t("External actions", "外部行動"), value: t("Simulated only", "只作模擬") }],
+    primaryAction: { id: "review-order-trace", label: t("Review trace", "查看軌跡"), consequential: false },
+    secondaryAction: { id: "approve-order-handoff", label: t("Approve demo closeout", "批准示範結案"), consequential: true },
+    disclosure: t("Merchant, supplier, inventory, payment, production, carrier and tracking data are simulated. No real order, charge, message or shipment occurred.", "商戶、供應商、庫存、付款、生產、承運商及追蹤資料均為模擬；沒有真實訂單、扣款、訊息或貨運發生。"),
+  },
+};
+
+const dinner: ScenarioDefinition = {
+  id: "dinner", category: "food", label: t("Dinner", "晚餐"), prompt: t("I don't know what to eat tonight.", "我今晚不知道吃甚麼。"), shortPrompt: t("Find dinner tonight", "找今晚晚餐"), icon: "bowl",
+  context: [{ label: t("Time", "時間"), value: t("Tonight", "今晚") }, { label: t("Budget", "預算"), value: t("~HK$150", "約 HK$150"), simulated: true }, { label: t("Preference", "偏好"), value: t("Quiet · casual", "安靜 · 輕鬆"), simulated: true }],
+  agents: [
+    agent("dinner-conductor", "Pavo", "Peacock", t("Coordinator", "協調員"), t("Turns many signals into one calm choice", "把多項訊號整理成一個清晰選擇"), art("mosaic", "#315f62", "#d7a857"), t("Your side", "你的這一方"), "personal"),
+    agent("dinner-context", "Nori", "Otter", t("Context", "情境員"), t("Understands tonight around you", "理解你所在地與今晚情況"), art("watercolour", "#9a6548", "#76a9ad")),
+    agent("dinner-discovery", "Fable", "Fox", t("Discovery", "探索員"), t("Finds relevant nearby options", "尋找相關的附近選擇"), art("folded-paper", "#c65f3d", "#f2c267")),
+    agent("dinner-preference", "Sora", "Owl", t("Preference", "偏好員"), t("Matches evidence with your taste", "把證據與你的喜好配對"), art("nocturne", "#51577d", "#d7b96a")),
+    agent("dinner-logistics", "Moss", "Turtle", t("Logistics", "實務員"), t("Checks distance, hours and availability", "核實距離、時間與供應"), art("botanical", "#55785d", "#a9bc74")),
+  ],
+  services: [service("local.context", t("Local context", "本地情境"), t("Grouped local demo context", "分組本地示範情境"), "context", t("Tonight · nearby", "今晚 · 附近")), service("restaurant.search", t("Place search", "地點搜尋"), t("Simulated restaurant discovery", "模擬餐廳探索"), "market", t("3 relevant options", "3 個相關選擇")), service("preference.match", t("Preference", "偏好"), t("Simulated preference match", "模擬偏好配對"), "research", t("Thai fits best", "泰式最合適")), service("maps.practicality", t("Travel & hours", "路程與時間"), t("Simulated travel check", "模擬路程核實"), "external", t("12 min · open", "12 分鐘 · 營業中"))],
+  tasks: [
