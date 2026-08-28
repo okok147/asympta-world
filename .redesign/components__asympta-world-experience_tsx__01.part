@@ -1,0 +1,98 @@
+            onClick={(event) => { event.stopPropagation(); onSelectAgent(selectedAgentId === agent.id ? undefined : agent.id); }}
+          >
+            {busy ? <span className="aw-agent__thought"><Radio size={9} />{agent.thought[locale]}</span> : null}
+            <span className="aw-agent__portrait"><AgentPortrait profile={agent.profile} size="small" active={agent.status === "working"} /></span>
+            <span className="aw-agent__name"><strong>{agent.profile.name}</strong><small>{agent.profile.role[locale]}</small></span>
+          </button>
+        );
+      })}
+
+      {world.messages.slice(-4).map((message, index) => {
+        const from = world.agents.find((agent) => agent.id === message.fromId)?.position ?? WORLD_ZONES.human.point;
+        const to = world.agents.find((agent) => agent.id === message.toId)?.position ?? (message.toId === "human" ? WORLD_ZONES.human.point : WORLD_ZONES.convergence.point);
+        return <span key={message.id} className={`aw-message aw-message--${message.type}`} style={{ left: `${(from.x + to.x) / 2}%`, top: `${(from.y + to.y) / 2 + (index - 1.5) * 4}%` }}><CircleDot size={8} />{message.text[locale]}</span>;
+      })}
+
+      {!world.need ? (
+        <div className="aw-world__empty">
+          <span><Sparkles size={16} /></span>
+          <strong>{tr(locale, "One intention. Every side moves.", "一個意圖，所有角色開始行動。")}</strong>
+          <p>{tr(locale, "Start the order flow to see customer, business, merchandiser, supplier, production, finance and delivery coordinate in one continuous world.", "啟動訂單流程，觀看客戶、商戶、跟單、供應商、生產、財務與派送在同一個連續世界協調。")}</p>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+export function AsymptaWorldExperience() {
+  const runtime = useLivingWorld();
+  const { world, locale } = runtime;
+  const [input, setInput] = useState("");
+  const [languageOpen, setLanguageOpen] = useState(false);
+  const [selectedAgentId, setSelectedAgentId] = useState<string>();
+  const [traceOpen, setTraceOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const scenario = world.scenarioId ? scenarioFor(world.scenarioId) : undefined;
+
+  useEffect(() => {
+    const demo = new URLSearchParams(window.location.search).get("demo");
+    if (demo === "order") runtime.runScenario("order");
+  // run once for query fast-path
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const selectedAgent = world.agents.find((agent) => agent.id === selectedAgentId);
+  const commandOpen = input.startsWith("/");
+  const commandQuery = input.slice(1).toLowerCase();
+  const filteredCommands = COMMANDS.filter((command) => !commandQuery || `${command.slash} ${command.en} ${command.zh}`.toLowerCase().includes(commandQuery));
+
+  function executeCommand(id: ScenarioId | "reset") {
+    setInput("");
+    if (id === "reset") runtime.reset();
+    else runtime.runScenario(id);
+  }
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    const value = input.trim();
+    if (!value) return;
+    if (value.startsWith("/")) {
+      const match = COMMANDS.find((command) => command.slash.toLowerCase() === value.toLowerCase()) ?? filteredCommands[0];
+      if (match) executeCommand(match.id);
+      return;
+    }
+    runtime.submitNeed(value);
+    setInput("");
+  }
+
+  const pendingTask = world.approval.kind === "task" && world.approval.taskId ? world.tasks.find((task) => task.id === world.approval.taskId) : undefined;
+  const pendingResultAction = world.approval.kind !== "task" && world.result ? [world.result.primaryAction, world.result.secondaryAction].find((action) => action.id === world.approval.actionId) : undefined;
+  const approvalTitle = pendingTask?.approvalLabel?.[locale] ?? pendingTask?.title[locale] ?? pendingResultAction?.label[locale];
+
+  return (
+    <main className="aw-shell">
+      <header className="aw-header">
+        <div className="aw-brand"><span className="aw-brand__mark" aria-hidden="true"><i /><i /><i /><i /><i /></span><span><strong>ASYMPTA WORLD</strong><small>{tr(locale, "Humans live. Agents coordinate.", "人生活，Agent 協調世界。")}</small></span></div>
+        <button type="button" className="aw-location" onClick={runtime.requestLocation}><MapPin size={13} /><span><strong>{world.location.worldName[locale]}</strong><small>{world.location.source === "device" ? tr(locale, "Device area · coordinates hidden", "裝置區域 · 座標隱藏") : tr(locale, "Calm simulated local world", "平靜的模擬所在地世界")}</small></span></button>
+        <div className="aw-header__actions">
+          <span className={`aw-webmcp${runtime.webMcpState === "native" ? " is-native" : ""}`}><Globe2 size={13} />WebMCP<small>{runtime.webMcpState === "native" ? "NATIVE" : "READY"}</small></span>
+          <div className="aw-language-anchor">
+            <button type="button" className="aw-icon-button aw-icon-button--language" onClick={() => setLanguageOpen((open) => !open)} aria-expanded={languageOpen} aria-label={tr(locale, "Language", "語言")}><Languages size={17} /></button>
+            {languageOpen ? <div className="aw-language-menu"><button type="button" className={locale === "en" ? "is-active" : ""} onClick={() => { runtime.setLocale("en"); setLanguageOpen(false); }}>English</button><button type="button" className={locale === "zh-Hant" ? "is-active" : ""} onClick={() => { runtime.setLocale("zh-Hant"); setLanguageOpen(false); }}>繁體中文</button></div> : null}
+          </div>
+        </div>
+      </header>
+
+      <section className="aw-thesis" aria-label="Product thesis"><span>{tr(locale, "A real-world coordination layer, not another task dashboard.", "一個真實世界協調層，而不是另一個任務儀表板。")}</span><span><ShieldCheck size={12} />{tr(locale, "Consequential actions stop for you", "重要行動會停下來等待你")}</span></section>
+
+      {scenario?.journey ? (
+        <ol className="aw-journey" aria-label={tr(locale, "End-to-end economic process", "端對端經濟流程")}>
+          {scenario.journey.map((stage, index) => {
+            const status = taskStageStatus(world.tasks, stage.taskIds);
+            return <li key={stage.id} className={`aw-journey__item aw-journey__item--${status}`}><span>{status === "done" ? <Check size={10} /> : index + 1}</span><strong>{stage.shortLabel[locale]}</strong><small>{stage.organisation[locale]}</small></li>;
+          })}
+        </ol>
+      ) : null}
+
+      <section className="aw-stage-wrap">
+        <WorldSceneInner runtime={runtime} locale={locale} selectedAgentId={selectedAgentId} onSelectAgent={setSelectedAgentId} />
