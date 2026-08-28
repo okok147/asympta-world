@@ -1,0 +1,51 @@
+.aw-service.is-running { color: var(--aw-blue-deep); border-color: rgba(86,107,155,.3); background: rgba(236,239,245,.82); }
+.aw-service.is-running > i { background: var(--aw-blue-deep); box-shadow: 0 0 0 4px rgba(113,131,170,.08); }
+
+.aw-message { position: absolute; z-index: 18; transform: translate(-50%, -50%); display: inline-flex; align-items: center; gap: 4px; max-width: 210px; padding: 5px 7px; border: 1px solid rgba(86,107,155,.16); border-radius: 999px; background: rgba(242,243,240,.89); color: var(--aw-ink-soft); box-shadow: 0 4px 18px rgba(43,43,43,.045); font-size: .42rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; backdrop-filter: blur(10px); }
+.aw-message--approval { border-color: rgba(169,134,102,.26); color: #806149; }
+
+.aw-world__empty { position: absolute; z-index: 8; left: 50%; top: 49%; transform: translate(-50%, -50%); width: min(520px, 72vw); text-align: center; color: var(--aw-ink-soft); }
+.aw-world__empty > span { display: grid; place-items: center; width: 38px; height: 38px; margin: 0 auto 12px; border: 1px solid var(--aw-line); border-radius: 50%; background: rgba(255,255,255,.28); color: var(--aw-sage-deep); }
+.aw-world__empty strong { display: block; color: var(--aw-ink); font-size: clamp(1rem, 1.6vw, 1.45rem); font-weight: 590; letter-spacing: -.025em; }
+.aw-world__empty p { max-width: 500px; margin: 9px auto 0; font-size: .7rem; line-height: 1.65; }
+
+.aw-inspector { position: absolute; z-index: 42; top: 18px; right: max(34px, env(safe-area-inset-right)); width: 260px; max-height: calc(100% - 36px); padding: 17px; border: 1px solid var(--aw-line); border-radius: 20px; background: rgba(247,246,240,.94); box-shadow: var(--aw-shadow); opacity: 0; transform: translateX(16px); pointer-events: none; transition: opacity .18s ease, transform .18s ease; backdrop-filter: blur(22px); }
+.aw-inspector.is-open { opacity: 1; transform: translateX(0); pointer-events: auto; }
+.aw-inspector__close { position: absolute; top: 10px; right: 10px; display: grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 8px; background: transparent; color: var(--aw-ink-soft); }
+.aw-inspector .agent-portrait { display: block; margin-bottom: 10px; }
+.aw-inspector > small { color: var(--aw-ink-faint); font-size: .49rem; text-transform: uppercase; letter-spacing: .08em; }
+.aw-inspector h2 { margin: 4px 0 1px; font-size: 1.15rem; font-weight: 640; letter-spacing: -.025em; }
+.aw-inspector > strong { color: var(--aw-sage-deep); font-size: .64rem; }
+.aw-inspector > p { margin: 10px 0; color: var(--aw-ink-soft); font-size: .66rem; line-height: 1.55; }
+.aw-inspector__status { display: flex; gap: 5px; align-items: flex-start; padding-top: 10px; border-top: 1px solid var(--aw-line); color: var(--aw-ink-soft); font-size: .57rem; line-height: 1.45; }
+
+.aw-result { position: absolute; z-index: 43; left: max(34px, env(safe-area-inset-left)); top: 18px; width: min(330px, 28vw); max-height: calc(100% - 36px); padding: 17px; border: 1px solid var(--aw-line); border-radius: 20px; background: rgba(247,246,240,.94); box-shadow: var(--aw-shadow); backdrop-filter: blur(22px); }
+.aw-result__eyebrow { display: flex; align-items: center; gap: 5px; color: var(--aw-sage-deep); font-size: .49rem; font-weight: 720; letter-spacing: .07em; text-transform: uppercase; }
+.aw-result h2 { margin: 9px 0 3px; font-size: 1.08rem; font-weight: 610; letter-spacing: -.025em; }
+.aw-result > p { margin: 0; color: var(--aw-ink-soft); font-size: .62rem; line-height: 1.5; }
+.aw-result__facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-top: 12px; }
+.aw-result__facts span { padding: 7px; border: 1px solid rgba(69,75,70,.09); border-radius: 9px; background: rgba(255,255,255,.23); }
+.aw-result__facts small,
+.aw-result__facts strong { display: block; }
+.aw-result__facts small { color: var(--aw-ink-faint); font-size: .42rem; }
+.aw-result__facts strong { margin-top: 2px; font-size: .58rem; }
+.aw-result__actions { display: flex; gap: 6px; margin-top: 12px; }
+.aw-result__actions button { flex: 1; min-height: 34px; padding: 6px 8px; border: 1px solid var(--aw-line); border-radius: 10px; background: rgba(255,255,255,.35); color: var(--aw-ink); font-size: .54rem; }
+.aw-result__actions button.is-consequential { display: inline-flex; align-items: center; justify-content: center; gap: 4px; border-color: rgba(80,105,92,.25); background: rgba(112,135,122,.1); }
+.aw-result__disclosure { display: block; margin-top: 9px; color: var(--aw-ink-faint); font-size: .44rem; line-height: 1.45; }
+
+.aw-trace-toggle { position: absolute; z-index: 44; left: 50%; bottom: 12px; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 6px; padding: 7px 9px; border: 1px solid var(--aw-line); border-radius: 999px; background: rgba(247,246,240,.84); color: var(--aw-ink-soft); box-shadow: 0 5px 20px rgba(43,43,43,.05); font-size: .52rem; backdrop-filter: blur(14px); }
+.aw-trace-toggle span { font-family: var(--aw-mono); color: var(--aw-ink-faint); font-size: .43rem; }
+.aw-trace { position: absolute; z-index: 47; left: 50%; bottom: 50px; transform: translateX(-50%); width: min(520px, calc(100vw - 42px)); max-height: 54%; overflow: auto; padding: 12px; border: 1px solid var(--aw-line); border-radius: 16px; background: rgba(247,246,240,.96); box-shadow: var(--aw-shadow); backdrop-filter: blur(22px); }
+.aw-trace header { display: flex; justify-content: space-between; align-items: center; padding: 0 2px 8px; border-bottom: 1px solid var(--aw-line); font-size: .61rem; }
+.aw-trace header button { display: grid; place-items: center; width: 26px; height: 26px; border: 0; border-radius: 8px; background: transparent; }
+.aw-trace ol { margin: 0; padding: 8px 0 0; list-style: none; }
+.aw-trace li { display: grid; grid-template-columns: 9px 1fr; gap: 7px; padding: 6px 3px; }
+.aw-trace li > i { width: 5px; height: 5px; margin-top: 4px; border-radius: 50%; background: var(--aw-sage); opacity: .7; }
+.aw-trace li strong,
+.aw-trace li small { display: block; }
+.aw-trace li strong { font-size: .53rem; }
+.aw-trace li small { margin-top: 2px; color: var(--aw-ink-soft); font-size: .46rem; line-height: 1.4; }
+
+.aw-composer { position: absolute; z-index: 70; left: 50%; bottom: max(12px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(850px, calc(100vw - 32px)); }
+.aw-scenarios,
