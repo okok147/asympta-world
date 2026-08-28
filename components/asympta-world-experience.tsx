@@ -6,12 +6,15 @@ import {
   Globe2,
   Languages,
   MapPin,
+  Minus,
+  Plus,
+  RotateCcw,
   Route,
   Send,
   ShieldCheck,
   X,
 } from "lucide-react";
-import { FormEvent, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
 
 import { useLivingWorld } from "@/components/living-world/use-living-world";
 import { SCENARIO_ORDER, scenarioFor } from "@/lib/living-world/scenarios";
@@ -56,19 +59,32 @@ const LANDMARKS: Array<{
   { id: "carrier", zone: "external", x: 87, y: 59, en: "Harbour Courier", zh: "Harbour Courier", metaEn: "carrier + delivery", metaZh: "承運 + 派送" },
 ];
 
-const MAJOR_ROADS = [
-  "M -4 10 C 16 22, 27 13, 40 24 S 71 45, 104 33",
-  "M -5 57 C 18 50, 31 61, 48 54 S 71 39, 105 48",
-  "M 8 -4 C 16 16, 22 31, 29 48 S 31 72, 40 104",
-  "M 53 -5 C 48 15, 55 26, 61 39 S 76 65, 82 103",
-  "M 96 -4 C 83 18, 82 38, 76 53 S 64 76, 56 104",
-  "M -8 86 C 21 81, 39 84, 55 79 S 82 69, 108 77",
+const PIXEL_MAP_WIDTH = 256;
+const PIXEL_MAP_HEIGHT = 144;
+
+const PIXEL_MAJOR_ROADS: Point[][] = [
+  [{ x: -4, y: 10 }, { x: 12, y: 21 }, { x: 26, y: 14 }, { x: 41, y: 25 }, { x: 58, y: 39 }, { x: 76, y: 44 }, { x: 104, y: 33 }],
+  [{ x: -5, y: 57 }, { x: 17, y: 50 }, { x: 31, y: 61 }, { x: 49, y: 54 }, { x: 67, y: 43 }, { x: 84, y: 41 }, { x: 105, y: 48 }],
+  [{ x: 8, y: -4 }, { x: 15, y: 15 }, { x: 22, y: 31 }, { x: 29, y: 48 }, { x: 31, y: 71 }, { x: 40, y: 104 }],
+  [{ x: 53, y: -5 }, { x: 49, y: 14 }, { x: 55, y: 26 }, { x: 61, y: 39 }, { x: 69, y: 53 }, { x: 77, y: 72 }, { x: 82, y: 103 }],
+  [{ x: 96, y: -4 }, { x: 85, y: 18 }, { x: 82, y: 38 }, { x: 76, y: 53 }, { x: 66, y: 76 }, { x: 56, y: 104 }],
+  [{ x: -8, y: 86 }, { x: 19, y: 81 }, { x: 39, y: 84 }, { x: 55, y: 79 }, { x: 82, y: 69 }, { x: 108, y: 77 }],
 ];
 
-const EXPRESS_ROADS = [
-  "M -4 31 C 19 20, 34 33, 51 31 S 82 20, 104 28",
-  "M 14 -5 C 20 19, 31 35, 44 52 S 62 79, 72 105",
-  "M -6 75 C 18 63, 37 70, 55 69 S 84 60, 108 68",
+const PIXEL_EXPRESS_ROADS: Point[][] = [
+  [{ x: -4, y: 31 }, { x: 18, y: 20 }, { x: 35, y: 33 }, { x: 52, y: 31 }, { x: 81, y: 20 }, { x: 104, y: 28 }],
+  [{ x: 14, y: -5 }, { x: 20, y: 19 }, { x: 31, y: 35 }, { x: 44, y: 52 }, { x: 62, y: 79 }, { x: 72, y: 105 }],
+  [{ x: -6, y: 75 }, { x: 18, y: 63 }, { x: 37, y: 70 }, { x: 55, y: 69 }, { x: 84, y: 60 }, { x: 108, y: 68 }],
+];
+
+const PIXEL_PURPLE_ROUTES: Point[][] = [
+  [{ x: -8, y: 18 }, { x: 11, y: 23 }, { x: 20, y: 16 }, { x: 30, y: 25 }, { x: 39, y: 39 }, { x: 55, y: 49 }, { x: 74, y: 58 }, { x: 108, y: 44 }],
+  [{ x: -4, y: 64 }, { x: 16, y: 60 }, { x: 29, y: 68 }, { x: 47, y: 63 }, { x: 63, y: 69 }, { x: 79, y: 83 }, { x: 104, y: 91 }],
+];
+
+const PIXEL_CYAN_ROUTES: Point[][] = [
+  [{ x: 58, y: -4 }, { x: 58, y: 18 }, { x: 55, y: 35 }, { x: 57, y: 50 }, { x: 63, y: 68 }, { x: 71, y: 88 }, { x: 76, y: 104 }],
+  [{ x: 101, y: 26 }, { x: 87, y: 32 }, { x: 78, y: 46 }, { x: 76, y: 64 }, { x: 84, y: 78 }, { x: 93, y: 92 }],
 ];
 
 const COLOR_BLOCKS = [
@@ -105,43 +121,61 @@ function taskStageStatus(tasks: AgentTask[], ids: string[]) {
   return "waiting";
 }
 
-function streetGrid() {
-  const lines: ReactElement[] = [];
-  for (let i = 0; i < 35; i += 1) {
-    const x = 1.5 + i * 2.95;
-    const bend = ((i % 5) - 2) * 1.2;
-    lines.push(<path key={`v-${i}`} d={`M ${x} -2 C ${x + bend} 24, ${x - bend * 0.7} 53, ${x + bend * 0.4} 102`} />);
-  }
-  for (let i = 0; i < 27; i += 1) {
-    const y = 1.2 + i * 3.9;
-    const bend = ((i % 7) - 3) * 0.75;
-    lines.push(<path key={`h-${i}`} d={`M -2 ${y} C 24 ${y + bend}, 58 ${y - bend * 0.8}, 102 ${y + bend * 0.35}`} />);
-  }
-  for (let i = 0; i < 18; i += 1) {
-    const startY = -12 + i * 6.8;
-    lines.push(<path key={`d-${i}`} d={`M -8 ${startY} L ${28 + (i % 4) * 3} ${startY + 23} L 108 ${startY + 48}`} />);
-  }
-  return lines;
+function PixelCityCanvas() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.imageSmoothingEnabled = false;
+    const sx = (x: number) => Math.round((x / 100) * PIXEL_MAP_WIDTH);
+    const sy = (y: number) => Math.round((y / 100) * PIXEL_MAP_HEIGHT);
+    const drawRoad = (points: Point[], colour: string, width: number) => {
+      ctx.beginPath();
+      points.forEach((point, index) => {
+        const x = sx(point.x); const y = sy(point.y);
+        if (index === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.strokeStyle = colour; ctx.lineWidth = width; ctx.lineCap = "butt"; ctx.lineJoin = "miter"; ctx.stroke();
+    };
+
+    ctx.fillStyle = "#f7f6f1"; ctx.fillRect(0, 0, PIXEL_MAP_WIDTH, PIXEL_MAP_HEIGHT);
+    for (let i = 0; i < 860; i += 1) {
+      const x = (i * 47 + Math.floor(i / 9) * 11) % PIXEL_MAP_WIDTH;
+      const y = (i * 83 + Math.floor(i / 7) * 13) % PIXEL_MAP_HEIGHT;
+      ctx.fillStyle = i % 5 === 0 ? "#eeece4" : "#f2f0e9";
+      ctx.fillRect(x, y, 1, 1);
+    }
+    const palette: Record<string, string> = { yellow: "#efc946", orange: "#df9345", red: "#c94258", cyan: "#3ca7b9", olive: "#919a43" };
+    COLOR_BLOCKS.forEach((block) => {
+      ctx.fillStyle = palette[block.c] ?? "#d5d2c8";
+      ctx.fillRect(sx(block.x), sy(block.y), Math.max(2, sx(block.w) - sx(0)), Math.max(2, sy(block.h) - sy(0)));
+    });
+
+    for (let i = 0; i < 29; i += 1) {
+      const x = 2 + i * 3.55;
+      drawRoad([{ x, y: -3 }, { x: x + ((i % 5) - 2) * 1.4, y: 28 }, { x: x - ((i % 4) - 1.5) * 1.2, y: 59 }, { x: x + ((i % 7) - 3) * .8, y: 103 }], "rgba(71,72,72,.30)", 1);
+    }
+    for (let i = 0; i < 22; i += 1) {
+      const y = 2 + i * 4.65;
+      drawRoad([{ x: -3, y }, { x: 31, y: y + ((i % 5) - 2) * 1.2 }, { x: 66, y: y - ((i % 4) - 1.5) }, { x: 103, y: y + ((i % 7) - 3) * .65 }], "rgba(71,72,72,.27)", 1);
+    }
+    for (let i = 0; i < 13; i += 1) {
+      const startY = -18 + i * 9;
+      drawRoad([{ x: -4, y: startY }, { x: 34, y: startY + 27 }, { x: 69, y: startY + 43 }, { x: 104, y: startY + 64 }], "rgba(71,72,72,.20)", 1);
+    }
+    PIXEL_PURPLE_ROUTES.forEach((road) => drawRoad(road, "#69558a", 5));
+    PIXEL_CYAN_ROUTES.forEach((road) => drawRoad(road, "#1596ad", 3));
+    PIXEL_EXPRESS_ROADS.forEach((road) => drawRoad(road, "#211d23", 4));
+    PIXEL_MAJOR_ROADS.forEach((road) => drawRoad(road, "#2b282c", 2));
+  }, []);
+  return <canvas ref={canvasRef} className="aw-pixel-city-map" width={PIXEL_MAP_WIDTH} height={PIXEL_MAP_HEIGHT} aria-hidden="true" />;
 }
 
-function CityMapBackdrop() {
-  return (
-    <svg className="aw-city-map" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-      <rect width="100" height="100" className="aw-city-map__paper" />
-      <g className="aw-city-map__blocks">
-        {COLOR_BLOCKS.map((block, index) => <rect key={index} x={block.x} y={block.y} width={block.w} height={block.h} rx="0.5" className={`aw-city-map__block aw-city-map__block--${block.c}`} />)}
-      </g>
-      <g className="aw-city-map__streets">{streetGrid()}</g>
-      <g className="aw-city-map__district-lines">
-        <path d="M 3 17 L 21 5 L 43 17 L 38 38 L 18 42 Z" /><path d="M 45 5 L 66 2 L 76 22 L 62 39 L 42 33 Z" />
-        <path d="M 74 25 L 96 17 L 102 41 L 86 56 L 68 45 Z" /><path d="M 4 48 L 25 41 L 39 58 L 31 78 L 7 74 Z" />
-        <path d="M 38 45 L 63 39 L 74 58 L 61 79 L 39 73 Z" /><path d="M 69 58 L 93 50 L 103 72 L 91 93 L 68 84 Z" />
-      </g>
-      <g className="aw-city-map__express">{EXPRESS_ROADS.map((path) => <path key={path} d={path} />)}</g>
-      <g className="aw-city-map__river"><path d="M -8 18 C 12 23, 18 15, 30 24 S 42 44, 54 49 S 74 58, 108 44" /></g>
-      <g className="aw-city-map__major">{MAJOR_ROADS.map((path) => <path key={path} d={path} />)}</g>
-    </svg>
-  );
+function snapPoint(point: Point): Point {
+  const xStep = 100 / PIXEL_MAP_WIDTH; const yStep = 100 / PIXEL_MAP_HEIGHT;
+  return { x: Math.round(point.x / xStep) * xStep, y: Math.round(point.y / yStep) * yStep };
 }
 
 function orthogonalPath(from: Point, to: Point, id: string) {
@@ -155,18 +189,59 @@ function WorldSceneInner({ runtime, locale, selectedAgentId, onSelectAgent }: {
   const { world } = runtime;
   const scenario = world.scenarioId ? scenarioFor(world.scenarioId) : undefined;
   const activeZones = useMemo(() => new Set(world.tasks.filter((task) => task.status === "moving" || task.status === "working").map((task) => task.zone)), [world.tasks]);
+  const cityRef = useRef<HTMLElement>(null);
+  const dragRef = useRef<{ pointerId: number; x: number; y: number } | null>(null);
+  const [camera, setCamera] = useState({ scale: 1, x: 0, y: 0 });
+  const [panning, setPanning] = useState(false);
+  const clampScale = (value: number) => Math.min(4, Math.max(.85, value));
+  const zoomTo = (nextScale: number, clientX?: number, clientY?: number) => {
+    const rect = cityRef.current?.getBoundingClientRect();
+    setCamera((previous) => {
+      const scale = clampScale(nextScale);
+      if (!rect || clientX === undefined || clientY === undefined || previous.scale === 0) return { ...previous, scale };
+      const px = clientX - rect.left - rect.width / 2; const py = clientY - rect.top - rect.height / 2;
+      const ratio = scale / previous.scale;
+      const limitX = rect.width * Math.max(.4, scale - .55); const limitY = rect.height * Math.max(.4, scale - .55);
+      return { scale, x: Math.max(-limitX, Math.min(limitX, px - (px - previous.x) * ratio)), y: Math.max(-limitY, Math.min(limitY, py - (py - previous.y) * ratio)) };
+    });
+  };
+  const handleWheel = (event: ReactWheelEvent<HTMLElement>) => {
+    if ((event.target as HTMLElement).closest("button, input")) return;
+    event.preventDefault(); zoomTo(camera.scale * (event.deltaY < 0 ? 1.14 : .88), event.clientX, event.clientY);
+  };
+  const handlePointerDown = (event: ReactPointerEvent<HTMLElement>) => {
+    if ((event.target as HTMLElement).closest("button, input")) return;
+    event.currentTarget.setPointerCapture(event.pointerId); dragRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY }; setPanning(true);
+  };
+  const handlePointerMove = (event: ReactPointerEvent<HTMLElement>) => {
+    const drag = dragRef.current; if (!drag || drag.pointerId !== event.pointerId) return;
+    const dx = event.clientX - drag.x; const dy = event.clientY - drag.y; dragRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
+    const rect = cityRef.current?.getBoundingClientRect();
+    setCamera((previous) => { const limitX = (rect?.width ?? 800) * Math.max(.4, previous.scale - .55); const limitY = (rect?.height ?? 600) * Math.max(.4, previous.scale - .55); return { ...previous, x: Math.max(-limitX, Math.min(limitX, previous.x + dx)), y: Math.max(-limitY, Math.min(limitY, previous.y + dy)) }; });
+  };
+  const handlePointerEnd = (event: ReactPointerEvent<HTMLElement>) => {
+    if (dragRef.current?.pointerId === event.pointerId) dragRef.current = null; setPanning(false);
+  };
   return (
-    <section className="aw-city" data-phase={world.phase} data-scenario={world.scenarioId ?? "idle"} onClick={() => onSelectAgent(undefined)}>
-      <CityMapBackdrop />
-      <div className="aw-city__micro-label aw-city__micro-label--north">NORTH DISTRICT</div><div className="aw-city__micro-label aw-city__micro-label--centre">CENTRAL EXCHANGE</div><div className="aw-city__micro-label aw-city__micro-label--harbour">HARBOUR SIDE</div>
-      {LANDMARKS.map((place) => <div key={place.id} className={`aw-place${activeZones.has(place.zone) ? " is-active" : ""}`} style={{ left: `${place.x}%`, top: `${place.y}%` }}><span className="aw-place__dot" /><span className="aw-place__label"><strong>{locale === "en" ? place.en : place.zh}</strong><small>{locale === "en" ? place.metaEn : place.metaZh}</small></span>{place.id === "shop" ? <span className="aw-place__owner"><i />{tr(locale, "owner", "店主")}</span> : null}</div>)}
-      <svg className="aw-city__movement" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-        {world.agents.filter((agent) => agent.status === "moving" || agent.status === "returning" || agent.status === "sharing").map((agent) => <path key={agent.id} className="aw-city__travel-line" d={orthogonalPath(agent.position, agent.target, agent.id)} />)}
-        {world.messages.slice(-6).map((message) => { const from = world.agents.find((agent) => agent.id === message.fromId)?.position ?? WORLD_ZONES.human.point; const to = world.agents.find((agent) => agent.id === message.toId)?.position ?? (message.toId === "human" ? WORLD_ZONES.human.point : WORLD_ZONES.convergence.point); const mx = (from.x + to.x) / 2; return <path key={message.id} className={`aw-city__signal aw-city__signal--${message.type}`} d={`M ${from.x} ${from.y} Q ${mx} ${Math.min(from.y, to.y) - 8} ${to.x} ${to.y}`} />; })}
-      </svg>
-      {world.agents.map((agent) => { const active = ["moving", "working", "sharing", "returning"].includes(agent.status); const currentTask = world.tasks.find((task) => task.id === agent.taskId); return <button key={agent.id} type="button" className={`aw-agent aw-agent--${agent.status}${selectedAgentId === agent.id ? " is-selected" : ""}`} style={{ left: `${agent.position.x}%`, top: `${agent.position.y}%`, "--agent-color": agent.profile.art.primary } as CSSProperties} onClick={(event) => { event.stopPropagation(); onSelectAgent(selectedAgentId === agent.id ? undefined : agent.id); }} aria-label={`${agent.profile.name} · ${agent.profile.role[locale]}`}><span className="aw-agent__shadow" /><span className="aw-agent__figure"><i /><b /></span><span className="aw-agent__tag"><strong>{agent.profile.name}</strong><small>{agent.profile.role[locale]}</small></span>{active ? <span className="aw-agent__thought">{currentTask?.thought[locale] ?? agent.thought[locale]}</span> : null}</button>; })}
-      {world.messages.slice(-4).map((message, index) => { const from = world.agents.find((agent) => agent.id === message.fromId)?.position ?? WORLD_ZONES.human.point; const to = world.agents.find((agent) => agent.id === message.toId)?.position ?? (message.toId === "human" ? WORLD_ZONES.human.point : WORLD_ZONES.convergence.point); return <span key={message.id} className="aw-message" style={{ left: `${(from.x + to.x) / 2}%`, top: `${(from.y + to.y) / 2 + (index - 1.5) * 2.7}%` }}>{message.text[locale]}</span>; })}
-      {!world.need ? <div className="aw-city__intro"><span>{tr(locale, "CITY-SCALE LIVING WORLD", "城市尺度的生活世界")}</span><h1>{tr(locale, "Ask once. Watch the city coordinate.", "只需提出一次，觀看整座城市開始協調。")}</h1><p>{tr(locale, "Your agent walks to a place in the world model. Business-side agents receive, clarify, source, make, inspect and deliver through the same map.", "你的 Agent 會在世界模型中走到實際位置；商戶側 Agent 會在同一張地圖上接單、釐清、採購、生產、檢查與派送。")}</p><button type="button" onClick={(event) => { event.stopPropagation(); runtime.runScenario("order"); }}>{tr(locale, "Run the city order", "運行城市訂單")}<ChevronRight size={14} /></button></div> : null}
+    <section ref={cityRef} className={`aw-city${panning ? " is-panning" : ""}`} data-phase={world.phase} data-scenario={world.scenarioId ?? "idle"} onClick={() => onSelectAgent(undefined)} onWheel={handleWheel} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerEnd} onPointerCancel={handlePointerEnd}>
+      <div className="aw-city__camera" style={{ transform: `translate3d(${camera.x}px, ${camera.y}px, 0) scale(${camera.scale})` }}>
+        <PixelCityCanvas />
+        <div className="aw-city__micro-label aw-city__micro-label--north">NORTH DISTRICT</div><div className="aw-city__micro-label aw-city__micro-label--centre">CENTRAL EXCHANGE</div><div className="aw-city__micro-label aw-city__micro-label--harbour">HARBOUR SIDE</div>
+        {LANDMARKS.map((place) => { const point = snapPoint({ x: place.x, y: place.y }); return <div key={place.id} className={`aw-place${activeZones.has(place.zone) ? " is-active" : ""}`} style={{ left: `${point.x}%`, top: `${point.y}%` }}><span className="aw-place__dot" /><span className="aw-place__label"><strong>{locale === "en" ? place.en : place.zh}</strong><small>{locale === "en" ? place.metaEn : place.metaZh}</small></span>{place.id === "shop" ? <span className="aw-place__owner"><i />{tr(locale, "owner", "店主")}</span> : null}</div>; })}
+        <svg className="aw-city__movement" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          {world.agents.filter((agent) => agent.status === "moving" || agent.status === "returning" || agent.status === "sharing").map((agent) => { const from = snapPoint(agent.position); const to = snapPoint(agent.target); return <path key={agent.id} className="aw-city__travel-line" d={orthogonalPath(from, to, agent.id)} />; })}
+          {world.messages.slice(-6).map((message) => { const rawFrom = world.agents.find((agent) => agent.id === message.fromId)?.position ?? WORLD_ZONES.human.point; const rawTo = world.agents.find((agent) => agent.id === message.toId)?.position ?? (message.toId === "human" ? WORLD_ZONES.human.point : WORLD_ZONES.convergence.point); const from = snapPoint(rawFrom); const to = snapPoint(rawTo); return <path key={message.id} className={`aw-city__signal aw-city__signal--${message.type}`} d={orthogonalPath(from, to, message.id)} />; })}
+        </svg>
+        {world.agents.map((agent) => { const active = ["moving", "working", "sharing", "returning"].includes(agent.status); const currentTask = world.tasks.find((task) => task.id === agent.taskId); const point = snapPoint(agent.position); return <button key={agent.id} type="button" className={`aw-agent aw-agent--${agent.status}${selectedAgentId === agent.id ? " is-selected" : ""}`} style={{ left: `${point.x}%`, top: `${point.y}%`, "--agent-color": agent.profile.art.primary } as CSSProperties} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); onSelectAgent(selectedAgentId === agent.id ? undefined : agent.id); }} aria-label={`${agent.profile.name} · ${agent.profile.role[locale]}`}><span className="aw-agent__shadow" /><span className="aw-agent__figure"><i /><b /></span><span className="aw-agent__tag"><strong>{agent.profile.name}</strong><small>{agent.profile.role[locale]}</small></span>{active ? <span className="aw-agent__thought">{currentTask?.thought[locale] ?? agent.thought[locale]}</span> : null}</button>; })}
+        {world.messages.slice(-4).map((message, index) => { const rawFrom = world.agents.find((agent) => agent.id === message.fromId)?.position ?? WORLD_ZONES.human.point; const rawTo = world.agents.find((agent) => agent.id === message.toId)?.position ?? (message.toId === "human" ? WORLD_ZONES.human.point : WORLD_ZONES.convergence.point); const from = snapPoint(rawFrom); const to = snapPoint(rawTo); const point = snapPoint({ x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 + (index - 1.5) * 2.7 }); return <span key={message.id} className="aw-message" style={{ left: `${point.x}%`, top: `${point.y}%` }}>{message.text[locale]}</span>; })}
+      </div>
+      <div className="aw-map-zoom" aria-label={tr(locale, "Map zoom", "地圖縮放")}>
+        <button type="button" aria-label={tr(locale, "Zoom in", "放大")} onPointerDown={(event) => event.stopPropagation()} onClick={() => zoomTo(camera.scale * 1.25)}><Plus size={15} /></button>
+        <span>{Math.round(camera.scale * 100)}%</span>
+        <button type="button" aria-label={tr(locale, "Zoom out", "縮小")} onPointerDown={(event) => event.stopPropagation()} onClick={() => zoomTo(camera.scale / 1.25)}><Minus size={15} /></button>
+        <button type="button" aria-label={tr(locale, "Reset map view", "重設地圖視角")} onPointerDown={(event) => event.stopPropagation()} onClick={() => setCamera({ scale: 1, x: 0, y: 0 })}><RotateCcw size={13} /></button>
+      </div>
+      {!world.need ? <div className="aw-city__intro"><span>{tr(locale, "PIXEL CITY · CITY-SCALE LIVING WORLD", "像素城市 · 生活世界")}</span><h1>{tr(locale, "Ask once. Watch the city coordinate.", "只需提出一次，觀看整座像素城市開始協調。")}</h1><p>{tr(locale, "Business-side agents receive, clarify, source, make, inspect and deliver through the same map. Every road, district, place and moving agent lives on the same literal pixel grid. Scroll or use + / − to zoom; drag the map to explore.", "每條道路、街區、地點與移動中的 Agent 都在同一個真正的像素網格上。可滾輪或使用 + / − 縮放，並拖曳探索城市。")}</p><button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); runtime.runScenario("order"); }}>{tr(locale, "Run the city order", "運行城市訂單")}<ChevronRight size={14} /></button></div> : null}
       {scenario?.journey ? <ol className="aw-city-journey" aria-label={tr(locale, "Order journey", "訂單流程")}>{scenario.journey.map((stage, index) => { const status = taskStageStatus(world.tasks, stage.taskIds); return <li key={stage.id} className={`aw-city-journey__item aw-city-journey__item--${status}`}><span>{status === "done" ? <Check size={9} /> : index + 1}</span><strong>{stage.shortLabel[locale]}</strong></li>; })}</ol> : null}
     </section>
   );
