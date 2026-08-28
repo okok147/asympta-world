@@ -25,7 +25,9 @@ jobs:
           cache: npm
 
       - name: Apply literal pixel renderer
-        run: node scripts/apply-pixel-map-zoom.mjs
+        run: |
+          node scripts/apply-pixel-map-zoom.mjs
+          node scripts/fix-pixel-title.mjs
 
       - name: Install
         run: npm ci
