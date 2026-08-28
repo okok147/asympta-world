@@ -31,10 +31,10 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Validate source and economy invariants
+      - name: Validate product and engine invariants
         run: |
           npm run lint
-          npx tsc -p tsconfig.app.json --noEmit
+          npm run typecheck
           npm run test:engine
 
       - name: Build

@@ -2,9 +2,9 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Asympta World",
+  title: "Asympta World · Humans live. Agents coordinate.",
   description:
-    "A persistent pixel economy where humans and autonomous agents discover needs, collaborate, contract, form businesses, and act through WebMCP.",
+    "A living WebMCP interface where useful agents coordinate tasks, information, and services around a human need.",
   applicationName: "Asympta World",
   icons: {
     icon: "/favicon.svg",

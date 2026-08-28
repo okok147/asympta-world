@@ -1,106 +1,81 @@
 # Asympta World
 
-> A persistent pixel economy where humans and autonomous agents discover needs, collaborate, form businesses, sign contracts, and build reputation—without a play button.
+> Humans live. Agents coordinate the world around them.
 
-[Open the shared world](https://asympta-world.oklauuuuu.chatgpt.site) · [GitHub Pages mirror](https://okok147.github.io/asympta-world/)
+[Live demo](https://okok147.github.io/asympta-world/) · [Dinner demo](https://okok147.github.io/asympta-world/?demo=dinner) · [WebMCP Challenge](https://webmcp.devpost.com/)
 
-Asympta World is a calm, minimal economic simulation for the digital-services market. Twelve autonomous participants and four initial businesses are alive before the visitor arrives. They observe work, notice capability gaps, invite collaborators, price offers, complete contracts, settle simulated credits, remember relationships, and—when repeated demand becomes convincing—form new businesses.
+Asympta World is a human-centred coordination world for people and browser agents. A person states one ordinary need—find dinner, prepare a meeting, compare a product, or handle an email—and a small team of specialised animal agents turns it into an inspectable task graph. They move through a shared spatial world, call clearly labelled services, exchange information, converge on one useful outcome, and stop for the human before any consequential action.
 
-This is not a prerecorded demo. The visual canvas is a projection of the same world state used by the scheduler, HTTP API, human controls, persistence layer, tests, and ten WebMCP tools.
+The product is intentionally calm. The conversation field is always available, every action is reachable by typing `/`, English is the default, 繁中 is one tap away, and the same experience reflows from a 320 px phone to a wide desktop.
 
-## Why this exists
+## Judge path: 45 seconds
 
-Most agent demos begin with a command and end with a chat transcript. Asympta World asks a different question: **what does a legible, persistent society of agents look like?**
+1. Open the [Dinner demo](https://okok147.github.io/asympta-world/?demo=dinner), or type `/dinner` in the conversation field.
+2. Watch five genuinely different animal agents divide a dependency-based task graph and exchange visible information.
+3. Open **WebMCP** and invoke **Observe coordination**, **List local services**, or **Exchange information**.
+4. At the result, choose **Reserve table**. The world stops at a human approval boundary; approving records a demo handoff and explicitly confirms that nothing was booked.
+5. Resize to phone width, type `/`, and switch to 繁中 from the menu. The composer and all critical actions remain on screen.
 
-The answer is intentionally small and inspectable:
+## Why WebMCP
 
-- agents have capabilities, economic traits, balances, reputation, goals, memory, memberships, and relationships;
-- needs create market signals instead of disappearing into a prompt;
-- skill gaps create messages and collaborator invitations;
-- accepted offers become explicit contracts;
-- outcomes change balances, reputation, and relationship strength;
-- repeated demand can cause an ambitious unaffiliated agent to found a business;
-- every meaningful change is a causal event with provenance and parent events.
+Ordinary life tasks span context, specialised work, services, and judgment. A browser agent should not have to reverse-engineer visual controls or silently act on consequential choices. Asympta exposes the same event-driven world used by the human interface through five narrow imperative WebMCP tools.
 
-## Product surface
+| Tool | Kind | What it enables |
+| --- | --- | --- |
+| `asympta_observe_coordination` | Read | Inspect the need, local world, team, task graph, information exchange, service modes, result, and approval state. |
+| `asympta_list_local_services` | Read | Discover only services relevant to the current need, including LIVE / DEMO / SIMULATED provenance. |
+| `asympta_submit_need` | Write | Classify a natural-language need and activate a bounded useful team. |
+| `asympta_exchange_information` | Write | Send a visible, length-bounded packet between two active agents. |
+| `asympta_request_action` | Write | Request a valid result action; consequential actions transition to `waiting_for_human`. |
 
-- **Living canvas:** pan and zoom through businesses, participants, needs, relationship lines, and live events.
-- **Human participation:** write “What do you need?”, set a simulated-credit budget, receive offers, inspect their reasoning, and accept one.
-- **Entity inspection:** open any agent, business, need, or event to see capabilities, memory, pricing, contracts, and causal history.
-- **Clear provenance:** human, native-agent, world, and external WebMCP activity use distinct quiet visual markers.
-- **No Start/Play control:** the world wakes, catches up, and continues on its own.
-- **Calm pixel language:** an original raster participant atlas is paired with off-white paper, restrained color, tiny mono labels, and reduced-motion support—not a village metaphor.
+Tools are registered with `document.modelContext.registerTool(...)`, JSON Schema inputs, lifecycle cancellation, `readOnlyHint`, and `untrustedContentHint`. In browsers without native WebMCP, the identical definitions remain callable through the in-product bridge at `window.__ASYMPTA_WORLD__`; the UI labels this as a compatible fallback rather than claiming native support.
 
-## How the world works
-
-```mermaid
-flowchart TD
-    Need["Human or world need"] --> Signal["Market signal"]
-    Signal --> Decide["Agent evaluates fit"]
-    Decide -->|full coverage| Offer["Offer"]
-    Decide -->|skill gap| Invite["Collaborator invitation"]
-    Invite --> Offer
-    Offer --> Contract["Accepted contract"]
-    Contract --> Outcome["Delivery and settlement"]
-    Outcome --> Memory["Reputation + relationship memory"]
-    Signal -->|sustained demand| Business["New business"]
-```
-
-The engine is deterministic enough to test and replay, while seeded variation changes candidate tie-breaks and world-generated opportunities. Traits and constraints—not uncontrolled randomness—own the decisions. Normal time advances the world one bounded tick at a time; returning visitors receive a maximum catch-up window so a long absence cannot create an event storm.
-
-### Domain model
-
-The state contains explicit `Agent`, `Business`, `Need`, `Offer`, `Contract`, `Message`, `Transaction`, `Relationship`, `MarketSignal`, and `WorldEvent` records. Commands are idempotent. Invariants reject invalid references, negative participant balances, out-of-range reputation, duplicate event IDs, unfunded contracts, and settlement totals that do not equal contract value.
-
-### One canonical mutation path
+## One state, four complementary views
 
 ```mermaid
 flowchart LR
-    Human["Human UI"] --> Gateway["World command gateway"]
-    WebMCP["External agent"] --> Gateway
-    Gateway --> Engine["Deterministic economy engine"]
-    Engine --> D1["D1 snapshot + event log"]
-    D1 --> Canvas["Living canvas"]
+    Human[Human conversation] --> Engine[Deterministic event engine]
+    WebMCP[Browser agent tools] --> Engine
+    Engine --> Tasks[Dependency task graph]
+    Engine --> VGPU[vGPU coordination field]
+    Engine --> Three[Three.js world and 3D agents]
+    Engine --> P5[p5.js signals and celebration]
+    Engine --> UI[Semantic responsive UI]
+    Tasks --> Approval[Human approval boundary]
 ```
 
-Human actions and mutating WebMCP tools enter the same validated `WorldCommand` union. On the hosted product, the command gateway performs an optimistic D1 snapshot update and appends new events. The UI never maintains a separate “demo truth.”
+- **[vGPU](https://vgpu.sh/)** renders one subtle, state-reactive WebGPU coordination field on capable desktops. It is idle-loaded, fixed at DPR 1 and 12 fps, and paused while the page is hidden.
+- **Three.js** renders the low-poly local world, buildings, roads, service zones, camera follow, and lightweight 3D animal presences with a low-power renderer.
+- **p5.js** renders active-service pulses, travelling information packets, and completion particles. Its fallback ambient particles switch off whenever vGPU is active, avoiding duplicated GPU work.
 
-## WebMCP
+All three canvas engines share a performance gate. They are idle-loaded only on sufficiently large, capable screens and omitted on small/short screens, reduced-motion, save-data, or low-memory devices. The semantic map, distinct SVG animals, task state, controls, approval and completion feedback remain complete without downloading those progressive chunks.
+- **Semantic React UI** keeps every important label, agent, menu, result, and approval action keyboard- and screen-reader-accessible. Canvas is enhancement, never the only control surface.
 
-Asympta World uses the [WebMCP imperative API](https://developer.chrome.com/docs/ai/webmcp/imperative-api) and registers tools through `document.modelContext.registerTool`. The same definitions are exposed as `window.__ASYMPTA_WEBMCP__` for inspection and development in browsers where native WebMCP is not enabled.
+The engine is deterministic and event-driven, not a prerecorded animation. `render_game_to_text()` exposes the current spatial/task state for automated inspection, and `advanceTime(ms)` advances the same state machine used by the live UI.
 
-| Tool | Kind | Purpose |
-| --- | --- | --- |
-| `observe_world` | Read | Compact economy, opportunities, and recent events |
-| `inspect_agent` | Read | Skills, traits, balance, reputation, memory, and relationships |
-| `inspect_business` | Read | Members, specialty, treasury, pricing, and contracts |
-| `inspect_need` | Read | Need, offers, status, and causal history |
-| `post_need` | Mutate | Place an external need into the canonical economy |
-| `create_offer` | Mutate | Submit a validated offer for an open need |
-| `send_message` | Mutate | Send a bounded participant message |
-| `create_business` | Mutate | Fund and create an agent business |
-| `join_business` | Mutate | Join an existing business |
-| `accept_offer` | Mutate | Accept one offer and form a contract |
+## Four complete scenarios
 
-Open `?debug=1` to see native/fallback WebMCP support, the registered tool names, and the last tool result. Tool calls are visible in the same provenance system as human and native-agent actions.
+| Need | Useful team | Services | Human outcome |
+| --- | --- | --- | --- |
+| Dinner | Peacock, Otter, Fox, Owl, Turtle | Local context, place search, preference, travel | One practical dinner choice; booking requires approval. |
+| Work | Elephant, Deer, Raven, Beaver | Calendar, research, documents | A concise meeting brief; sharing requires approval. |
+| Shopping | Crane, Meerkat, Lynx, Raccoon | Requirements, products, price | A legible comparison; buying requires approval. |
+| Email | Orca, Hummingbird, Rabbit, Red panda | Inbox, context, drafting | A held reply draft; sending requires approval. |
 
-## Persistence
+All 17 agents use different species and different art directions. Only the team useful to the current need appears.
 
-The canonical hosted product uses Cloudflare D1:
+## Location without surveillance
 
-- `world_snapshots` stores the current authoritative aggregate with an optimistic version;
-- `world_events` is an append-only, indexed event log;
-- elapsed time is converted into a bounded number of catch-up ticks;
-- command idempotency prevents duplicate needs, contracts, or payments;
-- generated Drizzle migrations define the deployed schema.
+With permission, `watchPosition` follows the device at low accuracy. Coordinates are immediately converted into a stable nearby cell and a 5×5 community group with a system-generated poetic name such as **Moonlit Commons · Cloud Lane**. Exact coordinates are never displayed or placed in WebMCP output. Denial and unavailability are explicit states; the product falls back to a labelled demo area instead of fabricating live location.
 
-The GitHub Pages build is a static mirror. Because Pages cannot host the D1 API, it transparently uses the identical engine with a browser-local persisted mirror. It remains fully interactive, but its state is not shared across browsers. The header always says **Shared world** or **Local mirror**, so the distinction is visible.
+## Trust boundaries
 
-## AI and autonomy
-
-The shipped world deliberately does not require an API key or hide its logic behind a remote LLM. Its twelve bounded agents use explicit skills, economic traits, reputation, relationships, capacity, market signals, and seeded variation. This makes autonomy reproducible, fast, and auditable. Real external AI agents can participate through WebMCP without receiving privileged access to state.
-
-The design leaves a clear extension point for language-model planning, but a model failure cannot corrupt the ledger: domain validation and settlement remain deterministic.
+- Every adapter discloses `live`, `demo`, or `simulated` mode.
+- Browser-agent tool inputs are schema-bounded and validated against current world state.
+- Read tools are annotated read-only; mutating or user/external-content tools are marked untrusted.
+- Booking, buying, sharing, and sending always require a visible human approval step.
+- The current demo has no live external connector, so approval records a handoff and never falsely claims a booking, purchase, share, or send occurred.
+- Reduced-motion users receive static visual state rather than continuous movement.
 
 ## Run locally
 
@@ -111,55 +86,38 @@ npm ci
 npm run dev
 ```
 
-Open the local URL shown by Vite. No environment variable or AI key is required for local-mirror mode.
+Open the local URL printed by Vite. No account, API key, or secret is required.
 
-### Validate
+For native WebMCP testing in Chrome 149 or later, enable `chrome://flags/#enable-webmcp-testing`, relaunch Chrome, and inspect the five registered tools. ChatGPT's in-app browser can also discover the tools on a deployed build.
+
+## Verify
 
 ```bash
 npm run lint
-npx tsc -p tsconfig.app.json --noEmit
-node --test tests/world-engine.test.mjs tests/ui-components.test.mjs
-npm test
+npm run typecheck
+npm run test:engine
+npm run build
+npm run test:rendered
+npm run export:pages
 ```
 
-The test suite covers:
+The automated suite covers task dependencies, deterministic replay, tool provenance, information exchange, safe and consequential result paths, approval decline/acceptance, geolocation grouping, 17 distinct characters, bilingual and slash-command source contracts, the vGPU/Three.js/p5.js layers, their performance gates, responsive/reduced-motion rules, and server-rendered product content. Browser QA additionally exercises native registration with a WebMCP mock, progressive canvas rendering, keyboard commands, geolocation updates, portrait screens from 280×480 to 1440×900, and short landscape screens down to 568×320.
 
-1. spontaneous activity before human input;
-2. human needs entering the shared world;
-3. skill-gap discovery and collaboration;
-4. contract formation and credit conservation;
-5. outcome-driven reputation;
-6. demand-driven business emergence;
-7. bounded persistence catch-up;
-8. external WebMCP actions using the canonical ledger path;
-9. server-rendered product content and removal of play/village UI;
-10. responsive, safe-area, pixel-art, and reduced-motion rules.
+## Challenge fit
 
-## Deploy
+- **WebMCP leverage:** five non-trivial tools change and inspect one canonical event world; agent-to-agent exchange and approval are visible to the person.
+- **Execution:** complete end-to-end scenarios, responsive product UI, accessibility, privacy, error handling, deterministic tests, and deploy automation.
+- **Potential impact:** reduces the coordination burden of everyday multi-step needs without asking a human to supervise every subtask.
+- **Creativity and ambition:** a spatial, location-aware society where browser agents collaborate around human life instead of replacing it with another chat transcript.
 
-### Hosted shared world
-
-The project is configured for ChatGPT Sites with a D1 binding named `DB`. Checkpoint deployment applies the generated migration and serves the authoritative API at `/api/world`.
-
-### GitHub Pages
-
-Push to `main`. The included workflow validates source, builds the Vinext application, server-renders the root route into a static document, retains the hydrated client bundle, and deploys `pages-dist` through GitHub Actions.
-
-## Three-minute demo path
-
-1. Open the world and do nothing: watch the seeded coffee-shop need get discovered and priced.
-2. Enter “I need a logo and homepage copy” with a 50-credit budget.
-3. Open the resulting need and watch a lead identify a missing capability, invite a collaborator, and produce a combined offer.
-4. Accept the offer; inspect the contract, deterministic payment, reputation change, and relationship memory.
-5. Open `?debug=1`, inspect the ten tools, and invoke `observe_world` or `post_need` through WebMCP.
-6. Reload the shared deployment and confirm the world continues from D1 rather than resetting.
+Submission-ready copy, testing instructions, and the under-three-minute video storyboard are in [docs/WEBMCP_CHALLENGE_SUBMISSION.md](./docs/WEBMCP_CHALLENGE_SUBMISSION.md).
 
 ## Honest limitations
 
-- Credits, contracts, businesses, messages, and delivery outcomes are simulations; no real payment or external message is sent.
-- Native WebMCP currently depends on browser support or the relevant Chrome experimental configuration; the fallback registry is for inspection and development, not a claim of native browser support.
-- GitHub Pages persists per browser. Use the primary hosted link for the cross-visitor D1 world.
-- Autonomous delivery is abstracted as a validated outcome after bounded ticks; the project models economic coordination, not production of the purchased artifact itself.
+- Restaurant, calendar, document, product, inbox, price, and availability data are simulated and clearly labelled.
+- Native WebMCP depends on a supporting browser or enabled Chrome experiment; the in-product bridge is a faithful development fallback, not a native-support claim.
+- Location grouping is local browser state; there is no account or cross-device profile.
+- vGPU, Three.js, and p5.js are progressive visual enhancements. Core actions and the DOM world remain usable if the performance gate skips them or any canvas cannot render.
 
 ## License
 
