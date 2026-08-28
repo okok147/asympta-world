@@ -13,19 +13,20 @@ async function renderRoot() {
   return { response, html: await response.text() };
 }
 
-test("server render exposes only the map-first surface", async () => {
+test("server render exposes only the pixel map-first surface", async () => {
   const { response, html } = await renderRoot();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   assert.match(html, /data-map-app="true"/);
-  assert.match(html, /Interactive city map/);
+  assert.match(html, /data-map-style="pixel-reference"/);
+  assert.match(html, /Interactive pixel city map/);
   assert.match(html, /Toggle map color layer/);
   assert.match(html, /Zoom in/);
   assert.match(html, /Zoom out/);
   assert.match(html, /Recenter map/);
 });
 
-test("old Asympta World demo chrome is absent from the rendered page", async () => {
+test("old Asympta World demo chrome remains absent from the rendered page", async () => {
   const { html } = await renderRoot();
   assert.doesNotMatch(html, /ASYMPTA WORLD/);
   assert.doesNotMatch(html, /WebMCP/);
