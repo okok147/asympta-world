@@ -1,0 +1,43 @@
+name: Validate map-only reset
+
+on:
+  push:
+    branches:
+      - map-only-reset-20260828
+
+permissions:
+  contents: read
+
+jobs:
+  validate-map-only:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Engine and product tests
+        run: npm run test:engine
+
+      - name: Production build
+        run: npm run build
+
+      - name: Rendered product tests
+        run: npm run test:rendered
+
+      - name: Pages export
+        run: npm run export:pages
