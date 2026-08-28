@@ -1,0 +1,51 @@
+import type { AgentArt, AgentProfile, LocalizedText, ScenarioDefinition, ScenarioId, ServiceDefinition, StakeholderSide } from "./types.ts";
+
+const t = (en: string, zh: string): LocalizedText => ({ en, "zh-Hant": zh });
+const art = (style: AgentArt["style"], primary: string, secondary: string, ink = "#2f3835", surface = "#f4f1e8"): AgentArt => ({ style, primary, secondary, ink, surface });
+function agent(id: string, name: string, species: string, role: LocalizedText, competence: LocalizedText, visual: AgentArt, organisation?: LocalizedText, side?: StakeholderSide): AgentProfile {
+  return { id, name, species, role, competence, art: visual, organisation, side };
+}
+function service(id: string, name: LocalizedText, description: LocalizedText, zone: ServiceDefinition["zone"], result: LocalizedText, latencyMs = 720): ServiceDefinition {
+  return { id, name, description, zone, result, latencyMs, mode: "simulated" };
+}
+
+const order: ScenarioDefinition = {
+  id: "order",
+  category: "commerce",
+  label: t("Order flow", "訂單流程"),
+  prompt: t("Coordinate an order for 12 customised navy notebooks before Friday 17:00.", "協調一張 12 本客製深藍筆記簿、星期五 17:00 前交付的訂單。"),
+  shortPrompt: t("Run the complete order", "運行完整訂單"),
+  icon: "package",
+  context: [
+    { label: t("Quantity", "數量"), value: t("12 notebooks", "12 本筆記簿"), simulated: true },
+    { label: t("Finish", "表面"), value: t("Matte navy · logo", "啞面深藍 · 標誌"), simulated: true },
+    { label: t("Deadline", "期限"), value: t("Friday · 17:00", "星期五 · 17:00"), simulated: true },
+    { label: t("Starting stock", "起始庫存"), value: t("8 / 12 covers", "8 / 12 個封面"), simulated: true },
+  ],
+  agents: [
+    agent("order-conductor", "Mori", "Peacock", t("Personal coordinator", "個人協調員"), t("Protects the human intention across every organisation", "跨越所有組織保護人的意圖"), art("mosaic", "#4f7667", "#c6aa74"), t("Your side", "你的這一方"), "personal"),
+    agent("order-receiver", "Ari", "Otter", t("Business receiving", "商戶接單"), t("Turns a request into a traceable commercial job", "把需要轉成可追蹤商業工作"), art("watercolour", "#7c9185", "#d5b58d"), t("Mori Paper Co.", "Mori Paper Co."), "business"),
+    agent("order-merchandiser", "Fable", "Fox", t("Merchandiser", "跟單員"), t("Clarifies specifications and keeps the customer promise coherent", "釐清規格並保持客戶承諾一致"), art("folded-paper", "#a56f58", "#d9b66f"), t("Mori Paper Co.", "Mori Paper Co."), "business"),
+    agent("order-warehouse", "Moss", "Turtle", t("Warehouse", "倉庫"), t("Checks, reserves and receives physical materials", "檢查、預留及接收實體物料"), art("botanical", "#657b68", "#a7b58a"), t("Mori Warehouse", "Mori 倉庫"), "operations"),
+    agent("order-procurement", "Sora", "Owl", t("Procurement", "採購"), t("Finds missing material with provenance and timing", "尋找缺少物料並核實來源與時間"), art("nocturne", "#5e6478", "#c0aa72"), t("Mori Paper Co.", "Mori Paper Co."), "business"),
+    agent("order-supplier", "North", "Deer", t("Supplier", "供應商"), t("Quotes, reserves, prepares and hands materials over", "報價、預留、準備及交接物料"), art("ink", "#88725f", "#8da080"), t("North Mill", "North Mill"), "supplier"),
+    agent("order-workshop", "Rivet", "Beaver", t("Production", "生產"), t("Schedules, makes and reworks the customised batch", "安排、生產及返工客製批次"), art("workshop", "#85634e", "#c89e65"), t("Mori Workshop", "Mori 工場"), "operations"),
+    agent("order-quality", "Kumo", "Crane", t("Quality control", "品質檢查"), t("Rejects defects and releases only verified units", "拒絕缺陷，只放行已核實單位"), art("porcelain", "#d7d3c9", "#96756e"), t("Mori QA", "Mori 品質"), "operations"),
+    agent("order-fulfilment", "Patch", "Raccoon", t("Fulfilment", "履約"), t("Packs exact quantity and prepares the dispatch record", "按準確數量包裝並準備出貨紀錄"), art("street-map", "#69716d", "#c8a86d"), t("Mori Fulfilment", "Mori 履約"), "operations"),
+    agent("order-finance", "Maris", "Orca", t("Finance", "財務"), t("Prepares invoice and stops before consequential settlement", "準備發票並在重要結算前停下"), art("ocean", "#4f6874", "#8eb4b5"), t("Mori Finance", "Mori 財務"), "finance"),
+    agent("order-carrier", "Sol", "Red panda", t("Carrier", "承運商"), t("Coordinates pickup, route, tracking and delivery", "協調取件、路線、追蹤及交付"), art("sunrise", "#9e624f", "#d4b372"), t("Harbour Courier", "Harbour Courier"), "logistics"),
+    agent("order-support", "Iris", "Hummingbird", t("After-sales", "售後"), t("Closes the loop with support, return and audit continuity", "以支援、退貨及稽核延續完成閉環"), art("glass", "#6c978d", "#c58c93"), t("Mori Care", "Mori 售後"), "support"),
+  ],
+  services: [
+    service("order.receive", t("Order desk", "訂單台"), t("Simulated business receiving system", "模擬商戶接單系統"), "communication", t("Order OW-1208 opened", "訂單 OW-1208 已建立")),
+    service("order.clarify", t("Customer thread", "客戶對話"), t("Simulated clarification channel", "模擬釐清對話通道"), "communication", t("Matte navy confirmed", "已確認啞面深藍")),
+    service("inventory.read", t("Warehouse stock", "倉庫庫存"), t("Simulated inventory ledger", "模擬庫存帳"), "planning", t("8 matching covers · shortage 4", "8 個匹配封面 · 尚欠 4 個")),
+    service("supplier.quote", t("Supplier quote", "供應商報價"), t("Simulated upstream supplier exchange", "模擬上游供應商交換"), "market", t("4 covers available · handoff 14:20", "4 個封面可供應 · 14:20 交接"), 920),
+    service("material.receive", t("Material receipt", "物料收貨"), t("Simulated warehouse receipt", "模擬倉庫收貨"), "planning", t("Stock updated 8 → 12", "庫存已由 8 → 12")),
+    service("production.run", t("Workshop", "工場"), t("Simulated production schedule", "模擬生產排程"), "planning", t("12 units produced", "已生產 12 件"), 940),
+    service("quality.inspect", t("Quality check", "品質檢查"), t("Simulated QA inspection", "模擬品質檢查"), "research", t("11 pass · 1 edge defect", "11 合格 · 1 件邊緣缺陷")),
+    service("invoice.prepare", t("Invoice", "發票"), t("Simulated invoice and settlement preparation", "模擬發票及結算準備"), "convergence", t("Invoice prepared · not charged", "發票已準備 · 尚未扣款")),
+    service("carrier.track", t("Carrier tracking", "物流追蹤"), t("Simulated carrier route and tracking", "模擬承運路線與追蹤"), "external", t("Pickup 15:10 · ETA 16:35", "15:10 取件 · 預計 16:35"), 1_020),
+    service("support.open", t("After-sales", "售後"), t("Simulated support and return route", "模擬支援及退貨路徑"), "context", t("Support path opened", "售後支援路徑已開啟")),
+  ],
+  tasks: [
