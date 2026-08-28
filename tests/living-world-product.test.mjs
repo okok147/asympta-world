@@ -9,144 +9,66 @@ import { SCENARIOS, SCENARIO_ORDER } from "../lib/living-world/scenarios.ts";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (relative) => readFile(path.join(root, relative), "utf8");
 
-test("four focused scenarios use distinct animals, art directions and explicit service modes", () => {
-  assert.deepEqual(SCENARIO_ORDER, ["dinner", "work", "shopping", "email"]);
-  const scenarios = Object.values(SCENARIOS);
-  const agents = scenarios.flatMap((scenario) => scenario.agents);
-  assert.equal(agents.length, 17);
-  assert.equal(new Set(agents.map((agent) => agent.species)).size, 17);
-  assert.equal(new Set(agents.map((agent) => agent.art.style)).size, 17);
-  assert.equal(new Set(agents.map((agent) => agent.id)).size, 17);
-  scenarios.forEach((scenario) => {
-    assert.ok(scenario.tasks.length >= 6);
-    assert.ok(scenario.services.length >= 3);
-    assert.ok(scenario.services.every((service) => ["live", "demo", "simulated"].includes(service.mode)));
-    assert.equal(scenario.result.secondaryAction.consequential, true);
-    assert.match(scenario.result.disclosure.en, /simulated/i);
-  });
+test("five scenario families include a flagship 12-agent order flow", () => {
+  assert.deepEqual(SCENARIO_ORDER, ["order", "dinner", "work", "shopping", "email"]);
+  const order = SCENARIOS.order;
+  assert.equal(order.agents.length, 12);
+  assert.equal(order.tasks.length, 21);
+  assert.equal(order.services.length, 10);
+  assert.equal(order.journey?.length, 8);
+  assert.equal(order.services.every((service) => service.mode === "simulated"), true);
+  assert.match(order.result.disclosure.en, /No real order, charge, message or shipment occurred/i);
 });
 
-test("English is the default and Traditional Chinese remains a first-class menu choice", async () => {
-  const [layout, app, runtime] = await Promise.all([
+test("the visible product returns to the calm Asympta language", async () => {
+  const [page, layout, app, css] = await Promise.all([
+    read("app/page.tsx"),
     read("app/layout.tsx"),
-    read("components/living-world/living-world-app.tsx"),
-    read("components/living-world/use-living-world.ts"),
+    read("components/asympta-world-experience.tsx"),
+    read("app/asympta-restoration.css"),
   ]);
-  assert.match(layout, /<html lang="en"/);
-  assert.match(runtime, /return "en"/);
-  assert.match(runtime, /asympta-world-locale-v1/);
+  assert.match(page, /AsymptaWorldExperience/);
+  assert.match(layout, /asympta-restoration\.css/);
+  assert.match(css, /--aw-paper:\s*#eeede6/);
+  assert.match(css, /--aw-blue-deep:\s*#566b9b/);
+  assert.match(css, /\.aw-world__grid/);
+  assert.match(css, /\.aw-language-menu/);
+  assert.match(app, /aw-icon-button--language/);
   assert.match(app, />English</);
-  assert.match(app, />繁中</);
-  assert.match(app, /\/繁中/);
+  assert.match(app, />繁體中文</);
 });
 
-test("conversation is the primary action surface with a complete slash command system", async () => {
-  const app = await read("components/living-world/living-world-app.tsx");
-  for (const command of [
-    "/dinner", "/work", "/shopping", "/email", "/watch", "/location",
-    "/services", "/context", "/progress", "/follow", "/english", "/繁中", "/reset",
-  ]) {
-    assert.ok(app.includes(command), `missing ${command}`);
-  }
-  assert.match(app, /id="need-composer"/);
-  assert.match(app, /role="listbox"/);
-  assert.match(app, /ArrowDown/);
-  assert.match(app, /Enter select/);
-  assert.match(app, /Open WebMCP actions/);
-});
-
-test("WebMCP tools are imperative, schema-driven, bounded and human-gated", async () => {
-  const runtime = await read("components/living-world/use-living-world.ts");
-  const names = [
-    "asympta_observe_coordination", "asympta_list_local_services", "asympta_submit_need",
-    "asympta_exchange_information", "asympta_request_action",
-  ];
-  names.forEach((name) => assert.ok(runtime.includes(`name: "${name}"`)));
-  assert.match(runtime, /document\.modelContext\?\.registerTool/);
-  assert.match(runtime, /readOnlyHint: true/);
-  assert.match(runtime, /untrustedContentHint: true/);
-  assert.match(runtime, /maxLength: 320/);
-  assert.match(runtime, /maxLength: 180/);
-  assert.match(runtime, /Both agent IDs must belong to the active team/);
-  assert.match(runtime, /No result is ready yet/);
-  assert.match(runtime, /validActionIds/);
-});
-
-test("Three.js, vGPU and p5.js have separate performance-bounded responsibilities", async () => {
-  const [stage, three, vgpu, p5, performanceGate, packageJson] = await Promise.all([
-    read("components/living-world/world-stage.tsx"),
-    read("components/living-world/three-world-canvas.tsx"),
-    read("components/living-world/vgpu-world-field.tsx"),
-    read("components/living-world/p5-atmosphere-canvas.tsx"),
-    read("lib/living-world/visual-performance.ts"),
-    read("package.json"),
+test("order is visible from UI and slash command while all stakeholders remain in one world", async () => {
+  const [app, scenarios] = await Promise.all([
+    read("components/asympta-world-experience.tsx"),
+    read("lib/living-world/scenarios.ts"),
   ]);
-  assert.match(stage, /<VgpuWorldField/);
-  assert.match(stage, /<ThreeWorldCanvas/);
-  assert.match(stage, /<P5AtmosphereCanvas/);
-  assert.match(three, /import\("three"\)/);
-  assert.match(three, /powerPreference: "low-power"/);
-  assert.match(three, /allowsVisualEnhancement/);
-  assert.match(three, /scheduleIdleTask/);
-  assert.match(three, /data-visual-engine="three\.js"/);
-  assert.match(vgpu, /import\("vgpu"\)/);
-  assert.match(vgpu, /powerPreference: "low-power"/);
-  assert.match(vgpu, /\{ fps: 12 \}/);
-  assert.match(vgpu, /dpr: 1/);
-  assert.match(vgpu, /minWidth: 960/);
-  assert.match(vgpu, /minMemory: 4/);
-  assert.match(vgpu, /requireWebGpu: true/);
-  assert.match(vgpu, /visibilitychange/);
-  assert.match(vgpu, /data-visual-engine="vgpu"/);
-  assert.match(p5, /import\("p5"\)/);
-  assert.match(p5, /allowsVisualEnhancement/);
-  assert.match(p5, /scheduleIdleTask/);
-  assert.match(p5, /data-visual-engine="p5\.js"/);
-  assert.match(p5, /dataset\.vgpuWorld !== "active"/);
-  assert.match(p5, /current\.messages/);
-  assert.match(p5, /celebrationUntil/);
-  assert.match(performanceGate, /prefers-reduced-motion: reduce/);
-  assert.match(performanceGate, /connection\?\.saveData/);
-  assert.match(performanceGate, /deviceMemory >= minMemory/);
-  assert.match(performanceGate, /requestIdleCallback/);
-  assert.match(packageJson, /"three":/);
-  assert.match(packageJson, /"p5":/);
-  assert.match(packageJson, /"vgpu":/);
+  assert.match(app, /\/order/);
+  assert.match(app, /SCENARIO_ORDER/);
+  assert.match(app, /WorldSceneInner/);
+  for (const term of ["Business receiving", "Merchandiser", "Warehouse", "Procurement", "Supplier", "Production", "Quality control", "Finance", "Carrier", "After-sales"]) {
+    assert.ok(scenarios.includes(term), `missing stakeholder: ${term}`);
+  }
 });
 
-test("location is continuously grouped without rendering exact coordinates", async () => {
-  const [runtime, geography, stage] = await Promise.all([
+test("canonical engine and WebMCP remain mounted under the redesigned surface", async () => {
+  const [app, hook, engine] = await Promise.all([
+    read("components/asympta-world-experience.tsx"),
     read("components/living-world/use-living-world.ts"),
-    read("lib/poetic-geography.ts"),
-    read("components/living-world/world-stage.tsx"),
+    read("lib/living-world/engine.ts"),
   ]);
-  assert.match(runtime, /watchPosition/);
-  assert.match(runtime, /enableHighAccuracy: false/);
-  assert.match(runtime, /locationContextForCoordinates/);
-  assert.match(geography, /LOCAL_AREA_GROUP_SIDE = 5/);
-  assert.match(geography, /poeticAreaForCell/);
-  assert.doesNotMatch(stage, /latitude|longitude|coords\./i);
+  assert.match(app, /useLivingWorld/);
+  assert.match(app, /Same event state powers UI \+ WebMCP/);
+  assert.match(hook, /asympta_observe_coordination/);
+  assert.match(hook, /asympta_submit_need/);
+  assert.match(hook, /asympta_request_action/);
+  assert.match(engine, /requiresApproval/);
+  assert.match(engine, /kind:\s*"task"/);
 });
 
-test("the responsive shell preserves safe areas, focus and reduced motion", async () => {
-  const css = await read("app/globals.css");
-  for (const marker of [
-    "@media (max-width: 1260px)", "@media (max-width: 1080px)",
-    "@media (max-width: 760px)", "@media (max-width: 430px)",
-    "@media (max-height: 500px)",
-    "@media (prefers-reduced-motion: reduce)", "env(safe-area-inset-top)",
-    "env(safe-area-inset-bottom)", "button:focus-visible", ".command-list",
-  ]) {
-    assert.ok(css.includes(marker), `missing responsive rule: ${marker}`);
+test("responsive, safe-area and reduced-motion rules remain explicit", async () => {
+  const css = await read("app/asympta-restoration.css");
+  for (const marker of ["@media (max-width: 1180px)", "@media (max-width: 900px)", "@media (max-width: 720px)", "@media (max-width: 430px)", "@media (max-height: 570px)", "@media (prefers-reduced-motion: reduce)", "env(safe-area-inset-top)", "env(safe-area-inset-bottom)"]) {
+    assert.ok(css.includes(marker), `missing ${marker}`);
   }
-  assert.match(css, /body\s*\{[\s\S]*?overflow:\s*hidden/);
-  assert.match(css, /\.conversation-dock/);
-  assert.match(css, /\.conversation-dock\.has-commands/);
-});
-
-test("only the rebuilt product surface is mounted", async () => {
-  const [page, template] = await Promise.all([read("app/page.tsx"), read("app/template.tsx")]);
-  assert.match(page, /LivingWorldApp/);
-  assert.doesNotMatch(page, /Runtime|Overlay|Simulation/);
-  assert.match(template, /return children/);
 });

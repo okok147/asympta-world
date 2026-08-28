@@ -1,5 +1,5 @@
-import { LivingWorldApp } from "@/components/living-world/living-world-app";
+import { AsymptaWorldExperience } from "@/components/asympta-world-experience";
 
 export default function HomePage() {
-  return <LivingWorldApp />;
+  return <AsymptaWorldExperience />;
 }

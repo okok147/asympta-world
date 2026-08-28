@@ -21,9 +21,9 @@ import {
 } from "./types.ts";
 
 const STEP_MS = 80;
-const EVENT_LIMIT = 90;
-const MESSAGE_LIFETIME_MS = 2_600;
-const PACKET_LIFETIME_MS = 2_900;
+const EVENT_LIMIT = 180;
+const MESSAGE_LIFETIME_MS = 3_600;
+const PACKET_LIFETIME_MS = 3_900;
 const AGENT_SPEED_PER_MS = 0.0205;
 const ARRIVAL_DISTANCE = 0.82;
 
@@ -71,18 +71,23 @@ function jitteredPoint(point: Point, index: number): Point {
 }
 
 const SPAWN_ARC: Point[] = [
-  { x: 23, y: 62 },
-  { x: 8, y: 79 },
-  { x: 18, y: 82 },
-  { x: 29, y: 79 },
-  { x: 35, y: 70 },
+  { x: 16, y: 67 },
+  { x: 9, y: 81 },
+  { x: 18, y: 84 },
+  { x: 28, y: 82 },
+  { x: 37, y: 76 },
 ];
 
 function taskDestination(task: AgentTask): Point {
   if (task.zone === "human") {
-    return task.kind === "report" ? { x: 23, y: 62 } : { x: 22, y: 63 };
+    return task.kind === "report" ? { x: 13, y: 69 } : { x: 12, y: 70 };
   }
   return WORLD_ZONES[task.zone].point;
+}
+
+function coordinatorId(world: LivingWorldState) {
+  const synthesis = world.tasks.find((task) => task.kind === "synthesis");
+  return synthesis?.agentId ?? world.agents[0]?.id ?? "coordinator";
 }
 
 function convergenceSlot(world: LivingWorldState, agentId: string): Point {
@@ -90,9 +95,9 @@ function convergenceSlot(world: LivingWorldState, agentId: string): Point {
   const specialists = world.agents.filter((agent) => agent.id !== coordinatorId(world));
   const index = Math.max(0, specialists.findIndex((agent) => agent.id === agentId));
   const count = Math.max(1, specialists.length);
-  const angle = -Math.PI * 0.82 + (index / Math.max(1, count - 1)) * Math.PI * 1.64;
-  const radiusX = 10;
-  const radiusY = 12.5;
+  const angle = -Math.PI * 0.84 + (index / Math.max(1, count - 1)) * Math.PI * 1.68;
+  const radiusX = count > 7 ? 13.5 : 10;
+  const radiusY = count > 7 ? 15 : 12.5;
   return {
     x: WORLD_ZONES.convergence.point.x + Math.cos(angle) * radiusX,
     y: WORLD_ZONES.convergence.point.y + Math.sin(angle) * radiusY,
@@ -163,7 +168,10 @@ export function createLivingWorld(
 function spawnAgents(world: LivingWorldState, scenarioId: ScenarioId) {
   const scenario = scenarioFor(scenarioId);
   return scenario.agents.map<LivingAgent>((profile, index) => {
-    const base = SPAWN_ARC[index] ?? { x: 12 + index * 6, y: 80 };
+    const base = SPAWN_ARC[index] ?? {
+      x: 10 + ((index - SPAWN_ARC.length) % 8) * 9.5,
+      y: 84 - Math.floor((index - SPAWN_ARC.length) / 8) * 8,
+    };
     const position = jitteredPoint(base, index);
     return {
       id: profile.id,
@@ -183,6 +191,7 @@ function instantiateTasks(scenarioId: ScenarioId): AgentTask[] {
     dependencies: [...task.dependencies],
     status: "queued",
     progress: 0,
+    approvalStatus: task.requiresApproval ? "none" : undefined,
   }));
 }
 
@@ -223,7 +232,10 @@ export function startHumanNeed(
     ),
   );
   for (const task of world.tasks) {
-    emit(world, "task_created", task.title, undefined, { taskId: task.id, agentId: task.agentId });
+    emit(world, "task_created", task.title, undefined, {
+      taskId: task.id,
+      agentId: task.agentId,
+    });
   }
   return world;
 }
@@ -261,13 +273,90 @@ function agentHasActiveTask(world: LivingWorldState, agentId: string, exceptTask
   );
 }
 
+function addMessage(
+  world: LivingWorldState,
+  fromId: string,
+  toId: string,
+  messageText: LocalizedText,
+  type: AgentMessage["type"] = "result",
+) {
+  const message: AgentMessage = {
+    id: nextId(world, "message"),
+    fromId,
+    toId,
+    type,
+    text: messageText,
+    createdAt: world.now,
+    expiresAt: world.now + MESSAGE_LIFETIME_MS,
+  };
+  const packet: InformationPacket = {
+    id: nextId(world, "packet"),
+    fromId,
+    toId,
+    text: messageText,
+    createdAt: world.now,
+    expiresAt: world.now + PACKET_LIFETIME_MS,
+  };
+  world.messages = [...world.messages, message].slice(-16);
+  world.packets = [...world.packets, packet].slice(-16);
+  emit(world, "agent_message", messageText, text("Information exchanged", "已交換資訊"), {
+    agentId: fromId,
+  });
+}
+
+function requestTaskApproval(world: LivingWorldState, task: AgentTask, agent: LivingAgent) {
+  task.approvalStatus = "pending";
+  world.approval = {
+    status: "pending",
+    kind: "task",
+    actionId: `task:${task.id}`,
+    taskId: task.id,
+    requestedAt: world.now,
+  };
+  world.phase = "waiting_for_human";
+  if (world.need) world.need.status = "waiting_for_human";
+  agent.status = "waiting";
+  agent.thought = task.approvalLabel ?? text("Waiting for your approval", "等待你的批准");
+  addMessage(
+    world,
+    agent.id,
+    "human",
+    task.approvalLabel ?? text("Your approval is required", "需要你的批准"),
+    "approval",
+  );
+  emit(
+    world,
+    "human_approval_required",
+    text("The world paused before a consequential handoff", "世界在重要交接前暫停"),
+    task.approvalLabel ?? task.title,
+    { agentId: agent.id, taskId: task.id },
+  );
+}
+
 function beginReadyTasks(world: LivingWorldState) {
+  if (world.approval.status === "pending" && world.approval.kind === "task") return;
+
   for (const task of world.tasks) {
     if (task.status !== "queued") continue;
     if (!dependenciesComplete(world, task) || !dependenciesConverged(world, task)) continue;
     if (agentHasActiveTask(world, task.agentId, task.id)) continue;
     const agent = world.agents.find((candidate) => candidate.id === task.agentId);
     if (!agent) continue;
+
+    if (task.requiresApproval && task.approvalStatus !== "approved") {
+      if (task.approvalStatus !== "declined") requestTaskApproval(world, task, agent);
+      return;
+    }
+
+    if (
+      task.requiresApproval &&
+      task.approvalStatus === "approved" &&
+      world.approval.kind === "task" &&
+      world.approval.taskId === task.id
+    ) {
+      world.approval = { status: "none" };
+    }
+
     task.status = "moving";
     task.startedAt = world.now;
     task.progress = 0;
@@ -315,13 +404,16 @@ function startToolRun(world: LivingWorldState, task: AgentTask, agent: LivingAge
     startedAt: world.now,
     completesAt: world.now + service.latencyMs,
   };
-  world.toolRuns = [...world.toolRuns, run].slice(-24);
+  world.toolRuns = [...world.toolRuns, run].slice(-32);
   task.toolRunId = run.id;
   emit(
     world,
     "tool_requested",
     text(`${agent.profile.name} reached ${service.name.en}`, `${agent.profile.name} 連接${service.name["zh-Hant"]}`),
-    text(`${service.mode.toUpperCase()} · ${service.description.en}`, `${service.mode.toUpperCase()} · ${service.description["zh-Hant"]}`),
+    text(
+      `${service.mode.toUpperCase()} · ${service.description.en}`,
+      `${service.mode.toUpperCase()} · ${service.description["zh-Hant"]}`,
+    ),
     { agentId: agent.id, taskId: task.id },
   );
 }
@@ -340,7 +432,10 @@ function completeToolRuns(world: LivingWorldState) {
       world,
       "tool_result",
       text(`${service.name.en} returned`, `${service.name["zh-Hant"]}已回傳`),
-      text(`${service.mode.toUpperCase()} · ${service.result.en}`, `${service.mode.toUpperCase()} · ${service.result["zh-Hant"]}`),
+      text(
+        `${service.mode.toUpperCase()} · ${service.result.en}`,
+        `${service.mode.toUpperCase()} · ${service.result["zh-Hant"]}`,
+      ),
       { agentId: run.agentId, taskId: run.taskId },
     );
   }
@@ -350,42 +445,6 @@ function toolReady(world: LivingWorldState, task: AgentTask) {
   if (!task.toolId) return true;
   const run = world.toolRuns.find((candidate) => candidate.id === task.toolRunId);
   return run?.status === "succeeded";
-}
-
-function coordinatorId(world: LivingWorldState) {
-  const synthesis = world.tasks.find((task) => task.kind === "synthesis");
-  return synthesis?.agentId ?? world.agents[0]?.id ?? "coordinator";
-}
-
-function addMessage(
-  world: LivingWorldState,
-  fromId: string,
-  toId: string,
-  messageText: LocalizedText,
-  type: AgentMessage["type"] = "result",
-) {
-  const message: AgentMessage = {
-    id: nextId(world, "message"),
-    fromId,
-    toId,
-    type,
-    text: messageText,
-    createdAt: world.now,
-    expiresAt: world.now + MESSAGE_LIFETIME_MS,
-  };
-  const packet: InformationPacket = {
-    id: nextId(world, "packet"),
-    fromId,
-    toId,
-    text: messageText,
-    createdAt: world.now,
-    expiresAt: world.now + PACKET_LIFETIME_MS,
-  };
-  world.messages = [...world.messages, message].slice(-12);
-  world.packets = [...world.packets, packet].slice(-12);
-  emit(world, "agent_message", messageText, text("Information exchanged", "已交換資訊"), {
-    agentId: fromId,
-  });
 }
 
 function completeTask(world: LivingWorldState, task: AgentTask, agent: LivingAgent) {
@@ -404,7 +463,9 @@ function completeTask(world: LivingWorldState, task: AgentTask, agent: LivingAge
     agent.target = convergenceSlot(world, agent.id);
     agent.thought = text("Delegating useful work", "分派有用工作");
     if (world.scenarioId) {
-      const specialists = scenarioFor(world.scenarioId).tasks.filter((candidate) => candidate.kind === "specialist").length;
+      const specialists = scenarioFor(world.scenarioId).tasks.filter(
+        (candidate) => candidate.kind === "specialist",
+      ).length;
       addMessage(
         world,
         agent.id,
@@ -463,9 +524,7 @@ function updateTasks(world: LivingWorldState, deltaMs: number) {
 }
 
 function nextTaskForAgent(world: LivingWorldState, agentId: string) {
-  return world.tasks.find(
-    (task) => task.agentId === agentId && task.status !== "done",
-  );
+  return world.tasks.find((task) => task.agentId === agentId && task.status !== "done");
 }
 
 function settleUnassignedAgents(world: LivingWorldState, deltaMs: number) {
@@ -488,7 +547,9 @@ function settleUnassignedAgents(world: LivingWorldState, deltaMs: number) {
     }
     if (next?.status === "queued") {
       agent.status = "waiting";
-      agent.thought = text("Waiting for useful context", "等待有用情境");
+      agent.thought = next.approvalStatus === "declined"
+        ? text("Held by the human", "由人暫停")
+        : text("Waiting for useful context", "等待有用情境");
     }
   }
 }
@@ -504,8 +565,10 @@ function expireTransientState(world: LivingWorldState) {
 function advanceChunk(world: LivingWorldState, deltaMs: number) {
   world.now += deltaMs;
   expireTransientState(world);
+  if (world.approval.status === "pending" && world.approval.kind === "task") return;
   completeToolRuns(world);
   beginReadyTasks(world);
+  if (world.approval.status === "pending" && world.approval.kind === "task") return;
   updateTasks(world, deltaMs);
   settleUnassignedAgents(world, deltaMs);
   beginReadyTasks(world);
@@ -519,14 +582,12 @@ export function advanceLivingWorld(current: LivingWorldState, deltaMs: number) {
     const step = Math.min(STEP_MS, remaining);
     advanceChunk(world, step);
     remaining -= step;
+    if (world.approval.status === "pending" && world.approval.kind === "task") break;
   }
   return world;
 }
 
-export function setWorldLocation(
-  current: LivingWorldState,
-  location: LocationContext,
-) {
+export function setWorldLocation(current: LivingWorldState, location: LocationContext) {
   const world = cloneWorld(current);
   world.location = location;
   world.now = Math.max(world.now, location.updatedAt);
@@ -555,6 +616,7 @@ export function chooseResult(current: LivingWorldState, actionId: string) {
   if (action.consequential) {
     world.approval = {
       status: "pending",
+      kind: "result",
       actionId,
       requestedAt: world.now,
     };
@@ -586,6 +648,40 @@ export function chooseResult(current: LivingWorldState, actionId: string) {
 export function resolveApproval(current: LivingWorldState, approved: boolean) {
   const world = cloneWorld(current);
   if (world.approval.status !== "pending" || !world.need) return world;
+
+  if (world.approval.kind === "task" && world.approval.taskId) {
+    const task = world.tasks.find((candidate) => candidate.id === world.approval.taskId);
+    if (!task) return world;
+    task.approvalStatus = approved ? "approved" : "declined";
+    world.approval = {
+      ...world.approval,
+      status: approved ? "approved" : "declined",
+      resolvedAt: world.now,
+    };
+    if (!approved) {
+      world.phase = "waiting_for_human";
+      world.need.status = "waiting_for_human";
+      emit(
+        world,
+        "human_approval_required",
+        text("Consequential handoff remains on hold", "重要交接繼續暫停"),
+        task.approvalLabel ?? task.title,
+        { agentId: task.agentId, taskId: task.id },
+      );
+      return world;
+    }
+    world.phase = "coordinating";
+    world.need.status = "working";
+    emit(
+      world,
+      "human_approved",
+      text("You approved the simulated handoff", "你已批准模擬交接"),
+      task.approvalLabel ?? task.title,
+      { agentId: task.agentId, taskId: task.id },
+    );
+    return world;
+  }
+
   world.approval = {
     ...world.approval,
     status: approved ? "approved" : "declined",
@@ -611,7 +707,10 @@ export function resolveApproval(current: LivingWorldState, approved: boolean) {
     world,
     "action_completed",
     text("Demo handoff completed · nothing was sent", "示範交接已完成 · 沒有發送任何內容"),
-    text("A live connected service would execute only after this approval.", "只有連接真實服務後，才會在批准後執行。"),
+    text(
+      "A live connected service would execute only after this approval.",
+      "只有連接真實服務後，才會在批准後執行。",
+    ),
   );
   emit(world, "need_completed", text("Need completed", "需要已完成"));
   return world;
@@ -664,6 +763,8 @@ export function worldSnapshot(world: LivingWorldState, locale: Locale): WorldSna
       status: task.status,
       progress: Number(task.progress.toFixed(3)),
       dependencies: [...task.dependencies],
+      requiresApproval: Boolean(task.requiresApproval),
+      approvalStatus: task.approvalStatus,
     })),
     activeMessages: world.messages.map((message) => ({
       from: agentName(message.fromId),
