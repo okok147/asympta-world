@@ -1,0 +1,52 @@
+name: Validate literal pixel map
+
+on:
+  push:
+    branches:
+      - pixel-map-zoom-20260828
+
+permissions:
+  contents: write
+
+jobs:
+  validate-pixel-map:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Apply literal pixel renderer
+        run: node scripts/apply-pixel-map-zoom.mjs
+
+      - name: Install
+        run: npm ci
+
+      - name: Validate product
+        run: |
+          npm run lint
+          npm run typecheck
+          npm run test:engine
+          npm run build
+          npm run test:rendered
+          npm run export:pages
+
+      - name: Commit validated pixel map
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add components/asympta-world-experience.tsx app/asympta-restoration.css tests/living-world-product.test.mjs tests/rendered-html.test.mjs
+          if git diff --cached --quiet; then
+            echo "No validated pixel-map changes to commit"
+          else
+            git commit -m "feat: make Asympta World a zoomable pixel city"
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi
