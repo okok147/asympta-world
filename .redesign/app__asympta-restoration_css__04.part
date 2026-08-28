@@ -1,0 +1,48 @@
+  .aw-result { left: 14px; right: 14px; width: auto; max-height: calc(100% - 24px); overflow: auto; }
+  .aw-result__facts { grid-template-columns: repeat(3, minmax(0,1fr)); }
+  .aw-inspector { left: 14px; right: 14px; bottom: 12px; top: auto; width: auto; max-height: 60%; overflow: auto; transform: translateY(12px); }
+  .aw-inspector.is-open { transform: translateY(0); }
+  .aw-scenarios { justify-content: flex-start; overflow-x: auto; padding: 0 3px; scrollbar-width: none; }
+  .aw-scenarios::-webkit-scrollbar { display: none; }
+  .aw-scenarios > span { display: none; }
+  .aw-scenarios button { flex: 0 0 auto; }
+  .aw-composer { width: calc(100vw - 16px); bottom: max(7px, env(safe-area-inset-bottom)); }
+  .aw-composer__form { border-radius: 15px; }
+  .aw-composer__form button { min-width: 44px; padding: 0 11px; }
+  .aw-composer__form button span { display: none; }
+  .aw-composer footer span:last-child { display: none; }
+  .aw-command-menu { grid-template-columns: 1fr; max-height: 270px; overflow: auto; }
+  .aw-trace-toggle { bottom: 8px; }
+}
+
+@media (max-width: 430px) {
+  .aw-header__actions { gap: 5px; }
+  .aw-webmcp { border: 0; background: transparent; }
+  .aw-brand strong { font-size: .64rem; }
+  .aw-journey__item { min-width: 74px; grid-template-columns: 18px 1fr; }
+  .aw-journey__item strong { font-size: .53rem; }
+  .aw-journey__item > span { width: 15px; height: 15px; }
+  .aw-world__empty { width: 82vw; }
+  .aw-world__empty p { font-size: .62rem; }
+  .aw-human__copy small { display: none; }
+  .aw-agent__portrait,
+  .aw-agent__portrait .agent-portrait { width: 34px !important; height: 34px !important; }
+  .aw-agent__name { padding: 2px 4px; }
+  .aw-agent__name strong { font-size: .44rem; }
+}
+
+@media (max-height: 570px) {
+  .aw-thesis { display: none; }
+  .aw-journey { top: 70px; }
+  .aw-stage-wrap { inset: 121px 0 92px; }
+  .aw-scenarios { display: none; }
+  .aw-composer footer { display: none; }
+  .aw-composer__form input,
+  .aw-composer__form button { height: 35px; }
+  .aw-result { max-height: calc(100% - 18px); overflow: auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aw-shell *, .aw-shell *::before, .aw-shell *::after { scroll-behavior: auto !important; animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+  .aw-world__ambient { opacity: .05; }
+}
