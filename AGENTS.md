@@ -4,15 +4,17 @@
 
 Status: **PENDING HOME CODEX ACKNOWLEDGEMENT**
 
-This note was committed directly to `main` so the Codex session running on KL's home machine can receive the next product requirement without overwriting its in-progress work.
+This note is committed directly to `main` so the Codex session currently running on KL's home machine can receive the next product requirement without overwriting its in-progress work.
+
+**Coordination rule:** do not interrupt, reset, discard, or overwrite the work already in progress on the home machine. Finish or safely checkpoint the current work first, then fetch/rebase the latest `main`, read this file again, acknowledge it, and integrate this directive with the current implementation.
 
 ### 1. Mandatory, externally verifiable acknowledgement to KL
 
-As soon as you read this note, **before changing feature code**, complete both acknowledgement steps below.
+As soon as you read this latest note, **before changing feature code for this directive**, complete both acknowledgement steps below.
 
 1. Reply in your current Codex conversation with:
 
-> Received. I will extend Asympta World to visibly show the business-side order fulfilment flow—receiving the order, clarifying details, checking and preparing materials, packing, and shipping—while preserving the current agent process.
+> Received. I will extend Asympta World from a requester-side demo into a visible multi-party real-world coordination system showing customer, business, supplier/material, fulfilment, logistics, payment/approval, and other relevant actors working together end to end, while preserving the current agent process and work already in progress.
 
 2. Create `HOME_CODEX_ACKNOWLEDGEMENT.md` at the repository root with exactly this structure:
 
@@ -20,102 +22,173 @@ As soon as you read this note, **before changing feature code**, complete both a
 # Home Codex acknowledgement
 
 Status: RECEIVED
-Request: Business-side order fulfilment flow
-Response: Received. I will add the requested feature.
+Request: Multi-party real-world economic coordination demo
+Response: Received. I will add the requested feature without overwriting current work.
 Acknowledged at: <actual UTC ISO-8601 timestamp>
 ```
 
-Commit **only that acknowledgement file** with message `chore: acknowledge business fulfilment request` and push it to `main` before implementing the feature. Preserve any unrelated local or in-progress changes; do not stage them merely to send this acknowledgement.
+Commit **only that acknowledgement file** with message `chore: acknowledge multi-party coordination request` and push it to `main` before implementing this directive. Preserve any unrelated local or in-progress changes; do not stage them merely to send this acknowledgement.
 
-Only continue implementation after GitHub confirms that acknowledgement commit was pushed successfully. Do not say the request was received unless you have actually read this file and inspected the current repository state.
+Only continue implementation after GitHub confirms that acknowledgement commit was pushed successfully. Do not say the request was received unless you have actually read this latest file and inspected the current repository state.
 
 ### 2. Product outcome
 
-Do not show only the current requester-side agent process. Extend the living world so people can see **both sides of a real economic interaction**:
+Do not show only the current requester-side agent process, and do not stop at a simple buyer-versus-business flow. Extend the living world so people can understand a **complete real-world economic coordination network**.
 
-- the human/requester and their agents forming and sending an order;
-- a business agent receiving the order;
-- business-side agents validating and clarifying its details;
-- inventory/materials agents checking, reserving, sourcing, and preparing materials;
-- fulfilment agents preparing the item, checking it, and packing it;
-- a shipping agent arranging dispatch and returning a visible shipment/tracking update.
+The demonstration should make it visually obvious that one human intention can trigger coordinated work across many independent sides:
 
-The important idea is not another task list. It is a legible, autonomous exchange between a buyer-side agent society and a business-side agent society.
+- customer / requester and personal agents;
+- merchant / business receiving and operations agents;
+- sales / clarification / customer-service agents;
+- inventory and warehouse agents;
+- upstream supplier and procurement agents;
+- material preparation / production agents;
+- quality-control agents;
+- packing and fulfilment agents;
+- logistics / courier / carrier agents;
+- payment, invoice, approval, and settlement actors;
+- optional specialist/service providers where relevant;
+- return, exception, support, or after-sales actors when a scenario needs them.
 
-### 3. Required end-to-end demo
+The core idea is **not a task list and not a prerecorded animation**. It is a legible, autonomous exchange among multiple agent societies representing the real sides of an economy.
 
-Add one polished **Business Order** scenario, reachable from the existing UI and by a clear slash command such as `/order`. Use a concrete order that makes materials and shipping understandable—for example, a small business fulfilling an order for 12 customised notebooks—while keeping the underlying lifecycle reusable for future businesses.
+### 3. Required end-to-end flagship demo
 
-The canonical event-driven state should visibly progress through:
+Add one polished **Business Order / Supply Chain** scenario, reachable from the existing UI and by a clear slash command such as `/order`.
 
-`received → needs_clarification → confirmed → materials_check → materials_reserved/preparing → quality_check → packed → ready_to_ship → shipped`
+Use a concrete order that naturally demonstrates materials, suppliers, business operations, fulfilment, and shipping—for example a small business fulfilling an order for 12 customised notebooks—while keeping the lifecycle reusable for food, retail, services, manufacturing, local commerce, and future connectors.
 
-Include explicit exception states where appropriate, such as `material_shortage`, `awaiting_customer`, or `shipping_blocked`.
+The canonical event-driven state should visibly progress through something equivalent to:
 
-The demo must include at least one meaningful clarification—such as missing artwork, quantity, finish, deadline, or delivery detail—so the business agent sends a visible question and the requester side returns a visible answer before work continues.
+`request_created → sent_to_business → received → needs_clarification → confirmed → inventory_check → supplier_check → materials_reserved/procured → materials_preparing → production_or_fulfilment → quality_check → packed → payment_or_dispatch_approval → ready_to_ship → carrier_handoff → shipped → delivered_or_completed`
+
+Include explicit exception states where appropriate, such as:
+
+`awaiting_customer`, `material_shortage`, `supplier_delay`, `price_change`, `payment_blocked`, `quality_failed`, `shipping_blocked`, `delivery_exception`, or `return_requested`.
+
+The flagship demo must include at least one meaningful clarification and at least one cross-organisation handoff so the viewer can see that coordination is genuinely multi-sided.
 
 ### 4. What the person must be able to see
 
-Keep the current calm Asympta World visual language, but make the business process inspectable:
+Keep the current calm Asympta World visual language, but make the full process inspectable inside the world rather than hiding it in enterprise dashboards.
 
-- clearly distinguish requester/customer-side and business/fulfilment-side actors without splitting the experience into a boring dashboard;
-- show the order handoff travelling from the requester side to the receiving business agent;
-- show business agents actually moving to relevant service/material/preparation/packing/shipping zones;
-- show concise visible communication packets or dialogue for questions, answers, status, decisions, and exceptions;
-- show an order card with item, quantity, required details, deadline, and current state;
-- show a materials checklist with required, available, reserved, missing, and prepared quantities;
-- show preparation, quality-check, and packing progress;
-- show a shipment card with carrier/mode, destination summary, dispatch status, and simulated tracking only after approval;
-- keep a compact chronological audit trail so the human can understand why the order advanced or paused.
+The demonstration should visibly show:
 
-The world should feel self-propelled and event-driven, not like a prerecorded video. Use seeded/deterministic variation for tests while allowing realistic runtime events such as a missing detail, low stock, preparation delay, failed quality check, or shipping change.
+- the requester forming an intention and delegating it to an agent;
+- the request/order packet travelling to a real business-side receiving agent;
+- the business validating requirements and asking concise questions when information is missing;
+- the customer side answering and the business resuming automatically;
+- inventory agents checking what is already available;
+- procurement agents contacting one or more simulated suppliers when stock/material is insufficient;
+- supplier-side agents quoting, confirming availability, reserving, preparing, and handing materials over;
+- material/inventory quantities changing consistently across stages;
+- fulfilment or production agents moving to relevant zones and doing work in dependency order;
+- quality control accepting or rejecting work and triggering rework when required;
+- packing and dispatch preparation;
+- payment/invoice/approval packets when economically consequential actions are reached;
+- a logistics/carrier handoff and simulated tracking after approval;
+- delivery/completion confirmation and optional after-sales follow-up;
+- concise communication packets/dialogue for enquiry, quote, confirmation, exception, decision, status, and handoff;
+- a compact chronological audit trail explaining why the world advanced, paused, rerouted, or requested human approval.
 
-### 5. Safety and truthfulness
+Actors from different sides should be visually distinguishable, but the experience must remain one living world—not separate admin screens.
 
-- Preserve the existing human approval boundary.
-- Purchasing missing materials, charging money, confirming an order, or dispatching a shipment must stop for human approval when consequential.
-- Do not claim that a supplier, carrier, payment, purchase, or shipment is live unless a real connector exists.
-- Clearly label all demo/simulated data and tracking.
-- Never display private full addresses in broad world observations or WebMCP output; use a safe destination summary.
+### 5. Multiple real-world cases
 
-### 6. Architecture and WebMCP
+Do not hard-code the architecture around one notebook order. The demo should provide or prepare reusable scenario definitions so Asympta World can demonstrate many forms of economic activity with the same coordination engine.
 
-Build on the existing canonical deterministic event engine instead of creating a separate animation-only state.
+At minimum, make the system capable of representing examples such as:
 
-- UI, movement, dialogue, `render_game_to_text()`, and WebMCP observations must reflect the same order state.
-- Expose enough structured state for a browser agent to inspect the order, open clarification, materials, fulfilment progress, exceptions, approval boundary, and shipment.
-- Prefer extending the existing narrow tools cleanly; add order-specific tools only if they provide a genuinely clearer contract.
-- Preserve tool provenance (`live`, `demo`, or `simulated`) and schema validation.
-- Do not regress the current Dinner, Work, Shopping, or Email scenarios.
+1. **Retail / custom product:** customer → merchant → supplier/material → fulfilment → courier.
+2. **Food / dinner:** person → restaurant → ingredient/inventory → kitchen → courier → person.
+3. **Service booking:** person/company → service business → staff/resource scheduling → work → invoice/completion.
+4. **Office procurement:** employee → company approval → vendor → stock → shipping → receiving.
+5. **Repair / maintenance:** customer → service desk → diagnosis → parts supplier → technician → return delivery.
+6. **Small manufacturing:** buyer → producer → raw-material supplier → production → QC → freight.
+7. **Digital/knowledge work:** requester → agency/business → specialist agents → review/approval → delivery/payment.
 
-### 7. Performance and design constraints
+Not every case needs a fully separate UI. Prefer one reusable event/state model with scenario templates and a small set of polished demo entries.
 
-- Preserve the existing calm, elegant, low-noise experience and distinct animal agents.
-- Do not replace the world with dense enterprise tables.
-- Keep all essential order state accessible through semantic DOM content; canvas remains progressive enhancement.
+### 6. Autonomy and realistic activity
+
+The world must remain self-propelled and event-driven.
+
+Agents should be able to generate realistic runtime events rather than simply play a fixed script, including:
+
+- incoming enquiries and orders;
+- businesses accepting, declining, or requesting clarification;
+- supplier availability changes;
+- low stock and replenishment;
+- quote changes;
+- preparation delays;
+- quality failures and rework;
+- carrier delays or rerouting;
+- payment/approval holds;
+- completion, return, or follow-up events.
+
+Use seeded/deterministic variation for tests while allowing believable runtime variation in the demo.
+
+### 7. Safety, approval, and truthfulness
+
+Preserve the existing human approval boundary.
+
+- Purchasing missing materials, charging money, accepting binding quotes, confirming consequential orders, issuing refunds, or dispatching shipments must stop for human approval where appropriate.
+- Do not claim that any supplier, carrier, payment, purchase, business, or shipment is live unless a real connector exists.
+- Clearly label demo/simulated data and tracking.
+- Preserve tool provenance (`live`, `demo`, or `simulated`).
+- Never display private full addresses, payment details, or other sensitive information in broad world observations or WebMCP output; use safe summaries.
+
+### 8. Architecture and WebMCP
+
+Build on the existing canonical deterministic event engine instead of creating separate animation-only state.
+
+- UI, movement, dialogue, semantic DOM, `render_game_to_text()`, and WebMCP observations must reflect the same canonical economic state.
+- Model organisations, actors, orders/jobs, resources/materials, messages, approvals, handoffs, exceptions, and provenance as reusable structured state.
+- Every significant handoff should be represented as an actual event/state transition, not just visual text.
+- Expose enough structured state for a browser agent to inspect all participating sides, open questions, inventory/materials, supplier status, fulfilment progress, approvals, exceptions, payment/settlement state, and shipment/completion state.
+- Prefer extending the existing narrow tools cleanly; add scenario- or order-specific tools only when they provide a clearer contract.
+- Do not regress the current Dinner, Work, Shopping, Email, or other existing scenarios.
+
+### 9. Performance and design constraints
+
+- Preserve the existing calm, elegant, low-noise pixel-world experience and distinct animal agents.
+- Do not replace the world with dense enterprise tables, giant graphs, or a conventional ERP dashboard.
+- Use movement, spatial zones, small cards, dialogue packets, status glyphs, and lightweight trails to make coordination understandable.
+- Keep essential state accessible through semantic DOM content; canvas remains progressive enhancement.
 - Preserve mobile layouts, keyboard access, reduced-motion behaviour, performance gates, and deterministic replay.
-- Reuse the existing architecture and components where sensible; avoid a broad rewrite while KL's current work is in progress.
+- Reuse existing architecture/components where sensible; avoid a broad rewrite while KL's current work is in progress.
 
-### 8. Acceptance checks
+### 10. Acceptance checks
 
 Before claiming completion, verify all of the following:
 
-1. A user can start the Business Order scenario from the visible UI and slash command.
-2. The requester-side order visibly reaches a business receiving agent.
-3. A missing/ambiguous detail pauses the order, produces a visible question, receives an answer, and resumes.
-4. Materials requirements and reservation/preparation changes are visible and internally consistent.
-5. Business agents visibly move and communicate as the state changes.
-6. Preparation, quality check, packing, and ready-to-ship stages occur in dependency order.
-7. Consequential purchase/dispatch actions wait for human approval.
-8. Approval produces only an honestly labelled simulated shipment/tracking result unless a real connector is present.
-9. The complete flow is inspectable through the semantic UI, `render_game_to_text()`, and WebMCP.
-10. Existing scenarios and responsive/reduced-motion behaviour still work.
-11. Add deterministic engine tests for the happy path, clarification pause/resume, material shortage, approval decline/acceptance, and state invariants.
-12. Run the repository's lint, typecheck, engine tests, build, rendered tests, and export verification before reporting success.
+1. A user can start the flagship multi-party order scenario from the visible UI and slash command.
+2. The requester-side task visibly reaches a business receiving agent.
+3. A missing/ambiguous detail pauses the process, creates a visible question, receives an answer, and resumes.
+4. The business checks inventory/materials and, when needed, visibly reaches an upstream supplier.
+5. Supplier-side availability/reservation/preparation is visible and consistent with business-side inventory state.
+6. Multiple organisations' agents visibly move, communicate, and hand work/resources to one another.
+7. Fulfilment/production, quality check, packing, and logistics occur in dependency order.
+8. Consequential purchases, payment/settlement actions, and dispatch respect human approval boundaries.
+9. Approval produces only honestly labelled simulated supplier/payment/shipment results unless real connectors exist.
+10. At least one realistic exception can reroute or pause the flow without breaking state invariants.
+11. The complete flow is inspectable through semantic UI, `render_game_to_text()`, and WebMCP.
+12. Existing scenarios and responsive/reduced-motion behaviour still work.
+13. Add deterministic engine tests for happy path, clarification pause/resume, supplier/material shortage, exception recovery, approval decline/acceptance, multi-party handoff ordering, and state invariants.
+14. Run the repository's lint, typecheck, engine tests, build, rendered tests, and export verification before reporting success.
 
-### 9. Coordination and delivery
+### 11. Coordination and delivery
 
-Preserve all existing user work. Inspect `git status` and the latest `main` before editing; never reset, discard, or overwrite unrelated changes. Integrate this feature with the work already underway on the home machine.
+Preserve all existing user work. Inspect `git status` and the latest `main` before editing; never reset, discard, or overwrite unrelated changes.
+
+Because Codex is already working on KL's home machine:
+
+- safely checkpoint the current local work first;
+- fetch the newest remote `main`;
+- integrate/rebase without discarding local changes;
+- reread this `AGENTS.md` after the update;
+- acknowledge this directive as specified above;
+- then extend the existing implementation rather than starting a competing rewrite.
 
 After implementation and verification:
 
