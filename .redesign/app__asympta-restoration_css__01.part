@@ -1,0 +1,58 @@
+.aw-journey__item strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .6rem; font-weight: 690; }
+.aw-journey__item small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .49rem; }
+.aw-journey__item--active { color: var(--aw-ink); background: rgba(113,131,170,.07); }
+.aw-journey__item--active > span { border-color: rgba(86,107,155,.45); background: rgba(113,131,170,.1); color: var(--aw-blue-deep); }
+.aw-journey__item--done { color: var(--aw-sage-deep); }
+.aw-journey__item--done > span { border-color: rgba(80,105,92,.35); background: rgba(112,135,122,.11); }
+
+.aw-stage-wrap { position: absolute; inset: 158px 0 118px; overflow: hidden; }
+.aw-world { position: absolute; inset: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left)); overflow: hidden; border: 1px solid rgba(69,75,70,.09); border-radius: 28px; background: rgba(249,248,243,.22); box-shadow: inset 0 1px 0 rgba(255,255,255,.5); }
+.aw-world__ambient { position: absolute; inset: 0; opacity: .13; pointer-events: none; filter: saturate(.7) contrast(.94); }
+.aw-world__ambient .three-world-canvas,
+.aw-world__ambient .p5-atmosphere-canvas,
+.aw-world__ambient .vgpu-world-field { position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; opacity: .9; }
+.aw-world__grid { position: absolute; inset: 0; pointer-events: none; background-image: linear-gradient(rgba(86,107,155,.042) 1px, transparent 1px), linear-gradient(90deg, rgba(86,107,155,.042) 1px, transparent 1px); background-size: 18px 18px; mask-image: radial-gradient(ellipse at 52% 46%, #000 14%, rgba(0,0,0,.55) 54%, transparent 88%); }
+.aw-world__routes { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.aw-world__routes path { fill: none; stroke: rgba(80,105,92,.16); stroke-width: .28; stroke-dasharray: .65 1.1; vector-effect: non-scaling-stroke; }
+
+.aw-zone { position: absolute; z-index: 4; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 7px; pointer-events: none; color: var(--aw-ink-faint); }
+.aw-zone__mark { display: grid; grid-template-columns: repeat(2, 5px); gap: 1px; width: 13px; height: 13px; padding: 1px; border: 1px solid rgba(80,105,92,.2); border-radius: 4px; background: rgba(255,255,255,.32); }
+.aw-zone__mark i { background: rgba(80,105,92,.28); border-radius: 1px; }
+.aw-zone > span:last-child strong,
+.aw-zone > span:last-child small { display: block; white-space: nowrap; }
+.aw-zone strong { font-size: .54rem; font-weight: 690; color: var(--aw-ink-soft); }
+.aw-zone small { margin-top: 1px; font-size: .43rem; }
+.aw-zone.is-active { color: var(--aw-blue-deep); }
+.aw-zone.is-active .aw-zone__mark { border-color: rgba(86,107,155,.4); box-shadow: 0 0 0 5px rgba(113,131,170,.055); }
+.aw-zone.is-active strong { color: var(--aw-blue-deep); }
+
+.aw-human { position: absolute; z-index: 13; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 8px; }
+.aw-human__figure { position: relative; display: block; width: 28px; height: 35px; }
+.aw-human__figure i:nth-child(1) { position: absolute; left: 9px; top: 1px; width: 10px; height: 10px; border-radius: 50%; background: #454744; }
+.aw-human__figure i:nth-child(2) { position: absolute; left: 6px; top: 13px; width: 16px; height: 18px; border-radius: 8px 8px 4px 4px; background: #555854; }
+.aw-human__figure i:nth-child(3) { position: absolute; left: 2px; bottom: 0; width: 24px; height: 4px; border-radius: 50%; background: rgba(43,43,43,.11); filter: blur(1px); }
+.aw-human__copy strong,
+.aw-human__copy small { display: block; white-space: nowrap; }
+.aw-human__copy strong { font-size: .62rem; }
+.aw-human__copy small { color: var(--aw-ink-faint); font-size: .46rem; }
+.aw-human__need { position: absolute; left: 38px; bottom: calc(100% + 10px); width: min(270px, 28vw); padding: 9px 11px; border: 1px solid var(--aw-line); border-radius: 12px 12px 12px 4px; background: rgba(247,246,240,.9); box-shadow: var(--aw-shadow-small); color: var(--aw-ink-soft); font-size: .58rem; line-height: 1.45; backdrop-filter: blur(16px); }
+.aw-human__need b { display: block; margin-bottom: 3px; color: var(--aw-ink); font-size: .49rem; text-transform: uppercase; letter-spacing: .08em; }
+
+.aw-agent { position: absolute; z-index: 14; transform: translate(-50%, -50%); display: grid; justify-items: center; min-width: 54px; padding: 0; border: 0; background: transparent; color: var(--aw-ink); transition: left .22s linear, top .22s linear, filter .18s ease, transform .18s ease; }
+.aw-agent:hover,
+.aw-agent.is-selected { transform: translate(-50%, -50%) scale(1.06); z-index: 23; }
+.aw-agent__portrait { display: block; width: 40px; height: 40px; filter: drop-shadow(0 5px 5px rgba(43,43,43,.11)); }
+.aw-agent__portrait .agent-portrait { width: 40px !important; height: 40px !important; }
+.aw-agent__name { margin-top: 2px; padding: 3px 6px; border-radius: 7px; background: rgba(247,246,240,.73); backdrop-filter: blur(10px); }
+.aw-agent__name strong,
+.aw-agent__name small { display: block; white-space: nowrap; }
+.aw-agent__name strong { font-size: .49rem; font-weight: 730; }
+.aw-agent__name small { margin-top: 1px; color: var(--aw-ink-faint); font-size: .39rem; }
+.aw-agent__thought { position: absolute; bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 4px; max-width: 150px; padding: 5px 7px; border: 1px solid var(--aw-line); border-radius: 9px; background: rgba(247,246,240,.9); box-shadow: 0 4px 18px rgba(43,43,43,.06); color: var(--aw-ink-soft); font-size: .44rem; line-height: 1.2; white-space: nowrap; }
+.aw-agent--working .aw-agent__portrait { animation: aw-work 1.25s ease-in-out infinite; }
+.aw-agent--moving .aw-agent__portrait,
+.aw-agent--sharing .aw-agent__portrait { animation: aw-bob 1.05s ease-in-out infinite; }
+
+.aw-service { position: absolute; z-index: 7; transform: translate(-50%, -50%); display: inline-flex; align-items: center; gap: 4px; max-width: 130px; padding: 4px 6px; border: 1px solid rgba(69,75,70,.12); border-radius: 999px; background: rgba(247,246,240,.68); color: var(--aw-ink-faint); font-size: .4rem; white-space: nowrap; pointer-events: none; }
+.aw-service > i { width: 4px; height: 4px; border-radius: 50%; background: rgba(112,135,122,.4); }
+.aw-service small { font-family: var(--aw-mono); font-size: .32rem; letter-spacing: .05em; }
