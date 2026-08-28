@@ -1,9 +1,10 @@
 :root {
-  --map-paper: #fbfaf7;
-  --map-ink: #29272d;
-  --map-control-bg: rgba(255, 254, 250, 0.94);
-  --map-control-border: rgba(41, 39, 45, 0.14);
-  --map-control-shadow: 0 5px 18px rgba(35, 32, 31, 0.10);
+  --map-paper: #f7f7f5;
+  --map-ink: #190e18;
+  --map-purple: #7255a3;
+  --map-control-bg: rgba(247, 247, 245, 0.94);
+  --map-control-border: rgba(25, 14, 24, 0.16);
+  --map-control-shadow: 0 5px 16px rgba(25, 14, 24, 0.12);
 }
 
 * { box-sizing: border-box; }
@@ -29,6 +30,8 @@ button { font: inherit; color: inherit; }
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
 }
 
 .map-canvas.is-panning { cursor: grabbing; }
@@ -40,19 +43,18 @@ button { font: inherit; color: inherit; }
   border: 1px solid var(--map-control-border);
   background: var(--map-control-bg);
   box-shadow: var(--map-control-shadow);
-  -webkit-backdrop-filter: blur(14px) saturate(110%);
-  backdrop-filter: blur(14px) saturate(110%);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
 }
 
 .map-control {
   width: 44px;
   height: 44px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  place-items: center;
   border-radius: 13px;
+  padding: 0;
   cursor: pointer;
-  transition: background 140ms ease, transform 140ms ease, border-color 140ms ease;
 }
 
 .map-control--layers {
@@ -60,7 +62,9 @@ button { font: inherit; color: inherit; }
   left: max(18px, env(safe-area-inset-left));
 }
 
-.map-control--layers.is-active { border-color: rgba(41, 39, 45, 0.26); }
+.map-control--layers.is-active {
+  color: var(--map-purple);
+}
 
 .map-control--locate {
   right: max(18px, env(safe-area-inset-right));
@@ -69,38 +73,65 @@ button { font: inherit; color: inherit; }
 
 .map-zoom {
   right: max(18px, env(safe-area-inset-right));
-  bottom: max(72px, calc(env(safe-area-inset-bottom) + 54px));
-  width: 44px;
+  bottom: max(72px, calc(env(safe-area-inset-bottom) + 72px));
+  display: grid;
   overflow: hidden;
   border-radius: 13px;
 }
 
 .map-zoom button {
-  width: 42px;
+  width: 44px;
   height: 43px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  place-items: center;
   border: 0;
   background: transparent;
   cursor: pointer;
 }
 
-.map-zoom button + button { border-top: 1px solid rgba(41, 39, 45, 0.10); }
+.map-zoom button + button {
+  border-top: 1px solid var(--map-control-border);
+}
 
 .map-control:hover,
-.map-zoom button:hover { background: rgba(255, 255, 253, 0.99); }
-.map-control:active,
-.map-zoom button:active { transform: scale(0.96); }
-.map-control:focus-visible,
-.map-zoom button:focus-visible { outline: 2px solid rgba(41, 39, 45, 0.62); outline-offset: 3px; }
+.map-zoom button:hover {
+  background: rgba(255, 255, 255, 0.98);
+}
 
-@media (max-width: 600px) {
-  .map-control--layers { top: max(12px, env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left)); }
-  .map-control--locate { right: max(12px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); }
-  .map-zoom { right: max(12px, env(safe-area-inset-right)); bottom: max(66px, calc(env(safe-area-inset-bottom) + 54px)); }
+.map-control:active,
+.map-zoom button:active {
+  transform: scale(0.96);
+}
+
+.map-control:focus-visible,
+.map-zoom button:focus-visible {
+  outline: 2px solid rgba(114, 85, 163, 0.46);
+  outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  .map-control--layers {
+    top: max(12px, env(safe-area-inset-top));
+    left: max(12px, env(safe-area-inset-left));
+  }
+
+  .map-control--locate,
+  .map-zoom {
+    right: max(12px, env(safe-area-inset-right));
+  }
+
+  .map-control--locate {
+    bottom: max(12px, env(safe-area-inset-bottom));
+  }
+
+  .map-zoom {
+    bottom: max(66px, calc(env(safe-area-inset-bottom) + 66px));
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .map-control { transition: none; }
+  .map-control,
+  .map-zoom button {
+    transition: none;
+  }
 }
