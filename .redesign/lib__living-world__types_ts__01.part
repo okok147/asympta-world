@@ -1,0 +1,19 @@
+  tasks: Array<{ id: string; title: string; status: TaskStatus; progress: number; dependencies: string[]; requiresApproval: boolean; approvalStatus?: "none" | "pending" | "approved" | "declined" }>;
+  activeMessages: Array<{ from: string; to: string; type: AgentMessageType; text: string }>;
+  toolRuns: Array<{ tool: string; mode: ToolMode; status: ToolRunStatus }>;
+  resultReady: boolean;
+  approval: ApprovalState["status"];
+};
+
+export const WORLD_ZONES: Record<WorldZoneId, { point: Point; label: LocalizedText; shortLabel: LocalizedText }> = {
+  human: { point: { x: 12, y: 70 }, label: { en: "You · Home", "zh-Hant": "你 · 所在地" }, shortLabel: { en: "You", "zh-Hant": "你" } },
+  context: { point: { x: 24, y: 25 }, label: { en: "Outer world", "zh-Hant": "外部世界" }, shortLabel: { en: "World", "zh-Hant": "世界" } },
+  research: { point: { x: 43, y: 22 }, label: { en: "Evidence", "zh-Hant": "證據" }, shortLabel: { en: "Evidence", "zh-Hant": "證據" } },
+  market: { point: { x: 70, y: 29 }, label: { en: "Supply network", "zh-Hant": "供應網絡" }, shortLabel: { en: "Supply", "zh-Hant": "供應" } },
+  communication: { point: { x: 34, y: 45 }, label: { en: "Business communication", "zh-Hant": "商業溝通" }, shortLabel: { en: "Business", "zh-Hant": "商戶" } },
+  planning: { point: { x: 47, y: 69 }, label: { en: "Operations", "zh-Hant": "營運" }, shortLabel: { en: "Operations", "zh-Hant": "營運" } },
+  external: { point: { x: 87, y: 59 }, label: { en: "Logistics & external services", "zh-Hant": "物流與外部服務" }, shortLabel: { en: "Delivery", "zh-Hant": "派送" } },
+  convergence: { point: { x: 58, y: 49 }, label: { en: "Coordination", "zh-Hant": "協調中心" }, shortLabel: { en: "Converge", "zh-Hant": "匯合" } },
+};
+
+export function localize(value: LocalizedText, locale: Locale) { return value[locale]; }
