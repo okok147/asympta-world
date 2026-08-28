@@ -6,7 +6,9 @@ Status: **PENDING HOME CODEX ACKNOWLEDGEMENT**
 
 This note is committed directly to `main` so the Codex session currently running on KL's home machine can receive the next product requirement without overwriting its in-progress work.
 
-**Coordination rule:** do not interrupt, reset, discard, or overwrite the work already in progress on the home machine. Finish or safely checkpoint the current work first, then fetch/rebase the latest `main`, read this file again, acknowledge it, and integrate this directive with the current implementation.
+**IMMEDIATE MUST-READ RULE:** before making the next feature change, read `MUST_READ_ME.md` at the repository root in full. Treat it as the latest highest-priority product directive. It adds both the multi-party economic coordination requirement and the new aesthetic/simple/elegant/product-grade art direction.
+
+**Coordination rule:** do not interrupt, reset, discard, or overwrite the work already in progress on the home machine. Finish or safely checkpoint the current work first, then fetch/rebase the latest `main`, read this file again, read `MUST_READ_ME.md`, acknowledge it, and integrate this directive with the current implementation.
 
 ### 1. Mandatory, externally verifiable acknowledgement to KL
 
@@ -14,7 +16,7 @@ As soon as you read this latest note, **before changing feature code for this di
 
 1. Reply in your current Codex conversation with:
 
-> Received. I will extend Asympta World from a requester-side demo into a visible multi-party real-world coordination system showing customer, business, supplier/material, fulfilment, logistics, payment/approval, and other relevant actors working together end to end, while preserving the current agent process and work already in progress.
+> Received. I will extend Asympta World from a requester-side demo into a visible multi-party real-world coordination system showing customer, business, supplier/material, fulfilment, logistics, payment/approval, and other relevant actors working together end to end, while preserving the current agent process and work already in progress. I will also apply the product-grade visual direction in MUST_READ_ME.md.
 
 2. Create `HOME_CODEX_ACKNOWLEDGEMENT.md` at the repository root with exactly this structure:
 
@@ -22,14 +24,14 @@ As soon as you read this latest note, **before changing feature code for this di
 # Home Codex acknowledgement
 
 Status: RECEIVED
-Request: Multi-party real-world economic coordination demo
-Response: Received. I will add the requested feature without overwriting current work.
+Request: Multi-party real-world economic coordination + product-grade visual refinement
+Response: Received. I will add the requested feature and visual refinement without overwriting current work.
 Acknowledged at: <actual UTC ISO-8601 timestamp>
 ```
 
-Commit **only that acknowledgement file** with message `chore: acknowledge multi-party coordination request` and push it to `main` before implementing this directive. Preserve any unrelated local or in-progress changes; do not stage them merely to send this acknowledgement.
+Commit **only that acknowledgement file** with message `chore: acknowledge must-read directive` and push it to `main` before implementing this directive. Preserve any unrelated local or in-progress changes; do not stage them merely to send this acknowledgement.
 
-Only continue implementation after GitHub confirms that acknowledgement commit was pushed successfully. Do not say the request was received unless you have actually read this latest file and inspected the current repository state.
+Only continue implementation after GitHub confirms that acknowledgement commit was pushed successfully. Do not say the request was received unless you have actually read this latest file, read `MUST_READ_ME.md`, and inspected the current repository state.
 
 ### 2. Product outcome
 
@@ -151,9 +153,15 @@ Build on the existing canonical deterministic event engine instead of creating s
 
 ### 9. Performance and design constraints
 
-- Preserve the existing calm, elegant, low-noise pixel-world experience and distinct animal agents.
+- Follow `MUST_READ_ME.md` for the latest art direction.
+- The product must feel **aesthetic, simple, elegant, calm, premium, and product-grade**, not like a rough hackathon demo.
+- Interpret the desired standard as the level of refinement associated with a premium modern product website: strong spacing, clear hierarchy, restrained palette, elegant typography, subtle depth, refined cards/panels, and intentional motion.
+- Do **not** copy Apple branding, logos, marketing assets, or site layouts. Use the reference only as a quality bar for clarity, restraint, polish, and finish.
+- Preserve the distinct pixel-world identity and animal agents, but refine them so the result looks intentional rather than toy-like or placeholder-like.
 - Do not replace the world with dense enterprise tables, giant graphs, or a conventional ERP dashboard.
 - Use movement, spatial zones, small cards, dialogue packets, status glyphs, and lightweight trails to make coordination understandable.
+- Reduce visual noise. Prefer fewer, better-presented elements over showing every piece of state at once.
+- Make landing/demo presentation, world scene composition, cards, messages, controls, empty states, transitions, and responsive layouts feel coherent and launch-ready.
 - Keep essential state accessible through semantic DOM content; canvas remains progressive enhancement.
 - Preserve mobile layouts, keyboard access, reduced-motion behaviour, performance gates, and deterministic replay.
 - Reuse existing architecture/components where sensible; avoid a broad rewrite while KL's current work is in progress.
@@ -173,9 +181,10 @@ Before claiming completion, verify all of the following:
 9. Approval produces only honestly labelled simulated supplier/payment/shipment results unless real connectors exist.
 10. At least one realistic exception can reroute or pause the flow without breaking state invariants.
 11. The complete flow is inspectable through semantic UI, `render_game_to_text()`, and WebMCP.
-12. Existing scenarios and responsive/reduced-motion behaviour still work.
-13. Add deterministic engine tests for happy path, clarification pause/resume, supplier/material shortage, exception recovery, approval decline/acceptance, multi-party handoff ordering, and state invariants.
-14. Run the repository's lint, typecheck, engine tests, build, rendered tests, and export verification before reporting success.
+12. The visible product passes the qualitative bar in `MUST_READ_ME.md`: aesthetic, simple, elegant, restrained, coherent, and launch-quality rather than merely demo-like.
+13. Existing scenarios and responsive/reduced-motion behaviour still work.
+14. Add deterministic engine tests for happy path, clarification pause/resume, supplier/material shortage, exception recovery, approval decline/acceptance, multi-party handoff ordering, and state invariants.
+15. Run the repository's lint, typecheck, engine tests, build, rendered tests, and export verification before reporting success.
 
 ### 11. Coordination and delivery
 
@@ -186,7 +195,7 @@ Because Codex is already working on KL's home machine:
 - safely checkpoint the current local work first;
 - fetch the newest remote `main`;
 - integrate/rebase without discarding local changes;
-- reread this `AGENTS.md` after the update;
+- reread this `AGENTS.md` and `MUST_READ_ME.md` after the update;
 - acknowledge this directive as specified above;
 - then extend the existing implementation rather than starting a competing rewrite.
 
@@ -194,5 +203,6 @@ After implementation and verification:
 
 - give KL a concise summary of what is now visibly different;
 - report exact test/build evidence;
+- report specifically how the product/art direction was upgraded;
 - commit and push the completed feature to `main` only after safely integrating the latest remote changes;
 - do not claim the push or deployment succeeded without tool output proving it.
