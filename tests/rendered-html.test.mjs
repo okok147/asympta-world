@@ -13,17 +13,18 @@ async function renderRoot() {
   return { response, html: await response.text() };
 }
 
-test("server render exposes only the pixel map-first surface", async () => {
+test("server render exposes only the clear Tokyo vector map-first surface", async () => {
   const { response, html } = await renderRoot();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   assert.match(html, /data-map-app="true"/);
-  assert.match(html, /data-map-style="pixel-reference"/);
-  assert.match(html, /Interactive pixel city map/);
-  assert.match(html, /Toggle map color layer/);
+  assert.match(html, /data-map-style="tokyo-vector"/);
+  assert.match(html, /Interactive Tokyo-inspired vector city map/);
+  assert.match(html, /Toggle district color layer/);
   assert.match(html, /Zoom in/);
   assert.match(html, /Zoom out/);
   assert.match(html, /Recenter map/);
+  assert.doesNotMatch(html, /Interactive pixel city map/);
 });
 
 test("old Asympta World demo chrome remains absent from the rendered page", async () => {
