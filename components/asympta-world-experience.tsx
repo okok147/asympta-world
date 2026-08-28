@@ -4,6 +4,7 @@ import { Layers3, LocateFixed, Minus, Plus } from "lucide-react";
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
@@ -11,279 +12,192 @@ import {
 } from "react";
 
 type Point = { x: number; y: number };
-type Camera = { zoom: number; x: number; y: number };
-type Gesture = { distance: number; zoom: number };
+type Size = { width: number; height: number };
+type Camera = { zoom: number; cx: number; cy: number };
+type Gesture = { distance: number; camera: Camera; anchor: Point };
 
 const WORLD_WIDTH = 2400;
 const WORLD_HEIGHT = 1600;
-const PIXEL_SIZE = 2.4;
-const MIN_ZOOM = 0.72;
-const MAX_ZOOM = 6.5;
-const DEFAULT_CAMERA: Camera = { zoom: 1, x: 0, y: 0 };
+const MIN_ZOOM = 0.78;
+const MAX_ZOOM = 7;
+const DEFAULT_CAMERA: Camera = { zoom: 1, cx: WORLD_WIDTH / 2, cy: WORLD_HEIGHT / 2 };
+const DEFAULT_VIEWPORT: Size = { width: 1440, height: 960 };
 
-const LAND_COLORS = ["#f5d34f", "#e9a746", "#d52b4b", "#2aa9bf", "#999f31", "#e8abc0", "#398fd8"];
+const DISTRICTS = [
+  { id: "shinjuku", color: "#f2cf59", d: "M130 470 C250 350 470 330 620 420 L690 650 560 810 310 790 120 650Z" },
+  { id: "ikebukuro", color: "#e7a8c7", d: "M420 80 C610 35 820 75 930 190 L855 350 650 420 455 335Z" },
+  { id: "ueno", color: "#65bdd0", d: "M1310 190 C1460 95 1660 105 1775 225 L1725 420 1510 470 1320 355Z" },
+  { id: "asakusa", color: "#89c9c2", d: "M1710 275 C1875 210 2055 250 2180 390 L2115 610 1900 660 1720 535Z" },
+  { id: "marunouchi", color: "#e9b959", d: "M1110 620 C1230 535 1410 540 1515 635 L1490 815 1335 905 1155 835Z" },
+  { id: "shibuya", color: "#d94d63", d: "M470 900 C650 805 870 840 985 985 L900 1215 660 1260 470 1125Z" },
+  { id: "shinagawa", color: "#8ca54a", d: "M900 1120 C1090 1045 1320 1105 1425 1260 L1330 1505 1080 1510 900 1360Z" },
+  { id: "sumida", color: "#77a9df", d: "M1730 690 C1895 620 2140 700 2255 860 L2200 1110 1980 1185 1770 1040Z" },
+  { id: "odaiba", color: "#ef9f73", d: "M1550 1230 C1710 1150 1940 1200 2060 1345 L1990 1530 1730 1570 1570 1460Z" },
+] as const;
 
-const MAJOR_ROADS: Point[][] = [
-  [{ x: -150, y: 120 }, { x: 250, y: 300 }, { x: 620, y: 265 }, { x: 910, y: 410 }, { x: 1310, y: 390 }, { x: 1740, y: 250 }, { x: 2520, y: 330 }],
-  [{ x: -120, y: 520 }, { x: 290, y: 470 }, { x: 670, y: 590 }, { x: 1040, y: 530 }, { x: 1410, y: 405 }, { x: 1900, y: 520 }, { x: 2520, y: 570 }],
-  [{ x: -120, y: 920 }, { x: 340, y: 810 }, { x: 730, y: 900 }, { x: 1110, y: 820 }, { x: 1520, y: 760 }, { x: 1950, y: 820 }, { x: 2520, y: 760 }],
-  [{ x: -100, y: 1320 }, { x: 380, y: 1270 }, { x: 810, y: 1340 }, { x: 1210, y: 1260 }, { x: 1640, y: 1120 }, { x: 2080, y: 1190 }, { x: 2520, y: 1260 }],
-  [{ x: 170, y: -130 }, { x: 230, y: 250 }, { x: 410, y: 530 }, { x: 540, y: 820 }, { x: 650, y: 1160 }, { x: 760, y: 1700 }],
-  [{ x: 890, y: -120 }, { x: 850, y: 260 }, { x: 980, y: 560 }, { x: 1050, y: 890 }, { x: 1240, y: 1190 }, { x: 1390, y: 1710 }],
-  [{ x: 1560, y: -110 }, { x: 1530, y: 290 }, { x: 1640, y: 590 }, { x: 1600, y: 910 }, { x: 1450, y: 1240 }, { x: 1330, y: 1710 }],
-  [{ x: 2290, y: -130 }, { x: 2130, y: 270 }, { x: 2070, y: 620 }, { x: 1940, y: 940 }, { x: 1750, y: 1270 }, { x: 1640, y: 1700 }],
-];
+const PARKS = [
+  "M985 535 C1050 455 1175 430 1265 490 L1275 595 1195 665 1070 650 985 595Z",
+  "M1260 285 C1340 215 1460 215 1515 285 L1495 380 1390 420 1280 370Z",
+  "M300 820 C390 770 520 800 575 880 L535 980 405 1000 305 930Z",
+  "M720 195 C785 145 870 150 920 205 L895 285 810 315 735 270Z",
+] as const;
 
-const EXPRESSWAYS: Point[][] = [
-  [{ x: -160, y: 350 }, { x: 320, y: 205 }, { x: 720, y: 410 }, { x: 1120, y: 370 }, { x: 1570, y: 210 }, { x: 2520, y: 320 }],
-  [{ x: -150, y: 720 }, { x: 350, y: 610 }, { x: 760, y: 740 }, { x: 1150, y: 680 }, { x: 1600, y: 550 }, { x: 2100, y: 620 }, { x: 2520, y: 600 }],
-  [{ x: -150, y: 1130 }, { x: 330, y: 1020 }, { x: 770, y: 1100 }, { x: 1190, y: 1060 }, { x: 1660, y: 940 }, { x: 2130, y: 980 }, { x: 2520, y: 1040 }],
-  [{ x: 430, y: -120 }, { x: 520, y: 230 }, { x: 760, y: 510 }, { x: 1080, y: 770 }, { x: 1450, y: 1030 }, { x: 1800, y: 1330 }, { x: 2030, y: 1700 }],
-  [{ x: 2030, y: -130 }, { x: 1840, y: 250 }, { x: 1760, y: 580 }, { x: 1630, y: 860 }, { x: 1490, y: 1180 }, { x: 1320, y: 1710 }],
-];
+const LOCAL_STREETS = [
+  "M45 210 C330 260 540 250 770 185 S1150 120 1430 205 1910 280 2360 190",
+  "M10 310 C260 345 520 370 780 330 S1220 270 1510 345 1980 430 2390 360",
+  "M40 430 C320 400 560 455 820 455 S1290 390 1570 470 2050 560 2390 485",
+  "M20 555 C330 520 560 590 850 560 S1250 520 1600 600 2100 685 2380 610",
+  "M40 695 C350 650 590 735 850 700 S1280 650 1600 735 2070 820 2380 755",
+  "M25 835 C270 810 560 885 845 850 S1290 815 1580 885 2040 970 2380 915",
+  "M30 990 C330 945 560 1015 820 1000 S1270 970 1580 1035 2040 1120 2380 1075",
+  "M15 1140 C320 1110 575 1175 850 1160 S1280 1125 1590 1200 2040 1270 2380 1245",
+  "M15 1295 C315 1260 600 1330 890 1310 S1310 1280 1620 1340 2050 1410 2370 1400",
+  "M135 35 C170 330 150 560 230 820 S300 1220 275 1575",
+  "M305 20 C350 300 330 555 410 795 S480 1225 465 1580",
+  "M500 15 C535 300 500 560 590 820 S655 1220 660 1585",
+  "M705 10 C740 270 695 560 795 820 S850 1240 875 1585",
+  "M910 5 C930 285 900 560 995 805 S1060 1220 1090 1590",
+  "M1125 10 C1145 280 1105 555 1190 825 S1255 1225 1285 1585",
+  "M1345 10 C1370 285 1325 560 1425 820 S1480 1215 1515 1585",
+  "M1565 15 C1600 300 1555 560 1645 820 S1710 1210 1735 1590",
+  "M1785 10 C1820 285 1770 545 1865 805 S1920 1220 1955 1585",
+  "M2005 5 C2040 280 1995 555 2080 820 S2145 1210 2180 1590",
+  "M2205 20 C2245 300 2200 570 2280 825 S2330 1210 2360 1565",
+  "M180 740 C430 690 650 650 905 680 1110 705 1280 760 1485 735",
+  "M560 360 C670 520 780 650 980 760 S1310 970 1535 1130",
+  "M820 220 C900 430 1045 570 1220 675 S1520 855 1735 985",
+  "M1240 120 C1265 345 1390 510 1575 610 S1890 765 2130 910",
+  "M1540 150 C1505 365 1580 530 1740 675 S2010 1000 2270 1140",
+  "M340 1200 C620 1110 820 1050 1040 1090 S1420 1250 1690 1205",
+  "M1020 1370 C1250 1310 1480 1290 1670 1355 S1960 1510 2220 1480",
+] as const;
 
-const PURPLE_CORRIDORS: Point[][] = [
-  [{ x: -180, y: 95 }, { x: 280, y: 260 }, { x: 560, y: 150 }, { x: 820, y: 330 }, { x: 1110, y: 560 }, { x: 1440, y: 650 }, { x: 1830, y: 720 }, { x: 2520, y: 540 }],
-  [{ x: -160, y: 970 }, { x: 300, y: 910 }, { x: 670, y: 1010 }, { x: 1040, y: 940 }, { x: 1390, y: 1010 }, { x: 1760, y: 1210 }, { x: 2520, y: 1340 }],
-  [{ x: 360, y: -120 }, { x: 520, y: 210 }, { x: 690, y: 500 }, { x: 870, y: 760 }, { x: 1140, y: 1000 }, { x: 1500, y: 1220 }, { x: 1940, y: 1500 }],
-];
+const MAJOR_ROADS = [
+  "M-60 470 C260 440 520 500 790 590 S1260 720 1600 700 2020 620 2460 690",
+  "M-40 1040 C270 990 585 1020 845 985 S1280 875 1600 900 2020 1020 2440 1010",
+  "M250 -70 C290 250 355 500 520 720 S760 1010 905 1280 1020 1510 1100 1680",
+  "M820 -60 C815 250 900 480 1070 650 S1390 850 1555 1060 1750 1350 1830 1650",
+  "M1520 -50 C1490 250 1540 470 1670 640 S1880 870 1985 1090 2090 1360 2180 1660",
+  "M110 1250 C420 1190 690 1140 940 1160 S1390 1260 1700 1235 2090 1160 2460 1210",
+] as const;
 
-const CYAN_CORRIDORS: Point[][] = [
-  [{ x: 1460, y: -140 }, { x: 1450, y: 260 }, { x: 1370, y: 550 }, { x: 1410, y: 850 }, { x: 1570, y: 1110 }, { x: 1780, y: 1460 }, { x: 1860, y: 1710 }],
-  [{ x: 2520, y: 275 }, { x: 2150, y: 360 }, { x: 1920, y: 610 }, { x: 1850, y: 900 }, { x: 2000, y: 1190 }, { x: 2270, y: 1530 }],
-  [{ x: 930, y: -120 }, { x: 990, y: 260 }, { x: 970, y: 620 }, { x: 1050, y: 960 }, { x: 1160, y: 1300 }, { x: 1220, y: 1710 }],
-];
+const EXPRESSWAYS = [
+  "M-80 265 C300 300 640 245 910 350 S1330 505 1620 440 2050 300 2470 390",
+  "M80 760 C410 700 730 720 1010 790 S1490 905 1780 850 2140 750 2440 820",
+  "M445 -100 C485 270 650 500 860 700 S1260 1040 1510 1250 1780 1450 2050 1690",
+  "M2050 -100 C1910 210 1840 480 1845 730 S1930 1150 2080 1470 2140 1580 2200 1680",
+] as const;
 
-const PARKS: Array<{ points: Point[]; color: string }> = [
-  { color: "#e8aa4d", points: [{ x: 95, y: 590 }, { x: 485, y: 570 }, { x: 630, y: 760 }, { x: 560, y: 1120 }, { x: 175, y: 1180 }, { x: 40, y: 930 }] },
-  { color: "#e8aa4d", points: [{ x: 2020, y: 1220 }, { x: 2410, y: 1160 }, { x: 2490, y: 1540 }, { x: 2130, y: 1580 }, { x: 1960, y: 1430 }] },
-  { color: "#9b9f33", points: [{ x: 1970, y: 75 }, { x: 2350, y: 40 }, { x: 2450, y: 250 }, { x: 2240, y: 350 }, { x: 2010, y: 270 }] },
-];
+const RAILS = [
+  "M690 445 C780 315 985 265 1210 325 S1580 500 1630 720 1560 1075 1360 1260 1065 1280 785 1180 655 935 585 690 690 445Z",
+  "M990 350 C1010 620 1050 870 1095 1245",
+  "M590 900 C900 850 1215 825 1540 850 S1970 930 2310 1010",
+] as const;
 
-function seededRandom(seed: number) {
-  let value = seed >>> 0;
-  return () => {
-    value += 0x6d2b79f5;
-    let t = value;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
+const WATERWAYS = [
+  "M1770 -80 C1710 155 1745 360 1810 515 S1920 805 1890 1030 1810 1290 1865 1460 1940 1660",
+  "M1555 655 C1700 690 1815 730 1900 800 S2060 960 2240 990",
+] as const;
 
 function clampZoom(value: number) {
   return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
 }
 
-function drawPolyline(ctx: CanvasRenderingContext2D, points: Point[], width: number, stroke: string) {
-  if (points.length < 2) return;
-  ctx.beginPath();
-  ctx.moveTo(Math.round(points[0].x), Math.round(points[0].y));
-  for (let index = 1; index < points.length; index += 1) {
-    ctx.lineTo(Math.round(points[index].x), Math.round(points[index].y));
+function getViewBox(camera: Camera, viewport: Size) {
+  const aspect = Math.max(0.1, viewport.width / Math.max(1, viewport.height));
+  const worldAspect = WORLD_WIDTH / WORLD_HEIGHT;
+  let width: number;
+  let height: number;
+
+  if (aspect >= worldAspect) {
+    height = WORLD_HEIGHT / camera.zoom;
+    width = height * aspect;
+  } else {
+    width = WORLD_WIDTH / camera.zoom;
+    height = width / aspect;
   }
-  ctx.strokeStyle = stroke;
-  ctx.lineWidth = width;
-  ctx.lineCap = "butt";
-  ctx.lineJoin = "miter";
-  ctx.stroke();
+
+  return { x: camera.cx - width / 2, y: camera.cy - height / 2, width, height };
 }
 
-function fillPolygon(ctx: CanvasRenderingContext2D, points: Point[], fill: string) {
-  if (!points.length) return;
-  ctx.beginPath();
-  ctx.moveTo(points[0].x, points[0].y);
-  for (let index = 1; index < points.length; index += 1) ctx.lineTo(points[index].x, points[index].y);
-  ctx.closePath();
-  ctx.fillStyle = fill;
-  ctx.fill();
+function screenToWorld(camera: Camera, viewport: Size, rect: DOMRect, clientX: number, clientY: number): Point {
+  const view = getViewBox(camera, viewport);
+  return {
+    x: view.x + ((clientX - rect.left) / Math.max(1, rect.width)) * view.width,
+    y: view.y + ((clientY - rect.top) / Math.max(1, rect.height)) * view.height,
+  };
 }
 
-function drawReferenceMap(canvas: HTMLCanvasElement, camera: Camera, showColor: boolean) {
-  const rect = canvas.getBoundingClientRect();
-  if (rect.width <= 0 || rect.height <= 0) return;
-
-  const viewWidth = Math.max(1, Math.round(rect.width / PIXEL_SIZE));
-  const viewHeight = Math.max(1, Math.round(rect.height / PIXEL_SIZE));
-  if (canvas.width !== viewWidth || canvas.height !== viewHeight) {
-    canvas.width = viewWidth;
-    canvas.height = viewHeight;
-  }
-
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
-  ctx.imageSmoothingEnabled = false;
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.clearRect(0, 0, viewWidth, viewHeight);
-  ctx.fillStyle = "#f7f7f5";
-  ctx.fillRect(0, 0, viewWidth, viewHeight);
-
-  const fitScale = Math.min(viewWidth / WORLD_WIDTH, viewHeight / WORLD_HEIGHT) * 1.14;
-  const scale = fitScale * camera.zoom;
-  const tx = viewWidth / 2 + camera.x / PIXEL_SIZE - (WORLD_WIDTH / 2) * scale;
-  const ty = viewHeight / 2 + camera.y / PIXEL_SIZE - (WORLD_HEIGHT / 2) * scale;
-  ctx.setTransform(scale, 0, 0, scale, tx, ty);
-
-  const paper = seededRandom(20260828);
-  ctx.globalAlpha = 0.48;
-  for (let index = 0; index < 1800; index += 1) {
-    const x = paper() * WORLD_WIDTH;
-    const y = paper() * WORLD_HEIGHT;
-    ctx.fillStyle = index % 4 === 0 ? "#ecebea" : "#f1f0ee";
-    ctx.fillRect(Math.round(x), Math.round(y), 2.5, 2.5);
-  }
-  ctx.globalAlpha = 1;
-
-  if (showColor) {
-    PARKS.forEach((park) => fillPolygon(ctx, park.points, park.color));
-    const parcels = seededRandom(147789);
-    for (let index = 0; index < 185; index += 1) {
-      const x = 28 + parcels() * (WORLD_WIDTH - 120);
-      const y = 25 + parcels() * (WORLD_HEIGHT - 95);
-      const width = 16 + parcels() * 90;
-      const height = 12 + parcels() * 72;
-      if (parcels() < 0.35) continue;
-      const notch = parcels() * 18;
-      const skew = (parcels() - 0.5) * 24;
-      fillPolygon(ctx, [
-        { x, y: y + notch * 0.2 },
-        { x: x + width, y: y + skew * 0.16 },
-        { x: x + width - notch, y: y + height },
-        { x: x + notch * 0.25, y: y + height + skew * 0.12 },
-      ], LAND_COLORS[Math.floor(parcels() * LAND_COLORS.length)]);
-    }
-  }
-
-  const streets = seededRandom(420319);
-  ctx.strokeStyle = "rgba(77,76,79,0.24)";
-  ctx.lineWidth = 1.35;
-  ctx.lineCap = "butt";
-  ctx.lineJoin = "miter";
-
-  for (let column = -5; column < 76; column += 1) {
-    const baseX = column * 34 + 8 + streets() * 16;
-    ctx.beginPath();
-    ctx.moveTo(baseX + (streets() - 0.5) * 30, -120);
-    for (let row = 0; row <= 12; row += 1) {
-      const y = row * 145 + 20;
-      const x = baseX + Math.sin(column * 0.72 + row * 0.81) * (18 + streets() * 25) + (streets() - 0.5) * 22;
-      ctx.lineTo(Math.round(x), Math.round(y));
-    }
-    ctx.stroke();
-  }
-
-  for (let row = -4; row < 58; row += 1) {
-    const baseY = row * 31 + 7 + streets() * 15;
-    ctx.beginPath();
-    ctx.moveTo(-120, baseY + (streets() - 0.5) * 24);
-    for (let column = 0; column <= 13; column += 1) {
-      const x = column * 205 + 10;
-      const y = baseY + Math.sin(row * 0.57 + column * 0.69) * (14 + streets() * 20) + (streets() - 0.5) * 18;
-      ctx.lineTo(Math.round(x), Math.round(y));
-    }
-    ctx.stroke();
-  }
-
-  ctx.globalAlpha = 0.8;
-  for (let index = 0; index < 52; index += 1) {
-    const y = -360 + index * 54;
-    ctx.beginPath();
-    ctx.moveTo(-200, y);
-    ctx.lineTo(420, y + 235 + (index % 4) * 20);
-    ctx.lineTo(1050, y + 390 - (index % 5) * 17);
-    ctx.lineTo(2550, y + 730 + (index % 3) * 30);
-    ctx.stroke();
-  }
-  ctx.globalAlpha = 1;
-
-  PURPLE_CORRIDORS.forEach((route) => {
-    drawPolyline(ctx, route, 34, "#1c111d");
-    drawPolyline(ctx, route, 23, "#7255a3");
-    drawPolyline(ctx, route, 8, "#8e76bc");
-  });
-
-  CYAN_CORRIDORS.forEach((route) => {
-    drawPolyline(ctx, route, 23, "#1c171f");
-    drawPolyline(ctx, route, 15, "#1aa8bf");
-  });
-
-  EXPRESSWAYS.forEach((route) => drawPolyline(ctx, route, 21, "#190e18"));
-  MAJOR_ROADS.forEach((route) => drawPolyline(ctx, route, 10, "#190e18"));
-
-  ctx.strokeStyle = "#190e18";
-  ctx.lineWidth = 8;
-  ctx.beginPath();
-  ctx.arc(610, 690, 32, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(610, 690, 18, 0, Math.PI * 2);
-  ctx.strokeStyle = "#f7f7f5";
-  ctx.lineWidth = 4;
-  ctx.stroke();
+function cameraFromAnchor(camera: Camera, viewport: Size, rect: DOMRect, nextZoom: number, clientX: number, clientY: number) {
+  const anchor = screenToWorld(camera, viewport, rect, clientX, clientY);
+  const zoom = clampZoom(nextZoom);
+  const nextView = getViewBox({ ...camera, zoom }, viewport);
+  const rx = (clientX - rect.left) / Math.max(1, rect.width) - 0.5;
+  const ry = (clientY - rect.top) / Math.max(1, rect.height) - 0.5;
+  return {
+    zoom,
+    cx: anchor.x - rx * nextView.width,
+    cy: anchor.y - ry * nextView.height,
+  };
 }
 
 export function AsymptaWorldExperience() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
   const pointersRef = useRef(new Map<number, Point>());
   const dragRef = useRef<{ pointerId: number; x: number; y: number } | null>(null);
   const gestureRef = useRef<Gesture | null>(null);
+  const [viewport, setViewport] = useState<Size>(DEFAULT_VIEWPORT);
   const [camera, setCamera] = useState<Camera>(DEFAULT_CAMERA);
   const [showColor, setShowColor] = useState(true);
   const [panning, setPanning] = useState(false);
 
-  const redraw = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (canvas) drawReferenceMap(canvas, camera, showColor);
-  }, [camera, showColor]);
-
   useEffect(() => {
-    redraw();
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const observer = new ResizeObserver(redraw);
-    observer.observe(canvas);
+    const svg = svgRef.current;
+    if (!svg) return;
+    const updateSize = () => {
+      const rect = svg.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) setViewport({ width: rect.width, height: rect.height });
+    };
+    updateSize();
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(svg);
     return () => observer.disconnect();
-  }, [redraw]);
+  }, []);
+
+  const viewBox = useMemo(() => getViewBox(camera, viewport), [camera, viewport]);
 
   const zoomAt = useCallback((nextZoom: number, clientX?: number, clientY?: number) => {
-    const canvas = canvasRef.current;
-    const rect = canvas?.getBoundingClientRect();
+    const svg = svgRef.current;
+    const rect = svg?.getBoundingClientRect();
     setCamera((previous) => {
       const zoom = clampZoom(nextZoom);
       if (!rect || clientX === undefined || clientY === undefined) return { ...previous, zoom };
-      const fitScale = Math.min(rect.width / WORLD_WIDTH, rect.height / WORLD_HEIGHT) * 1.14;
-      const oldScale = fitScale * previous.zoom;
-      const newScale = fitScale * zoom;
-      const px = clientX - rect.left;
-      const py = clientY - rect.top;
-      const worldX = (px - rect.width / 2 - previous.x) / oldScale + WORLD_WIDTH / 2;
-      const worldY = (py - rect.height / 2 - previous.y) / oldScale + WORLD_HEIGHT / 2;
-      return {
-        zoom,
-        x: px - rect.width / 2 - (worldX - WORLD_WIDTH / 2) * newScale,
-        y: py - rect.height / 2 - (worldY - WORLD_HEIGHT / 2) * newScale,
-      };
+      return cameraFromAnchor(previous, viewport, rect, zoom, clientX, clientY);
     });
-  }, []);
+  }, [viewport]);
 
-  const handleWheel = (event: ReactWheelEvent<HTMLCanvasElement>) => {
-    event.preventDefault();
-    zoomAt(camera.zoom * (event.deltaY < 0 ? 1.14 : 0.88), event.clientX, event.clientY);
-  };
-
-  const beginPinch = () => {
-    if (pointersRef.current.size !== 2) {
+  const beginPinch = useCallback(() => {
+    const svg = svgRef.current;
+    if (!svg || pointersRef.current.size !== 2) {
       gestureRef.current = null;
       return;
     }
     const [a, b] = Array.from(pointersRef.current.values());
+    const center = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    const rect = svg.getBoundingClientRect();
     gestureRef.current = {
       distance: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
-      zoom: camera.zoom,
+      camera,
+      anchor: screenToWorld(camera, viewport, rect, center.x, center.y),
     };
+  }, [camera, viewport]);
+
+  const handleWheel = (event: ReactWheelEvent<SVGSVGElement>) => {
+    event.preventDefault();
+    zoomAt(camera.zoom * (event.deltaY < 0 ? 1.14 : 0.88), event.clientX, event.clientY);
   };
 
-  const handlePointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+  const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
     event.currentTarget.setPointerCapture(event.pointerId);
     pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
     if (pointersRef.current.size === 1) {
@@ -295,30 +209,49 @@ export function AsymptaWorldExperience() {
     }
   };
 
-  const handlePointerMove = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+  const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
     if (!pointersRef.current.has(event.pointerId)) return;
     pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
 
     if (pointersRef.current.size === 2) {
-      const [a, b] = Array.from(pointersRef.current.values());
+      const svg = svgRef.current;
       const gesture = gestureRef.current;
-      if (!gesture) return beginPinch();
+      if (!svg || !gesture) return beginPinch();
+      const [a, b] = Array.from(pointersRef.current.values());
       const distance = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
       const centerX = (a.x + b.x) / 2;
       const centerY = (a.y + b.y) / 2;
-      zoomAt(gesture.zoom * (distance / gesture.distance), centerX, centerY);
+      const rect = svg.getBoundingClientRect();
+      const zoom = clampZoom(gesture.camera.zoom * (distance / gesture.distance));
+      const nextView = getViewBox({ ...gesture.camera, zoom }, viewport);
+      const rx = (centerX - rect.left) / Math.max(1, rect.width) - 0.5;
+      const ry = (centerY - rect.top) / Math.max(1, rect.height) - 0.5;
+      setCamera({
+        zoom,
+        cx: gesture.anchor.x - rx * nextView.width,
+        cy: gesture.anchor.y - ry * nextView.height,
+      });
       return;
     }
 
     const drag = dragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
+    const svg = svgRef.current;
+    if (!drag || !svg || drag.pointerId !== event.pointerId) return;
+    const rect = svg.getBoundingClientRect();
     const dx = event.clientX - drag.x;
     const dy = event.clientY - drag.y;
     dragRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
-    setCamera((previous) => ({ ...previous, x: previous.x + dx, y: previous.y + dy }));
+    setCamera((previous) => {
+      const view = getViewBox(previous, viewport);
+      return {
+        ...previous,
+        cx: previous.cx - (dx / Math.max(1, rect.width)) * view.width,
+        cy: previous.cy - (dy / Math.max(1, rect.height)) * view.height,
+      };
+    });
   };
 
-  const handlePointerEnd = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+  const handlePointerEnd = (event: ReactPointerEvent<SVGSVGElement>) => {
     pointersRef.current.delete(event.pointerId);
     if (dragRef.current?.pointerId === event.pointerId) dragRef.current = null;
     gestureRef.current = null;
@@ -332,22 +265,95 @@ export function AsymptaWorldExperience() {
   };
 
   return (
-    <main className="map-app" data-map-app="true" data-map-style="pixel-reference">
-      <canvas
-        ref={canvasRef}
+    <main className="map-app" data-map-app="true" data-map-style="tokyo-vector">
+      <svg
+        ref={svgRef}
         className={`map-canvas${panning ? " is-panning" : ""}`}
-        aria-label="Interactive pixel city map"
+        viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`}
+        preserveAspectRatio="none"
+        role="img"
+        aria-label="Interactive Tokyo-inspired vector city map"
         onWheel={handleWheel}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerEnd}
         onPointerCancel={handlePointerEnd}
-      />
+      >
+        <rect x="-1200" y="-900" width="4800" height="3400" fill="#f7f7f5" />
+
+        <g aria-hidden="true">
+          <path d="M1845 1140 C2020 1080 2230 1100 2480 1190 L2520 1700 1500 1700 C1540 1510 1650 1340 1845 1140Z" fill="#d9edf2" />
+          <path d="M1980 1270 C2140 1240 2320 1290 2470 1390 L2470 1590 2070 1590 1980 1470Z" fill="#c9e3ea" />
+
+          <g opacity={showColor ? 0.72 : 0.18}>
+            {DISTRICTS.map((district) => <path key={district.id} d={district.d} fill={showColor ? district.color : "#d9d8d3"} />)}
+          </g>
+
+          <g fill="#b8cf8f" opacity="0.9">
+            {PARKS.map((d) => <path key={d} d={d} />)}
+          </g>
+
+          <g fill="none" stroke="#d2d1cc" strokeWidth="1.25" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round">
+            {LOCAL_STREETS.map((d) => <path key={d} d={d} />)}
+          </g>
+
+          <g fill="none" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke">
+            {WATERWAYS.map((d) => (
+              <g key={d}>
+                <path d={d} stroke="#b7dce7" strokeWidth="13" />
+                <path d={d} stroke="#7bbdcc" strokeWidth="5" />
+              </g>
+            ))}
+          </g>
+
+          <path d="M985 535 C1050 455 1175 430 1265 490 L1275 595 1195 665 1070 650 985 595Z" fill="#dce5bf" stroke="#a6a99b" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+          <path d="M1022 558 C1070 510 1165 492 1235 525 L1238 582 1178 620 1090 615 1030 588Z" fill="#d6e8ec" stroke="#99b9c0" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+
+          <g fill="none" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke">
+            {RAILS.map((d, index) => (
+              <g key={d}>
+                <path d={d} stroke="#ffffff" strokeWidth={index === 0 ? 8 : 6} />
+                <path d={d} stroke="#7255a3" strokeWidth={index === 0 ? 4.5 : 3.2} strokeDasharray={index === 0 ? "0" : "8 5"} />
+              </g>
+            ))}
+          </g>
+
+          <g fill="none" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke">
+            {MAJOR_ROADS.map((d) => (
+              <g key={d}>
+                <path d={d} stroke="#f7f7f5" strokeWidth="10" />
+                <path d={d} stroke="#242127" strokeWidth="5.5" />
+              </g>
+            ))}
+          </g>
+
+          <g fill="none" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke">
+            {EXPRESSWAYS.map((d) => (
+              <g key={d}>
+                <path d={d} stroke="#1d1720" strokeWidth="9" />
+                <path d={d} stroke="#8b72b2" strokeWidth="4.2" />
+              </g>
+            ))}
+          </g>
+
+          <g fill="#faf9f5" stroke="#242127" strokeWidth="2" vectorEffect="non-scaling-stroke">
+            <circle cx="690" cy="445" r="14" />
+            <circle cx="585" cy="690" r="14" />
+            <circle cx="655" cy="935" r="14" />
+            <circle cx="785" cy="1180" r="14" />
+            <circle cx="1065" cy="1280" r="14" />
+            <circle cx="1360" cy="1260" r="14" />
+            <circle cx="1560" cy="1075" r="14" />
+            <circle cx="1630" cy="720" r="14" />
+            <circle cx="1210" cy="325" r="14" />
+          </g>
+        </g>
+      </svg>
 
       <button
         type="button"
         className={`map-control map-control--layers${showColor ? " is-active" : ""}`}
-        aria-label="Toggle map color layer"
+        aria-label="Toggle district color layer"
         aria-pressed={showColor}
         onClick={() => setShowColor((value) => !value)}
       >
