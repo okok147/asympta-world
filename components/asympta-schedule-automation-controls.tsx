@@ -64,7 +64,6 @@ export function AsymptaScheduleAutomationControls() {
   const [locale, setLocale] = useState<Locale>("en");
   const [autoExplore, setAutoExplore] = useState(true);
   const [autoApprove, setAutoApprove] = useState(false);
-  const [preferencesReady, setPreferencesReady] = useState(false);
   const approvedIdsRef = useRef(new Set<string>());
   const completedSinceRef = useRef<number | null>(null);
   const exploredWorkflowRef = useRef<string | null>(null);
@@ -72,11 +71,9 @@ export function AsymptaScheduleAutomationControls() {
   useEffect(() => {
     const applyPreferences = (preferences: ReturnType<typeof readAsymptaUserPreferences>) => {
       setAutoExplore(preferences.autoExplore);
-      setAutoApprove(preferences.autoApprove);
     };
 
     applyPreferences(readAsymptaUserPreferences());
-    setPreferencesReady(true);
     return subscribeAsymptaUserPreferences(applyPreferences);
   }, []);
 
@@ -93,8 +90,6 @@ export function AsymptaScheduleAutomationControls() {
   }, [target]);
 
   useEffect(() => {
-    if (!preferencesReady) return;
-
     const tick = () => {
       if (document.hidden) return;
       const api = browserWindow().__ASYMPTA_DEMO__;
@@ -140,9 +135,9 @@ export function AsymptaScheduleAutomationControls() {
     tick();
     const timer = window.setInterval(tick, CONTROL_REFRESH_MS);
     return () => window.clearInterval(timer);
-  }, [autoApprove, autoExplore, preferencesReady]);
+  }, [autoApprove, autoExplore]);
 
-  if (!target || !preferencesReady) return null;
+  if (!target) return null;
   const copy = COPY[locale];
 
   return createPortal(
@@ -165,11 +160,7 @@ export function AsymptaScheduleAutomationControls() {
         type="button"
         className={`atlas-safe-automation__toggle${autoApprove ? " is-on" : ""}`}
         aria-pressed={autoApprove}
-        onClick={() => {
-          const next = !autoApprove;
-          setAutoApprove(next);
-          writeAsymptaUserPreferences({ autoApprove: next });
-        }}
+        onClick={() => setAutoApprove((value) => !value)}
       >
         <span className="atlas-safe-automation__indicator"><i /></span>
         <span>{copy.approve}</span>
