@@ -10,43 +10,65 @@ const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8")
 const css = await readFile(new URL("../app/asympta-restoration.css", import.meta.url), "utf8");
 const animalCss = await readFile(new URL("../app/asympta-animal-art.css", import.meta.url), "utf8");
 
-test("the product boots directly into a paper illustrated-animal living-city demonstration", () => {
+test("the product remains a paper illustrated-animal living-city demonstration", () => {
   assert.match(page, /AsymptaWorldLiveDemo/);
   assert.match(app, /data-map-app="true"/);
   assert.match(app, /data-map-style="paper-illustrated-animal-living-city-demo"/);
+  assert.match(app, /data-render-mode="imperative-map-loop"/);
   assert.match(app, /illustrated animal stakeholder agents/);
-  assert.match(app, /Living Coordination/);
-  assert.match(app, /Atlas/);
   assert.match(app, /createAtlasDemoWorld/);
   assert.match(app, /CITY_LIFE_COUNT/);
-  assert.match(app, /actors moving/);
-  assert.match(app, /workflow agents moving/);
   assert.match(app, /createAnimalMarkerElement/);
   assert.match(app, /animalSvgMarkup/);
   assert.match(app, /AnimalPortrait/);
-  assert.match(app, /animal-map-marker/);
   assert.doesNotMatch(app, /🐱|🐰|🐹|🐶|🦊|🐻|🐯|🐼|🐮|🦝|🐨|🐵|🦉|🐧|🐦/u);
-  assert.doesNotMatch(app, /ANIMALS_BY_SIDE/);
   assert.doesNotMatch(app, /useLivingWorld/);
   assert.doesNotMatch(app, /@\/lib\/living-world/);
 });
 
-test("original animal art uses inline SVG rather than OS emoji rendering", () => {
-  assert.match(animalArt, /AnimalKind/);
-  assert.match(animalArt, /cat/);
-  assert.match(animalArt, /rabbit/);
-  assert.match(animalArt, /fox/);
-  assert.match(animalArt, /bear/);
-  assert.match(animalArt, /raccoon/);
-  assert.match(animalArt, /panda/);
-  assert.match(animalArt, /dog/);
-  assert.match(animalArt, /koala/);
-  assert.match(animalArt, /owl/);
-  assert.match(animalArt, /bird/);
-  assert.match(animalArt, /<svg class="asympta-animal-svg"/);
-  assert.match(animalArt, /stroke-width/);
-  assert.match(animalArt, /BLUSH/);
-  assert.doesNotMatch(animalArt, /🐱|🐰|🐶|🦊|🐻|🐼|🦝|🐨|🦉|🐧|🐦/u);
+test("the animation loop avoids high-frequency React re-rendering", () => {
+  assert.match(app, /SIMULATION_STEP_MS = 70/);
+  assert.match(app, /AMBIENT_REFRESH_MS = 110/);
+  assert.match(app, /MAP_SOURCE_REFRESH_MS = 210/);
+  assert.match(app, /UI_REFRESH_MS = 260/);
+  assert.match(app, /worldRef\.current = advanceAtlasWorld/);
+  assert.match(app, /syncForegroundMarkers\(worldRef\.current/);
+  assert.match(app, /syncCityMarkers\(worldRef\.current\.now/);
+  assert.match(app, /if \(uiAccumulator >= UI_REFRESH_MS\)/);
+  assert.match(app, /setWorld\(worldRef\.current\)/);
+  assert.match(app, /document\.hidden/);
+  assert.doesNotMatch(app, /accumulator >= 42/);
+  assert.doesNotMatch(css, /backdrop-filter/);
+  assert.doesNotMatch(css, /filter:\s*drop-shadow/);
+  assert.match(animalCss, /Only the selected foreground character breathes/);
+});
+
+test("top atlas surface is collapsible and behaves like a compact menu", () => {
+  assert.match(app, /menuOpen/);
+  assert.match(app, /atlas-console \$\{menuOpen \? "is-open" : "is-collapsed"\}/);
+  assert.match(app, /atlas-menu-bar/);
+  assert.match(app, /atlas-menu-identity/);
+  assert.match(app, /aria-expanded=\{menuOpen\}/);
+  assert.match(app, /atlas-menu-panel/);
+  assert.match(css, /\.atlas-console\.is-collapsed/);
+  assert.match(css, /\.atlas-console\.is-collapsed \.atlas-menu-panel \{ display: none; \}/);
+});
+
+test("WebMCP demo actions, camera follow and language icon are visible controls", () => {
+  assert.match(app, /WebMCP actions/);
+  assert.match(app, /queueWebMcpDemoAction/);
+  assert.match(app, /reserve_capacity/);
+  assert.match(app, /authorize_payment/);
+  assert.match(app, /release_shipment/);
+  assert.match(app, /send_customer_update/);
+  assert.match(app, /toggleCameraFollow/);
+  assert.match(app, /Camera follow/);
+  assert.match(app, /Globe2/);
+  assert.match(app, /繁體中文/);
+  assert.match(app, /日本語/);
+  assert.match(app, /document\.documentElement\.lang = locale/);
+  assert.match(css, /\.atlas-language-menu/);
+  assert.match(css, /\.atlas-webmcp-menu/);
 });
 
 test("native MapLibre pinch and camera follow remain first-class", () => {
@@ -54,8 +76,8 @@ test("native MapLibre pinch and camera follow remain first-class", () => {
   assert.match(app, /touchZoomRotate\.enable\(\)/);
   assert.match(app, /touchZoomRotate\.disableRotation\(\)/);
   assert.match(app, /easeTo\(/);
-  assert.match(app, /Tracking agent/);
-  assert.match(app, /Follow agent/);
+  assert.match(app, /dragstart/);
+  assert.match(app, /zoomstart/);
   assert.doesNotMatch(app, /pointersRef/);
   assert.doesNotMatch(app, /pinchRef/);
 });
@@ -98,18 +120,30 @@ test("WebMCP requests remain human-gated while the ambient city keeps moving", (
   assert.match(demo, /Background users and businesses are synthetic demonstration actors/);
 });
 
-test("Asympta paper texture and compact illustrated-animal UI stay calm on mobile", () => {
+test("original animal art uses inline SVG rather than OS emoji rendering", () => {
+  assert.match(animalArt, /AnimalKind/);
+  assert.match(animalArt, /cat/);
+  assert.match(animalArt, /rabbit/);
+  assert.match(animalArt, /fox/);
+  assert.match(animalArt, /bear/);
+  assert.match(animalArt, /raccoon/);
+  assert.match(animalArt, /panda/);
+  assert.match(animalArt, /dog/);
+  assert.match(animalArt, /koala/);
+  assert.match(animalArt, /owl/);
+  assert.match(animalArt, /bird/);
+  assert.match(animalArt, /<svg class="asympta-animal-svg"/);
+  assert.doesNotMatch(animalArt, /🐱|🐰|🐶|🦊|🐻|🐼|🦝|🐨|🦉|🐧|🐦/u);
+});
+
+test("Asympta paper texture and lightweight controls stay calm on mobile", () => {
   assert.match(css, /--paper:\s*#EEEDE6/i);
   assert.match(css, /\.map-paper-wash/);
   assert.match(css, /\.map-paper-grain/);
   assert.match(css, /mix-blend-mode:\s*multiply/);
   assert.match(css, /\.animal-map-marker/);
-  assert.match(css, /\.animal-map-marker--ambient/);
-  assert.match(css, /\.animal-map-marker--foreground/);
+  assert.match(css, /contain:\s*layout paint style/);
   assert.match(animalCss, /\.asympta-animal-svg/);
-  assert.match(animalCss, /\.asympta-animal-portrait/);
-  assert.match(animalCss, /asympta-animal-breathe/);
-  assert.match(css, /\.atlas-console/);
   assert.match(css, /grid-template-columns:\s*repeat\(4/);
   assert.match(css, /\.atlas-sheet-handle/);
   assert.match(css, /\.atlas-approval/);
