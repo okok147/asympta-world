@@ -1,0 +1,208 @@
+.atlas-safe-schedule {
+  position: fixed;
+  z-index: 11;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  width: min(292px, calc(100vw - 24px));
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(249, 246, 237, 0.955);
+  box-shadow: 0 8px 22px rgba(54, 50, 42, 0.065), 0 1px 2px rgba(54, 50, 42, 0.045);
+  overflow: hidden;
+  pointer-events: auto;
+}
+
+.atlas-safe-schedule__header {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 11px 8px;
+  border-bottom: 1px solid rgba(67, 63, 56, 0.09);
+}
+
+.atlas-safe-schedule__header > div { min-width: 0; }
+.atlas-safe-schedule__header small,
+.atlas-safe-schedule__header strong { display: block; }
+.atlas-safe-schedule__header small {
+  margin-bottom: 2px;
+  color: var(--ink-faint);
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.atlas-safe-schedule__header strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.atlas-safe-schedule__phase {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 5px;
+  color: var(--ink-soft);
+  font-size: 7.5px;
+  white-space: nowrap;
+}
+.atlas-safe-schedule__phase i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #9c978e;
+}
+.atlas-safe-schedule__phase.is-running i { background: var(--green); }
+.atlas-safe-schedule__phase.is-waiting_approval i { background: #a98357; }
+.atlas-safe-schedule__phase.is-completed i { background: #5f8a72; }
+.atlas-safe-schedule__phase.is-blocked i { background: var(--red); }
+
+.atlas-safe-schedule__summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 28px;
+  padding: 6px 11px;
+  border-bottom: 1px solid rgba(67, 63, 56, 0.07);
+  color: var(--ink-faint);
+  font-size: 7.5px;
+}
+.atlas-safe-schedule__summary strong {
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.atlas-safe-schedule__tasks {
+  display: grid;
+  max-height: 248px;
+  overflow: auto;
+  scrollbar-width: none;
+}
+.atlas-safe-schedule__tasks::-webkit-scrollbar { display: none; }
+
+.atlas-safe-task {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 9px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  min-height: 42px;
+  padding: 6px 10px 6px 8px;
+  border: 0;
+  border-bottom: 1px solid rgba(67, 63, 56, 0.06);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.atlas-safe-task:last-child { border-bottom: 0; }
+.atlas-safe-task:hover,
+.atlas-safe-task:focus-visible { background: rgba(255, 255, 255, 0.28); outline: none; }
+
+.atlas-safe-task__rail {
+  position: relative;
+  width: 9px;
+  align-self: stretch;
+}
+.atlas-safe-task__rail::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  bottom: -6px;
+  left: 4px;
+  width: 1px;
+  background: rgba(67, 63, 56, 0.09);
+}
+.atlas-safe-task__rail i {
+  position: absolute;
+  top: 50%;
+  left: 1px;
+  width: 7px;
+  height: 7px;
+  transform: translateY(-50%);
+  border: 1px solid rgba(67, 63, 56, 0.17);
+  border-radius: 50%;
+  background: #eee9dd;
+}
+.atlas-safe-task.is-moving .atlas-safe-task__rail i,
+.atlas-safe-task.is-working .atlas-safe-task__rail i { background: var(--green); border-color: var(--green-deep); }
+.atlas-safe-task.is-waiting_approval .atlas-safe-task__rail i { background: #b58d61; border-color: #9e754c; }
+.atlas-safe-task.is-blocked .atlas-safe-task__rail i { background: var(--red); border-color: #88574f; }
+
+.atlas-safe-task__body { min-width: 0; }
+.atlas-safe-task__body strong,
+.atlas-safe-task__body small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.atlas-safe-task__body strong { color: var(--ink); font-size: 8.5px; font-weight: 650; line-height: 1.25; }
+.atlas-safe-task__body small { margin-top: 2px; color: var(--ink-faint); font-size: 7px; }
+.atlas-safe-task__progress {
+  color: var(--ink-soft);
+  font-size: 7px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.atlas-safe-task.is-queued { opacity: 0.65; }
+
+.atlas-safe-resources {
+  padding: 8px 10px 9px;
+  border-top: 1px solid rgba(67, 63, 56, 0.08);
+  background: rgba(238, 234, 224, 0.27);
+}
+.atlas-safe-resources__title {
+  margin-bottom: 6px;
+  color: var(--ink-faint);
+  font-size: 6.5px;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+.atlas-safe-resources__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px 8px;
+}
+.atlas-safe-resource {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 7px minmax(0, 1fr);
+  align-items: center;
+  gap: 5px;
+}
+.atlas-safe-resource__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #8a867e;
+}
+.atlas-safe-resource__dot[data-side="user"] { background: #4b7fa6; }
+.atlas-safe-resource__dot[data-side="customer"] { background: #6d8eb6; }
+.atlas-safe-resource__dot[data-side="business"] { background: #c56f4a; }
+.atlas-safe-resource__dot[data-side="supplier"] { background: #698b5d; }
+.atlas-safe-resource__dot[data-side="operations"] { background: #9b7a45; }
+.atlas-safe-resource__dot[data-side="finance"] { background: #806b9c; }
+.atlas-safe-resource__dot[data-side="logistics"] { background: #b05e72; }
+.atlas-safe-resource__dot[data-side="support"] { background: #4e8e89; }
+.atlas-safe-resource__dot[data-side="quality"] { background: #8b7559; }
+.atlas-safe-resource__dot[data-side="market"] { background: #a06d93; }
+.atlas-safe-resource span:last-child { min-width: 0; }
+.atlas-safe-resource strong,
+.atlas-safe-resource small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.atlas-safe-resource strong { color: var(--ink-soft); font-size: 6.8px; font-weight: 650; }
+.atlas-safe-resource small { margin-top: 1px; color: var(--ink-faint); font-size: 6.2px; }
+
+@media (max-width: 700px) {
+  .atlas-safe-schedule {
+    top: max(76px, calc(env(safe-area-inset-top) + 76px));
+    right: max(10px, env(safe-area-inset-right));
+    width: min(272px, calc(100vw - 20px));
+  }
+  .atlas-safe-schedule__tasks { max-height: 174px; }
+  .atlas-safe-task { min-height: 38px; }
+  .atlas-safe-resources__grid { grid-template-columns: 1fr 1fr; }
+}
