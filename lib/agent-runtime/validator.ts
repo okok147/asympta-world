@@ -1,4 +1,4 @@
-import type { AgentDecision, AgentRuntimeContext } from "./types";
+import type { AgentDecision, AgentRuntimeContext } from "./types.ts";
 
 type ValidationResult =
   | { ok: true; decision: AgentDecision }

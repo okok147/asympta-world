@@ -1,5 +1,5 @@
-import { ATLAS_AGENTS, type StakeholderSide } from "../atlas-simulation";
-import type { AgentProfile, AgentRuntimeAction } from "./types";
+import { ATLAS_AGENTS, type StakeholderSide } from "../atlas-simulation.ts";
+import type { AgentProfile, AgentRuntimeAction } from "./types.ts";
 
 const GOALS: Record<StakeholderSide, readonly string[]> = {
   user: ["Preserve the user's intent", "Reduce unnecessary coordination burden", "Escalate consequential choices to the human"],

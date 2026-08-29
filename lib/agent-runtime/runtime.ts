@@ -1,9 +1,9 @@
-import type { AtlasWorldState } from "../atlas-simulation";
-import { buildAgentContext } from "./context";
-import { createDeterministicAgentProvider } from "./provider";
-import { decisionSchemaForContext } from "./schema";
-import type { AgentDecision, AgentProvider, AgentTurnResult } from "./types";
-import { validateAgentDecision } from "./validator";
+import type { AtlasWorldState } from "../atlas-simulation.ts";
+import { buildAgentContext } from "./context.ts";
+import { createDeterministicAgentProvider } from "./provider.ts";
+import { decisionSchemaForContext } from "./schema.ts";
+import type { AgentDecision, AgentProvider, AgentTurnResult } from "./types.ts";
+import { validateAgentDecision } from "./validator.ts";
 
 const SAFETY_INSTRUCTIONS = [
   "Return exactly one decision matching the supplied JSON Schema.",

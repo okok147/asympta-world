@@ -1,6 +1,6 @@
-import type { AtlasTaskState, AtlasWorldState } from "../atlas-simulation";
-import { profileForAgent } from "./profiles";
-import type { AgentContextTask, AgentRuntimeContext } from "./types";
+import type { AtlasTaskState, AtlasWorldState } from "../atlas-simulation.ts";
+import { profileForAgent } from "./profiles.ts";
+import type { AgentContextTask, AgentRuntimeContext } from "./types.ts";
 
 const ACTIVE_STATUS_ORDER: Record<AtlasTaskState["status"], number> = {
   waiting_approval: 0,

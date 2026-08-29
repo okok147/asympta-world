@@ -5,7 +5,7 @@ import type {
   StakeholderSide,
   WorkflowId,
   WorldPhase,
-} from "../atlas-simulation";
+} from "../atlas-simulation.ts";
 
 export type AgentRuntimeMode = "deterministic" | "ai";
 export type AgentRuntimeAction = "send_message" | "request_tool" | "complete_task" | "wait" | "delegate";

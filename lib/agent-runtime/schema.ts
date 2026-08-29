@@ -1,4 +1,4 @@
-import type { AgentRuntimeContext } from "./types";
+import type { AgentRuntimeContext } from "./types.ts";
 
 export function decisionSchemaForContext(context: AgentRuntimeContext): Record<string, unknown> {
   const participantIds = context.participants.map((participant) => participant.id).filter((id) => id !== context.agent.id);

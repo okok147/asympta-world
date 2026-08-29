@@ -1,4 +1,4 @@
-import type { AgentInferenceRequest, AgentProvider } from "./types";
+import type { AgentInferenceRequest, AgentProvider } from "./types.ts";
 
 export function createDeterministicAgentProvider(): AgentProvider {
   return {
