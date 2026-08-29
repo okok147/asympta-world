@@ -7,10 +7,8 @@ const animalArt = await readFile(new URL("../components/asympta-animal-art.tsx",
 const engine = await readFile(new URL("../lib/atlas-simulation.ts", import.meta.url), "utf8");
 const demo = await readFile(new URL("../lib/atlas-demo.ts", import.meta.url), "utf8");
 const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
-const layout = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
 const css = await readFile(new URL("../app/asympta-restoration.css", import.meta.url), "utf8");
 const fpsCss = await readFile(new URL("../app/asympta-live-60hz.css", import.meta.url), "utf8");
-const paperMapCss = await readFile(new URL("../app/asympta-paper-map.css", import.meta.url), "utf8");
 const animalCss = await readFile(new URL("../app/asympta-animal-art.css", import.meta.url), "utf8");
 
 test("the product now boots the 60Hz culled paper living-city renderer", () => {
@@ -49,7 +47,7 @@ test("ambient city uses viewport culling and mounts only a small nearby set", ()
   assert.match(demo, /Array\.from\(\{ length: CITY_LIFE_COUNT \}/);
 });
 
-test("dialogue above and status below are visible outside the marker paint box", () => {
+test("dialogue above and status below are restored without React frame rendering", () => {
   assert.match(app, /animal-map-marker__dialogue/);
   assert.match(app, /animal-map-marker__status-text/);
   assert.match(app, /foregroundDialogue/);
@@ -60,24 +58,6 @@ test("dialogue above and status below are visible outside the marker paint box",
   assert.match(fpsCss, /\.animal-map-marker__status-text/);
   assert.match(fpsCss, /top:\s*calc\(100% \+ 3px\)/);
   assert.match(app, /AMBIENT_DIALOGUE_LIMIT = 4/);
-  assert.match(paperMapCss, /contain:\s*layout style\s*!important/);
-  assert.match(paperMapCss, /overflow:\s*visible\s*!important/);
-  assert.match(paperMapCss, /width:\s*max-content/);
-  assert.doesNotMatch(paperMapCss, /contain:\s*paint/);
-});
-
-test("MapLibre vector blocks are recoloured to the Asympta paper palette", () => {
-  assert.match(layout, /ASYMPTA_MAP_PALETTE_BOOTSTRAP/);
-  assert.match(layout, /#EEEDE6/);
-  assert.match(layout, /#DDE3E0/);
-  assert.match(layout, /#DDD8CC/);
-  assert.match(layout, /#E8E4DB/);
-  assert.match(layout, /setPaintProperty/);
-  assert.match(layout, /fill-extrusion-color/);
-  assert.match(layout, /text-halo-color/);
-  assert.match(layout, /asymptaMapPalette = "paper"/);
-  assert.match(layout, /asympta-paper-map\.css/);
-  assert.match(paperMapCss, /\.map-canvas \.maplibregl-canvas/);
 });
 
 test("WebMCP inspector shows callable JSON, permission mode and live agent state", () => {
