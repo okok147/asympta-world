@@ -31,7 +31,7 @@ test("activity blocks stay bounded and off the animation loop", () => {
   assert.doesNotMatch(activity, /requestAnimationFrame|MutationObserver|setState|advanceAtlasWorld/);
 });
 
-test("paper map tone is one-shot bounded styling and preserves activity colours", () => {
+test("paper map keeps essential routes while removing expensive visual noise", () => {
   assert.match(page, /AsymptaPaperMapTone/);
   assert.match(paperTone, /#EEEDE6/);
   assert.match(paperTone, /#DDE3E0/);
@@ -39,7 +39,16 @@ test("paper map tone is one-shot bounded styling and preserves activity colours"
   assert.match(paperTone, /#E8E4DB/);
   assert.match(paperTone, /#E3E7DD/);
   assert.match(paperTone, /MAX_ATTEMPTS = 24/);
-  assert.match(paperTone, /startsWith\("asympta-activity-blocks"\)/);
+  assert.match(paperTone, /MAX_MAP_PIXEL_RATIO = 2/);
+  assert.match(paperTone, /setPixelRatio/);
+  assert.match(paperTone, /setLayoutProperty/);
+  assert.match(paperTone, /fill-extrusion/);
+  assert.match(paperTone, /NOISY_SYMBOL/);
+  assert.match(paperTone, /MINOR_ROUTE/);
+  assert.match(paperTone, /id === "city-life-routes"/);
+  assert.match(paperTone, /id\.startsWith\("atlas-"\)/);
+  assert.match(paperTone, /id\.startsWith\("asympta-"\)/);
+  assert.match(paperTone, /dataset\.asymptaMapDetail = "essential"/);
   assert.match(paperTone, /clearInterval/);
   assert.doesNotMatch(paperTone, /requestAnimationFrame|MutationObserver|setState|advanceAtlasWorld/);
 });
