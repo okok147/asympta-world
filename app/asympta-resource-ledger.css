@@ -1,0 +1,53 @@
+.atlas-resource-ledger {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+  padding-top: 3px;
+}
+
+.atlas-resource-chip {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+  padding: 5px 6px;
+  border: 1px solid rgba(67, 63, 56, 0.075);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.2);
+}
+.atlas-resource-chip span,
+.atlas-resource-chip strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.atlas-resource-chip span {
+  color: var(--ink-faint);
+  font-size: 6.2px;
+  line-height: 1.1;
+}
+.atlas-resource-chip strong {
+  color: var(--ink-soft);
+  font-size: 8px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+.atlas-resource-chip[data-resource="budget"] strong { color: #6f664f; }
+.atlas-resource-chip[data-resource="materials"] strong { color: #698b5d; }
+.atlas-resource-chip[data-resource="inventory"] strong { color: #8b7559; }
+.atlas-resource-chip[data-resource="capacity"] strong { color: #9b7a45; }
+.atlas-resource-chip[data-resource="compute"] strong { color: #806b9c; }
+.atlas-resource-chip[data-resource="delivery"] strong { color: #b05e72; }
+.atlas-resource-chip[data-resource="trust"] strong { color: #4e8e89; }
+
+@media (max-width: 700px) {
+  .atlas-resource-ledger {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+  }
+  .atlas-resource-chip {
+    padding: 4px 5px;
+  }
+  .atlas-resource-chip span { font-size: 5.8px; }
+  .atlas-resource-chip strong { font-size: 7.5px; }
+}
