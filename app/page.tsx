@@ -1,3 +1,4 @@
+import { AsymptaAgentCardLocale } from "@/components/asympta-agent-card-locale";
 import { AsymptaBlockActivity } from "@/components/asympta-block-activity";
 import { AsymptaPaperMapTone } from "@/components/asympta-paper-map-tone";
 import { AsymptaSafeSchedule } from "@/components/asympta-safe-schedule";
@@ -10,6 +11,7 @@ export default function HomePage() {
       <AsymptaPaperMapTone />
       <AsymptaBlockActivity />
       <AsymptaSafeSchedule />
+      <AsymptaAgentCardLocale />
     </>
   );
 }
