@@ -6,6 +6,7 @@ import "./asympta-live-60hz.css";
 import "./asympta-paper-map.css";
 import "./asympta-scheduler-overlay.css";
 import "./asympta-schedule-follow.css";
+import "./asympta-demo-controls.css";
 
 export const metadata: Metadata = {
   title: "Asympta World",
