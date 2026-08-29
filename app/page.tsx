@@ -1,6 +1,7 @@
 import { AsymptaAgentCardLocale } from "@/components/asympta-agent-card-locale";
 import { AsymptaBlockActivity } from "@/components/asympta-block-activity";
 import { AsymptaEstimatedProgress } from "@/components/asympta-estimated-progress";
+import { AsymptaGlobalLocale } from "@/components/asympta-global-locale";
 import { AsymptaPaperMapTone } from "@/components/asympta-paper-map-tone";
 import { AsymptaSafeSchedule } from "@/components/asympta-safe-schedule";
 import { AsymptaScheduleAutomationControls } from "@/components/asympta-schedule-automation-controls";
@@ -16,6 +17,7 @@ export default function HomePage() {
       <AsymptaScheduleAutomationControls />
       <AsymptaEstimatedProgress />
       <AsymptaAgentCardLocale />
+      <AsymptaGlobalLocale />
     </>
   );
 }
