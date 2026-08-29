@@ -13,17 +13,19 @@ async function renderRoot() {
   return { response, html: await response.text() };
 }
 
-test("server render exposes the real map visualizer surface", async () => {
+test("server render exposes the paper atlas map-first surface", async () => {
   const { response, html } = await renderRoot();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   assert.match(html, /data-map-app="true"/);
-  assert.match(html, /data-map-style="real-map-visualizer"/);
-  assert.match(html, /Interactive real-world map visualizer/);
+  assert.match(html, /data-map-style="paper-capital-atlas"/);
+  assert.match(html, /Interactive paper-textured real-world street map visualizer/);
+  assert.match(html, /Activity Atlas/);
   assert.match(html, /Visualizer filters/);
   assert.match(html, /Zoom in/);
   assert.match(html, /Zoom out/);
   assert.match(html, /Recenter map/);
+  assert.match(html, /Drawing streets/);
   assert.doesNotMatch(html, /Interactive pixel city map/);
   assert.doesNotMatch(html, /tokyo-vector/);
 });
