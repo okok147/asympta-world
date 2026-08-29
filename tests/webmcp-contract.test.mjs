@@ -12,9 +12,11 @@ import {
 
 test("WebMCP manifest exposes one unique challenge tool surface", () => {
   assert.equal(ASYMPTA_WEBMCP_CORE_TOOL_NAMES.length, 5);
-  assert.equal(ASYMPTA_WEBMCP_AUXILIARY_TOOL_NAMES.length, 3);
-  assert.equal(ASYMPTA_WEBMCP_TOOL_NAMES.length, 8);
+  assert.equal(ASYMPTA_WEBMCP_AUXILIARY_TOOL_NAMES.length, 5);
+  assert.equal(ASYMPTA_WEBMCP_TOOL_NAMES.length, 10);
   assert.equal(new Set(ASYMPTA_WEBMCP_TOOL_NAMES).size, ASYMPTA_WEBMCP_TOOL_NAMES.length);
+  assert.ok(ASYMPTA_WEBMCP_TOOL_NAMES.includes("asympta_send_agent_message"));
+  assert.ok(ASYMPTA_WEBMCP_TOOL_NAMES.includes("asympta_list_agent_messages"));
 });
 
 test("WebMCP manifest preserves the human approval boundary", () => {
@@ -24,6 +26,7 @@ test("WebMCP manifest preserves the human approval boundary", () => {
   assert.equal(ASYMPTA_WEBMCP_MANIFEST.safety.consequentialRequestsRequireHumanApproval, true);
   assert.equal(ASYMPTA_WEBMCP_MANIFEST.safety.workflowStartsRequestedByWebMcpRequireHumanApproval, true);
   assert.equal(ASYMPTA_WEBMCP_MANIFEST.safety.approvalResolutionExposedAsWebMcpTool, false);
+  assert.match(ASYMPTA_WEBMCP_MANIFEST.participationBridge.principle, /Natural language for people/);
   assert.ok(!ASYMPTA_WEBMCP_TOOL_NAMES.some((name) => /approve|resolve_approval|decline/.test(name)));
 });
 
