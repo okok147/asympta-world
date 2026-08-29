@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { AnimalPortrait, animalSvgMarkup } from "@/components/asympta-animal-art";
 import {
   ATLAS_AGENTS,
   ATLAS_LOCATIONS,
@@ -127,31 +128,7 @@ const SIDE_LABELS: Record<StakeholderSide, string> = {
   market: "Market",
 };
 
-const ANIMALS_BY_SIDE: Record<StakeholderSide, string[]> = {
-  user: ["🐱", "🐰", "🐹"],
-  customer: ["🐶", "🐰", "🐱"],
-  business: ["🦊", "🐻", "🐯"],
-  supplier: ["🐻", "🐼", "🐮"],
-  operations: ["🦝", "🐨", "🐵"],
-  finance: ["🐼", "🦉", "🐧"],
-  logistics: ["🐶", "🐧", "🦊"],
-  support: ["🐨", "🐰", "🐶"],
-  quality: ["🦉", "🦝", "🐼"],
-  market: ["🐦", "🦊", "🐱"],
-};
-
 let mapLibrePromise: Promise<MapLibreNamespace> | null = null;
-
-function stableHash(value: string) {
-  let result = 0;
-  for (const character of value) result = (result * 31 + character.charCodeAt(0)) >>> 0;
-  return result;
-}
-
-function animalFor(id: string, side: StakeholderSide) {
-  const options = ANIMALS_BY_SIDE[side];
-  return options[stableHash(id) % options.length];
-}
 
 function workflowIcon(id: WorkflowId) {
   if (id === "custom-order") return <ShoppingCart size={18} strokeWidth={1.75} />;
@@ -324,7 +301,7 @@ function createAnimalMarkerElement(
 
   const face = document.createElement("span");
   face.className = "animal-map-marker__face";
-  face.textContent = animalFor(id, side);
+  face.innerHTML = animalSvgMarkup(id, side);
   element.appendChild(face);
 
   const status = document.createElement("span");
@@ -360,7 +337,6 @@ function phaseLabel(world: AtlasWorldState) {
 export function AsymptaWorldLiveDemo() {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
-  const mapLibreRef = useRef<MapLibreNamespace | null>(null);
   const foregroundMarkersRef = useRef(new Map<string, MapLibreMarker>());
   const cityMarkersRef = useRef(new Map<string, MapLibreMarker>());
   const [world, setWorld] = useState<AtlasWorldState>(() => createAtlasDemoWorld());
@@ -463,7 +439,6 @@ export function AsymptaWorldLiveDemo() {
     loadMapLibre()
       .then((maplibre) => {
         if (disposed || !mapContainerRef.current) return;
-        mapLibreRef.current = maplibre;
         const map = new maplibre.Map({
           container: mapContainerRef.current,
           style: OPENFREEMAP_STYLE,
@@ -503,7 +478,6 @@ export function AsymptaWorldLiveDemo() {
       cityMarkersRef.current.clear();
       mapRef.current?.remove();
       mapRef.current = null;
-      mapLibreRef.current = null;
     };
   }, [mountAnimalMarkers, syncAnimalMarkers]);
 
@@ -644,10 +618,11 @@ export function AsymptaWorldLiveDemo() {
   const ambient = cityLifeSnapshot(world.now);
   const movingAmbient = ambient.filter((actor) => actor.status === "moving").length;
   const recenter = () => mapRef.current?.flyTo({ center: TOKYO_CENTER, zoom: TOKYO_ZOOM, bearing: 0, pitch: 0, duration: 650, essential: true });
+  const phaseAgent = selectedAgent ?? world.agents.find((agent) => agent.status === "moving") ?? world.agents[0];
 
   return (
-    <main className="map-app" data-map-app="true" data-map-style="paper-animal-living-city-demo">
-      <div ref={mapContainerRef} className="map-canvas" role="application" aria-label="Interactive paper map with cute animal stakeholder agents and simulated city activity" />
+    <main className="map-app" data-map-app="true" data-map-style="paper-illustrated-animal-living-city-demo">
+      <div ref={mapContainerRef} className="map-canvas" role="application" aria-label="Interactive paper map with illustrated animal stakeholder agents and simulated city activity" />
       <div className="map-paper-wash" aria-hidden="true" />
       <div className="map-paper-grain" aria-hidden="true" />
 
@@ -660,7 +635,7 @@ export function AsymptaWorldLiveDemo() {
           <div className={`atlas-phase atlas-phase--${world.phase}`}>
             <span className="atlas-phase__dot" />
             <span>{phaseLabel(world)}</span>
-            <span className="atlas-phase__animal">{selectedAgent ? animalFor(selectedAgent.id, selectedAgent.side) : "🐱"}</span>
+            {phaseAgent ? <AnimalPortrait id={phaseAgent.id} side={phaseAgent.side} className="atlas-phase__animal" /> : null}
           </div>
         </div>
 
@@ -698,7 +673,7 @@ export function AsymptaWorldLiveDemo() {
       {selectedAgent && !pendingApproval ? (
         <aside className="atlas-agent-card" aria-live="polite">
           <div className="atlas-agent-card__top">
-            <span className="atlas-agent-avatar" style={{ borderColor: SIDE_COLORS[selectedAgent.side] }}>{animalFor(selectedAgent.id, selectedAgent.side)}</span>
+            <AnimalPortrait id={selectedAgent.id} side={selectedAgent.side} className="atlas-agent-avatar" />
             <div><strong>{selectedAgent.name}</strong><small>{selectedAgent.role} · {selectedAgent.organisation}</small></div>
             <button type="button" className="atlas-card-close" aria-label="Close agent" onClick={() => { setSelectedAgentId(null); setCameraFollow(false); }}>×</button>
           </div>
@@ -713,9 +688,11 @@ export function AsymptaWorldLiveDemo() {
         <aside className={`atlas-approval${pendingApproval.source === "webmcp" ? " atlas-approval--webmcp" : ""}`} aria-live="assertive">
           <div className="atlas-sheet-handle" aria-hidden="true" />
           <div className="atlas-approval__body">
-            <div className="atlas-approval__avatar" style={{ borderColor: approvalAgent ? SIDE_COLORS[approvalAgent.side] : SIDE_COLORS.supplier }}>
-              {approvalAgent ? animalFor(approvalAgent.id, approvalAgent.side) : "🦊"}
-            </div>
+            {approvalAgent ? (
+              <AnimalPortrait id={approvalAgent.id} side={approvalAgent.side} className="atlas-approval__avatar" />
+            ) : (
+              <AnimalPortrait id="approval-supplier" side="supplier" className="atlas-approval__avatar" />
+            )}
             <div className="atlas-approval__copy">
               <div className="atlas-approval__eyebrow">{pendingApproval.source === "webmcp" ? "WEBMCP REQUEST" : "HUMAN CHECKPOINT"}</div>
               <strong>{pendingApproval.title}</strong>
