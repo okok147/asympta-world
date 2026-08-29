@@ -52,12 +52,12 @@ function clamp(value: number, min: number, max: number) {
 }
 
 function rounded(value: number) {
-  return Math.max(0, Math.round(value));
+  return Math.round(value);
 }
 
 function plan(parts: Partial<EconomyBreakdown>): EconomyPlan {
   const breakdown: EconomyBreakdown = { ...EMPTY };
-  for (const key of Object.keys(breakdown) as EconomyCategory[]) breakdown[key] = rounded(parts[key] ?? 0);
+  for (const key of Object.keys(breakdown) as EconomyCategory[]) breakdown[key] = Math.max(0, rounded(parts[key] ?? 0));
   return { total: Object.values(breakdown).reduce((sum, value) => sum + value, 0), breakdown };
 }
 
@@ -83,8 +83,8 @@ export function workflowTaskCostPlan(task: Pick<WorkflowCostTask, "id" | "title"
   const side = task.agentSide ?? "operations";
   const agent = SIDE_AGENT_COST[side] ?? 45;
 
-  // These are synthetic JPY-scale costs. They intentionally model different real-world
-  // cost drivers rather than charging one flat amount for every agent action.
+  // Synthetic JPY-scale costs model distinct real-world cost drivers instead of
+  // charging one arbitrary flat amount to every agent action.
   const compute = agent + keywordAmount(text, /(model|estimate|verify|quality|screen|review|plan|triage|analyse|analy)/, 38);
   const travel = 22 + (side === "logistics" ? 65 : side === "supplier" || side === "business" ? 34 : 18);
   const materials =
@@ -103,15 +103,45 @@ export function workflowTaskCostPlan(task: Pick<WorkflowCostTask, "id" | "title"
   return plan({ agent, compute, travel, materials, logistics, platform, holding, rework });
 }
 
-export function workflowTaskAccrualFraction(task: Pick<WorkflowCostTask, "status" | "progress" | "travelProgress">) {
-  if (task.status === "done") return 1;
-  if (task.status === "queued" || task.status === "blocked") return 0;
+export function workflowTaskAccruedEconomy(task: WorkflowCostTask) {
+  const full = workflowTaskCostPlan(task);
   const work = clamp(Number.isFinite(task.progress) ? task.progress : 0, 0, 1);
-  const travel = clamp(Number.isFinite(task.travelProgress) ? Number(task.travelProgress) : 0, 0, 1);
-  if (task.status === "moving") return travel * 0.18;
-  if (task.status === "waiting_approval") return 0.18;
-  if (task.status === "working") return 0.18 + work * 0.82;
-  return 0;
+  const travelProgress = clamp(Number.isFinite(task.travelProgress) ? Number(task.travelProgress) : 0, 0, 1);
+  const factors: EconomyBreakdown = { ...EMPTY };
+
+  if (task.status === "done") {
+    for (const key of Object.keys(factors) as EconomyCategory[]) factors[key] = 1;
+  } else if (task.status === "moving") {
+    // Routing/travel burns while movement happens. Materials and transaction fees
+    // wait until the actual work stage instead of being charged prematurely.
+    factors.travel = travelProgress;
+    factors.agent = travelProgress * 0.18;
+    factors.compute = travelProgress * 0.08;
+  } else if (task.status === "waiting_approval") {
+    factors.travel = 1;
+    factors.agent = 0.22;
+    factors.compute = 0.12;
+    factors.holding = 0.18;
+  } else if (task.status === "working") {
+    factors.travel = 1;
+    factors.agent = 0.18 + work * 0.82;
+    factors.compute = 0.08 + work * 0.92;
+    factors.materials = work;
+    factors.logistics = work;
+    factors.platform = work;
+    factors.holding = 0.18 + work * 0.82;
+    factors.rework = work;
+  }
+
+  const breakdown: EconomyBreakdown = { ...EMPTY };
+  for (const key of Object.keys(breakdown) as EconomyCategory[]) {
+    breakdown[key] = Math.max(0, rounded(full.breakdown[key] * factors[key]));
+  }
+  return {
+    accrued: Object.values(breakdown).reduce((sum, value) => sum + value, 0),
+    projected: full.total,
+    breakdown,
+  };
 }
 
 export function workflowAccruedEconomy(tasks: WorkflowCostTask[]) {
@@ -120,22 +150,15 @@ export function workflowAccruedEconomy(tasks: WorkflowCostTask[]) {
   let accrued = 0;
 
   for (const task of tasks) {
-    const taskPlan = workflowTaskCostPlan(task);
-    const fraction = workflowTaskAccrualFraction(task);
-    projected += taskPlan.total;
-    accrued += taskPlan.total * fraction;
+    const taskEconomy = workflowTaskAccruedEconomy(task);
+    projected += taskEconomy.projected;
+    accrued += taskEconomy.accrued;
     for (const key of Object.keys(breakdown) as EconomyCategory[]) {
-      breakdown[key] += taskPlan.breakdown[key] * fraction;
+      breakdown[key] += taskEconomy.breakdown[key];
     }
   }
 
-  const roundedBreakdown = { ...breakdown };
-  for (const key of Object.keys(roundedBreakdown) as EconomyCategory[]) roundedBreakdown[key] = rounded(roundedBreakdown[key]);
-  return {
-    accrued: rounded(accrued),
-    projected: rounded(projected),
-    breakdown: roundedBreakdown,
-  };
+  return { accrued, projected, breakdown };
 }
 
 export function jobStageCostPlan(stage: JobCostStage, opportunity: JobCostOpportunity): EconomyPlan {
@@ -158,8 +181,8 @@ export function jobStageCostPlan(stage: JobCostStage, opportunity: JobCostOpport
     materials = 45 + difficulty * 24;
   }
   if (stage.id === "human") {
-    // Out-of-pocket execution cost: tools, commute, consumables, connectivity.
-    // Human time itself is not deducted from cash balance as if it were a payment.
+    // Out-of-pocket execution costs: tools, commute, consumables, connectivity.
+    // Human time is deliberately not treated as a cash payment to oneself.
     materials = Math.round(reward * (0.018 + difficulty * 0.004));
     logistics = 35 + difficulty * 18;
     rework = Math.round(reward * difficulty * 0.0025);
@@ -178,7 +201,7 @@ export function jobProjectedEconomy(stages: JobCostStage[], opportunity: JobCost
     total += stagePlan.total;
     for (const key of Object.keys(breakdown) as EconomyCategory[]) breakdown[key] += stagePlan.breakdown[key];
   }
-  return { total: rounded(total), breakdown };
+  return { total, breakdown };
 }
 
 export function jobAccruedExpense(
@@ -196,8 +219,8 @@ export function jobAccruedExpense(
     total += stagePlan.total * fraction;
     for (const key of Object.keys(breakdown) as EconomyCategory[]) breakdown[key] += stagePlan.breakdown[key] * fraction;
   });
-  for (const key of Object.keys(breakdown) as EconomyCategory[]) breakdown[key] = rounded(breakdown[key]);
-  return { total: rounded(total), breakdown };
+  for (const key of Object.keys(breakdown) as EconomyCategory[]) breakdown[key] = Math.max(0, rounded(breakdown[key]));
+  return { total: Math.max(0, rounded(total)), breakdown };
 }
 
 export function dominantEconomyCost(breakdown: EconomyBreakdown) {
