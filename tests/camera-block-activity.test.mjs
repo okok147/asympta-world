@@ -18,12 +18,16 @@ test("camera follow survives zoom while real drag still unlocks", () => {
   assert.match(layout, /__ASYMPTA_MAP__/);
 });
 
-test("activity blocks stay bounded and off the animation loop", () => {
+test("activity blocks stay small, bounded and off the animation loop", () => {
   assert.match(page, /AsymptaBlockActivity/);
   assert.match(activity, /ACTIVITY_REFRESH_MS = 900/);
-  assert.match(activity, /MAX_ACTIVE_AGENTS = 4/);
-  assert.match(activity, /MAX_BLOCKS_PER_AGENT = 4/);
-  assert.match(activity, /MAX_ACTIVITY_BLOCKS = 28/);
+  assert.match(activity, /QUERY_RADIUS_PX = 10/);
+  assert.match(activity, /MAX_ACTIVE_AGENTS = 3/);
+  assert.match(activity, /MAX_BLOCKS_PER_AGENT = 2/);
+  assert.match(activity, /MAX_ACTIVITY_BLOCKS = 10/);
+  assert.match(activity, /MAX_BLOCK_SPAN_DEGREES = 0\.0012/);
+  assert.match(activity, /MAX_OPACITY = 0\.32/);
+  assert.match(activity, /geometryFitsBudget/);
   assert.match(activity, /ACTIVITY_HOLD_MS = 2_600/);
   assert.match(activity, /ACTIVITY_FADE_MS = 15_000/);
   assert.match(activity, /queryRenderedFeatures/);
