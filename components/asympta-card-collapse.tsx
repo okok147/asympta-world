@@ -7,11 +7,18 @@ type DemoSnapshot = { foreground?: { tasks?: TaskSnapshot[] } };
 
 const COLLAPSE_SYNC_MS = 320;
 const AGENT_AUTO_COLLAPSE_MS = 5_500;
+const MOBILE_MAX_WIDTH = 700;
+const PANEL_GAP_PX = 10;
+const BOTTOM_UI_RESERVE_PX = 92;
 
 function setExpanded(node: HTMLElement, expanded: boolean) {
   node.classList.toggle("is-collapsed", !expanded);
   node.dataset.asymptaExpanded = expanded ? "true" : "false";
   node.setAttribute("aria-expanded", expanded ? "true" : "false");
+}
+
+function isMobile() {
+  return window.matchMedia(`(max-width: ${MOBILE_MAX_WIDTH}px)`).matches;
 }
 
 function selectedAgentId() {
@@ -26,6 +33,16 @@ function activeTaskKey(agentId: string | null) {
   return task ? `${agentId}:${task.id}:${task.status}` : `${agentId}:idle`;
 }
 
+function menuIsOpen() {
+  return document.querySelector<HTMLElement>(".atlas-console")?.classList.contains("is-open") ?? false;
+}
+
+function setMenuOpen(open: boolean) {
+  const menu = document.querySelector<HTMLElement>(".atlas-console");
+  if (!menu || menu.classList.contains("is-open") === open) return;
+  menu.querySelector<HTMLButtonElement>(".atlas-menu-identity")?.click();
+}
+
 export function AsymptaCardCollapse() {
   useEffect(() => {
     let scheduleInitialized = false;
@@ -33,6 +50,43 @@ export function AsymptaCardCollapse() {
     let lastAgentId: string | null = null;
     let lastTaskKey = "";
     let lastAgentInteractionAt = performance.now();
+
+    const positionMobileSchedule = () => {
+      const schedule = document.querySelector<HTMLElement>(".atlas-safe-schedule");
+      const menu = document.querySelector<HTMLElement>(".atlas-console");
+      if (!schedule) return;
+
+      if (!isMobile()) {
+        schedule.removeAttribute("data-asympta-mobile-dock");
+        schedule.style.removeProperty("--asympta-mobile-schedule-top");
+        delete document.documentElement.dataset.asymptaMobilePanels;
+        return;
+      }
+
+      if (!menu || !menu.classList.contains("is-open")) {
+        schedule.dataset.asymptaMobileDock = "top";
+        schedule.style.removeProperty("--asympta-mobile-schedule-top");
+        document.documentElement.dataset.asymptaMobilePanels = "schedule-top";
+        return;
+      }
+
+      // The menu owns the upper viewport while expanded. Keep the compact Schedule card
+      // completely outside it: below when space allows, otherwise dock at the bottom.
+      const menuRect = menu.getBoundingClientRect();
+      const scheduleHeight = Math.max(72, schedule.getBoundingClientRect().height);
+      const desiredTop = Math.ceil(menuRect.bottom + PANEL_GAP_PX);
+      const availableBottom = window.innerHeight - BOTTOM_UI_RESERVE_PX;
+
+      if (desiredTop + scheduleHeight <= availableBottom) {
+        schedule.dataset.asymptaMobileDock = "below-menu";
+        schedule.style.setProperty("--asympta-mobile-schedule-top", `${desiredTop}px`);
+        document.documentElement.dataset.asymptaMobilePanels = "schedule-below-menu";
+      } else {
+        schedule.dataset.asymptaMobileDock = "bottom";
+        schedule.style.removeProperty("--asympta-mobile-schedule-top");
+        document.documentElement.dataset.asymptaMobilePanels = "schedule-bottom";
+      }
+    };
 
     const applySchedule = (expanded: boolean) => {
       const card = document.querySelector<HTMLElement>(".atlas-safe-schedule");
@@ -45,6 +99,17 @@ export function AsymptaCardCollapse() {
         header.setAttribute("role", "button");
         header.tabIndex = 0;
         header.setAttribute("aria-expanded", expanded ? "true" : "false");
+      }
+
+      // On narrow screens there is only one expanded top panel at a time. This avoids
+      // the Schedule and coordination menu covering each other on Safari/Chrome/Brave.
+      if (isMobile() && expanded && menuIsOpen()) {
+        window.setTimeout(() => {
+          setMenuOpen(false);
+          window.setTimeout(positionMobileSchedule, 0);
+        }, 0);
+      } else {
+        window.setTimeout(positionMobileSchedule, 0);
       }
     };
 
@@ -76,9 +141,13 @@ export function AsymptaCardCollapse() {
       const schedule = document.querySelector<HTMLElement>(".atlas-safe-schedule");
       if (schedule && !scheduleInitialized) {
         scheduleInitialized = true;
-        const mobile = window.matchMedia("(max-width: 700px)").matches;
-        applySchedule(!mobile);
+        applySchedule(!isMobile());
       }
+
+      // If the main menu becomes open through React, keyboard input, or the default guide,
+      // immediately compact Schedule before measuring its adaptive position.
+      if (isMobile() && menuIsOpen() && scheduleExpanded) applySchedule(false);
+      positionMobileSchedule();
 
       const card = document.querySelector<HTMLElement>(".atlas-agent-card");
       if (!card) {
@@ -112,6 +181,14 @@ export function AsymptaCardCollapse() {
       if (target.closest(".atlas-safe-schedule__header")) {
         applySchedule(!scheduleExpanded);
         return;
+      }
+
+      const menuToggle = target.closest(".atlas-menu-identity, .atlas-menu-bar > .atlas-quick-icon:last-child");
+      if (menuToggle && isMobile()) {
+        window.setTimeout(() => {
+          if (menuIsOpen()) applySchedule(false);
+          positionMobileSchedule();
+        }, 0);
       }
 
       const marker = target.closest(".animal-map-marker--foreground");
@@ -151,17 +228,26 @@ export function AsymptaCardCollapse() {
       }
     };
 
+    const onViewportChange = () => window.setTimeout(positionMobileSchedule, 0);
+
     sync();
     const timer = window.setInterval(sync, COLLAPSE_SYNC_MS);
     document.addEventListener("click", onClick);
     document.addEventListener("pointerdown", onPointerDown, { passive: true });
     document.addEventListener("keydown", onKeyDown);
+    window.addEventListener("resize", onViewportChange, { passive: true });
+    window.addEventListener("orientationchange", onViewportChange, { passive: true });
+    window.visualViewport?.addEventListener("resize", onViewportChange, { passive: true });
 
     return () => {
       window.clearInterval(timer);
       document.removeEventListener("click", onClick);
       document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("resize", onViewportChange);
+      window.removeEventListener("orientationchange", onViewportChange);
+      window.visualViewport?.removeEventListener("resize", onViewportChange);
+      delete document.documentElement.dataset.asymptaMobilePanels;
     };
   }, []);
 
