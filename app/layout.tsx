@@ -4,6 +4,7 @@ import "./asympta-restoration.css";
 import "./asympta-animal-art.css";
 import "./asympta-live-60hz.css";
 import "./asympta-paper-map.css";
+import "./asympta-scheduler-overlay.css";
 
 export const metadata: Metadata = {
   title: "Asympta World",
@@ -40,6 +41,25 @@ const ASYMPTA_MAP_PALETTE_BOOTSTRAP = `(() => {
     try { map.setPaintProperty(id, property, value); } catch {}
   };
 
+  const applyLanguage = (map) => {
+    try {
+      const lang = String(document.documentElement.lang || "en").toLowerCase();
+      const expression = lang.startsWith("zh")
+        ? ["coalesce", ["get", "name:zh-Hant"], ["get", "name:zh"], ["get", "name:en"], ["get", "name"]]
+        : lang.startsWith("ja")
+          ? ["coalesce", ["get", "name:ja"], ["get", "name"], ["get", "name:en"]]
+          : ["coalesce", ["get", "name:en"], ["get", "name:latin"], ["get", "name"]];
+      const layers = map.getStyle()?.layers ?? [];
+      for (const layer of layers) {
+        if (layer.type !== "symbol" || !layer.layout?.["text-field"]) continue;
+        const key = String(layer.id ?? "").toLowerCase();
+        if (!/label|place|road|street|poi|water|airport|station|transit|city|town/.test(key)) continue;
+        try { map.setLayoutProperty(layer.id, "text-field", expression); } catch {}
+      }
+      document.documentElement.dataset.asymptaMapLanguage = lang.startsWith("zh") ? "zh-Hant" : lang.startsWith("ja") ? "ja" : "en";
+    } catch {}
+  };
+
   const applyPalette = (map) => {
     try {
       const layers = map.getStyle()?.layers ?? [];
@@ -73,6 +93,7 @@ const ASYMPTA_MAP_PALETTE_BOOTSTRAP = `(() => {
           paint(map, id, "text-halo-color", paper.halo);
         }
       }
+      applyLanguage(map);
       document.documentElement.dataset.asymptaMapPalette = "paper";
     } catch {}
   };
@@ -83,7 +104,11 @@ const ASYMPTA_MAP_PALETTE_BOOTSTRAP = `(() => {
     value.Map = class AsymptaPaperMap extends OriginalMap {
       constructor(options) {
         super(options);
-        this.on("load", () => requestAnimationFrame(() => applyPalette(this)));
+        const sync = () => requestAnimationFrame(() => applyPalette(this));
+        this.on("load", sync);
+        const observer = new MutationObserver(() => requestAnimationFrame(() => applyLanguage(this)));
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ["lang"] });
+        this.on("remove", () => observer.disconnect());
       }
     };
     value.__asymptaPaperWrapped = true;
