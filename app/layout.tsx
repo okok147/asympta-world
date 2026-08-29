@@ -8,6 +8,7 @@ import "./asympta-marker-bubbles.css";
 import "./asympta-agent-card-locale.css";
 import "./asympta-schedule-automation.css";
 import "./asympta-schedule-total-time.css";
+import "./asympta-resource-ledger.css";
 import "./asympta-estimated-progress.css";
 import "./asympta-global-locale.css";
 import "./asympta-task-celebration.css";
