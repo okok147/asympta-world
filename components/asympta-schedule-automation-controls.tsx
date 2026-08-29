@@ -3,6 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+import {
+  readAsymptaUserPreferences,
+  subscribeAsymptaUserPreferences,
+  writeAsymptaUserPreferences,
+} from "@/lib/asympta-user-preferences";
+
 type Locale = "en" | "zh-Hant" | "ja";
 type WorkflowId = "custom-order" | "dinner-network" | "launch-stock" | "service-recovery";
 type DemoSnapshot = {
@@ -58,9 +64,21 @@ export function AsymptaScheduleAutomationControls() {
   const [locale, setLocale] = useState<Locale>("en");
   const [autoExplore, setAutoExplore] = useState(true);
   const [autoApprove, setAutoApprove] = useState(false);
+  const [preferencesReady, setPreferencesReady] = useState(false);
   const approvedIdsRef = useRef(new Set<string>());
   const completedSinceRef = useRef<number | null>(null);
   const exploredWorkflowRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const applyPreferences = (preferences: ReturnType<typeof readAsymptaUserPreferences>) => {
+      setAutoExplore(preferences.autoExplore);
+      setAutoApprove(preferences.autoApprove);
+    };
+
+    applyPreferences(readAsymptaUserPreferences());
+    setPreferencesReady(true);
+    return subscribeAsymptaUserPreferences(applyPreferences);
+  }, []);
 
   useEffect(() => {
     const syncTarget = () => {
@@ -75,6 +93,8 @@ export function AsymptaScheduleAutomationControls() {
   }, [target]);
 
   useEffect(() => {
+    if (!preferencesReady) return;
+
     const tick = () => {
       if (document.hidden) return;
       const api = browserWindow().__ASYMPTA_DEMO__;
@@ -120,9 +140,9 @@ export function AsymptaScheduleAutomationControls() {
     tick();
     const timer = window.setInterval(tick, CONTROL_REFRESH_MS);
     return () => window.clearInterval(timer);
-  }, [autoApprove, autoExplore]);
+  }, [autoApprove, autoExplore, preferencesReady]);
 
-  if (!target) return null;
+  if (!target || !preferencesReady) return null;
   const copy = COPY[locale];
 
   return createPortal(
@@ -131,7 +151,11 @@ export function AsymptaScheduleAutomationControls() {
         type="button"
         className={`atlas-safe-automation__toggle${autoExplore ? " is-on" : ""}`}
         aria-pressed={autoExplore}
-        onClick={() => setAutoExplore((value) => !value)}
+        onClick={() => {
+          const next = !autoExplore;
+          setAutoExplore(next);
+          writeAsymptaUserPreferences({ autoExplore: next });
+        }}
       >
         <span className="atlas-safe-automation__indicator"><i /></span>
         <span>{copy.explore}</span>
@@ -141,7 +165,11 @@ export function AsymptaScheduleAutomationControls() {
         type="button"
         className={`atlas-safe-automation__toggle${autoApprove ? " is-on" : ""}`}
         aria-pressed={autoApprove}
-        onClick={() => setAutoApprove((value) => !value)}
+        onClick={() => {
+          const next = !autoApprove;
+          setAutoApprove(next);
+          writeAsymptaUserPreferences({ autoApprove: next });
+        }}
       >
         <span className="atlas-safe-automation__indicator"><i /></span>
         <span>{copy.approve}</span>
