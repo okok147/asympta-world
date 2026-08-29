@@ -46,7 +46,7 @@ const COPY: Record<Locale, Record<NoticeCode | "title", string>> = {
 };
 
 function browserWindow() {
-  return window as unknown as Window & { __ASYMPTA_DEMO__?: DemoApi };
+  return window as unknown as { __ASYMPTA_DEMO__?: DemoApi };
 }
 
 function currentLocale(): Locale {
