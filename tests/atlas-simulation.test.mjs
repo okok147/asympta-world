@@ -10,6 +10,12 @@ import {
   resolveAtlasApproval,
   startAtlasWorkflow,
 } from "../lib/atlas-simulation.ts";
+import {
+  CITY_LIFE_COUNT,
+  cityLifeSnapshot,
+  createAtlasDemoWorld,
+  resolveAtlasDemoApproval,
+} from "../lib/atlas-demo.ts";
 
 function runUntilSettled(initial, maxSteps = 7000) {
   let world = initial;
@@ -31,7 +37,7 @@ test("new atlas defines several multi-stakeholder workflows", () => {
   }
 });
 
-test("custom order advances through movement, approvals and completion", () => {
+test("custom order advances through approvals and completion", () => {
   const started = startAtlasWorkflow(createAtlasWorld(1_000), "custom-order");
   assert.equal(started.phase, "running");
   assert.ok(started.agents.some((agent) => agent.status === "moving" || agent.status === "working"));
@@ -43,6 +49,46 @@ test("custom order advances through movement, approvals and completion", () => {
   assert.ok(completed.approvals.filter((approval) => approval.status === "approved").length >= 3);
   assert.ok(completed.events.some((event) => event.title === "Workflow complete"));
   assert.ok(completed.events.some((event) => event.detail.includes("published the result")));
+});
+
+test("demo boots with a foreground agent visibly travelling", () => {
+  const demo = createAtlasDemoWorld(5_000);
+  const moving = demo.agents.filter((agent) => agent.status === "moving");
+  assert.ok(moving.length >= 1);
+  for (const agent of moving) {
+    assert.notDeepEqual(agent.position, agent.target);
+  }
+});
+
+test("approving a demo checkpoint produces another visible travel leg", () => {
+  let world = createAtlasDemoWorld(8_000);
+  for (let index = 0; index < 7000; index += 1) {
+    world = advanceAtlasWorld(world, 120);
+    const approval = world.approvals.find((item) => item.status === "pending");
+    if (approval) {
+      const next = resolveAtlasDemoApproval(world, approval.id, true);
+      const task = approval.taskId ? next.tasks.find((item) => item.id === approval.taskId) : null;
+      const agent = task ? next.agents.find((item) => item.id === task.agentId) : null;
+      assert.ok(agent);
+      assert.equal(agent.status, "moving");
+      assert.notDeepEqual(agent.position, agent.target);
+      return;
+    }
+  }
+  assert.fail("demo never reached an approval checkpoint");
+});
+
+test("ambient city has many independent synthetic user and business actors that keep moving", () => {
+  const first = cityLifeSnapshot(10_000);
+  const second = cityLifeSnapshot(12_000);
+  assert.equal(first.length, CITY_LIFE_COUNT);
+  assert.ok(first.length >= 24);
+  assert.ok(first.some((actor) => actor.side === "user"));
+  assert.ok(first.some((actor) => actor.side === "business"));
+  assert.ok(first.some((actor) => actor.side === "supplier"));
+  assert.ok(first.some((actor) => actor.side === "logistics"));
+  assert.ok(first.every((actor) => actor.simulated === true));
+  assert.ok(first.some((actor, index) => actor.position.lon !== second[index].position.lon || actor.position.lat !== second[index].position.lat));
 });
 
 test("WebMCP workflow requests cannot start without explicit approval", () => {
