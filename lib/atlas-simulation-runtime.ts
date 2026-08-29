@@ -83,7 +83,6 @@ const TRAVEL_DEGREES_PER_MS = 0.0000028;
 const DEFAULT_TRAVEL_MS = 2_200;
 const EXPLORE_TRIGGER_PROGRESS = 0.68;
 const OBSTACLE_TRIGGER_PROGRESS = 0.34;
-const STATUS_DOM_REFRESH_MS = 80;
 
 const AGENT_CONTEXT: Record<StakeholderSide, { resource: string; information: string; opportunity: string; detail: string }> = {
   user: { resource: "confirmed preferences", information: "nearby availability", opportunity: "Bundle a nearby compatible request", detail: "Reuse confirmed preferences to resolve another nearby low-cost request before returning to the main task." },
@@ -192,7 +191,7 @@ function activeObstacle(task: AtlasTaskState, now: number) {
 
 function preAdjustWorkingClocks(world: AtlasWorldState, deltaMs: number) {
   for (const task of world.tasks) {
-    if (task.status !== "working" || !task.workStartedAt || !task.runtime) continue;
+    if (task.status !== "working" || task.workStartedAt === undefined || !task.runtime) continue;
     if (activeObstacle(task, world.now)) {
       task.workStartedAt += deltaMs;
       continue;
@@ -457,7 +456,7 @@ export function advanceAtlasWorld(current: AtlasWorldState, deltaMs: number): At
   const prepared = cloneRuntimeWorld(adoptRuntimeWorld(current));
   const safeDelta = Math.min(140, Math.max(0, Number.isFinite(deltaMs) ? deltaMs : 0));
   preAdjustWorkingClocks(prepared, safeDelta);
-  let world = adoptRuntimeWorld(advanceCoreAtlasWorld(prepared as CoreAtlasWorldState, safeDelta), prepared);
+  const world = adoptRuntimeWorld(advanceCoreAtlasWorld(prepared as CoreAtlasWorldState, safeDelta), prepared);
   maybeResolveObstacles(world);
   resumeParentsAfterOpportunity(world);
   maybeCreateObstacle(world);
