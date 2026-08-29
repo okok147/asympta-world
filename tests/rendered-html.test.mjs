@@ -13,29 +13,30 @@ async function renderRoot() {
   return { response, html: await response.text() };
 }
 
-test("server render exposes the paper atlas map-first surface", async () => {
+test("server render exposes the paper agent coordination atlas", async () => {
   const { response, html } = await renderRoot();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   assert.match(html, /data-map-app="true"/);
-  assert.match(html, /data-map-style="paper-capital-atlas"/);
-  assert.match(html, /Interactive paper-textured real-world street map visualizer/);
-  assert.match(html, /Activity Atlas/);
-  assert.match(html, /Visualizer filters/);
+  assert.match(html, /data-map-style="paper-agent-coordination-atlas"/);
+  assert.match(html, /Interactive paper map with autonomous stakeholder agent coordination/);
+  assert.match(html, /Coordination Atlas/);
+  assert.match(html, /Order/);
+  assert.match(html, /Dinner/);
+  assert.match(html, /Launch/);
+  assert.match(html, /Recovery/);
   assert.match(html, /Zoom in/);
   assert.match(html, /Zoom out/);
   assert.match(html, /Recenter map/);
-  assert.match(html, /Drawing streets/);
+  assert.match(html, /Drawing the street atlas/);
   assert.doesNotMatch(html, /Interactive pixel city map/);
   assert.doesNotMatch(html, /tokyo-vector/);
 });
 
-test("old agent demo chrome remains absent from the rendered page", async () => {
+test("legacy demo chrome stays absent", async () => {
   const { html } = await renderRoot();
-  assert.doesNotMatch(html, /WebMCP/);
   assert.doesNotMatch(html, /Run the city order/);
   assert.doesNotMatch(html, /Tell the city/);
   assert.doesNotMatch(html, /Mori Paper Co\./);
   assert.doesNotMatch(html, /North Mill/);
-  assert.doesNotMatch(html, /HUMAN CHECKPOINT/);
 });
