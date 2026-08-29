@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import "./asympta-restoration.css";
 import "./asympta-animal-art.css";
+import "./asympta-live-60hz.css";
 
 export const metadata: Metadata = {
   title: "Asympta World",
