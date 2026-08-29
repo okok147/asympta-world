@@ -60,33 +60,8 @@ export function AsymptaProcessCameraFollow() {
       document.documentElement.dataset.asymptaProcessCameraLock = "off";
     };
 
-    const enableFromWorkflowClick = (event: MouseEvent) => {
-      const target = event.target instanceof Element ? event.target.closest(".atlas-workflow") : null;
-      if (!target) return;
-      processLock = true;
-      followedAgentId = null;
-      document.documentElement.dataset.asymptaProcessCameraLock = "on";
-    };
-
-    document.addEventListener("click", enableFromWorkflowClick, true);
-
-    const syncMapListener = () => {
-      const map = bridge().__ASYMPTA_MAP__ ?? null;
-      if (map === activeMap) return;
-      if (activeMap?.off) {
-        try { activeMap.off("dragstart", disableProcessLock); } catch {}
-      }
-      activeMap = map;
-      if (activeMap) {
-        try { activeMap.on("dragstart", disableProcessLock); } catch {}
-      }
-    };
-
-    const tick = () => {
-      if (document.hidden) return;
-      syncMapListener();
+    const followCurrentAgent = () => {
       if (!processLock) return;
-
       let snapshot: DemoSnapshot = {};
       try {
         snapshot = (bridge().__ASYMPTA_DEMO__?.snapshot() ?? {}) as DemoSnapshot;
@@ -106,6 +81,41 @@ export function AsymptaProcessCameraFollow() {
 
       followedAgentId = nextAgentId;
       clickAgent(nextAgentId);
+    };
+
+    const enableFromWorkflowClick = (event: MouseEvent) => {
+      const target = event.target instanceof Element ? event.target.closest(".atlas-workflow") : null;
+      if (!target) return;
+
+      // Workflow tiles are camera controls only. Never let their original React onClick
+      // restart or replace the running process.
+      event.preventDefault();
+      event.stopPropagation();
+
+      processLock = true;
+      followedAgentId = null;
+      document.documentElement.dataset.asymptaProcessCameraLock = "on";
+      followCurrentAgent();
+    };
+
+    document.addEventListener("click", enableFromWorkflowClick, true);
+
+    const syncMapListener = () => {
+      const map = bridge().__ASYMPTA_MAP__ ?? null;
+      if (map === activeMap) return;
+      if (activeMap?.off) {
+        try { activeMap.off("dragstart", disableProcessLock); } catch {}
+      }
+      activeMap = map;
+      if (activeMap) {
+        try { activeMap.on("dragstart", disableProcessLock); } catch {}
+      }
+    };
+
+    const tick = () => {
+      if (document.hidden) return;
+      syncMapListener();
+      followCurrentAgent();
     };
 
     tick();
