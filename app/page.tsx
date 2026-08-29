@@ -13,6 +13,7 @@ import { AsymptaSafeSchedule } from "@/components/asympta-safe-schedule";
 import { AsymptaScheduleAutomationControls } from "@/components/asympta-schedule-automation-controls";
 import { AsymptaScheduleTotalTime } from "@/components/asympta-schedule-total-time";
 import { AsymptaTaskCelebration } from "@/components/asympta-task-celebration";
+import { AsymptaUltraCalm } from "@/components/asympta-ultra-calm";
 import { AsymptaUserPreferences } from "@/components/asympta-user-preferences";
 import { AsymptaWebMcpTools } from "@/components/asympta-webmcp-tools";
 import { AsymptaWorkflowEconomy } from "@/components/asympta-workflow-economy";
@@ -39,6 +40,7 @@ export default function HomePage() {
       <AsymptaTaskCelebration />
       <AsymptaCardCollapse />
       <AsymptaCalmDefaults />
+      <AsymptaUltraCalm />
       <AsymptaWorkflowGuide />
       <AsymptaAgentCardLocale />
       <AsymptaGlobalLocale />
