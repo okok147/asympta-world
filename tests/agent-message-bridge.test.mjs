@@ -78,9 +78,9 @@ test("camera process lock follows schedule-task handoffs and re-arms dropped fol
   assert.match(source, /taskChanged/);
   assert.match(source, /followDropped/);
   assert.match(source, /cameraFollowIsActive/);
-  assert.match(source, /clickAgent\(current\.agentId\)/);
+  assert.match(source, /clickAgent\(nextAgentId\)/);
   assert.match(source, /activeMap\.on\("dragstart", disableProcessLock\)/);
-  assert.match(source, /FOLLOW_REFRESH_MS = 320/);
+  assert.match(source, /FOLLOW_REFRESH_MS = 450/);
   assert.doesNotMatch(source, /requestAnimationFrame|MutationObserver|preventDefault\(\)|stopPropagation\(\)/);
 });
 
