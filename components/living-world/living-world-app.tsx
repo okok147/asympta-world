@@ -1,2 +1,2 @@
 "use client";
-export { AsymptaWorldExperience as LivingWorldApp } from "@/components/asympta-world-experience";
+export { AsymptaWorldLiveDemo as LivingWorldApp } from "@/components/asympta-world-live-demo";
