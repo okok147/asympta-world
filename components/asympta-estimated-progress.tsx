@@ -1,8 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
-import { estimateTaskProgress, type DisplayAgent, type DisplayTask } from "@/lib/atlas-display-progress";
+import {
+  currentTaskTravelDistance,
+  estimateTaskProgress,
+  type DisplayAgent,
+  type DisplayTask,
+} from "@/lib/atlas-display-progress";
 
 type Locale = "en" | "zh-Hant" | "ja";
 type Snapshot = {
@@ -32,6 +37,9 @@ function setData(node: Element | null, key: string, value: string) {
 }
 
 export function AsymptaEstimatedProgress() {
+  const travelOriginDistanceRef = useRef(new Map<string, number>());
+  const previousStatusRef = useRef(new Map<string, string>());
+
   useEffect(() => {
     const sync = () => {
       if (document.hidden) return;
@@ -42,6 +50,19 @@ export function AsymptaEstimatedProgress() {
       if (!tasks.length) return;
 
       const agentById = new Map(agents.map((agent) => [agent.id, agent]));
+
+      for (const task of tasks) {
+        const previousStatus = previousStatusRef.current.get(task.id);
+        if (task.status === "moving" && previousStatus !== "moving") {
+          const distance = currentTaskTravelDistance(task, agentById.get(task.agentId));
+          if (distance !== null && Number.isFinite(distance) && distance > 0) {
+            travelOriginDistanceRef.current.set(task.id, distance);
+          }
+        }
+        if (task.status === "queued") travelOriginDistanceRef.current.delete(task.id);
+        previousStatusRef.current.set(task.id, task.status);
+      }
+
       const unfinished = tasks.filter((task) => task.status !== "done");
       const active = unfinished.filter((task) => ACTIVE_TASKS.has(task.status));
       const queued = unfinished.filter((task) => task.status === "queued");
@@ -54,7 +75,12 @@ export function AsymptaEstimatedProgress() {
           delete node.dataset.asymptaEstimatedProgress;
           return;
         }
-        const estimate = estimateTaskProgress(task, agentById.get(task.agentId), tasks);
+        const estimate = estimateTaskProgress(
+          task,
+          agentById.get(task.agentId),
+          tasks,
+          travelOriginDistanceRef.current.get(task.id),
+        );
         setData(node, "asymptaEstimatedProgress", `${estimate.percent}%`);
       });
 
@@ -68,7 +94,12 @@ export function AsymptaEstimatedProgress() {
           setData(statusNode, "asymptaEstimatedStatus", STATUS[lang][agent.status] ?? agent.status);
           continue;
         }
-        const estimate = estimateTaskProgress(task, agentById.get(agent.id), tasks);
+        const estimate = estimateTaskProgress(
+          task,
+          agentById.get(agent.id),
+          tasks,
+          travelOriginDistanceRef.current.get(task.id),
+        );
         const state = task.status === "waiting_approval"
           ? STATUS[lang].waiting_approval
           : STATUS[lang][agent.status] ?? agent.status;
