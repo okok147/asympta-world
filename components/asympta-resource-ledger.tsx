@@ -3,22 +3,41 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { resourceDeltaForTask, workflowTaskExchange } from "@/lib/atlas-workflow-expansion";
+import { workflowTaskExchange } from "@/lib/atlas-workflow-expansion";
 
 type Locale = "en" | "zh-Hant" | "ja";
 type MetricKey = "budget" | "materials" | "inventory" | "capacity" | "compute" | "delivery" | "trust";
 type TaskSnapshot = { id: string; title?: string; agentId: string; status: string; progress: number; dependencies?: string[] };
 type AgentSnapshot = { id: string; side: string };
-type Foreground = { workflow?: string | null; phase?: string; tasks?: TaskSnapshot[]; agents?: AgentSnapshot[] };
+type RuntimeAccount = { ownerId: string; currency?: string; balance: number };
+type RuntimeInventory = { ownerId: string; resourceId: string; onHand: number; reserved: number; inTransit: number };
+type RuntimeCapacity = { ownerId: string; capacityId: string; total: number; reserved: number; unit: string };
+type RuntimeOrder = { buyerId?: string; sellerId?: string; supplierId?: string; courierId?: string; resourceId?: string };
+type RuntimeMetrics = { failedIntents?: number; commitmentViolations?: number };
+type RuntimeSnapshot = {
+  order?: RuntimeOrder | null;
+  accounts?: RuntimeAccount[];
+  inventories?: RuntimeInventory[];
+  capacities?: RuntimeCapacity[];
+  metrics?: RuntimeMetrics;
+  invariantViolations?: string[];
+};
+type Foreground = {
+  workflow?: string | null;
+  phase?: string;
+  tasks?: TaskSnapshot[];
+  agents?: AgentSnapshot[];
+  runtime?: RuntimeSnapshot;
+};
 type Snapshot = { foreground?: Foreground };
 type Metric = { key: MetricKey; value: string };
 type Handoff = { summary: string; detail: string };
 
 const REFRESH_MS = 500;
 const COPY: Record<Locale, Record<MetricKey, string>> = {
-  en: { budget: "Budget", materials: "Materials", inventory: "Inventory", capacity: "Capacity", compute: "Compute", delivery: "Delivery", trust: "Trust" },
-  "zh-Hant": { budget: "資金", materials: "物料", inventory: "庫存", capacity: "產能", compute: "算力", delivery: "配送", trust: "信任" },
-  ja: { budget: "予算", materials: "資材", inventory: "在庫", capacity: "能力", compute: "計算力", delivery: "配送", trust: "信頼" },
+  en: { budget: "Budget", materials: "Materials", inventory: "Inventory", capacity: "Capacity", compute: "Machine", delivery: "Delivery", trust: "Reliability" },
+  "zh-Hant": { budget: "資金", materials: "物料", inventory: "庫存", capacity: "產能", compute: "機台", delivery: "配送", trust: "可靠度" },
+  ja: { budget: "予算", materials: "資材", inventory: "在庫", capacity: "能力", compute: "設備", delivery: "配送", trust: "信頼度" },
 };
 const FLOW_LABEL: Record<Locale, string> = { en: "Latest exchange", "zh-Hant": "最新交接", ja: "最新の引継ぎ" };
 const SIDE: Record<Locale, Record<string, string>> = {
@@ -27,11 +46,6 @@ const SIDE: Record<Locale, Record<string, string>> = {
   ja: { user: "ユーザー", customer: "顧客", business: "事業", supplier: "供給", operations: "運用", finance: "財務", logistics: "物流", support: "サポート", quality: "品質", market: "市場" },
 };
 
-// Resource accounting is now centralized in atlas-workflow-expansion instead of duplicated here.
-// The former SIDE_COMPUTE/action branches remain represented there for:
-// task.actionType === "reserve_capacity"; task.actionType === "authorize_payment";
-// task.actionType === "release_shipment"; task.actionType === "send_customer_update".
-
 function locale(): Locale {
   const value = document.documentElement.lang.toLowerCase();
   if (value.startsWith("zh")) return "zh-Hant";
@@ -39,53 +53,65 @@ function locale(): Locale {
   return "en";
 }
 
-// A resource transfer is booked only once the task actually starts. Approval waiting and travel
-// never pre-spend budget, reserve capacity or move inventory in the ledger.
-function taskFraction(task: TaskSnapshot) {
-  if (task.status === "done") return 1;
-  if (task.status === "working") return Math.max(0, Math.min(1, Number(task.progress) || 0));
-  return 0;
+function compactMoney(value: number, currency = "JPY") {
+  const sign = currency === "JPY" ? "¥" : `${currency} `;
+  if (Math.abs(value) >= 1000) return `${sign}${(value / 1000).toFixed(1)}k`;
+  return `${sign}${Math.round(value)}`;
 }
 
-function compactMoney(value: number) {
-  return Math.abs(value) >= 1000 ? `$${(value / 1000).toFixed(1)}k` : `$${Math.round(value)}`;
+function availableCapacity(item: RuntimeCapacity) {
+  return Math.max(0, Number(item.total) - Number(item.reserved));
+}
+
+function availableStock(item: RuntimeInventory) {
+  return Math.max(0, Number(item.onHand) - Number(item.reserved));
 }
 
 function metrics(foreground: Foreground): Metric[] {
-  let budget = 120_000;
-  let materials = 46;
-  let inventory = 34;
-  let capacity = 10;
-  let compute = 0;
-  let delivery = 0;
-  let trust = 64;
+  const runtime = foreground.runtime;
+  if (!runtime) return [];
 
-  for (const task of foreground.tasks ?? []) {
-    const delta = resourceDeltaForTask(task.id);
-    const p = taskFraction(task);
-    if (!delta || p <= 0) continue;
-    budget += (delta.budget ?? 0) * p;
-    materials += (delta.materials ?? 0) * p;
-    inventory += (delta.inventory ?? 0) * p;
-    capacity += (delta.capacity ?? 0) * p;
-    compute += (delta.compute ?? 0) * p;
-    delivery += (delta.delivery ?? 0) * p;
-    trust += (delta.trust ?? 0) * p;
-  }
-  if (foreground.phase === "blocked") trust -= 8;
-  materials = Math.max(0, materials);
-  inventory = Math.max(0, inventory);
-  capacity = Math.max(0, capacity);
-  trust = Math.max(0, Math.min(100, trust));
+  const accounts = runtime.accounts ?? [];
+  const inventories = runtime.inventories ?? [];
+  const capacities = runtime.capacities ?? [];
+  const order = runtime.order ?? null;
+  const resourceId = order?.resourceId ?? inventories[0]?.resourceId;
+  const buyerId = order?.buyerId ?? "agent-customer";
+  const sellerId = order?.sellerId ?? "agent-business";
+
+  const budgetAccount = accounts.find((item) => item.ownerId === buyerId)
+    ?? accounts.find((item) => item.ownerId === "agent-user")
+    ?? accounts[0];
+
+  const materials = inventories
+    .filter((item) => (!resourceId || item.resourceId === resourceId) && /supplier/i.test(item.ownerId))
+    .reduce((total, item) => total + availableStock(item), 0);
+
+  const inventory = inventories
+    .filter((item) => (!resourceId || item.resourceId === resourceId) && (item.ownerId === buyerId || item.ownerId === sellerId))
+    .reduce((total, item) => total + Math.max(0, Number(item.onHand)), 0);
+
+  const fulfilment = capacities
+    .filter((item) => item.capacityId === "fulfilment")
+    .reduce((total, item) => total + availableCapacity(item), 0);
+
+  const machine = capacities.find((item) => item.ownerId === "agent-operations" || item.capacityId === "machine-hour");
+  const delivery = capacities.find((item) => item.ownerId === (order?.courierId ?? "agent-logistics") && item.capacityId === "delivery")
+    ?? capacities.find((item) => item.capacityId === "delivery");
+
+  const failures = Math.max(0, Number(runtime.metrics?.failedIntents ?? 0));
+  const violations = Math.max(0, Number(runtime.metrics?.commitmentViolations ?? 0));
+  const invariantViolations = runtime.invariantViolations?.length ?? 0;
+  const reliability = Math.max(0, Math.min(100, 100 - failures * 3 - violations * 12 - invariantViolations * 25));
 
   return [
-    { key: "budget", value: compactMoney(budget) },
+    { key: "budget", value: compactMoney(Number(budgetAccount?.balance ?? 0), budgetAccount?.currency ?? "JPY") },
     { key: "materials", value: `${Math.round(materials)}u` },
     { key: "inventory", value: `${Math.round(inventory)}u` },
-    { key: "capacity", value: `${capacity.toFixed(1)} slots` },
-    { key: "compute", value: `${Math.round(compute)} CU` },
-    { key: "delivery", value: `${delivery.toFixed(1)} legs` },
-    { key: "trust", value: `${Math.round(trust)} pts` },
+    { key: "capacity", value: `${fulfilment.toFixed(1)}u` },
+    { key: "compute", value: `${availableCapacity(machine ?? { ownerId: "", capacityId: "", total: 0, reserved: 0, unit: "" }).toFixed(1)}u/h` },
+    { key: "delivery", value: `${availableCapacity(delivery ?? { ownerId: "", capacityId: "", total: 0, reserved: 0, unit: "" }).toFixed(1)} slots` },
+    { key: "trust", value: `${Math.round(reliability)} pts` },
   ];
 }
 
@@ -121,7 +147,7 @@ export function AsymptaResourceLedger() {
       let snapshot: Snapshot | undefined;
       try { snapshot = window.__ASYMPTA_DEMO__?.snapshot() as Snapshot | undefined; } catch { return; }
       const foreground = snapshot?.foreground;
-      if (!foreground) return;
+      if (!foreground?.runtime) return;
       if (workflowRef.current !== (foreground.workflow ?? null)) {
         workflowRef.current = foreground.workflow ?? null;
         completedRef.current.clear();
