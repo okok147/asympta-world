@@ -7,6 +7,8 @@ const automation = await readFile(new URL("../components/asympta-schedule-automa
 const cardLocale = await readFile(new URL("../components/asympta-agent-card-locale.tsx", import.meta.url), "utf8");
 const estimatedProgress = await readFile(new URL("../components/asympta-estimated-progress.tsx", import.meta.url), "utf8");
 const processFollow = await readFile(new URL("../components/asympta-process-camera-follow.tsx", import.meta.url), "utf8");
+const celebration = await readFile(new URL("../components/asympta-task-celebration.tsx", import.meta.url), "utf8");
+const celebrationCss = await readFile(new URL("../app/asympta-task-celebration.css", import.meta.url), "utf8");
 const progressMath = await readFile(new URL("../lib/atlas-display-progress.ts", import.meta.url), "utf8");
 const automationCss = await readFile(new URL("../app/asympta-schedule-automation.css", import.meta.url), "utf8");
 const progressCss = await readFile(new URL("../app/asympta-estimated-progress.css", import.meta.url), "utf8");
@@ -68,4 +70,17 @@ test("status percentage uses the actual moving origin plus work time without cha
   assert.match(progressCss, /data-asympta-estimated-progress/);
   assert.match(progressCss, /data-asympta-estimated-status/);
   assert.doesNotMatch(estimatedProgress, /requestAnimationFrame|MutationObserver|advanceAtlasWorld|JSON\.parse\(JSON\.stringify/);
+});
+
+test("completed tasks trigger one bounded celebration burst without touching the animation loop", () => {
+  assert.match(page, /AsymptaTaskCelebration/);
+  assert.match(celebration, /CELEBRATION_SYNC_MS = 280/);
+  assert.match(celebration, /CELEBRATION_LIFETIME_MS = 1_150/);
+  assert.match(celebration, /task\.status === "done" && previous && previous !== "done"/);
+  assert.match(celebration, /\.asympta-task-celebration/);
+  assert.match(celebration, /window\.setTimeout\(\(\) => burst\.remove\(\), CELEBRATION_LIFETIME_MS\)/);
+  assert.match(celebrationCss, /asympta-celebration-ring/);
+  assert.match(celebrationCss, /asympta-celebration-particle/);
+  assert.match(celebrationCss, /prefers-reduced-motion/);
+  assert.doesNotMatch(celebration, /requestAnimationFrame|MutationObserver|advanceAtlasWorld|JSON\.parse\(JSON\.stringify/);
 });
