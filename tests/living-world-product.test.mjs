@@ -8,16 +8,20 @@ const demo = await readFile(new URL("../lib/atlas-demo.ts", import.meta.url), "u
 const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
 const css = await readFile(new URL("../app/asympta-restoration.css", import.meta.url), "utf8");
 
-test("the product boots directly into a paper living-city demonstration", () => {
+test("the product boots directly into a paper animal living-city demonstration", () => {
   assert.match(page, /AsymptaWorldLiveDemo/);
   assert.match(app, /data-map-app="true"/);
-  assert.match(app, /data-map-style="paper-living-city-demo"/);
-  assert.match(app, /Interactive paper map with autonomous stakeholder agents and simulated city activity/);
-  assert.match(app, /Living Coordination Atlas/);
+  assert.match(app, /data-map-style="paper-animal-living-city-demo"/);
+  assert.match(app, /cute animal stakeholder agents/);
+  assert.match(app, /Living Coordination/);
+  assert.match(app, /Atlas/);
   assert.match(app, /createAtlasDemoWorld/);
   assert.match(app, /CITY_LIFE_COUNT/);
-  assert.match(app, /ambient actors moving/);
+  assert.match(app, /actors moving/);
   assert.match(app, /workflow agents moving/);
+  assert.match(app, /ANIMALS_BY_SIDE/);
+  assert.match(app, /createAnimalMarkerElement/);
+  assert.match(app, /animal-map-marker/);
   assert.doesNotMatch(app, /useLivingWorld/);
   assert.doesNotMatch(app, /@\/lib\/living-world/);
 });
@@ -71,13 +75,17 @@ test("WebMCP requests remain human-gated while the ambient city keeps moving", (
   assert.match(demo, /Background users and businesses are synthetic demonstration actors/);
 });
 
-test("Asympta paper texture stays calm despite the living simulation", () => {
+test("Asympta paper texture and compact animal UI stay calm on mobile", () => {
   assert.match(css, /--paper:\s*#EEEDE6/i);
   assert.match(css, /\.map-paper-wash/);
   assert.match(css, /\.map-paper-grain/);
   assert.match(css, /mix-blend-mode:\s*multiply/);
+  assert.match(css, /\.animal-map-marker/);
+  assert.match(css, /\.animal-map-marker--ambient/);
+  assert.match(css, /\.animal-map-marker--foreground/);
   assert.match(css, /\.atlas-console/);
-  assert.match(css, /\.atlas-agent-card/);
+  assert.match(css, /grid-template-columns:\s*repeat\(4/);
+  assert.match(css, /\.atlas-sheet-handle/);
   assert.match(css, /\.atlas-approval/);
   assert.match(css, /\.map-zoom/);
   assert.match(css, /touch-action:\s*none/);
