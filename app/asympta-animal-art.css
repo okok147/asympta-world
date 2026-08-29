@@ -1,0 +1,125 @@
+.asympta-animal-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.asympta-animal-portrait {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  flex: 0 0 auto;
+  color: transparent;
+}
+
+.animal-map-marker__face {
+  overflow: visible;
+  padding: 1px;
+  border-color: rgba(67, 63, 56, 0.11);
+  background: rgba(249, 246, 237, 0.86);
+  box-shadow:
+    0 1px 2px rgba(60, 55, 46, 0.08),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.44);
+}
+
+.animal-map-marker--foreground .animal-map-marker__face {
+  padding: 1.5px;
+}
+
+.animal-map-marker--ambient .animal-map-marker__face {
+  padding: 0.5px;
+  background: rgba(249, 246, 237, 0.78);
+  filter: saturate(0.88);
+}
+
+.animal-map-marker.is-selected .animal-map-marker__face {
+  border-color: color-mix(in srgb, var(--agent-color) 52%, #655e53);
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--agent-color) 12%, transparent),
+    0 2px 5px rgba(60, 55, 46, 0.12),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+}
+
+.animal-map-marker.is-moving .asympta-animal-svg {
+  animation: asympta-animal-breathe 1.15s ease-in-out infinite;
+}
+
+.atlas-phase__animal {
+  width: 24px;
+  height: 24px;
+  margin-left: 2px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: none;
+}
+
+.atlas-agent-avatar,
+.atlas-approval__avatar {
+  overflow: hidden;
+  padding: 2px;
+  color: transparent;
+  background: rgba(255, 255, 255, 0.52);
+}
+
+.atlas-agent-avatar .asympta-animal-svg,
+.atlas-approval__avatar .asympta-animal-svg {
+  width: 100%;
+  height: 100%;
+}
+
+.atlas-agent-avatar {
+  width: 44px;
+  height: 44px;
+}
+
+.atlas-approval__avatar {
+  width: 52px;
+  height: 52px;
+}
+
+@keyframes asympta-animal-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.025); }
+}
+
+@media (max-width: 640px) {
+  .animal-map-marker--foreground {
+    width: 37px;
+    height: 37px;
+  }
+
+  .animal-map-marker--foreground .animal-map-marker__face {
+    width: 34px;
+    height: 34px;
+  }
+
+  .animal-map-marker--ambient {
+    width: 25px;
+    height: 25px;
+  }
+
+  .animal-map-marker--ambient .animal-map-marker__face {
+    width: 23px;
+    height: 23px;
+  }
+
+  .atlas-phase__animal {
+    width: 22px;
+    height: 22px;
+  }
+
+  .atlas-approval__avatar {
+    width: 48px;
+    height: 48px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animal-map-marker.is-moving .asympta-animal-svg {
+    animation: none;
+  }
+}
