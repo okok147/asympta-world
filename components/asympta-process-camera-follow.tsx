@@ -87,18 +87,16 @@ export function AsymptaProcessCameraFollow() {
       const target = event.target instanceof Element ? event.target.closest(".atlas-workflow") : null;
       if (!target) return;
 
-      // Workflow tiles are camera controls only. Never let their original React onClick
-      // restart or replace the running process.
-      event.preventDefault();
-      event.stopPropagation();
-
+      // Never cancel the native/React click. Chrome and Brave need the workflow button's
+      // own onClick to run normally; this listener only adds process camera follow.
       processLock = true;
       followedAgentId = null;
       document.documentElement.dataset.asymptaProcessCameraLock = "on";
-      followCurrentAgent();
+      window.setTimeout(followCurrentAgent, 0);
     };
 
-    document.addEventListener("click", enableFromWorkflowClick, true);
+    // Bubble phase intentionally runs after the workflow button's React onClick path.
+    document.addEventListener("click", enableFromWorkflowClick);
 
     const syncMapListener = () => {
       const map = bridge().__ASYMPTA_MAP__ ?? null;
@@ -122,7 +120,7 @@ export function AsymptaProcessCameraFollow() {
     const timer = window.setInterval(tick, FOLLOW_REFRESH_MS);
     return () => {
       window.clearInterval(timer);
-      document.removeEventListener("click", enableFromWorkflowClick, true);
+      document.removeEventListener("click", enableFromWorkflowClick);
       if (activeMap?.off) {
         try { activeMap.off("dragstart", disableProcessLock); } catch {}
       }

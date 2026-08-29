@@ -1,0 +1,83 @@
+/* Shared compact-card behavior. This layer only changes presentation. */
+.atlas-safe-schedule__header[data-asympta-collapse-toggle="schedule"] {
+  position: relative;
+  padding-right: 34px;
+  cursor: pointer;
+  user-select: none;
+}
+.atlas-safe-schedule__header[data-asympta-collapse-toggle="schedule"]::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 13px;
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid var(--ink-faint);
+  border-bottom: 1.5px solid var(--ink-faint);
+  transform: translateY(-65%) rotate(45deg);
+  transition: transform 160ms ease;
+}
+.atlas-safe-schedule:not(.is-collapsed) .atlas-safe-schedule__header[data-asympta-collapse-toggle="schedule"]::after {
+  transform: translateY(-30%) rotate(225deg);
+}
+.atlas-safe-schedule__header[data-asympta-collapse-toggle="schedule"]:focus-visible {
+  outline: 2px solid rgba(75,127,166,0.24);
+  outline-offset: -2px;
+}
+
+/* Keep the compact status + estimated total row visible; only hide the bulky body. */
+.atlas-safe-schedule.is-collapsed .atlas-safe-schedule__tasks,
+.atlas-safe-schedule.is-collapsed .atlas-safe-resources,
+.atlas-safe-schedule.is-collapsed .atlas-safe-automation {
+  display: none !important;
+}
+.atlas-safe-schedule.is-collapsed .atlas-safe-schedule__summary {
+  border-bottom: 0;
+}
+
+.atlas-agent-card__top[data-asympta-collapse-toggle="agent"] {
+  cursor: pointer;
+  user-select: none;
+}
+.atlas-agent-card.is-collapsed {
+  width: min(246px, calc(100vw - 24px));
+  padding: 7px 8px;
+}
+.atlas-agent-card.is-collapsed .atlas-agent-status,
+.atlas-agent-card.is-collapsed .atlas-follow {
+  display: none !important;
+}
+.atlas-agent-card.is-collapsed .atlas-agent-avatar {
+  width: 32px;
+  height: 32px;
+}
+.atlas-agent-card.is-collapsed .atlas-agent-card__top small {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.atlas-workflow-guide {
+  grid-column: 1 / -1;
+  order: -1;
+  margin: 0 1px 1px;
+  color: var(--ink-faint);
+  font-size: 7.5px;
+  line-height: 1.35;
+  text-align: left;
+}
+
+@media (max-width: 700px) {
+  .atlas-safe-schedule.is-collapsed {
+    width: min(264px, calc(100vw - 20px));
+  }
+  .atlas-safe-schedule.is-collapsed .atlas-safe-schedule__header {
+    min-height: 46px;
+  }
+  .atlas-safe-schedule.is-collapsed .atlas-safe-schedule__summary {
+    min-height: 25px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+}
