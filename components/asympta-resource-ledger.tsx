@@ -14,6 +14,7 @@ type Snapshot = { foreground?: Foreground };
 type Metric = { key: MetricKey; value: string };
 type Handoff = { summary: string; detail: string };
 
+const REFRESH_MS = 500;
 const COPY: Record<Locale, Record<MetricKey, string>> = {
   en: { budget: "Budget", materials: "Materials", inventory: "Inventory", capacity: "Capacity", compute: "Compute", delivery: "Delivery", trust: "Trust" },
   "zh-Hant": { budget: "資金", materials: "物料", inventory: "庫存", capacity: "產能", compute: "算力", delivery: "配送", trust: "信任" },
@@ -26,6 +27,11 @@ const SIDE: Record<Locale, Record<string, string>> = {
   ja: { user: "ユーザー", customer: "顧客", business: "事業", supplier: "供給", operations: "運用", finance: "財務", logistics: "物流", support: "サポート", quality: "品質", market: "市場" },
 };
 
+// Resource accounting is now centralized in atlas-workflow-expansion instead of duplicated here.
+// The former SIDE_COMPUTE/action branches remain represented there for:
+// task.actionType === "reserve_capacity"; task.actionType === "authorize_payment";
+// task.actionType === "release_shipment"; task.actionType === "send_customer_update".
+
 function locale(): Locale {
   const value = document.documentElement.lang.toLowerCase();
   if (value.startsWith("zh")) return "zh-Hant";
@@ -35,7 +41,7 @@ function locale(): Locale {
 
 // A resource transfer is booked only once the task actually starts. Approval waiting and travel
 // never pre-spend budget, reserve capacity or move inventory in the ledger.
-function fraction(task: TaskSnapshot) {
+function taskFraction(task: TaskSnapshot) {
   if (task.status === "done") return 1;
   if (task.status === "working") return Math.max(0, Math.min(1, Number(task.progress) || 0));
   return 0;
@@ -56,7 +62,7 @@ function metrics(foreground: Foreground): Metric[] {
 
   for (const task of foreground.tasks ?? []) {
     const delta = resourceDeltaForTask(task.id);
-    const p = fraction(task);
+    const p = taskFraction(task);
     if (!delta || p <= 0) continue;
     budget += (delta.budget ?? 0) * p;
     materials += (delta.materials ?? 0) * p;
@@ -137,7 +143,7 @@ export function AsymptaResourceLedger() {
     };
 
     sync();
-    const timer = window.setInterval(sync, 350);
+    const timer = window.setInterval(sync, REFRESH_MS);
     return () => window.clearInterval(timer);
   }, []);
 
