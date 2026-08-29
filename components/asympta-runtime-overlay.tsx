@@ -9,11 +9,9 @@ import {
   localizeAmbientTask,
   localizeApproval,
   localizeAtlasSnapshot,
-  localizeDynamicText,
   localizeHealth,
   localizeSide,
   localizeStatus,
-  localizeTask,
   normalizeAtlasLocale,
   uiText,
   type AtlasLocale,
@@ -191,14 +189,17 @@ export function AsymptaRuntimeOverlay() {
   const [snapshot, setSnapshot] = useState<DemoSnapshot | null>(null);
   const [locale, setLocale] = useState<AtlasLocale>("en");
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [followingAgentId, setFollowingAgentId] = useState<string | null>(null);
   const [surfaceState, setSurfaceState] = useState({ menuOpen: false, agentCard: false, approval: false });
 
   useEffect(() => {
     const read = () => {
       const nextLocale = normalizeAtlasLocale(document.documentElement.lang);
       const nextSnapshot = safeSnapshot();
+      const selectedMarker = document.querySelector<HTMLElement>(".animal-map-marker--foreground.is-selected");
       setLocale((current) => current === nextLocale ? current : nextLocale);
       setSnapshot(nextSnapshot);
+      setFollowingAgentId(selectedMarker?.dataset.agentId ?? null);
       setSurfaceState({
         menuOpen: Boolean(document.querySelector(".atlas-console.is-open")),
         agentCard: Boolean(document.querySelector(".atlas-agent-card")),
@@ -230,6 +231,13 @@ export function AsymptaRuntimeOverlay() {
     setSnapshot(safeSnapshot());
   };
 
+  const followScheduledAgent = (agentId: string) => {
+    const marker = document.querySelector<HTMLButtonElement>(`.animal-map-marker--foreground[data-agent-id="${agentId}"]`);
+    if (!marker) return;
+    marker.click();
+    setFollowingAgentId(agentId);
+  };
+
   return (
     <div
       className="atlas-runtime-overlay"
@@ -255,8 +263,15 @@ export function AsymptaRuntimeOverlay() {
           <div className="atlas-schedule-list">
             {visibleRows.map((row: AnyRecord, index: number) => {
               const agent = foreground?.agents?.find((item: AnyRecord) => item.id === row.agentId);
+              const isFollowing = followingAgentId === row.agentId;
               return (
-                <div className="atlas-schedule-row" key={row.id}>
+                <button
+                  type="button"
+                  className={`atlas-schedule-row${isFollowing ? " is-following" : ""}`}
+                  key={row.id}
+                  aria-pressed={isFollowing}
+                  onClick={() => followScheduledAgent(row.agentId)}
+                >
                   <span className={`atlas-schedule-dot atlas-schedule-dot--${row.health ?? "queued"}`} />
                   <span className="atlas-schedule-copy">
                     <small>{index === 0 ? uiText("current", locale) : uiText("next", locale)} · {agent?.name ?? row.agentId}</small>
@@ -264,7 +279,7 @@ export function AsymptaRuntimeOverlay() {
                     <em>{row.healthLabel ?? localizeHealth(row.health ?? "queued", locale)}{row.obstacle ? ` · ${row.obstacle}` : ""}</em>
                   </span>
                   <span className="atlas-schedule-eta">{row.eta ?? "—"}</span>
-                </div>
+                </button>
               );
             })}
           </div>
