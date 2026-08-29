@@ -13,26 +13,30 @@ async function renderRoot() {
   return { response, html: await response.text() };
 }
 
-test("server render exposes the compact paper illustrated-animal living-city demo", async () => {
+test("server render exposes the collapsed smooth paper living-city menu", async () => {
   const { response, html } = await renderRoot();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   assert.match(html, /data-map-app="true"/);
   assert.match(html, /data-map-style="paper-illustrated-animal-living-city-demo"/);
+  assert.match(html, /data-render-mode="imperative-map-loop"/);
   assert.match(html, /illustrated animal stakeholder agents/);
-  assert.match(html, /Living Coordination/);
-  assert.match(html, /Atlas/);
-  assert.match(html, /Demo city/);
-  assert.match(html, /actors moving/);
+  assert.match(html, /Coordination menu/);
+  assert.match(html, /is-collapsed/);
+  assert.match(html, /Custom Order Network/);
+  assert.match(html, /WebMCP actions/);
+  assert.match(html, /Camera follow/);
+  assert.match(html, /English/);
+  assert.match(html, /繁體中文/);
+  assert.match(html, /日本語/);
   assert.match(html, /Order/);
   assert.match(html, /Dinner/);
   assert.match(html, /Launch/);
   assert.match(html, /Recovery/);
-  assert.match(html, /Restart demo/);
+  assert.match(html, /Restart/);
   assert.match(html, /Zoom in/);
   assert.match(html, /Zoom out/);
   assert.match(html, /Recenter map/);
-  assert.match(html, /Drawing the living street atlas/);
   assert.match(html, /asympta-animal-svg/);
   assert.doesNotMatch(html, /🐱|🐰|🐹|🐶|🦊|🐻|🐯|🐼|🐮|🦝|🐨|🐵|🦉|🐧|🐦/u);
   assert.doesNotMatch(html, /Interactive pixel city map/);
