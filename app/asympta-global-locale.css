@@ -1,0 +1,68 @@
+.animal-map-marker__dialogue[data-asympta-locale-text] {
+  font-size: 0;
+}
+
+.animal-map-marker__dialogue[data-asympta-locale-text]::before {
+  content: attr(data-asympta-locale-text);
+  font-size: 8px;
+  line-height: 1.15;
+}
+
+.animal-map-marker--ambient .animal-map-marker__dialogue[data-asympta-locale-text]::before {
+  font-size: 6.5px;
+}
+
+.animal-map-marker--ambient .animal-map-marker__status-text[data-asympta-ambient-status] {
+  font-size: 0;
+}
+
+.animal-map-marker--ambient .animal-map-marker__status-text[data-asympta-ambient-status]::before {
+  content: attr(data-asympta-ambient-status);
+  font-size: 6px;
+  white-space: nowrap;
+}
+
+.atlas-approval__copy strong[data-asympta-locale-text],
+.atlas-approval__copy p[data-asympta-locale-text],
+.atlas-approval__copy small[data-asympta-locale-text],
+.atlas-webmcp-tool-list strong[data-asympta-locale-text],
+.atlas-tool-state[data-asympta-locale-summary] {
+  font-size: 0;
+}
+
+.atlas-approval__copy strong[data-asympta-locale-text]::after,
+.atlas-approval__copy p[data-asympta-locale-text]::after,
+.atlas-approval__copy small[data-asympta-locale-text]::after,
+.atlas-webmcp-tool-list strong[data-asympta-locale-text]::after,
+.atlas-tool-state[data-asympta-locale-summary]::after {
+  content: attr(data-asympta-locale-text);
+}
+
+.atlas-approval__copy strong[data-asympta-locale-text]::after {
+  color: inherit;
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.atlas-approval__copy p[data-asympta-locale-text]::after {
+  color: inherit;
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.atlas-approval__copy small[data-asympta-locale-text]::after {
+  color: inherit;
+  font-size: 7.5px;
+  line-height: 1.35;
+}
+
+.atlas-webmcp-tool-list strong[data-asympta-locale-text]::after {
+  color: #4d4943;
+  font-size: 8px;
+}
+
+.atlas-tool-state[data-asympta-locale-summary]::after {
+  content: attr(data-asympta-locale-summary);
+  color: inherit;
+  font-size: 8px;
+}
