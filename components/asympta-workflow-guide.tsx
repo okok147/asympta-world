@@ -6,9 +6,9 @@ import { createPortal } from "react-dom";
 type Locale = "en" | "zh-Hant" | "ja";
 
 const COPY: Record<Locale, string> = {
-  en: "Choose a workflow to run it and follow the active agent",
-  "zh-Hant": "點選任一流程開始，鏡頭會跟隨目前執行中的角色",
-  ja: "ワークフローを選ぶと開始し、実行中のエージェントを追従します",
+  en: "Choose a workflow",
+  "zh-Hant": "選擇工作流",
+  ja: "ワークフローを選択",
 };
 
 function locale(): Locale {
@@ -23,28 +23,20 @@ export function AsymptaWorkflowGuide() {
   const [language, setLanguage] = useState<Locale>("en");
 
   useEffect(() => {
-    let opened = false;
     const sync = () => {
       if (document.hidden) return;
       const workflows = document.querySelector<HTMLElement>(".atlas-workflows");
       setTarget((current) => current === workflows ? current : workflows);
       const nextLocale = locale();
       setLanguage((current) => current === nextLocale ? current : nextLocale);
-
-      if (!opened) {
-        const consoleCard = document.querySelector<HTMLElement>(".atlas-console");
-        const identity = consoleCard?.querySelector<HTMLButtonElement>(".atlas-menu-identity");
-        if (consoleCard && identity) {
-          opened = true;
-          if (consoleCard.classList.contains("is-collapsed")) identity.click();
-          document.documentElement.dataset.asymptaDefaultMenu = "expanded";
-        }
-      }
     };
 
-    sync();
+    const kickoff = window.setTimeout(sync, 0);
     const timer = window.setInterval(sync, 500);
-    return () => window.clearInterval(timer);
+    return () => {
+      window.clearTimeout(kickoff);
+      window.clearInterval(timer);
+    };
   }, []);
 
   if (!target) return null;
