@@ -1,4 +1,4 @@
-import { ATLAS_AGENTS, ATLAS_LOCATIONS, ATLAS_WORKFLOWS } from "@/lib/atlas-simulation";
+import { ATLAS_AGENTS, ATLAS_LOCATIONS, ATLAS_WORKFLOWS } from "./atlas-simulation.ts";
 
 const TRAVEL_DEGREES_PER_MS = 0.0000028;
 const ARRIVAL_DISTANCE = 0.00034;
