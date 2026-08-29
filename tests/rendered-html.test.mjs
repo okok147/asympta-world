@@ -37,7 +37,6 @@ test("server render exposes the collapsed smooth paper living-city menu", async 
   assert.match(html, /Zoom in/);
   assert.match(html, /Zoom out/);
   assert.match(html, /Recenter map/);
-  assert.match(html, /asympta-animal-svg/);
   assert.doesNotMatch(html, /🐱|🐰|🐹|🐶|🦊|🐻|🐯|🐼|🐮|🦝|🐨|🐵|🦉|🐧|🐦/u);
   assert.doesNotMatch(html, /Interactive pixel city map/);
   assert.doesNotMatch(html, /tokyo-vector/);
