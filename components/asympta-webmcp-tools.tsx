@@ -4,6 +4,14 @@ import { useEffect } from "react";
 
 import { ATLAS_AGENTS } from "@/lib/atlas-simulation";
 import {
+  getBrowserAgentMessageState,
+  listBrowserStructuredMessages,
+  submitBrowserStructuredMessage,
+  syncBrowserWorkflowMessages,
+  type MessageParticipantKind,
+  type StructuredMessageKind,
+} from "@/lib/agent-message-state";
+import {
   ASYMPTA_WEBMCP_MANIFEST,
   validateAsymptaWebMcpTools,
   type BrowserWebMcpToolDescriptor,
@@ -45,6 +53,14 @@ function readForegroundSnapshot() {
   return root ? asRecord(root.foreground) : null;
 }
 
+function messageWorldContext(foreground: Record<string, unknown> | null) {
+  const runtime = foreground ? asRecord(foreground.runtime) : null;
+  return {
+    workflow: typeof foreground?.workflow === "string" ? foreground.workflow : null,
+    worldRevision: typeof runtime?.revision === "number" ? runtime.revision : null,
+  };
+}
+
 function withoutSyntheticCoordinates(record: Record<string, unknown>) {
   const result = { ...record };
   delete result.lon;
@@ -68,6 +84,18 @@ function delay(milliseconds: number) {
   return new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds));
 }
 
+function syncVisibleWorkflowMessages() {
+  const foreground = readForegroundSnapshot();
+  if (!foreground) return;
+  const messages = recordArray(foreground.messages).map((message) => ({
+    id: `${String(message.from ?? "")}|${String(message.to ?? "")}|${String(message.text ?? "")}`,
+    from: message.from,
+    to: message.to,
+    text: message.text,
+  }));
+  if (messages.length) syncBrowserWorkflowMessages(messages, messageWorldContext(foreground));
+}
+
 export function AsymptaWebMcpTools() {
   useEffect(() => {
     const controller = new AbortController();
@@ -81,18 +109,26 @@ export function AsymptaWebMcpTools() {
 
     const agentIds = ATLAS_AGENTS.map((agent) => agent.id);
     const readOnly = { readOnlyHint: true, untrustedContentHint: false };
+    const mutating = { readOnlyHint: false, untrustedContentHint: true };
+    const participantKinds: MessageParticipantKind[] = ["human", "agent", "business", "organization", "system"];
+    const messageKinds: StructuredMessageKind[] = ["request", "offer", "question", "answer", "update", "confirmation", "warning", "handoff", "plain"];
     const tools: WebMcpTool[] = [
       {
         name: "asympta_describe_capabilities",
         title: "Describe Asympta World capabilities",
-        description: "Describe the WebMCP tool surface, workflows, agents, simulation disclosure and human-approval safety boundary.",
+        description: "Describe the WebMCP tool surface, workflows, agents, communication bridge, simulation disclosure and human-approval safety boundary.",
         inputSchema: { type: "object", properties: {}, additionalProperties: false },
         annotations: readOnly,
         execute: async () => {
+          syncVisibleWorkflowMessages();
           const foreground = readForegroundSnapshot();
           return JSON.stringify({
             ok: true,
             manifest: ASYMPTA_WEBMCP_MANIFEST,
+            communicationState: {
+              revision: getBrowserAgentMessageState().revision,
+              messageCount: getBrowserAgentMessageState().messages.length,
+            },
             live: foreground ? {
               phase: foreground.phase ?? null,
               workflow: foreground.workflow ?? null,
@@ -115,6 +151,7 @@ export function AsymptaWebMcpTools() {
         execute: async (input) => {
           const agentId = String(input.agentId ?? "");
           if (!agentIds.includes(agentId)) return JSON.stringify({ ok: false, error: "Unknown agent." });
+          syncVisibleWorkflowMessages();
           const foreground = readForegroundSnapshot();
           if (!foreground) return JSON.stringify({ ok: false, error: "Living world state is not mounted." });
           const agent = recordArray(foreground.agents).find((item) => item.id === agentId);
@@ -122,7 +159,8 @@ export function AsymptaWebMcpTools() {
           const tasks = recordArray(foreground.tasks)
             .filter((item) => item.agentId === agentId)
             .map(withoutSyntheticCoordinates);
-          return JSON.stringify({ ok: true, agent: withoutSyntheticCoordinates(agent), tasks });
+          const messages = listBrowserStructuredMessages({ participantId: agentId, limit: 20 });
+          return JSON.stringify({ ok: true, agent: withoutSyntheticCoordinates(agent), tasks, messages });
         },
       },
       {
@@ -138,7 +176,93 @@ export function AsymptaWebMcpTools() {
           return JSON.stringify({ ok: true, pendingApproval: pending });
         },
       },
+      {
+        name: "asympta_send_agent_message",
+        title: "Send a message into Asympta World",
+        description: "Send a human-readable message with optional machine-readable semantics. Only body is required; ordinary people do not need agent IDs, schemas or workflow knowledge. The default route is human → personal intent agent.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            body: { type: "string", minLength: 1, maxLength: 800, description: "Plain-language message such as 'I need dinner around 7pm'." },
+            fromId: { type: "string", minLength: 1, maxLength: 100, description: "Optional participant ID. Defaults to human." },
+            toId: { type: "string", minLength: 1, maxLength: 100, description: "Optional recipient. Defaults to agent-user, the personal intent agent." },
+            fromKind: { type: "string", enum: participantKinds },
+            toKind: { type: "string", enum: participantKinds },
+            kind: { type: "string", enum: messageKinds },
+            subject: { type: "string", maxLength: 180 },
+            threadId: { type: "string", maxLength: 180 },
+            replyToId: { type: "string", maxLength: 180 },
+            intent: { type: "string", maxLength: 120 },
+            action: { type: "string", maxLength: 120 },
+            entities: { type: "array", items: { type: "string", maxLength: 120 }, maxItems: 16 },
+            data: { type: "object", additionalProperties: true },
+          },
+          required: ["body"],
+          additionalProperties: false,
+        },
+        annotations: mutating,
+        execute: async (input) => {
+          const body = String(input.body ?? "").trim();
+          if (!body) return JSON.stringify({ ok: false, error: "Message body is required." });
+          syncVisibleWorkflowMessages();
+          const foreground = readForegroundSnapshot();
+          try {
+            const message = submitBrowserStructuredMessage({
+              body,
+              fromId: typeof input.fromId === "string" ? input.fromId : undefined,
+              toId: typeof input.toId === "string" ? input.toId : undefined,
+              fromKind: participantKinds.includes(input.fromKind as MessageParticipantKind) ? input.fromKind as MessageParticipantKind : undefined,
+              toKind: participantKinds.includes(input.toKind as MessageParticipantKind) ? input.toKind as MessageParticipantKind : undefined,
+              kind: messageKinds.includes(input.kind as StructuredMessageKind) ? input.kind as StructuredMessageKind : undefined,
+              subject: typeof input.subject === "string" ? input.subject : undefined,
+              threadId: typeof input.threadId === "string" ? input.threadId : undefined,
+              replyToId: typeof input.replyToId === "string" ? input.replyToId : undefined,
+              source: "webmcp",
+              intent: typeof input.intent === "string" ? input.intent : undefined,
+              action: typeof input.action === "string" ? input.action : undefined,
+              entities: Array.isArray(input.entities) ? input.entities.map(String) : undefined,
+              data: input.data && typeof input.data === "object" && !Array.isArray(input.data) ? input.data as Record<string, unknown> : undefined,
+            }, messageWorldContext(foreground));
+            return JSON.stringify({
+              ok: true,
+              message,
+              lowestBarrierRoute: message.from.kind === "human" && message.to.id === "agent-user",
+              note: "Message is persisted in Asympta's structured communication state. Sending a message does not bypass approval for consequential world actions.",
+            });
+          } catch (error) {
+            return JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) });
+          }
+        },
+      },
+      {
+        name: "asympta_list_agent_messages",
+        title: "List structured Asympta messages",
+        description: "Read the persistent structured communication state. Filter by participant or thread; each record keeps a human-readable body and optional machine-readable semantics.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            participantId: { type: "string", maxLength: 100 },
+            threadId: { type: "string", maxLength: 180 },
+            limit: { type: "integer", minimum: 1, maximum: 100 },
+          },
+          additionalProperties: false,
+        },
+        annotations: readOnly,
+        execute: async (input) => {
+          syncVisibleWorkflowMessages();
+          const messages = listBrowserStructuredMessages({
+            participantId: typeof input.participantId === "string" ? input.participantId : undefined,
+            threadId: typeof input.threadId === "string" ? input.threadId : undefined,
+            limit: typeof input.limit === "number" ? input.limit : 30,
+          });
+          const state = getBrowserAgentMessageState();
+          return JSON.stringify({ ok: true, revision: state.revision, messages });
+        },
+      },
     ];
+
+    const syncTimer = window.setInterval(syncVisibleWorkflowMessages, 700);
+    syncVisibleWorkflowMessages();
 
     const registerAndAudit = async () => {
       try {
@@ -172,7 +296,10 @@ export function AsymptaWebMcpTools() {
     };
 
     void registerAndAudit();
-    return () => controller.abort();
+    return () => {
+      window.clearInterval(syncTimer);
+      controller.abort();
+    };
   }, []);
 
   return null;
