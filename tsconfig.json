@@ -20,7 +20,7 @@
       }
     ],
     "paths": {
-      "@/lib/atlas-simulation": ["./lib/atlas-simulation-runtime.ts"],
+      "@/lib/atlas-simulation": ["./lib/atlas-simulation-client.ts"],
       "@/*": ["./*"]
     }
   },
