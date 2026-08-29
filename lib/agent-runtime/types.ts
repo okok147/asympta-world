@@ -61,7 +61,7 @@ export type AgentRuntimeContext = {
   dependencies: readonly AgentContextTask[];
   recentMessages: readonly AgentContextMessage[];
   pendingApprovals: readonly AgentContextApproval[];
-  participants: readonly Array<{
+  participants: ReadonlyArray<{
     id: string;
     displayName: string;
     role: string;
