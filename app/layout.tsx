@@ -4,6 +4,7 @@ import "./asympta-restoration.css";
 import "./asympta-animal-art.css";
 import "./asympta-live-60hz.css";
 import "./asympta-safe-schedule.css";
+import "./asympta-marker-bubbles.css";
 
 export const metadata: Metadata = {
   title: "Asympta World",
