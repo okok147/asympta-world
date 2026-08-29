@@ -15,7 +15,9 @@ import {
   cityLifeSnapshot,
   createAtlasDemoWorld,
   resolveAtlasDemoApproval,
+  startAtlasDemoWorkflow,
 } from "../lib/atlas-demo.ts";
+import { estimateWorkflowTiming, estimateWorkflowTotalMs } from "../lib/atlas-workflow-time.ts";
 
 function runUntilSettled(initial, maxSteps = 7000) {
   let world = initial;
@@ -26,6 +28,22 @@ function runUntilSettled(initial, maxSteps = 7000) {
     if (world.phase === "completed" || world.phase === "blocked") break;
   }
   return world;
+}
+
+function runDemoDuration(workflowId, maxSteps = 12000) {
+  let world = startAtlasDemoWorkflow(createAtlasWorld(0), workflowId);
+  const startedAt = world.now;
+  for (let index = 0; index < maxSteps; index += 1) {
+    world = advanceAtlasWorld(world, 80);
+    let approval = world.approvals.find((item) => item.status === "pending");
+    while (approval) {
+      world = resolveAtlasDemoApproval(world, approval.id, true);
+      approval = world.approvals.find((item) => item.status === "pending");
+    }
+    if (world.phase === "completed") return world.now - startedAt;
+    if (world.phase === "blocked") throw new Error(`${workflowId} unexpectedly blocked during calibration`);
+  }
+  throw new Error(`${workflowId} did not complete during calibration`);
 }
 
 test("new atlas defines several multi-stakeholder workflows", () => {
@@ -76,6 +94,22 @@ test("approving a demo checkpoint produces another visible travel leg", () => {
     }
   }
   assert.fail("demo never reached an approval checkpoint");
+});
+
+test("workflow total-time estimator stays within 10 percent of the real demo engine", () => {
+  for (const workflow of ATLAS_WORKFLOWS) {
+    const actualMs = runDemoDuration(workflow.id);
+    const estimatedMs = estimateWorkflowTotalMs(workflow.id);
+    const relativeError = Math.abs(estimatedMs - actualMs) / Math.max(1, actualMs);
+    const breakdown = estimateWorkflowTiming(workflow.id);
+
+    assert.ok(breakdown.approvalCount > 0, `${workflow.id} should include approval checkpoints`);
+    assert.ok(breakdown.approvalTravelMs > 0, `${workflow.id} should include post-approval travel`);
+    assert.ok(
+      relativeError <= 0.10,
+      `${workflow.id} ETA error ${(relativeError * 100).toFixed(1)}%: estimated ${estimatedMs}ms vs actual ${actualMs}ms`,
+    );
+  }
 });
 
 test("ambient city has many independent synthetic user and business actors that keep moving", () => {
