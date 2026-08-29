@@ -15,6 +15,7 @@ import { AsymptaScheduleTotalTime } from "@/components/asympta-schedule-total-ti
 import { AsymptaTaskCelebration } from "@/components/asympta-task-celebration";
 import { AsymptaUserPreferences } from "@/components/asympta-user-preferences";
 import { AsymptaWebMcpTools } from "@/components/asympta-webmcp-tools";
+import { AsymptaWorkflowEconomy } from "@/components/asympta-workflow-economy";
 import { AsymptaWorkflowGuide } from "@/components/asympta-workflow-guide";
 import { AsymptaWorldLive60Hz } from "@/components/asympta-world-live-60hz";
 
@@ -29,6 +30,7 @@ export default function HomePage() {
       <AsymptaPaperMapTone />
       <AsymptaBlockActivity />
       <AsymptaSafeSchedule />
+      <AsymptaWorkflowEconomy />
       <AsymptaScheduleTotalTime />
       <AsymptaScheduleAutomationControls />
       <AsymptaResourceLedger />
