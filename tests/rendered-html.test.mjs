@@ -13,16 +13,17 @@ async function renderRoot() {
   return { response, html: await response.text() };
 }
 
-test("server render exposes the autonomous paper living-city demo", async () => {
+test("server render exposes the compact paper animal living-city demo", async () => {
   const { response, html } = await renderRoot();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   assert.match(html, /data-map-app="true"/);
-  assert.match(html, /data-map-style="paper-living-city-demo"/);
-  assert.match(html, /Interactive paper map with autonomous stakeholder agents and simulated city activity/);
-  assert.match(html, /Living Coordination Atlas/);
+  assert.match(html, /data-map-style="paper-animal-living-city-demo"/);
+  assert.match(html, /cute animal stakeholder agents/);
+  assert.match(html, /Living Coordination/);
+  assert.match(html, /Atlas/);
   assert.match(html, /Demo city/);
-  assert.match(html, /ambient actors moving/);
+  assert.match(html, /actors moving/);
   assert.match(html, /Order/);
   assert.match(html, /Dinner/);
   assert.match(html, /Launch/);
