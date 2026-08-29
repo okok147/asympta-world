@@ -15,7 +15,10 @@ export const metadata: Metadata = {
   title: "Asympta World",
   description: "A calm, map-first spatial world.",
   applicationName: "Asympta World",
-  icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
+  icons: {
+    icon: [{ url: "/favicon-asympta-cat-20260829.svg", type: "image/svg+xml" }],
+    shortcut: "/favicon-asympta-cat-20260829.svg",
+  },
 };
 
 export const viewport: Viewport = {
