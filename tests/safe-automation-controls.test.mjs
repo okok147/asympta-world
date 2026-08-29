@@ -5,7 +5,10 @@ import test from "node:test";
 const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
 const automation = await readFile(new URL("../components/asympta-schedule-automation-controls.tsx", import.meta.url), "utf8");
 const cardLocale = await readFile(new URL("../components/asympta-agent-card-locale.tsx", import.meta.url), "utf8");
+const estimatedProgress = await readFile(new URL("../components/asympta-estimated-progress.tsx", import.meta.url), "utf8");
+const progressMath = await readFile(new URL("../lib/atlas-display-progress.ts", import.meta.url), "utf8");
 const automationCss = await readFile(new URL("../app/asympta-schedule-automation.css", import.meta.url), "utf8");
+const progressCss = await readFile(new URL("../app/asympta-estimated-progress.css", import.meta.url), "utf8");
 
 test("auto explore and auto approve live inside the schedule card without high-frequency work", () => {
   assert.match(page, /AsymptaScheduleAutomationControls/);
@@ -30,4 +33,22 @@ test("bottom-left agent card localization stays display-only and language-aware"
   assert.match(cardLocale, /個人意図エージェント/);
   assert.match(cardLocale, /TASKS/);
   assert.doesNotMatch(cardLocale, /requestAnimationFrame|MutationObserver|advanceAtlasWorld|JSON\.parse\(JSON\.stringify/);
+});
+
+test("status percentage is estimated from travel distance plus work time without changing engine progress", () => {
+  assert.match(page, /AsymptaEstimatedProgress/);
+  assert.match(progressMath, /TRAVEL_DEGREES_PER_MS = 0\.0000028/);
+  assert.match(progressMath, /coordinateDistance/);
+  assert.match(progressMath, /travelTotalMs/);
+  assert.match(progressMath, /travelRemainingMs/);
+  assert.match(progressMath, /workTotalMs/);
+  assert.match(progressMath, /context\.task\.workMs/);
+  assert.match(progressMath, /remainingDistance/);
+  assert.match(progressMath, /completedMs \/ totalMs/);
+  assert.match(estimatedProgress, /estimateTaskProgress/);
+  assert.match(estimatedProgress, /asymptaEstimatedProgress/);
+  assert.match(estimatedProgress, /asymptaEstimatedStatus/);
+  assert.match(progressCss, /data-asympta-estimated-progress/);
+  assert.match(progressCss, /data-asympta-estimated-status/);
+  assert.doesNotMatch(estimatedProgress, /requestAnimationFrame|MutationObserver|advanceAtlasWorld|JSON\.parse\(JSON\.stringify/);
 });
