@@ -1,5 +1,5 @@
-import { AsymptaWorldExperience } from "@/components/asympta-world-experience";
+import { AsymptaWorldLiveDemo } from "@/components/asympta-world-live-demo";
 
 export default function HomePage() {
-  return <AsymptaWorldExperience />;
+  return <AsymptaWorldLiveDemo />;
 }
