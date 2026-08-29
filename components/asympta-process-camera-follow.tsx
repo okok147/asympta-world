@@ -22,7 +22,7 @@ type FollowMap = {
   off?(event: string, handler: (event?: unknown) => void): unknown;
 };
 
-const FOLLOW_REFRESH_MS = 320;
+const FOLLOW_REFRESH_MS = 450;
 const ACTIVE_STATUSES = ["working", "moving", "waiting_approval"] as const;
 
 function bridge() {
@@ -94,21 +94,22 @@ export function AsymptaProcessCameraFollow() {
       const tasks = activeTasks(snapshot);
       if (!tasks.length) return;
       const current = tasks[0];
+      const nextAgentId = current.agentId;
       const taskKey = `${current.id ?? "task"}:${current.agentId}:${current.status}`;
-      const agentChanged = current.agentId !== followedAgentId;
+      const agentChanged = nextAgentId !== followedAgentId;
       const taskChanged = taskKey !== followedTaskKey;
       const followDropped = !cameraFollowIsActive();
 
       // Re-clicking the marker is intentional when a task changes or the underlying map
       // temporarily dropped camera-follow. It re-arms the real 60Hz follow loop.
       if (agentChanged || taskChanged || followDropped) {
-        followedAgentId = current.agentId;
+        followedAgentId = nextAgentId;
         followedTaskKey = taskKey;
-        clickAgent(current.agentId);
+        clickAgent(nextAgentId);
       }
     };
 
-    const enableFromProcessClick = (event: MouseEvent) => {
+    const enableFromWorkflowClick = (event: MouseEvent) => {
       const element = event.target instanceof Element ? event.target : null;
       const workflow = element?.closest(".atlas-workflow");
       const scheduledTask = element?.closest(".atlas-safe-task");
@@ -136,7 +137,7 @@ export function AsymptaProcessCameraFollow() {
       }, 0);
     };
 
-    document.addEventListener("click", enableFromProcessClick);
+    document.addEventListener("click", enableFromWorkflowClick);
     document.addEventListener("click", syncManualFollowToggle);
 
     const syncMapListener = () => {
@@ -161,7 +162,7 @@ export function AsymptaProcessCameraFollow() {
     const timer = window.setInterval(tick, FOLLOW_REFRESH_MS);
     return () => {
       window.clearInterval(timer);
-      document.removeEventListener("click", enableFromProcessClick);
+      document.removeEventListener("click", enableFromWorkflowClick);
       document.removeEventListener("click", syncManualFollowToggle);
       if (activeMap?.off) {
         try { activeMap.off("dragstart", disableProcessLock); } catch {}
