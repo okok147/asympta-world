@@ -61,10 +61,22 @@ function startPoint(taskId: string, taskStates: DisplayTask[]) {
   return agent ? ATLAS_LOCATIONS[agent.homeLocationId]?.point ?? null : null;
 }
 
+export function currentTaskTravelDistance(
+  taskState: DisplayTask,
+  agentState: DisplayAgent | undefined,
+) {
+  if (!agentState) return null;
+  const context = taskDefinition(taskState.id);
+  const destination = context ? ATLAS_LOCATIONS[context.task.locationId]?.point : undefined;
+  if (!destination) return null;
+  return coordinateDistance(agentState, destination);
+}
+
 export function estimateTaskProgress(
   taskState: DisplayTask,
   agentState: DisplayAgent | undefined,
   taskStates: DisplayTask[],
+  actualTravelOriginDistance?: number,
 ): EstimatedTaskProgress {
   if (taskState.status === "done") {
     return { percent: 100, totalMs: 0, remainingMs: 0, travelTotalMs: 0, travelRemainingMs: 0, workTotalMs: 0 };
@@ -77,22 +89,27 @@ export function estimateTaskProgress(
   }
 
   const destination = ATLAS_LOCATIONS[context.task.locationId]?.point;
-  const origin = startPoint(taskState.id, taskStates);
+  const fallbackOrigin = startPoint(taskState.id, taskStates);
   const workTotalMs = Math.max(1, context.task.workMs);
 
   let travelTotalMs = 0;
   let travelRemainingMs = 0;
   let travelCompletedMs = 0;
 
-  if (destination && origin) {
-    const routeDistance = coordinateDistance(origin, destination);
+  if (destination) {
+    const fallbackDistance = fallbackOrigin ? coordinateDistance(fallbackOrigin, destination) : 0;
+    const measuredOriginDistance = Number.isFinite(actualTravelOriginDistance)
+      ? Math.max(0, actualTravelOriginDistance ?? 0)
+      : 0;
+    const routeDistance = measuredOriginDistance > ARRIVAL_DISTANCE ? measuredOriginDistance : fallbackDistance;
     const effectiveDistance = routeDistance <= ARRIVAL_DISTANCE ? 0 : routeDistance;
     travelTotalMs = effectiveDistance / TRAVEL_DEGREES_PER_MS;
 
     if (taskState.status === "queued") {
       travelRemainingMs = travelTotalMs;
     } else if (taskState.status === "moving" && agentState) {
-      const remainingDistance = Math.min(effectiveDistance, coordinateDistance(agentState, destination));
+      const currentDistance = coordinateDistance(agentState, destination);
+      const remainingDistance = Math.min(effectiveDistance, currentDistance);
       travelRemainingMs = remainingDistance / TRAVEL_DEGREES_PER_MS;
       travelCompletedMs = Math.max(0, travelTotalMs - travelRemainingMs);
     } else {
