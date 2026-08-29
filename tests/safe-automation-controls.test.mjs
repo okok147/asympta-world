@@ -68,21 +68,24 @@ test("mobile schedule and main menu are mutually adaptive while agent card auto-
   assert.doesNotMatch(cardCollapse, /requestAnimationFrame|MutationObserver|advanceAtlasWorld|JSON\.parse\(JSON\.stringify/);
 });
 
-test("top-left resource ledger counts task and action effects without becoming simulation state", () => {
+test("top-left resource ledger projects canonical world state instead of inventing task deltas", () => {
   assert.match(page, /AsymptaResourceLedger/);
   assert.match(layout, /asympta-resource-ledger\.css/);
   assert.match(resourceLedger, /REFRESH_MS = 500/);
   assert.match(resourceLedger, /"budget" \| "materials" \| "inventory" \| "capacity" \| "compute" \| "delivery" \| "trust"/);
-  assert.match(resourceLedger, /taskFraction/);
-  assert.match(resourceLedger, /task\.actionType === "reserve_capacity"/);
-  assert.match(resourceLedger, /task\.actionType === "authorize_payment"/);
-  assert.match(resourceLedger, /task\.actionType === "release_shipment"/);
-  assert.match(resourceLedger, /task\.actionType === "send_customer_update"/);
-  assert.match(resourceLedger, /SIDE_COMPUTE/);
-  assert.match(resourceLedger, /算力/);
+  assert.match(resourceLedger, /foreground\.runtime/);
+  assert.match(resourceLedger, /runtime\.accounts/);
+  assert.match(resourceLedger, /runtime\.inventories/);
+  assert.match(resourceLedger, /runtime\.capacities/);
+  assert.match(resourceLedger, /runtime\.metrics/);
+  assert.match(resourceLedger, /invariantViolations/);
+  assert.match(resourceLedger, /availableStock/);
+  assert.match(resourceLedger, /availableCapacity/);
   assert.match(resourceLedger, /資金/);
+  assert.match(resourceLedger, /機台/);
   assert.match(resourceCss, /atlas-resource-ledger/);
   assert.match(resourceCss, /data-resource="compute"/);
+  assert.doesNotMatch(resourceLedger, /resourceDeltaForTask|taskFraction|SIDE_COMPUTE/);
   assert.doesNotMatch(resourceLedger, /requestAnimationFrame|MutationObserver|advanceAtlasWorld|startAtlas|resolveAtlas|JSON\.parse\(JSON\.stringify/);
 });
 
