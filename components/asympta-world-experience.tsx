@@ -107,13 +107,7 @@ const SIDE_LABELS: Record<StakeholderSide, string> = {
   market: "Market",
 };
 
-const ACTIONS: ExternalAction[] = [
-  "reserve_capacity",
-  "authorize_payment",
-  "release_shipment",
-  "send_customer_update",
-];
-
+const ACTIONS: ExternalAction[] = ["reserve_capacity", "authorize_payment", "release_shipment", "send_customer_update"];
 let mapLibrePromise: Promise<MapLibreNamespace> | null = null;
 
 function ensureMapLibreCss() {
@@ -129,20 +123,14 @@ function loadMapLibre(): Promise<MapLibreNamespace> {
   if (window.maplibregl) return Promise.resolve(window.maplibregl);
   if (mapLibrePromise) return mapLibrePromise;
   ensureMapLibreCss();
-
   mapLibrePromise = new Promise<MapLibreNamespace>((resolve, reject) => {
     const existing = document.querySelector<HTMLScriptElement>("script[data-asympta-maplibre='true']");
-    const finish = () => {
-      if (window.maplibregl) resolve(window.maplibregl);
-      else reject(new Error("MapLibre loaded without a browser map object."));
-    };
-
+    const finish = () => window.maplibregl ? resolve(window.maplibregl) : reject(new Error("MapLibre loaded without a browser map object."));
     if (existing) {
       existing.addEventListener("load", finish, { once: true });
       existing.addEventListener("error", () => reject(new Error("Map engine failed to load.")), { once: true });
       return;
     }
-
     const script = document.createElement("script");
     script.src = MAPLIBRE_JS;
     script.async = true;
@@ -151,17 +139,11 @@ function loadMapLibre(): Promise<MapLibreNamespace> {
     script.addEventListener("error", () => reject(new Error("Map engine failed to load.")), { once: true });
     document.head.appendChild(script);
   });
-
   return mapLibrePromise;
 }
 
 function sideColorExpression() {
-  return [
-    "match",
-    ["get", "side"],
-    ...Object.entries(SIDE_COLORS).flatMap(([side, color]) => [side, color]),
-    "#5F5C55",
-  ];
+  return ["match", ["get", "side"], ...Object.entries(SIDE_COLORS).flatMap(([side, color]) => [side, color]), "#5F5C55"];
 }
 
 function agentGeoJson(world: AtlasWorldState, selectedAgentId: string | null): GeoJsonFeatureCollection {
@@ -169,37 +151,23 @@ function agentGeoJson(world: AtlasWorldState, selectedAgentId: string | null): G
     type: "FeatureCollection",
     features: world.agents.map((agent) => ({
       type: "Feature",
-      properties: {
-        id: agent.id,
-        name: agent.name,
-        role: agent.role,
-        side: agent.side,
-        status: agent.status,
-        selected: agent.id === selectedAgentId ? 1 : 0,
-      },
+      properties: { id: agent.id, name: agent.name, role: agent.role, side: agent.side, status: agent.status, selected: agent.id === selectedAgentId ? 1 : 0 },
       geometry: { type: "Point", coordinates: [agent.position.lon, agent.position.lat] },
     })),
   };
 }
 
 function routeGeoJson(world: AtlasWorldState): GeoJsonFeatureCollection {
-  const movingTasks = world.tasks.filter((task) => task.status === "moving");
   return {
     type: "FeatureCollection",
-    features: movingTasks.flatMap((task) => {
+    features: world.tasks.filter((task) => task.status === "moving").flatMap((task) => {
       const agent = world.agents.find((candidate) => candidate.id === task.agentId);
       const destination = ATLAS_LOCATIONS[task.locationId];
       if (!agent || !destination) return [];
       return [{
         type: "Feature",
         properties: { agentId: agent.id, side: agent.side, taskId: task.id },
-        geometry: {
-          type: "LineString",
-          coordinates: [
-            [agent.position.lon, agent.position.lat],
-            [destination.point.lon, destination.point.lat],
-          ],
-        },
+        geometry: { type: "LineString", coordinates: [[agent.position.lon, agent.position.lat], [destination.point.lon, destination.point.lat]] },
       }];
     }),
   };
@@ -215,62 +183,19 @@ function messageGeoJson(world: AtlasWorldState): GeoJsonFeatureCollection {
       return [{
         type: "Feature",
         properties: { side: from.side, messageId: message.id },
-        geometry: {
-          type: "LineString",
-          coordinates: [
-            [from.position.lon, from.position.lat],
-            [to.position.lon, to.position.lat],
-          ],
-        },
+        geometry: { type: "LineString", coordinates: [[from.position.lon, from.position.lat], [to.position.lon, to.position.lat]] },
       }];
     }),
   };
-}
-
-function emptyGeoJson(): GeoJsonFeatureCollection {
-  return { type: "FeatureCollection", features: [] };
 }
 
 function addAtlasLayers(map: MapLibreMap, world: AtlasWorldState) {
   map.addSource("atlas-routes", { type: "geojson", data: routeGeoJson(world) });
   map.addSource("atlas-messages", { type: "geojson", data: messageGeoJson(world) });
   map.addSource("atlas-agents", { type: "geojson", data: agentGeoJson(world, null) });
-
-  map.addLayer({
-    id: "atlas-route-shadow",
-    type: "line",
-    source: "atlas-routes",
-    paint: {
-      "line-color": "rgba(247,243,233,0.92)",
-      "line-width": 6,
-      "line-opacity": 0.7,
-    },
-  });
-
-  map.addLayer({
-    id: "atlas-routes",
-    type: "line",
-    source: "atlas-routes",
-    paint: {
-      "line-color": sideColorExpression(),
-      "line-width": 2.2,
-      "line-opacity": 0.72,
-      "line-dasharray": [2, 2.2],
-    },
-  });
-
-  map.addLayer({
-    id: "atlas-messages",
-    type: "line",
-    source: "atlas-messages",
-    paint: {
-      "line-color": sideColorExpression(),
-      "line-width": 1.35,
-      "line-opacity": 0.42,
-      "line-dasharray": [0.7, 1.6],
-    },
-  });
-
+  map.addLayer({ id: "atlas-route-shadow", type: "line", source: "atlas-routes", paint: { "line-color": "rgba(247,243,233,0.92)", "line-width": 6, "line-opacity": 0.7 } });
+  map.addLayer({ id: "atlas-routes", type: "line", source: "atlas-routes", paint: { "line-color": sideColorExpression(), "line-width": 2.2, "line-opacity": 0.72, "line-dasharray": [2, 2.2] } });
+  map.addLayer({ id: "atlas-messages", type: "line", source: "atlas-messages", paint: { "line-color": sideColorExpression(), "line-width": 1.35, "line-opacity": 0.42, "line-dasharray": [0.7, 1.6] } });
   map.addLayer({
     id: "atlas-agent-halo",
     type: "circle",
@@ -282,7 +207,6 @@ function addAtlasLayers(map: MapLibreMap, world: AtlasWorldState) {
       "circle-blur": 0.18,
     },
   });
-
   map.addLayer({
     id: "atlas-agents",
     type: "circle",
@@ -295,24 +219,13 @@ function addAtlasLayers(map: MapLibreMap, world: AtlasWorldState) {
       "circle-stroke-width": ["case", ["==", ["get", "selected"], 1], 2.2, 1.25],
     },
   });
-
   map.addLayer({
     id: "atlas-agent-labels",
     type: "symbol",
     source: "atlas-agents",
     minzoom: 12.25,
-    layout: {
-      "text-field": ["get", "name"],
-      "text-size": 11,
-      "text-offset": [0, 1.2],
-      "text-anchor": "top",
-      "text-allow-overlap": false,
-    },
-    paint: {
-      "text-color": "#33312D",
-      "text-halo-color": "rgba(247,243,233,0.96)",
-      "text-halo-width": 2,
-    },
+    layout: { "text-field": ["get", "name"], "text-size": 11, "text-offset": [0, 1.2], "text-anchor": "top", "text-allow-overlap": false },
+    paint: { "text-color": "#33312D", "text-halo-color": "rgba(247,243,233,0.96)", "text-halo-width": 2 },
   });
 }
 
@@ -333,9 +246,9 @@ function phaseLabel(world: AtlasWorldState) {
 export function AsymptaWorldExperience() {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
-  const worldRef = useRef<AtlasWorldState>(createAtlasWorld());
+  const [world, setWorld] = useState<AtlasWorldState>(() => createAtlasWorld());
+  const worldRef = useRef<AtlasWorldState>(world);
   const lastFollowRef = useRef(0);
-  const [world, setWorld] = useState<AtlasWorldState>(worldRef.current);
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const [webMcpState, setWebMcpState] = useState<"checking" | "ready" | "unavailable">("checking");
@@ -365,7 +278,6 @@ export function AsymptaWorldExperience() {
 
   useEffect(() => {
     let disposed = false;
-
     loadMapLibre()
       .then((maplibre) => {
         if (disposed || !mapContainerRef.current) return;
@@ -383,39 +295,29 @@ export function AsymptaWorldExperience() {
           cooperativeGestures: false,
           fadeDuration: 80,
         });
-
         mapRef.current = map;
         map.dragRotate.disable();
         map.touchPitch?.disable();
         map.touchZoomRotate.enable();
         map.touchZoomRotate.disableRotation();
-
         map.on("load", () => {
           if (disposed) return;
           addAtlasLayers(map, worldRef.current);
-          syncAtlasSources(map, worldRef.current, selectedAgentId);
+          syncAtlasSources(map, worldRef.current, null);
           setMapReady(true);
         });
-
         map.on("click", "atlas-agents", (event) => {
           const id = String(event.features?.[0]?.properties?.id ?? "");
           if (!id) return;
           setSelectedAgentId(id);
           setCameraFollow(true);
         });
-
-        map.on("mouseenter", "atlas-agents", () => {
-          map.getCanvas().style.cursor = "pointer";
-        });
-
-        map.on("mouseleave", "atlas-agents", () => {
-          map.getCanvas().style.cursor = "grab";
-        });
+        map.on("mouseenter", "atlas-agents", () => { map.getCanvas().style.cursor = "pointer"; });
+        map.on("mouseleave", "atlas-agents", () => { map.getCanvas().style.cursor = "grab"; });
       })
       .catch((reason: unknown) => {
         if (!disposed) setMapError(reason instanceof Error ? reason.message : "The map could not be loaded.");
       });
-
     return () => {
       disposed = true;
       mapRef.current?.remove();
@@ -454,18 +356,16 @@ export function AsymptaWorldExperience() {
     const now = performance.now();
     if (now - lastFollowRef.current < 150) return;
     lastFollowRef.current = now;
-    mapRef.current.easeTo({
-      center: [agent.position.lon, agent.position.lat],
-      duration: 130,
-      essential: true,
-    });
+    mapRef.current.easeTo({ center: [agent.position.lon, agent.position.lat], duration: 130, essential: true });
   }, [cameraFollow, mapReady, selectedAgentId, world]);
 
   useEffect(() => {
     const controller = new AbortController();
     const modelContext = document.modelContext;
     if (!modelContext) {
-      setWebMcpState("unavailable");
+      queueMicrotask(() => {
+        if (!controller.signal.aborted) setWebMcpState("unavailable");
+      });
       return () => controller.abort();
     }
 
@@ -473,7 +373,6 @@ export function AsymptaWorldExperience() {
     const agentIds = ATLAS_AGENTS.map((agent) => agent.id);
     const readOnly = { readOnlyHint: true, untrustedContentHint: false };
     const mutating = { readOnlyHint: false, untrustedContentHint: true };
-
     const tools: WebMcpTool[] = [
       {
         name: "asympta_observe_coordination_atlas",
@@ -487,20 +386,12 @@ export function AsymptaWorldExperience() {
         description: "List the available multi-stakeholder simulation workflows and what each one coordinates.",
         inputSchema: { type: "object", properties: {}, additionalProperties: false },
         annotations: readOnly,
-        execute: async () => ({
-          ok: true,
-          workflows: ATLAS_WORKFLOWS.map((workflow) => ({ id: workflow.id, name: workflow.name, summary: workflow.summary })),
-        }),
+        execute: async () => ({ ok: true, workflows: ATLAS_WORKFLOWS.map((workflow) => ({ id: workflow.id, name: workflow.name, summary: workflow.summary })) }),
       },
       {
         name: "asympta_request_workflow",
         description: "Request that Asympta World start a multi-agent workflow. This never starts immediately from WebMCP: it creates a visible approval request and waits for the user to allow it.",
-        inputSchema: {
-          type: "object",
-          properties: { workflowId: { type: "string", enum: workflowIds } },
-          required: ["workflowId"],
-          additionalProperties: false,
-        },
+        inputSchema: { type: "object", properties: { workflowId: { type: "string", enum: workflowIds } }, required: ["workflowId"], additionalProperties: false },
         annotations: mutating,
         execute: async (input) => {
           const workflowId = String(input.workflowId ?? "") as WorkflowId;
@@ -515,11 +406,7 @@ export function AsymptaWorldExperience() {
         description: "Request a consequential coordination action such as reserving capacity, authorising simulated payment, releasing simulated shipment, or sending a simulated customer update. The action is always queued for explicit user approval before simulation advances.",
         inputSchema: {
           type: "object",
-          properties: {
-            action: { type: "string", enum: ACTIONS },
-            agentId: { type: "string", enum: agentIds },
-            reason: { type: "string", minLength: 3, maxLength: 220 },
-          },
+          properties: { action: { type: "string", enum: ACTIONS }, agentId: { type: "string", enum: agentIds }, reason: { type: "string", minLength: 3, maxLength: 220 } },
           required: ["action", "agentId", "reason"],
           additionalProperties: false,
         },
@@ -537,12 +424,7 @@ export function AsymptaWorldExperience() {
       {
         name: "asympta_follow_agent",
         description: "Focus the map camera on one simulation agent and keep tracking that agent as it moves. This changes only the local visual camera.",
-        inputSchema: {
-          type: "object",
-          properties: { agentId: { type: "string", enum: agentIds } },
-          required: ["agentId"],
-          additionalProperties: false,
-        },
+        inputSchema: { type: "object", properties: { agentId: { type: "string", enum: agentIds } }, required: ["agentId"], additionalProperties: false },
         annotations: readOnly,
         execute: async (input) => {
           const agentId = String(input.agentId ?? "");
@@ -554,10 +436,9 @@ export function AsymptaWorldExperience() {
       },
     ];
 
-    Promise.all(tools.map((tool) => Promise.resolve(modelContext.registerTool(tool, { signal: controller.signal }))))
+    Promise.all(tools.map((tool) => Promise.resolve().then(() => modelContext.registerTool(tool, { signal: controller.signal }))))
       .then(() => setWebMcpState("ready"))
       .catch(() => setWebMcpState("unavailable"));
-
     return () => controller.abort();
   }, [apply]);
 
@@ -573,16 +454,11 @@ export function AsymptaWorldExperience() {
 
   const pendingApproval = world.approvals.find((approval) => approval.status === "pending") ?? null;
   const selectedAgent = world.agents.find((agent) => agent.id === selectedAgentId) ?? null;
-  const selectedTask = selectedAgent
-    ? world.tasks.find((task) => task.agentId === selectedAgent.id && ["moving", "working", "waiting_approval"].includes(task.status))
-    : undefined;
+  const selectedTask = selectedAgent ? world.tasks.find((task) => task.agentId === selectedAgent.id && ["moving", "working", "waiting_approval"].includes(task.status)) : undefined;
   const completedTasks = world.tasks.filter((task) => task.status === "done").length;
   const progress = world.tasks.length ? completedTasks / world.tasks.length : 0;
   const activeWorkflow = world.workflowId ? workflowFor(world.workflowId) : null;
-
-  const recenter = () => {
-    mapRef.current?.flyTo({ center: TOKYO_CENTER, zoom: TOKYO_ZOOM, bearing: 0, pitch: 0, duration: 650, essential: true });
-  };
+  const recenter = () => mapRef.current?.flyTo({ center: TOKYO_CENTER, zoom: TOKYO_ZOOM, bearing: 0, pitch: 0, duration: 650, essential: true });
 
   return (
     <main className="map-app" data-map-app="true" data-map-style="paper-agent-coordination-atlas">
@@ -592,38 +468,20 @@ export function AsymptaWorldExperience() {
 
       <section className="atlas-console" aria-label="Coordination workflows">
         <div className="atlas-console__head">
-          <div>
-            <div className="atlas-eyebrow">ASYMPTA WORLD</div>
-            <div className="atlas-title">Coordination Atlas</div>
-          </div>
+          <div><div className="atlas-eyebrow">ASYMPTA WORLD</div><div className="atlas-title">Coordination Atlas</div></div>
           <span className={`atlas-phase atlas-phase--${world.phase}`}>{phaseLabel(world)}</span>
         </div>
-
-        <div className="atlas-tool-state">
-          <span className={`atlas-tool-dot atlas-tool-dot--${webMcpState}`} />
-          {webMcpState === "ready" ? "WebMCP ready" : webMcpState === "checking" ? "Checking WebMCP" : "WebMCP browser API unavailable"}
-        </div>
-
+        <div className="atlas-tool-state"><span className={`atlas-tool-dot atlas-tool-dot--${webMcpState}`} />{webMcpState === "ready" ? "WebMCP ready" : webMcpState === "checking" ? "Checking WebMCP" : "WebMCP browser API unavailable"}</div>
         <div className="atlas-workflows">
           {ATLAS_WORKFLOWS.map((workflow) => (
-            <button
-              key={workflow.id}
-              type="button"
-              className={`atlas-workflow${world.workflowId === workflow.id ? " is-active" : ""}`}
-              onClick={() => startWorkflow(workflow.id)}
-            >
-              <strong>{workflow.shortName}</strong>
-              <span>{workflow.summary}</span>
+            <button key={workflow.id} type="button" className={`atlas-workflow${world.workflowId === workflow.id ? " is-active" : ""}`} onClick={() => startWorkflow(workflow.id)}>
+              <strong>{workflow.shortName}</strong><span>{workflow.summary}</span>
             </button>
           ))}
         </div>
-
         {activeWorkflow ? (
           <div className="atlas-progress-block">
-            <div className="atlas-progress-copy">
-              <span>{activeWorkflow.name}</span>
-              <span>{completedTasks}/{world.tasks.length}</span>
-            </div>
+            <div className="atlas-progress-copy"><span>{activeWorkflow.name}</span><span>{completedTasks}/{world.tasks.length}</span></div>
             <div className="atlas-progress"><i style={{ width: `${Math.round(progress * 100)}%` }} /></div>
             <button type="button" className="atlas-reset" onClick={resetWorld}><RotateCcw size={13} /> Reset</button>
           </div>
@@ -631,20 +489,13 @@ export function AsymptaWorldExperience() {
       </section>
 
       <section className="atlas-sides" aria-label="Stakeholder agents">
-        {(Object.keys(SIDE_LABELS) as StakeholderSide[]).map((side) => (
-          <span key={side}><i style={{ background: SIDE_COLORS[side] }} />{SIDE_LABELS[side]}</span>
-        ))}
+        {(Object.keys(SIDE_LABELS) as StakeholderSide[]).map((side) => <span key={side}><i style={{ background: SIDE_COLORS[side] }} />{SIDE_LABELS[side]}</span>)}
       </section>
 
       {world.events.length ? (
         <aside className="atlas-stream" aria-label="Coordination stream">
           <div className="atlas-stream__title">Live coordination</div>
-          {world.events.slice(0, 4).map((event) => (
-            <div className="atlas-event" key={event.id}>
-              <strong>{event.title}</strong>
-              <span>{event.detail}</span>
-            </div>
-          ))}
+          {world.events.slice(0, 4).map((event) => <div className="atlas-event" key={event.id}><strong>{event.title}</strong><span>{event.detail}</span></div>)}
         </aside>
       ) : null}
 
@@ -652,19 +503,12 @@ export function AsymptaWorldExperience() {
         <aside className="atlas-agent-card" aria-live="polite">
           <div className="atlas-agent-card__top">
             <span className="atlas-agent-dot" style={{ background: SIDE_COLORS[selectedAgent.side] }} />
-            <div>
-              <strong>{selectedAgent.name}</strong>
-              <small>{selectedAgent.role} · {selectedAgent.organisation}</small>
-            </div>
+            <div><strong>{selectedAgent.name}</strong><small>{selectedAgent.role} · {selectedAgent.organisation}</small></div>
             <button type="button" className="atlas-card-close" aria-label="Close agent" onClick={() => { setSelectedAgentId(null); setCameraFollow(false); }}>×</button>
           </div>
-          <div className="atlas-agent-status">
-            <span>{selectedAgent.status}</span>
-            <span>{selectedTask?.title ?? "Standing by"}</span>
-          </div>
+          <div className="atlas-agent-status"><span>{selectedAgent.status}</span><span>{selectedTask?.title ?? "Standing by"}</span></div>
           <button type="button" className={`atlas-follow${cameraFollow ? " is-active" : ""}`} onClick={() => setCameraFollow((value) => !value)}>
-            {cameraFollow ? <Eye size={14} /> : <EyeOff size={14} />}
-            {cameraFollow ? "Tracking agent" : "Follow agent"}
+            {cameraFollow ? <Eye size={14} /> : <EyeOff size={14} />}{cameraFollow ? "Tracking agent" : "Follow agent"}
           </button>
         </aside>
       ) : null}
@@ -687,7 +531,6 @@ export function AsymptaWorldExperience() {
         <button type="button" aria-label="Zoom out" onClick={() => mapRef.current?.zoomOut({ duration: 220 })}><Minus size={18} /></button>
       </div>
       <button type="button" className="map-control map-control--locate" aria-label="Recenter map" onClick={recenter}><LocateFixed size={18} strokeWidth={1.8} /></button>
-
       {!mapReady && !mapError ? <div className="map-status">Drawing the street atlas…</div> : null}
       {mapError ? <div className="map-status map-status--error">{mapError}</div> : null}
     </main>
