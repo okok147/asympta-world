@@ -11,13 +11,17 @@ import "./asympta-estimated-progress.css";
 import "./asympta-global-locale.css";
 import "./asympta-task-celebration.css";
 
+const faviconPath = process.env.ASYMPTA_PAGES_BUILD === "1"
+  ? "/asympta-world/favicon-asympta-cat-20260829.svg"
+  : "/favicon-asympta-cat-20260829.svg";
+
 export const metadata: Metadata = {
   title: "Asympta World",
   description: "A calm, map-first spatial world.",
   applicationName: "Asympta World",
   icons: {
-    icon: [{ url: "/favicon-asympta-cat-20260829.svg", type: "image/svg+xml" }],
-    shortcut: "/favicon-asympta-cat-20260829.svg",
+    icon: [{ url: faviconPath, type: "image/svg+xml" }],
+    shortcut: faviconPath,
   },
 };
 
