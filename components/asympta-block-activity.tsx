@@ -57,14 +57,14 @@ type ActivityBlock = {
 const SOURCE_ID = "asympta-activity-blocks";
 const LAYER_ID = "asympta-activity-blocks-fill";
 const ACTIVITY_REFRESH_MS = 900;
-const ACTIVITY_HOLD_MS = 2_600;
-const ACTIVITY_FADE_MS = 15_000;
-const QUERY_RADIUS_PX = 10;
-const MAX_ACTIVE_AGENTS = 3;
-const MAX_BLOCKS_PER_AGENT = 2;
-const MAX_ACTIVITY_BLOCKS = 10;
-const MAX_BLOCK_SPAN_DEGREES = 0.0012;
-const MAX_OPACITY = 0.32;
+const ACTIVITY_HOLD_MS = 1_600;
+const ACTIVITY_FADE_MS = 8_000;
+const QUERY_RADIUS_PX = 7;
+const MAX_ACTIVE_AGENTS = 10;
+const MAX_BLOCKS_PER_AGENT = 1;
+const MAX_ACTIVITY_BLOCKS = 14;
+const MAX_BLOCK_SPAN_DEGREES = 0.00075;
+const MAX_OPACITY = 0.26;
 
 const ACTIVITY_COLORS = [
   "#7183AA",
@@ -75,7 +75,7 @@ const ACTIVITY_COLORS = [
   "#4E8E89",
 ] as const;
 
-const ACTIVE_TASK_STATUSES = new Set(["working", "waiting_approval"]);
+const ACTIVE_TASK_STATUSES = new Set(["moving", "working", "waiting_approval"]);
 
 function emptyCollection(): ActivityCollection {
   return { type: "FeatureCollection", features: [] };
@@ -168,7 +168,7 @@ function ensureOverlay(map: ActivityMap) {
     paint: {
       "fill-color": ["coalesce", ["get", "color"], "#DDD8CC"],
       "fill-opacity": ["coalesce", ["get", "opacity"], 0],
-      "fill-outline-color": "rgba(67, 63, 56, 0.08)",
+      "fill-outline-color": "rgba(67, 63, 56, 0.06)",
     },
   }, beforeId);
 }
@@ -177,9 +177,16 @@ function activeAgents(snapshot: DemoSnapshot) {
   const foreground = snapshot.foreground;
   const tasks = foreground?.tasks ?? [];
   const agents = foreground?.agents ?? [];
-  const activeAgentIds = new Set(tasks.filter((task) => ACTIVE_TASK_STATUSES.has(task.status)).map((task) => task.agentId));
+  const activeAgentIds = new Set(
+    tasks
+      .filter((task) => ACTIVE_TASK_STATUSES.has(task.status))
+      .map((task) => task.agentId),
+  );
+
+  // Every foreground agent participating in an active task gets the same opportunity to
+  // tint one tiny nearby building. Camera selection never affects this list.
   return agents
-    .filter((agent) => activeAgentIds.has(agent.id) || agent.status === "working")
+    .filter((agent) => activeAgentIds.has(agent.id))
     .filter((agent) => Number.isFinite(agent.lon) && Number.isFinite(agent.lat))
     .slice(0, MAX_ACTIVE_AGENTS);
 }
