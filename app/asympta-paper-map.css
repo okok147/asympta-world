@@ -11,9 +11,9 @@
 }
 
 /*
-  The earlier moving-marker containment clipped anything drawn outside the small
-  marker box, which made the dialogue above and status below technically exist
-  but invisible. Keep only layout/style containment so labels can extend freely.
+  The older marker rule used contain: paint for speed. That clips anything drawn
+  outside the 36px marker box, which made the dialogue above and status below
+  technically exist but invisible. Keep layout/style containment, not paint.
 */
 .animal-map-marker {
   contain: layout style !important;

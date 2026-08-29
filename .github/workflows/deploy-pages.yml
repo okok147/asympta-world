@@ -31,23 +31,6 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Vendor map runtime for Pages
-        run: |
-          set -euo pipefail
-          mkdir -p public/vendor
-          curl --fail --location --retry 3 --retry-delay 1 --connect-timeout 10 --max-time 90 \
-            https://cdn.jsdelivr.net/npm/maplibre-gl@5/dist/maplibre-gl.js \
-            -o public/vendor/maplibre-gl.js
-          curl --fail --location --retry 3 --retry-delay 1 --connect-timeout 10 --max-time 90 \
-            https://cdn.jsdelivr.net/npm/maplibre-gl@5/dist/maplibre-gl.css \
-            -o public/vendor/maplibre-gl.css
-          curl --fail --location --retry 3 --retry-delay 1 --connect-timeout 10 --max-time 90 \
-            https://tiles.openfreemap.org/styles/positron \
-            -o public/vendor/openfreemap-positron.json
-          test -s public/vendor/maplibre-gl.js
-          test -s public/vendor/maplibre-gl.css
-          test -s public/vendor/openfreemap-positron.json
-
       - name: Validate product and engine invariants
         run: |
           npm run lint
@@ -62,12 +45,6 @@ jobs:
 
       - name: Export static Pages site
         run: npm run export:pages
-
-      - name: Verify vendored map assets
-        run: |
-          test -s pages-dist/vendor/maplibre-gl.js
-          test -s pages-dist/vendor/maplibre-gl.css
-          test -s pages-dist/vendor/openfreemap-positron.json
 
       - name: Configure Pages
         uses: actions/configure-pages@v6

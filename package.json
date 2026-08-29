@@ -20,7 +20,7 @@
     "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log NODE_OPTIONS='--experimental-loader ./scripts/cloudflare-node-loader.mjs' vinext start",
     "test": "npm run build && npm run test:all",
     "test:all": "node --experimental-loader ./scripts/cloudflare-node-loader.mjs --test tests/*.test.mjs",
-    "test:engine": "node --experimental-loader ./scripts/cloudflare-node-loader.mjs --test tests/atlas-simulation.test.mjs tests/atlas-scheduler.test.mjs tests/localization-schedule-overlay.test.mjs tests/living-world-engine.test.mjs tests/living-world-product.test.mjs",
+    "test:engine": "node --experimental-loader ./scripts/cloudflare-node-loader.mjs --test tests/atlas-simulation.test.mjs tests/living-world-engine.test.mjs tests/living-world-product.test.mjs",
     "test:rendered": "node --experimental-loader ./scripts/cloudflare-node-loader.mjs --test tests/rendered-html.test.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "bash scripts/sites-env.sh -- eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern pages-dist"

@@ -4,9 +4,6 @@ import "./asympta-restoration.css";
 import "./asympta-animal-art.css";
 import "./asympta-live-60hz.css";
 import "./asympta-paper-map.css";
-import "./asympta-scheduler-overlay.css";
-import "./asympta-schedule-follow.css";
-import "./asympta-demo-controls.css";
 
 export const metadata: Metadata = {
   title: "Asympta World",
@@ -23,28 +20,8 @@ export const viewport: Viewport = {
   themeColor: "#EEEDE6",
 };
 
-const ASYMPTA_LOCAL_MAP_BOOTSTRAP = `(() => {
-  if (window.__asymptaLocalMapBootstrapInstalled) return;
-  window.__asymptaLocalMapBootstrapInstalled = true;
-
-  const pagesBase = window.location.pathname.startsWith("/asympta-world") ? "/asympta-world" : "";
-  if (!pagesBase) return;
-
-  const nativeAppendChild = Node.prototype.appendChild;
-  Node.prototype.appendChild = function appendAsymptaNode(node) {
-    if (this === document.head && node instanceof HTMLScriptElement && node.dataset.asymptaMaplibre === "true") {
-      node.src = pagesBase + "/vendor/maplibre-gl.js";
-    }
-    if (this === document.head && node instanceof HTMLLinkElement && node.dataset.asymptaMaplibre === "true") {
-      node.href = pagesBase + "/vendor/maplibre-gl.css";
-    }
-    return nativeAppendChild.call(this, node);
-  };
-})();`;
-
 const ASYMPTA_MAP_PALETTE_BOOTSTRAP = `(() => {
   let current;
-  const pagesBase = window.location.pathname.startsWith("/asympta-world") ? "/asympta-world" : "";
   const paper = {
     base: "#EEEDE6",
     water: "#DDE3E0",
@@ -61,25 +38,6 @@ const ASYMPTA_MAP_PALETTE_BOOTSTRAP = `(() => {
 
   const paint = (map, id, property, value) => {
     try { map.setPaintProperty(id, property, value); } catch {}
-  };
-
-  const applyLanguage = (map) => {
-    try {
-      const lang = String(document.documentElement.lang || "en").toLowerCase();
-      const expression = lang.startsWith("zh")
-        ? ["coalesce", ["get", "name:zh-Hant"], ["get", "name:zh"], ["get", "name:en"], ["get", "name"]]
-        : lang.startsWith("ja")
-          ? ["coalesce", ["get", "name:ja"], ["get", "name"], ["get", "name:en"]]
-          : ["coalesce", ["get", "name:en"], ["get", "name:latin"], ["get", "name"]];
-      const layers = map.getStyle()?.layers ?? [];
-      for (const layer of layers) {
-        if (layer.type !== "symbol" || !layer.layout?.["text-field"]) continue;
-        const key = String(layer.id ?? "").toLowerCase();
-        if (!/label|place|road|street|poi|water|airport|station|transit|city|town/.test(key)) continue;
-        try { map.setLayoutProperty(layer.id, "text-field", expression); } catch {}
-      }
-      document.documentElement.dataset.asymptaMapLanguage = lang.startsWith("zh") ? "zh-Hant" : lang.startsWith("ja") ? "ja" : "en";
-    } catch {}
   };
 
   const applyPalette = (map) => {
@@ -115,7 +73,6 @@ const ASYMPTA_MAP_PALETTE_BOOTSTRAP = `(() => {
           paint(map, id, "text-halo-color", paper.halo);
         }
       }
-      applyLanguage(map);
       document.documentElement.dataset.asymptaMapPalette = "paper";
     } catch {}
   };
@@ -125,15 +82,8 @@ const ASYMPTA_MAP_PALETTE_BOOTSTRAP = `(() => {
     const OriginalMap = value.Map;
     value.Map = class AsymptaPaperMap extends OriginalMap {
       constructor(options) {
-        const nextOptions = pagesBase && options && typeof options.style === "string" && options.style.startsWith("https://tiles.openfreemap.org/styles/positron")
-          ? { ...options, style: pagesBase + "/vendor/openfreemap-positron.json" }
-          : options;
-        super(nextOptions);
-        const sync = () => requestAnimationFrame(() => applyPalette(this));
-        this.on("load", sync);
-        const observer = new MutationObserver(() => requestAnimationFrame(() => applyLanguage(this)));
-        observer.observe(document.documentElement, { attributes: true, attributeFilter: ["lang"] });
-        this.on("remove", () => observer.disconnect());
+        super(options);
+        this.on("load", () => requestAnimationFrame(() => applyPalette(this)));
       }
     };
     value.__asymptaPaperWrapped = true;
@@ -151,7 +101,6 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
-        <script dangerouslySetInnerHTML={{ __html: ASYMPTA_LOCAL_MAP_BOOTSTRAP }} />
         <script dangerouslySetInnerHTML={{ __html: ASYMPTA_MAP_PALETTE_BOOTSTRAP }} />
         {children}
       </body>
