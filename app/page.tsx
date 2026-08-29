@@ -1,8 +1,10 @@
 import { AsymptaAgentCardLocale } from "@/components/asympta-agent-card-locale";
 import { AsymptaBlockActivity } from "@/components/asympta-block-activity";
 import { AsymptaCardCollapse } from "@/components/asympta-card-collapse";
+import { AsymptaEscalationGuard } from "@/components/asympta-escalation-guard";
 import { AsymptaEstimatedProgress } from "@/components/asympta-estimated-progress";
 import { AsymptaGlobalLocale } from "@/components/asympta-global-locale";
+import { AsymptaJobMode } from "@/components/asympta-job-mode";
 import { AsymptaPaperMapTone } from "@/components/asympta-paper-map-tone";
 import { AsymptaProcessCameraFollow } from "@/components/asympta-process-camera-follow";
 import { AsymptaResourceLedger } from "@/components/asympta-resource-ledger";
@@ -20,6 +22,8 @@ export default function HomePage() {
     <>
       <AsymptaWorldLive60Hz />
       <AsymptaUserPreferences />
+      <AsymptaEscalationGuard />
+      <AsymptaJobMode />
       <AsymptaWebMcpTools />
       <AsymptaPaperMapTone />
       <AsymptaBlockActivity />
