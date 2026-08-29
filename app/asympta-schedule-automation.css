@@ -1,0 +1,86 @@
+.atlas-safe-automation {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 8px 10px 10px;
+  border-top: 1px solid rgba(67, 63, 56, 0.08);
+  background: rgba(247, 243, 233, 0.54);
+}
+
+.atlas-safe-automation__toggle {
+  min-width: 0;
+  min-height: 34px;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border: 1px solid rgba(67, 63, 56, 0.09);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.22);
+  color: var(--ink-soft);
+  font-size: 7.5px;
+  cursor: pointer;
+}
+
+.atlas-safe-automation__toggle:hover,
+.atlas-safe-automation__toggle:focus-visible {
+  background: rgba(255, 255, 255, 0.38);
+  outline: none;
+}
+
+.atlas-safe-automation__toggle.is-on {
+  border-color: rgba(105, 139, 93, 0.22);
+  background: rgba(105, 139, 93, 0.07);
+  color: #556e4d;
+}
+
+.atlas-safe-automation__toggle > span:nth-child(2) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  font-weight: 650;
+}
+
+.atlas-safe-automation__toggle strong {
+  color: var(--ink-faint);
+  font-size: 6.4px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.atlas-safe-automation__toggle.is-on strong { color: #5f7e56; }
+
+.atlas-safe-automation__indicator {
+  position: relative;
+  width: 16px;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(67, 63, 56, 0.14);
+}
+
+.atlas-safe-automation__indicator i {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #8f8a81;
+  transition: transform 140ms ease, background 140ms ease;
+}
+
+.atlas-safe-automation__toggle.is-on .atlas-safe-automation__indicator {
+  background: rgba(105, 139, 93, 0.22);
+}
+
+.atlas-safe-automation__toggle.is-on .atlas-safe-automation__indicator i {
+  transform: translateX(6px);
+  background: #698b5d;
+}
+
+@media (max-width: 700px) {
+  .atlas-safe-automation { padding: 7px 8px 9px; }
+  .atlas-safe-automation__toggle { min-height: 32px; padding: 0 6px; font-size: 7px; }
+}
