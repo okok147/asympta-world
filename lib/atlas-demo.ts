@@ -1,5 +1,4 @@
 import {
-  ATLAS_AGENTS,
   ATLAS_LOCATIONS,
   createAtlasWorld,
   resolveAtlasApproval,
@@ -111,36 +110,41 @@ function routeFor(index: number) {
 
 export const CITY_LIFE_COUNT = CITY_NAMES.length;
 
+export function cityLifeActorAt(index: number, now: number): CityLifeActor {
+  const safeIndex = ((Math.trunc(index) % CITY_LIFE_COUNT) + CITY_LIFE_COUNT) % CITY_LIFE_COUNT;
+  const name = CITY_NAMES[safeIndex];
+  const side = SIDE_SEQUENCE[safeIndex];
+  const route = routeFor(safeIndex);
+  const legMs = TRAVEL_MS + WORK_MS;
+  const local = (now + safeIndex * 2_731) % (legMs * route.length);
+  const legIndex = Math.floor(local / legMs);
+  const within = local % legMs;
+  const fromLocationId = route[legIndex];
+  const toLocationId = route[(legIndex + 1) % route.length];
+  const from = ATLAS_LOCATIONS[fromLocationId].point;
+  const to = ATLAS_LOCATIONS[toLocationId].point;
+  const moving = within < TRAVEL_MS;
+  const taskOptions = TASKS[side];
+  const task = taskOptions[(legIndex + safeIndex) % taskOptions.length];
+
+  return {
+    id: `city-${safeIndex + 1}`,
+    name,
+    side,
+    role: ROLE[side],
+    organisation: ORG[side],
+    status: moving ? "moving" : "working",
+    task,
+    position: moving ? interpolate(from, to, within / TRAVEL_MS) : { ...to },
+    next: { ...to },
+    fromLocationId,
+    toLocationId,
+    simulated: true,
+  };
+}
+
 export function cityLifeSnapshot(now: number): CityLifeActor[] {
-  return CITY_NAMES.map((name, index) => {
-    const side = SIDE_SEQUENCE[index];
-    const route = routeFor(index);
-    const legMs = TRAVEL_MS + WORK_MS;
-    const local = (now + index * 2_731) % (legMs * route.length);
-    const legIndex = Math.floor(local / legMs);
-    const within = local % legMs;
-    const fromLocationId = route[legIndex];
-    const toLocationId = route[(legIndex + 1) % route.length];
-    const from = ATLAS_LOCATIONS[fromLocationId].point;
-    const to = ATLAS_LOCATIONS[toLocationId].point;
-    const moving = within < TRAVEL_MS;
-    const taskOptions = TASKS[side];
-    const task = taskOptions[(legIndex + index) % taskOptions.length];
-    return {
-      id: `city-${index + 1}`,
-      name,
-      side,
-      role: ROLE[side],
-      organisation: ORG[side],
-      status: moving ? "moving" : "working",
-      task,
-      position: moving ? interpolate(from, to, within / TRAVEL_MS) : { ...to },
-      next: { ...to },
-      fromLocationId,
-      toLocationId,
-      simulated: true,
-    };
-  });
+  return Array.from({ length: CITY_LIFE_COUNT }, (_, index) => cityLifeActorAt(index, now));
 }
 
 function pickVisibleOrigin(taskId: string, destinationId: string) {
