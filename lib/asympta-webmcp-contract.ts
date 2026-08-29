@@ -12,6 +12,8 @@ export const ASYMPTA_WEBMCP_AUXILIARY_TOOL_NAMES = [
   "asympta_describe_capabilities",
   "asympta_inspect_agent",
   "asympta_get_pending_approval",
+  "asympta_send_agent_message",
+  "asympta_list_agent_messages",
 ] as const;
 
 export const ASYMPTA_WEBMCP_TOOL_NAMES = [
@@ -48,6 +50,10 @@ export const ASYMPTA_WEBMCP_MANIFEST = {
   api: "document.modelContext",
   integration: "imperative WebMCP",
   disclosure: "All commerce, payment, shipment, supplier and city activity in this challenge build is simulated.",
+  participationBridge: {
+    principle: "Natural language for people; structured semantics for agents; one shared communication state.",
+    lowestBarrierInput: "A person can send only a plain-language message body. Technical routing and semantics are optional.",
+  },
   safety: {
     consequentialRequestsRequireHumanApproval: true,
     workflowStartsRequestedByWebMcpRequireHumanApproval: true,
