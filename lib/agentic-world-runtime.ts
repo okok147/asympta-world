@@ -923,7 +923,7 @@ function processCommitmentDeadline(world: AgenticWorldRuntimeState, event: Runti
     world.metrics.totalEconomicValueTransferred += payable;
   }
   applyRelationshipOutcome(world, commitment.creditorId, commitment.debtorId, false);
-  pushHistory(world, "commitment_violated", "Commitment deadline missed", `${commitment.obligation}; penalty ${payable} JPY applied.`, { actorId: commitment.debtorId, targetId: commitment.credititorId, causeIds: [event.id] });
+  pushHistory(world, "commitment_violated", "Commitment deadline missed", `${commitment.obligation}; penalty ${payable} JPY applied.`, { actorId: commitment.debtorId, targetId: commitment.creditorId, causeIds: [event.id] });
 }
 
 function runAutonomy(world: AgenticWorldRuntimeState) {
