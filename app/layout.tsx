@@ -20,6 +20,57 @@ export const viewport: Viewport = {
   themeColor: "#fbfaf7",
 };
 
+const ASYMPTA_MAP_BRIDGE_BOOTSTRAP = `(() => {
+  let current = window.maplibregl;
+
+  const wrap = (value) => {
+    if (!value || value.__asymptaCameraBridgeWrapped || !value.Map) return value;
+    const OriginalMap = value.Map;
+    value.Map = class AsymptaCameraBridgeMap extends OriginalMap {
+      constructor(options) {
+        super(options);
+        window.__ASYMPTA_MAP__ = this;
+      }
+
+      on(type, listener) {
+        if (type === "zoomstart") return this;
+        if (type === "dragstart" && typeof listener === "function") {
+          const guarded = (event) => {
+            const touches = event?.originalEvent?.touches;
+            if (touches && touches.length > 1) return;
+            return listener(event);
+          };
+          return super.on(type, guarded);
+        }
+        return super.on(type, listener);
+      }
+
+      remove() {
+        if (window.__ASYMPTA_MAP__ === this) delete window.__ASYMPTA_MAP__;
+        return super.remove();
+      }
+    };
+    value.__asymptaCameraBridgeWrapped = true;
+    return value;
+  };
+
+  current = wrap(current);
+  try {
+    Object.defineProperty(window, "maplibregl", {
+      configurable: true,
+      get() { return current; },
+      set(value) { current = wrap(value); }
+    });
+  } catch {}
+})();`;
+
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en" suppressHydrationWarning><body>{children}</body></html>;
+  return (
+    <html lang="en" suppressHydrationWarning>
+      <body>
+        <script dangerouslySetInnerHTML={{ __html: ASYMPTA_MAP_BRIDGE_BOOTSTRAP }} />
+        {children}
+      </body>
+    </html>
+  );
 }
