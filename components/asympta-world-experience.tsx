@@ -1,265 +1,326 @@
 "use client";
 
 import { LocateFixed, Minus, Plus } from "lucide-react";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type PointerEvent as ReactPointerEvent,
-  type WheelEvent as ReactWheelEvent,
-} from "react";
+import { useEffect, useRef, useState } from "react";
 
-type Viewport = { width: number; height: number };
-type Camera = { lat: number; lon: number; zoom: number };
-type Drag = { pointerId: number; x: number; y: number; camera: Camera };
-type PointerPoint = { x: number; y: number };
-type Pinch = { distance: number; camera: Camera; anchorLat: number; anchorLon: number; centerX: number; centerY: number };
+type Category = "people" | "business" | "supply" | "infrastructure";
+
 type Marker = {
   id: string;
   name: string;
   lat: number;
   lon: number;
-  category: "people" | "business" | "supply" | "infrastructure";
+  category: Category;
   weight: number;
 };
 
-const TILE_SIZE = 256;
-const MIN_ZOOM = 2;
-const MAX_ZOOM = 19;
-const DEFAULT_CAMERA: Camera = { lat: 35.6762, lon: 139.6503, zoom: 12.2 };
-const DEFAULT_VIEWPORT: Viewport = { width: 1440, height: 900 };
+type MapFeature = {
+  properties?: {
+    id?: string;
+    name?: string;
+    category?: Category;
+    weight?: number;
+  };
+};
+
+type MapLayerEvent = {
+  features?: MapFeature[];
+};
+
+type GeoJsonCollection = {
+  type: "FeatureCollection";
+  features: Array<{
+    type: "Feature";
+    properties: {
+      id: string;
+      name: string;
+      category: Category;
+      weight: number;
+    };
+    geometry: {
+      type: "Point";
+      coordinates: [number, number];
+    };
+  }>;
+};
+
+type MapLibreMap = {
+  on(event: string, handler: () => void): void;
+  on(event: string, layerId: string, handler: (event: MapLayerEvent) => void): void;
+  addSource(id: string, source: { type: "geojson"; data: GeoJsonCollection }): void;
+  addLayer(layer: Record<string, unknown>): void;
+  setFilter(layerId: string, filter: unknown[] | null): void;
+  flyTo(options: Record<string, unknown>): void;
+  zoomIn(options?: Record<string, unknown>): void;
+  zoomOut(options?: Record<string, unknown>): void;
+  getCanvas(): HTMLCanvasElement;
+  remove(): void;
+  touchZoomRotate: {
+    enable(): void;
+    disableRotation(): void;
+  };
+  dragRotate: { disable(): void };
+  touchPitch?: { disable(): void };
+};
+
+type MapLibreNamespace = {
+  Map: new (options: Record<string, unknown>) => MapLibreMap;
+};
+
+declare global {
+  interface Window {
+    maplibregl?: MapLibreNamespace;
+  }
+}
+
+const MAPLIBRE_JS = "https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js";
+const MAPLIBRE_CSS = "https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css";
+const OPENFREEMAP_STYLE = "https://tiles.openfreemap.org/styles/positron";
+const TOKYO_CENTER: [number, number] = [139.7544, 35.6762];
+const TOKYO_ZOOM = 13.25;
+
+let mapLibrePromise: Promise<MapLibreNamespace> | null = null;
 
 const MARKERS: Marker[] = [
   { id: "shinjuku", name: "Shinjuku", lat: 35.6938, lon: 139.7034, category: "people", weight: 28 },
   { id: "shibuya", name: "Shibuya", lat: 35.6595, lon: 139.7005, category: "people", weight: 25 },
+  { id: "harajuku", name: "Harajuku", lat: 35.6702, lon: 139.7027, category: "people", weight: 18 },
+  { id: "ikebukuro", name: "Ikebukuro", lat: 35.7295, lon: 139.7109, category: "people", weight: 20 },
+  { id: "ueno", name: "Ueno", lat: 35.7138, lon: 139.7773, category: "people", weight: 17 },
   { id: "marunouchi", name: "Marunouchi", lat: 35.6812, lon: 139.7639, category: "business", weight: 34 },
   { id: "nihonbashi", name: "Nihonbashi", lat: 35.6837, lon: 139.7744, category: "business", weight: 19 },
-  { id: "shinagawa", name: "Shinagawa", lat: 35.6285, lon: 139.7387, category: "infrastructure", weight: 23 },
-  { id: "toyosu", name: "Toyosu", lat: 35.655, lon: 139.7967, category: "supply", weight: 18 },
-  { id: "haneda", name: "Haneda", lat: 35.5494, lon: 139.7798, category: "infrastructure", weight: 30 },
-  { id: "ueno", name: "Ueno", lat: 35.7138, lon: 139.7773, category: "people", weight: 17 },
-  { id: "ikebukuro", name: "Ikebukuro", lat: 35.7295, lon: 139.7109, category: "people", weight: 20 },
+  { id: "roppongi", name: "Roppongi", lat: 35.6628, lon: 139.7314, category: "business", weight: 22 },
+  { id: "toranomon", name: "Toranomon", lat: 35.6671, lon: 139.7496, category: "business", weight: 24 },
   { id: "odaiba", name: "Odaiba", lat: 35.6273, lon: 139.7755, category: "business", weight: 15 },
+  { id: "toyosu", name: "Toyosu", lat: 35.655, lon: 139.7967, category: "supply", weight: 18 },
+  { id: "tsukiji", name: "Tsukiji", lat: 35.6655, lon: 139.7707, category: "supply", weight: 15 },
+  { id: "shinagawa", name: "Shinagawa", lat: 35.6285, lon: 139.7387, category: "infrastructure", weight: 23 },
+  { id: "tokyo-station", name: "Tokyo Station", lat: 35.6812, lon: 139.7671, category: "infrastructure", weight: 31 },
+  { id: "hamamatsucho", name: "Hamamatsucho", lat: 35.6556, lon: 139.7568, category: "infrastructure", weight: 16 },
+  { id: "haneda", name: "Haneda", lat: 35.5494, lon: 139.7798, category: "infrastructure", weight: 30 },
 ];
 
-const CATEGORY_LABELS = {
+const CATEGORY_LABELS: Record<Category, string> = {
   people: "People",
   business: "Business",
   supply: "Supply",
   infrastructure: "Infrastructure",
-} as const;
+};
 
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value));
+const CATEGORY_COLORS: Record<Category, string> = {
+  people: "#477FA8",
+  business: "#C8744E",
+  supply: "#6F8F62",
+  infrastructure: "#796B9D",
+};
+
+function ensureMapLibreCss() {
+  if (document.querySelector("link[data-asympta-maplibre='true']")) return;
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = MAPLIBRE_CSS;
+  link.dataset.asymptaMaplibre = "true";
+  document.head.appendChild(link);
 }
 
-function lonToWorldX(lon: number, zoom: number) {
-  return ((lon + 180) / 360) * TILE_SIZE * 2 ** zoom;
+function loadMapLibre(): Promise<MapLibreNamespace> {
+  if (window.maplibregl) return Promise.resolve(window.maplibregl);
+  if (mapLibrePromise) return mapLibrePromise;
+
+  ensureMapLibreCss();
+  mapLibrePromise = new Promise<MapLibreNamespace>((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>("script[data-asympta-maplibre='true']");
+    const finish = () => {
+      if (window.maplibregl) resolve(window.maplibregl);
+      else reject(new Error("Map engine loaded without a global MapLibre object."));
+    };
+
+    if (existing) {
+      existing.addEventListener("load", finish, { once: true });
+      existing.addEventListener("error", () => reject(new Error("Map engine failed to load.")), { once: true });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = MAPLIBRE_JS;
+    script.async = true;
+    script.dataset.asymptaMaplibre = "true";
+    script.addEventListener("load", finish, { once: true });
+    script.addEventListener("error", () => reject(new Error("Map engine failed to load.")), { once: true });
+    document.head.appendChild(script);
+  });
+
+  return mapLibrePromise;
 }
 
-function latToWorldY(lat: number, zoom: number) {
-  const safeLat = clamp(lat, -85.05112878, 85.05112878);
-  const rad = (safeLat * Math.PI) / 180;
-  return ((1 - Math.asinh(Math.tan(rad)) / Math.PI) / 2) * TILE_SIZE * 2 ** zoom;
-}
-
-function worldXToLon(x: number, zoom: number) {
-  return (x / (TILE_SIZE * 2 ** zoom)) * 360 - 180;
-}
-
-function worldYToLat(y: number, zoom: number) {
-  const n = Math.PI - (2 * Math.PI * y) / (TILE_SIZE * 2 ** zoom);
-  return (180 / Math.PI) * Math.atan(Math.sinh(n));
-}
-
-function project(lat: number, lon: number, camera: Camera, viewport: Viewport) {
-  const cx = lonToWorldX(camera.lon, camera.zoom);
-  const cy = latToWorldY(camera.lat, camera.zoom);
+function markerGeoJson(): GeoJsonCollection {
   return {
-    x: viewport.width / 2 + lonToWorldX(lon, camera.zoom) - cx,
-    y: viewport.height / 2 + latToWorldY(lat, camera.zoom) - cy,
+    type: "FeatureCollection",
+    features: MARKERS.map((marker) => ({
+      type: "Feature",
+      properties: {
+        id: marker.id,
+        name: marker.name,
+        category: marker.category,
+        weight: marker.weight,
+      },
+      geometry: {
+        type: "Point",
+        coordinates: [marker.lon, marker.lat],
+      },
+    })),
   };
 }
 
-function screenToLatLon(camera: Camera, rect: DOMRect, x: number, y: number) {
-  const cx = lonToWorldX(camera.lon, camera.zoom);
-  const cy = latToWorldY(camera.lat, camera.zoom);
-  const wx = cx + x - rect.left - rect.width / 2;
-  const wy = cy + y - rect.top - rect.height / 2;
-  return { lat: worldYToLat(wy, camera.zoom), lon: worldXToLon(wx, camera.zoom) };
+function categoryFilter(categories: Set<Category>) {
+  return ["in", ["get", "category"], ["literal", Array.from(categories)]];
 }
 
-function getTiles(camera: Camera, viewport: Viewport) {
-  const tileZoom = Math.floor(camera.zoom);
-  const scale = 2 ** (camera.zoom - tileZoom);
-  const centerX = lonToWorldX(camera.lon, tileZoom);
-  const centerY = latToWorldY(camera.lat, tileZoom);
-  const widthAtTileZoom = viewport.width / scale;
-  const heightAtTileZoom = viewport.height / scale;
-  const left = centerX - widthAtTileZoom / 2;
-  const top = centerY - heightAtTileZoom / 2;
-  const minX = Math.floor(left / TILE_SIZE) - 1;
-  const maxX = Math.floor((left + widthAtTileZoom) / TILE_SIZE) + 1;
-  const minY = Math.max(0, Math.floor(top / TILE_SIZE) - 1);
-  const maxY = Math.min(2 ** tileZoom - 1, Math.floor((top + heightAtTileZoom) / TILE_SIZE) + 1);
-  const tiles: Array<{ key: string; y: number; z: number; left: number; top: number; size: number; urlX: number }> = [];
-  const tileCount = 2 ** tileZoom;
+function applyCategoryFilter(map: MapLibreMap, categories: Set<Category>) {
+  const filter = categoryFilter(categories);
+  map.setFilter("activity-halo", filter);
+  map.setFilter("activity-dots", filter);
+  map.setFilter("activity-labels", filter);
+}
 
-  for (let y = minY; y <= maxY; y += 1) {
-    for (let x = minX; x <= maxX; x += 1) {
-      const urlX = ((x % tileCount) + tileCount) % tileCount;
-      tiles.push({
-        key: `${tileZoom}-${x}-${y}`,
-        y,
-        z: tileZoom,
-        urlX,
-        left: viewport.width / 2 + (x * TILE_SIZE - centerX) * scale,
-        top: viewport.height / 2 + (y * TILE_SIZE - centerY) * scale,
-        size: TILE_SIZE * scale + 0.5,
-      });
-    }
-  }
+function addVisualizerLayers(map: MapLibreMap) {
+  map.addSource("activity", {
+    type: "geojson",
+    data: markerGeoJson(),
+  });
 
-  return tiles;
+  const colorExpression = [
+    "match",
+    ["get", "category"],
+    "people", CATEGORY_COLORS.people,
+    "business", CATEGORY_COLORS.business,
+    "supply", CATEGORY_COLORS.supply,
+    "infrastructure", CATEGORY_COLORS.infrastructure,
+    "#56524A",
+  ];
+
+  map.addLayer({
+    id: "activity-halo",
+    type: "circle",
+    source: "activity",
+    paint: {
+      "circle-radius": ["interpolate", ["linear"], ["get", "weight"], 10, 12, 36, 25],
+      "circle-color": colorExpression,
+      "circle-opacity": 0.12,
+      "circle-blur": 0.15,
+    },
+  });
+
+  map.addLayer({
+    id: "activity-dots",
+    type: "circle",
+    source: "activity",
+    paint: {
+      "circle-radius": ["interpolate", ["linear"], ["get", "weight"], 10, 5.5, 36, 12],
+      "circle-color": colorExpression,
+      "circle-opacity": 0.93,
+      "circle-stroke-color": "#F7F3E9",
+      "circle-stroke-width": 1.35,
+    },
+  });
+
+  map.addLayer({
+    id: "activity-labels",
+    type: "symbol",
+    source: "activity",
+    minzoom: 13.6,
+    layout: {
+      "text-field": ["get", "name"],
+      "text-size": 11,
+      "text-offset": [0, 1.25],
+      "text-anchor": "top",
+      "text-allow-overlap": false,
+    },
+    paint: {
+      "text-color": "#3D3A35",
+      "text-halo-color": "rgba(247,243,233,0.92)",
+      "text-halo-width": 2,
+    },
+  });
 }
 
 export function AsymptaWorldExperience() {
-  const mapRef = useRef<HTMLDivElement>(null);
-  const dragRef = useRef<Drag | null>(null);
-  const pointersRef = useRef(new Map<number, PointerPoint>());
-  const pinchRef = useRef<Pinch | null>(null);
-  const [viewport, setViewport] = useState<Viewport>(DEFAULT_VIEWPORT);
-  const [camera, setCamera] = useState<Camera>(DEFAULT_CAMERA);
-  const [panning, setPanning] = useState(false);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [activeCategories, setActiveCategories] = useState(() => new Set<Marker["category"]>(["people", "business", "supply", "infrastructure"]));
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<MapLibreMap | null>(null);
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Marker | null>(null);
+  const [activeCategories, setActiveCategories] = useState<Set<Category>>(
+    () => new Set<Category>(["people", "business", "supply", "infrastructure"]),
+  );
 
   useEffect(() => {
-    const element = mapRef.current;
-    if (!element) return;
-    const update = () => {
-      const rect = element.getBoundingClientRect();
-      if (rect.width > 0 && rect.height > 0) setViewport({ width: rect.width, height: rect.height });
+    let disposed = false;
+
+    loadMapLibre()
+      .then((maplibre) => {
+        if (disposed || !mapContainerRef.current) return;
+
+        const map = new maplibre.Map({
+          container: mapContainerRef.current,
+          style: OPENFREEMAP_STYLE,
+          center: TOKYO_CENTER,
+          zoom: TOKYO_ZOOM,
+          minZoom: 3,
+          maxZoom: 20,
+          attributionControl: true,
+          pitchWithRotate: false,
+          dragRotate: false,
+          touchPitch: false,
+          cooperativeGestures: false,
+          fadeDuration: 80,
+        });
+
+        mapRef.current = map;
+        map.dragRotate.disable();
+        map.touchPitch?.disable();
+        map.touchZoomRotate.enable();
+        map.touchZoomRotate.disableRotation();
+
+        map.on("load", () => {
+          if (disposed) return;
+          addVisualizerLayers(map);
+          applyCategoryFilter(map, activeCategories);
+          setReady(true);
+        });
+
+        map.on("click", "activity-dots", (event) => {
+          const id = event.features?.[0]?.properties?.id;
+          const marker = MARKERS.find((item) => item.id === id) ?? null;
+          setSelected(marker);
+        });
+
+        map.on("mouseenter", "activity-dots", () => {
+          map.getCanvas().style.cursor = "pointer";
+        });
+
+        map.on("mouseleave", "activity-dots", () => {
+          map.getCanvas().style.cursor = "grab";
+        });
+      })
+      .catch((reason: unknown) => {
+        if (disposed) return;
+        setError(reason instanceof Error ? reason.message : "The map could not be loaded.");
+      });
+
+    return () => {
+      disposed = true;
+      mapRef.current?.remove();
+      mapRef.current = null;
     };
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(element);
-    return () => observer.disconnect();
   }, []);
 
-  const tiles = useMemo(() => getTiles(camera, viewport), [camera, viewport]);
-  const visibleMarkers = useMemo(() => MARKERS.filter((marker) => activeCategories.has(marker.category)), [activeCategories]);
+  useEffect(() => {
+    if (!ready || !mapRef.current) return;
+    applyCategoryFilter(mapRef.current, activeCategories);
+  }, [activeCategories, ready]);
 
-  const zoomAt = useCallback((nextZoom: number, clientX?: number, clientY?: number) => {
-    const element = mapRef.current;
-    const rect = element?.getBoundingClientRect();
-    setCamera((previous) => {
-      const zoom = clamp(nextZoom, MIN_ZOOM, MAX_ZOOM);
-      if (!rect || clientX === undefined || clientY === undefined) return { ...previous, zoom };
-
-      const oldCenterX = lonToWorldX(previous.lon, previous.zoom);
-      const oldCenterY = latToWorldY(previous.lat, previous.zoom);
-      const anchorX = oldCenterX + clientX - rect.left - rect.width / 2;
-      const anchorY = oldCenterY + clientY - rect.top - rect.height / 2;
-      const ratio = 2 ** (zoom - previous.zoom);
-      const nextCenterX = anchorX * ratio - (clientX - rect.left - rect.width / 2);
-      const nextCenterY = anchorY * ratio - (clientY - rect.top - rect.height / 2);
-
-      return { zoom, lon: worldXToLon(nextCenterX, zoom), lat: worldYToLat(nextCenterY, zoom) };
-    });
-  }, []);
-
-  const beginPinch = useCallback(() => {
-    const element = mapRef.current;
-    if (!element || pointersRef.current.size !== 2) {
-      pinchRef.current = null;
-      return;
-    }
-    const [a, b] = Array.from(pointersRef.current.values());
-    const centerX = (a.x + b.x) / 2;
-    const centerY = (a.y + b.y) / 2;
-    const rect = element.getBoundingClientRect();
-    const anchor = screenToLatLon(camera, rect, centerX, centerY);
-    pinchRef.current = {
-      distance: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
-      camera,
-      anchorLat: anchor.lat,
-      anchorLon: anchor.lon,
-      centerX,
-      centerY,
-    };
-  }, [camera]);
-
-  const handleWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    zoomAt(camera.zoom + (event.deltaY < 0 ? 0.55 : -0.55), event.clientX, event.clientY);
-  };
-
-  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.pointerType === "mouse" && event.button !== 0) return;
-    event.currentTarget.setPointerCapture(event.pointerId);
-    pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
-
-    if (pointersRef.current.size === 1) {
-      dragRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, camera };
-      setPanning(true);
-    } else if (pointersRef.current.size === 2) {
-      dragRef.current = null;
-      setPanning(false);
-      beginPinch();
-    }
-  };
-
-  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!pointersRef.current.has(event.pointerId)) return;
-    pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
-
-    if (pointersRef.current.size === 2) {
-      const element = mapRef.current;
-      const pinch = pinchRef.current;
-      if (!element || !pinch) return beginPinch();
-      const [a, b] = Array.from(pointersRef.current.values());
-      const distance = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
-      const centerX = (a.x + b.x) / 2;
-      const centerY = (a.y + b.y) / 2;
-      const rect = element.getBoundingClientRect();
-      const zoom = clamp(pinch.camera.zoom + Math.log2(distance / pinch.distance), MIN_ZOOM, MAX_ZOOM);
-      const anchorWorldX = lonToWorldX(pinch.anchorLon, zoom);
-      const anchorWorldY = latToWorldY(pinch.anchorLat, zoom);
-      const centerOffsetX = centerX - rect.left - rect.width / 2;
-      const centerOffsetY = centerY - rect.top - rect.height / 2;
-      const nextCenterX = anchorWorldX - centerOffsetX;
-      const nextCenterY = anchorWorldY - centerOffsetY;
-      setCamera({ zoom, lon: worldXToLon(nextCenterX, zoom), lat: worldYToLat(nextCenterY, zoom) });
-      return;
-    }
-
-    const drag = dragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    const dx = event.clientX - drag.x;
-    const dy = event.clientY - drag.y;
-    const cx = lonToWorldX(drag.camera.lon, drag.camera.zoom) - dx;
-    const cy = latToWorldY(drag.camera.lat, drag.camera.zoom) - dy;
-    setCamera({ ...drag.camera, lon: worldXToLon(cx, drag.camera.zoom), lat: worldYToLat(cy, drag.camera.zoom) });
-  };
-
-  const handlePointerEnd = (event: ReactPointerEvent<HTMLDivElement>) => {
-    pointersRef.current.delete(event.pointerId);
-    if (dragRef.current?.pointerId === event.pointerId) dragRef.current = null;
-    pinchRef.current = null;
-
-    if (pointersRef.current.size === 1) {
-      const [pointerId, point] = Array.from(pointersRef.current.entries())[0];
-      dragRef.current = { pointerId, x: point.x, y: point.y, camera };
-      setPanning(true);
-    } else {
-      setPanning(false);
-    }
-  };
-
-  const toggleCategory = (category: Marker["category"]) => {
+  const toggleCategory = (category: Category) => {
     setActiveCategories((previous) => {
       const next = new Set(previous);
       if (next.has(category)) next.delete(category);
@@ -268,59 +329,33 @@ export function AsymptaWorldExperience() {
     });
   };
 
-  return (
-    <main className="map-app" data-map-app="true" data-map-style="real-street-visualizer">
-      <div
-        ref={mapRef}
-        className={`map-canvas${panning ? " is-panning" : ""}`}
-        role="application"
-        aria-label="Interactive real-world street map visualizer"
-        onWheel={handleWheel}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerEnd}
-        onPointerCancel={handlePointerEnd}
-      >
-        <div className="map-tiles" aria-hidden="true">
-          {tiles.map((tile) => (
-            <img
-              key={tile.key}
-              className="map-tile"
-              src={`https://tile.openstreetmap.org/${tile.z}/${tile.urlX}/${tile.y}.png`}
-              alt=""
-              draggable={false}
-              style={{ left: tile.left, top: tile.top, width: tile.size, height: tile.size }}
-            />
-          ))}
-        </div>
+  const recenter = () => {
+    mapRef.current?.flyTo({
+      center: TOKYO_CENTER,
+      zoom: TOKYO_ZOOM,
+      bearing: 0,
+      pitch: 0,
+      duration: 650,
+      essential: true,
+    });
+  };
 
-        <svg className="map-overlay" width={viewport.width} height={viewport.height} viewBox={`0 0 ${viewport.width} ${viewport.height}`} aria-hidden="true">
-          {visibleMarkers.map((marker) => {
-            const point = project(marker.lat, marker.lon, camera, viewport);
-            const radius = clamp(5 + Math.sqrt(marker.weight) * 1.5, 8, 18);
-            const isSelected = selected === marker.id;
-            return (
-              <g
-                key={marker.id}
-                className={`map-node map-node--${marker.category}${isSelected ? " is-selected" : ""}`}
-                transform={`translate(${point.x} ${point.y})`}
-                onPointerDown={(event) => event.stopPropagation()}
-                onClick={() => setSelected(marker.id)}
-              >
-                <circle r={radius + 5} className="map-node-halo" />
-                <circle r={radius} className="map-node-core" />
-                {(camera.zoom >= 12.8 || isSelected) && <text x={radius + 8} y="4">{marker.name}</text>}
-              </g>
-            );
-          })}
-        </svg>
-      </div>
+  return (
+    <main className="map-app" data-map-app="true" data-map-style="paper-capital-atlas">
+      <div
+        ref={mapContainerRef}
+        className="map-canvas"
+        role="application"
+        aria-label="Interactive paper-textured real-world street map visualizer"
+      />
+      <div className="map-paper-wash" aria-hidden="true" />
+      <div className="map-paper-grain" aria-hidden="true" />
 
       <section className="map-legend" aria-label="Visualizer filters">
         <div className="map-legend__eyebrow">ASYMPTA WORLD</div>
-        <div className="map-legend__title">Tokyo street activity map</div>
+        <div className="map-legend__title">Activity Atlas</div>
         <div className="map-legend__filters">
-          {(Object.keys(CATEGORY_LABELS) as Array<Marker["category"]>).map((category) => (
+          {(Object.keys(CATEGORY_LABELS) as Category[]).map((category) => (
             <button
               key={category}
               type="button"
@@ -335,16 +370,28 @@ export function AsymptaWorldExperience() {
         </div>
       </section>
 
+      {selected ? (
+        <aside className="map-selection" aria-live="polite">
+          <button type="button" className="map-selection__close" aria-label="Close selection" onClick={() => setSelected(null)}>×</button>
+          <span className={`map-selection__dot map-selection__dot--${selected.category}`} />
+          <div>
+            <strong>{selected.name}</strong>
+            <small>{CATEGORY_LABELS[selected.category]} · activity {selected.weight}</small>
+          </div>
+        </aside>
+      ) : null}
+
       <div className="map-zoom" aria-label="Map zoom controls">
-        <button type="button" aria-label="Zoom in" onClick={() => zoomAt(camera.zoom + 1)}><Plus size={18} /></button>
-        <button type="button" aria-label="Zoom out" onClick={() => zoomAt(camera.zoom - 1)}><Minus size={18} /></button>
+        <button type="button" aria-label="Zoom in" onClick={() => mapRef.current?.zoomIn({ duration: 220 })}><Plus size={18} /></button>
+        <button type="button" aria-label="Zoom out" onClick={() => mapRef.current?.zoomOut({ duration: 220 })}><Minus size={18} /></button>
       </div>
 
-      <button type="button" className="map-control map-control--locate" aria-label="Recenter map" onClick={() => setCamera(DEFAULT_CAMERA)}>
+      <button type="button" className="map-control map-control--locate" aria-label="Recenter map" onClick={recenter}>
         <LocateFixed size={18} strokeWidth={1.8} />
       </button>
 
-      <div className="map-attribution">© OpenStreetMap contributors</div>
+      {!ready && !error ? <div className="map-status">Drawing streets…</div> : null}
+      {error ? <div className="map-status map-status--error">{error}</div> : null}
     </main>
   );
 }
