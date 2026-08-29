@@ -42,7 +42,7 @@ test("custom order advances through movement, approvals and completion", () => {
   assert.ok(completed.approvals.filter((approval) => approval.source === "workflow").length >= 3);
   assert.ok(completed.approvals.filter((approval) => approval.status === "approved").length >= 3);
   assert.ok(completed.events.some((event) => event.title === "Workflow complete"));
-  assert.ok(completed.messages.length >= 1);
+  assert.ok(completed.events.some((event) => event.detail.includes("published the result")));
 });
 
 test("WebMCP workflow requests cannot start without explicit approval", () => {
