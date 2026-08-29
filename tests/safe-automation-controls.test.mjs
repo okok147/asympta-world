@@ -6,6 +6,7 @@ const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8")
 const automation = await readFile(new URL("../components/asympta-schedule-automation-controls.tsx", import.meta.url), "utf8");
 const cardLocale = await readFile(new URL("../components/asympta-agent-card-locale.tsx", import.meta.url), "utf8");
 const estimatedProgress = await readFile(new URL("../components/asympta-estimated-progress.tsx", import.meta.url), "utf8");
+const processFollow = await readFile(new URL("../components/asympta-process-camera-follow.tsx", import.meta.url), "utf8");
 const progressMath = await readFile(new URL("../lib/atlas-display-progress.ts", import.meta.url), "utf8");
 const automationCss = await readFile(new URL("../app/asympta-schedule-automation.css", import.meta.url), "utf8");
 const progressCss = await readFile(new URL("../app/asympta-estimated-progress.css", import.meta.url), "utf8");
@@ -23,6 +24,19 @@ test("auto explore and auto approve live inside the schedule card without high-f
   assert.match(automation, /api\.startWorkflow\(nextWorkflow\(foreground\.workflow\)\)/);
   assert.match(automationCss, /atlas-safe-automation/);
   assert.doesNotMatch(automation, /requestAnimationFrame|MutationObserver|advanceAtlasWorld|JSON\.parse\(JSON\.stringify/);
+});
+
+test("workflow tiles only enable process camera lock and do not reach the original workflow starter", () => {
+  assert.match(page, /AsymptaProcessCameraFollow/);
+  assert.match(processFollow, /closest\("\.atlas-workflow"\)/);
+  assert.match(processFollow, /event\.preventDefault\(\)/);
+  assert.match(processFollow, /event\.stopPropagation\(\)/);
+  assert.match(processFollow, /asymptaProcessCameraLock = "on"/);
+  assert.match(processFollow, /FOLLOW_REFRESH_MS = 450/);
+  assert.match(processFollow, /ACTIVE_STATUSES = \["working", "moving", "waiting_approval"\]/);
+  assert.match(processFollow, /activeMap\.on\("dragstart", disableProcessLock\)/);
+  assert.match(processFollow, /clickAgent\(nextAgentId\)/);
+  assert.doesNotMatch(processFollow, /startWorkflow|advanceAtlasWorld|requestAnimationFrame|MutationObserver|JSON\.parse\(JSON\.stringify/);
 });
 
 test("bottom-left agent card localization stays display-only and language-aware", () => {
