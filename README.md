@@ -2,62 +2,43 @@
 
 > Humans live. Agents coordinate the world around them.
 
-[Live world](https://okok147.github.io/asympta-world/) · [Complete order flow](https://okok147.github.io/asympta-world/?demo=order)
+[Live world](https://okok147.github.io/asympta-world/) · [Public source](https://github.com/okok147/asympta-world) · [WebMCP challenge kit](docs/WEBMCP_CHALLENGE_SUBMISSION.md)
 
-Asympta World is a calm, human-centred coordination world. A person states one ordinary intention and specialised agents carry it across the real sides that need to cooperate: requester, business, merchandiser, warehouse, procurement, supplier, production, quality control, fulfilment, finance, carrier and after-sales.
+Asympta World is a living coordination map built for the WebMCP Challenge. A human chooses an intent and specialised stakeholder agents visibly coordinate the customer, business, supplier, operations, finance, logistics, support, quality and market sides around that intent.
 
-The interface deliberately returns to the original Asympta language: warm paper, restrained graphite/sage/blue, fine grid, low-noise spatial composition, lightweight animal agents, generous spacing and progressive disclosure. It uses premium modern product design as a quality bar for clarity and finish without copying another company’s branding or layouts.
+The current challenge build contains four end-to-end simulated workflows: Custom Order, Dinner, Launch Stock and Service Recovery. Agent movement, task dependencies, information exchange, approval state, the map and WebMCP tools all read the same deterministic state engine.
 
-## Flagship flow
+## WebMCP is part of the product
 
-Open `?demo=order`, press **Order flow**, or type `/order`.
+The deployed page uses the imperative WebMCP API directly through `document.modelContext.registerTool(...)`. The WebMCP surface is intentionally narrow, schema-bounded and inspectable.
 
-The simulated order is **12 customised matte-navy notebooks before Friday 17:00**. The canonical event engine moves through:
+### Core living-world tools
 
-1. human intention packet;
-2. business receiving;
-3. merchandiser clarification;
-4. customer confirmation without restarting the order;
-5. inventory check: 8 available, shortage 4;
-6. procurement contacts North Mill;
-7. supplier quote, reserve, preparation and material handoff;
-8. warehouse stock changes 8 → 12;
-9. workshop scheduling and production;
-10. quality control finds one defect;
-11. rework and 12/12 release;
-12. packing and invoice preparation;
-13. **human approval boundary before simulated payment / dispatch**;
-14. carrier handoff and simulated tracking;
-15. delivery and after-sales support;
-16. one compact result and audit trail returned to the person.
+- `asympta_observe_living_city` — read the current workflow, foreground agents and nearby synthetic city activity.
+- `asympta_list_workflows` — list the available coordination workflows.
+- `asympta_follow_agent` — move the local map camera to a foreground agent.
+- `asympta_request_workflow` — request a workflow start; it queues a human approval instead of starting silently.
+- `asympta_request_external_action` — request a simulated consequential action such as capacity reservation, payment authorisation or shipment release; it queues a human approval.
 
-No merchant order, supplier purchase, payment, external message or shipment is real. All external adapters are labelled `SIMULATED` unless a real connector exists in a future version.
+### Agent discovery and verification tools
 
-## Same world, same state
+- `asympta_describe_capabilities` — return the live WebMCP manifest, safety boundary, workflow catalog and stakeholder agents.
+- `asympta_inspect_agent` — inspect one stakeholder and its current tasks without returning map coordinates.
+- `asympta_get_pending_approval` — read the current human approval request. It cannot approve or decline it.
 
-The visible UI, moving agents, task dependency graph, approval state, `render_game_to_text()` and WebMCP tools all read the same deterministic event state. The redesign does not replace the engine with a prerecorded animation.
+There is deliberately **no WebMCP approval/decline tool**. WebMCP can request consequential work, but the human must resolve the approval in the visible Asympta UI. The page also audits the native tool registry through `getTools()` when the browser exposes it and records the result in `document.documentElement.dataset.webmcpQualification` plus `window.__ASYMPTA_WEBMCP_AUDIT__` for inspection.
 
-Five narrow WebMCP tools remain available:
+## Why this is WebMCP-specific
 
-- `asympta_observe_coordination`
-- `asympta_list_local_services`
-- `asympta_submit_need`
-- `asympta_exchange_information`
-- `asympta_request_action`
+Without WebMCP, an external agent would have to infer map controls and scrape visual state. With WebMCP, the browser agent receives explicit workflow IDs, agent IDs, JSON Schemas, descriptions and safety semantics while the person continues to see the same world change on screen. The tool calls are not a second hidden backend: they enter the same event state used by the visible agents.
 
-Native WebMCP uses `document.modelContext.registerTool(...)`. Browsers without native support receive the same definitions through the explicitly labelled in-product compatibility bridge.
+## Human approval and simulation boundary
 
-## Other scenarios
-
-The same engine still supports Dinner, Work, Shopping and Email. These remain intentionally smaller examples; the Order flow is the flagship demonstration of a multi-party agent economy.
-
-## Privacy and human judgment
-
-- Exact coordinates are not rendered or returned through WebMCP.
-- Device position is immediately grouped into a nearby poetic local area.
-- Consequential actions stop for human approval.
-- Current commerce, supplier, payment, production, inventory, carrier and tracking data is simulated.
-- Reduced-motion and constrained devices keep the semantic product usable without progressive canvas effects.
+- All supplier, commerce, payment, shipment and customer-update actions in the challenge build are simulated.
+- WebMCP-requested workflow starts and consequential external actions stop at a visible human approval boundary.
+- No WebMCP tool can resolve that approval boundary.
+- The map uses a synthetic Tokyo demonstration world. The WebMCP surface does not request device geolocation.
+- `asympta_inspect_agent` intentionally removes synthetic longitude/latitude from its response; `asympta_observe_living_city` can expose the synthetic map state needed to observe the demo world.
 
 ## Run locally
 
@@ -68,15 +49,39 @@ npm ci
 npm run dev
 ```
 
-## Verify
+## Verify the implementation
 
 ```bash
 npm run lint
 npm run typecheck
+npm run test:webmcp
 npm run test:engine
 npm run build
 npm run test:rendered
 npm run export:pages
 ```
 
-GitHub Pages runs the same validation chain before deployment.
+`tests/webmcp-contract.test.mjs` verifies the eight expected tool names, JSON-Schema discovery shape, direct `document.modelContext.registerTool(...)` source integration, abort lifecycle, approval-safety invariant and documentation/source agreement. GitHub Pages runs the validation chain before every deployment from `main`.
+
+## Verify WebMCP in a real browser
+
+### ChatGPT in-app browser
+
+Open the live site and ask the browser agent:
+
+> Describe what I can do in Asympta World. Inspect `agent-supplier`. Then request the `custom-order` workflow, but do not approve anything for me.
+
+Expected behavior: the browser discovers the Asympta tools, reads the supplier state and creates a visible human approval request for the workflow. Approval remains a human UI action.
+
+### WebMCP-enabled Chrome
+
+1. Enable `chrome://flags/#enable-webmcp-testing` and relaunch Chrome.
+2. Open the live site.
+3. Inspect the Model Context/WebMCP tool registry.
+4. Confirm all eight tool names above are present.
+5. Execute the read tools, request a workflow, and confirm the site enters the visible human approval state.
+6. Confirm a browser agent cannot discover any tool that approves or declines the pending request.
+
+## Challenge assets
+
+The repository is public and licensed under MIT. The current submission/testing notes are in [`docs/WEBMCP_CHALLENGE_SUBMISSION.md`](docs/WEBMCP_CHALLENGE_SUBMISSION.md). The live site is deployed by [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml).
