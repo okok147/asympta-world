@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 
 type TaskSnapshot = {
+  id?: string;
   agentId: string;
   status: string;
 };
@@ -21,7 +22,7 @@ type FollowMap = {
   off?(event: string, handler: (event?: unknown) => void): unknown;
 };
 
-const FOLLOW_REFRESH_MS = 450;
+const FOLLOW_REFRESH_MS = 320;
 const ACTIVE_STATUSES = ["working", "moving", "waiting_approval"] as const;
 
 function bridge() {
@@ -31,13 +32,13 @@ function bridge() {
   };
 }
 
-function activeAgentIds(snapshot: DemoSnapshot) {
+function activeTasks(snapshot: DemoSnapshot) {
   const tasks = snapshot.foreground?.tasks ?? [];
-  const ordered: string[] = [];
+  const ordered: TaskSnapshot[] = [];
   for (const status of ACTIVE_STATUSES) {
     for (const task of tasks) {
-      if (task.status !== status || ordered.includes(task.agentId)) continue;
-      ordered.push(task.agentId);
+      if (task.status !== status || ordered.some((candidate) => candidate.agentId === task.agentId && candidate.id === task.id)) continue;
+      ordered.push(task);
     }
   }
   return ordered;
@@ -48,20 +49,30 @@ function clickAgent(agentId: string) {
   marker?.click();
 }
 
+function cameraFollowIsActive() {
+  return Boolean(document.querySelector(".atlas-follow.is-active"));
+}
+
 export function AsymptaProcessCameraFollow() {
   useEffect(() => {
     let processLock = false;
     let followedAgentId: string | null = null;
+    let followedTaskKey: string | null = null;
     let activeMap: FollowMap | null = null;
 
     const disableProcessLock = () => {
       processLock = false;
       followedAgentId = null;
+      followedTaskKey = null;
       document.documentElement.dataset.asymptaProcessCameraLock = "off";
     };
 
+    const enableProcessLock = () => {
+      processLock = true;
+      document.documentElement.dataset.asymptaProcessCameraLock = "on";
+    };
+
     const followCurrentAgent = () => {
-      if (!processLock) return;
       let snapshot: DemoSnapshot = {};
       try {
         snapshot = (bridge().__ASYMPTA_DEMO__?.snapshot() ?? {}) as DemoSnapshot;
@@ -70,33 +81,63 @@ export function AsymptaProcessCameraFollow() {
       }
 
       const foreground = snapshot.foreground;
-      if (!foreground || foreground.phase === "completed" || foreground.phase === "idle") return;
-      const activeIds = activeAgentIds(snapshot);
-      if (!activeIds.length) return;
+      if (!foreground) return;
 
-      const nextAgentId = followedAgentId && activeIds.includes(followedAgentId)
-        ? followedAgentId
-        : activeIds[0];
-      if (nextAgentId === followedAgentId) return;
+      // Turning on the regular Camera Follow control during a running workflow upgrades it
+      // into process lock automatically. The user does not need to understand a second mode.
+      if (!processLock && cameraFollowIsActive() && foreground.phase !== "completed" && foreground.phase !== "idle") {
+        enableProcessLock();
+      }
+      if (!processLock) return;
+      if (foreground.phase === "idle") return;
 
-      followedAgentId = nextAgentId;
-      clickAgent(nextAgentId);
+      const tasks = activeTasks(snapshot);
+      if (!tasks.length) return;
+      const current = tasks[0];
+      const taskKey = `${current.id ?? "task"}:${current.agentId}:${current.status}`;
+      const agentChanged = current.agentId !== followedAgentId;
+      const taskChanged = taskKey !== followedTaskKey;
+      const followDropped = !cameraFollowIsActive();
+
+      // Re-clicking the marker is intentional when a task changes or the underlying map
+      // temporarily dropped camera-follow. It re-arms the real 60Hz follow loop.
+      if (agentChanged || taskChanged || followDropped) {
+        followedAgentId = current.agentId;
+        followedTaskKey = taskKey;
+        clickAgent(current.agentId);
+      }
     };
 
-    const enableFromWorkflowClick = (event: MouseEvent) => {
-      const target = event.target instanceof Element ? event.target.closest(".atlas-workflow") : null;
-      if (!target) return;
+    const enableFromProcessClick = (event: MouseEvent) => {
+      const element = event.target instanceof Element ? event.target : null;
+      const workflow = element?.closest(".atlas-workflow");
+      const scheduledTask = element?.closest(".atlas-safe-task");
+      if (!workflow && !scheduledTask) return;
 
-      // Never cancel the native/React click. Chrome and Brave need the workflow button's
-      // own onClick to run normally; this listener only adds process camera follow.
-      processLock = true;
+      // Do not cancel the real button click. We only add process camera lock after the
+      // workflow/schedule interaction so React remains responsible for the actual task.
+      enableProcessLock();
       followedAgentId = null;
-      document.documentElement.dataset.asymptaProcessCameraLock = "on";
+      followedTaskKey = null;
       window.setTimeout(followCurrentAgent, 0);
     };
 
-    // Bubble phase intentionally runs after the workflow button's React onClick path.
-    document.addEventListener("click", enableFromWorkflowClick);
+    const syncManualFollowToggle = (event: MouseEvent) => {
+      const element = event.target instanceof Element ? event.target.closest(".atlas-follow") : null;
+      if (!element) return;
+      window.setTimeout(() => {
+        if (cameraFollowIsActive()) {
+          enableProcessLock();
+          followedTaskKey = null;
+          followCurrentAgent();
+        } else {
+          disableProcessLock();
+        }
+      }, 0);
+    };
+
+    document.addEventListener("click", enableFromProcessClick);
+    document.addEventListener("click", syncManualFollowToggle);
 
     const syncMapListener = () => {
       const map = bridge().__ASYMPTA_MAP__ ?? null;
@@ -120,7 +161,8 @@ export function AsymptaProcessCameraFollow() {
     const timer = window.setInterval(tick, FOLLOW_REFRESH_MS);
     return () => {
       window.clearInterval(timer);
-      document.removeEventListener("click", enableFromWorkflowClick);
+      document.removeEventListener("click", enableFromProcessClick);
+      document.removeEventListener("click", syncManualFollowToggle);
       if (activeMap?.off) {
         try { activeMap.off("dragstart", disableProcessLock); } catch {}
       }
