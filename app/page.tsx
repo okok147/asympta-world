@@ -1,5 +1,5 @@
-import { AsymptaWorldLiveDemo } from "@/components/asympta-world-live-demo";
+import { AsymptaWorldLive60Hz } from "@/components/asympta-world-live-60hz";
 
 export default function HomePage() {
-  return <AsymptaWorldLiveDemo />;
+  return <AsymptaWorldLive60Hz />;
 }
