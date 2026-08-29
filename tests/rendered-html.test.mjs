@@ -13,19 +13,20 @@ async function renderRoot() {
   return { response, html: await response.text() };
 }
 
-test("server render exposes the collapsed smooth paper living-city menu", async () => {
+test("server render exposes the collapsed 60Hz living-city shell", async () => {
   const { response, html } = await renderRoot();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   assert.match(html, /data-map-app="true"/);
   assert.match(html, /data-map-style="paper-illustrated-animal-living-city-demo"/);
-  assert.match(html, /data-render-mode="imperative-map-loop"/);
+  assert.match(html, /data-render-mode="raf-60hz-viewport-culling"/);
   assert.match(html, /illustrated animal stakeholder agents/);
   assert.match(html, /Coordination menu/);
   assert.match(html, /is-collapsed/);
   assert.match(html, /Custom Order Network/);
-  assert.match(html, /WebMCP actions/);
+  assert.match(html, /WebMCP inspector/);
   assert.match(html, /Camera follow/);
+  assert.match(html, /60Hz visual/);
   assert.match(html, /English/);
   assert.match(html, /繁體中文/);
   assert.match(html, /日本語/);
