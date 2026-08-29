@@ -35,17 +35,20 @@ test("bottom-left agent card localization stays display-only and language-aware"
   assert.doesNotMatch(cardLocale, /requestAnimationFrame|MutationObserver|advanceAtlasWorld|JSON\.parse\(JSON\.stringify/);
 });
 
-test("status percentage is estimated from travel distance plus work time without changing engine progress", () => {
+test("status percentage uses the actual moving origin plus work time without changing engine progress", () => {
   assert.match(page, /AsymptaEstimatedProgress/);
   assert.match(progressMath, /TRAVEL_DEGREES_PER_MS = 0\.0000028/);
-  assert.match(progressMath, /coordinateDistance/);
-  assert.match(progressMath, /travelTotalMs/);
-  assert.match(progressMath, /travelRemainingMs/);
-  assert.match(progressMath, /workTotalMs/);
-  assert.match(progressMath, /context\.task\.workMs/);
+  assert.match(progressMath, /currentTaskTravelDistance/);
+  assert.match(progressMath, /actualTravelOriginDistance/);
+  assert.match(progressMath, /measuredOriginDistance/);
   assert.match(progressMath, /remainingDistance/);
   assert.match(progressMath, /completedMs \/ totalMs/);
-  assert.match(estimatedProgress, /estimateTaskProgress/);
+  assert.match(progressMath, /context\.task\.workMs/);
+  assert.match(estimatedProgress, /travelOriginDistanceRef/);
+  assert.match(estimatedProgress, /previousStatusRef/);
+  assert.match(estimatedProgress, /task\.status === "moving" && previousStatus !== "moving"/);
+  assert.match(estimatedProgress, /currentTaskTravelDistance/);
+  assert.match(estimatedProgress, /travelOriginDistanceRef\.current\.get\(task\.id\)/);
   assert.match(estimatedProgress, /asymptaEstimatedProgress/);
   assert.match(estimatedProgress, /asymptaEstimatedStatus/);
   assert.match(progressCss, /data-asympta-estimated-progress/);
