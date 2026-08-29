@@ -5,6 +5,7 @@ import test from "node:test";
 const layout = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
 const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
 const activity = await readFile(new URL("../components/asympta-block-activity.tsx", import.meta.url), "utf8");
+const paperTone = await readFile(new URL("../components/asympta-paper-map-tone.tsx", import.meta.url), "utf8");
 const renderer = await readFile(new URL("../components/asympta-world-live-60hz.tsx", import.meta.url), "utf8");
 
 test("camera follow survives zoom while real drag still unlocks", () => {
@@ -28,4 +29,17 @@ test("activity blocks stay bounded and off the animation loop", () => {
   assert.match(activity, /queryRenderedFeatures/);
   assert.match(activity, /asympta-activity-blocks-fill/);
   assert.doesNotMatch(activity, /requestAnimationFrame|MutationObserver|setState|advanceAtlasWorld/);
+});
+
+test("paper map tone is one-shot bounded styling and preserves activity colours", () => {
+  assert.match(page, /AsymptaPaperMapTone/);
+  assert.match(paperTone, /#EEEDE6/);
+  assert.match(paperTone, /#DDE3E0/);
+  assert.match(paperTone, /#DDD8CC/);
+  assert.match(paperTone, /#E8E4DB/);
+  assert.match(paperTone, /#E3E7DD/);
+  assert.match(paperTone, /MAX_ATTEMPTS = 24/);
+  assert.match(paperTone, /startsWith\("asympta-activity-blocks"\)/);
+  assert.match(paperTone, /clearInterval/);
+  assert.doesNotMatch(paperTone, /requestAnimationFrame|MutationObserver|setState|advanceAtlasWorld/);
 });
