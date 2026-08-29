@@ -18,20 +18,22 @@ test("camera follow survives zoom while real drag still unlocks", () => {
   assert.match(layout, /__ASYMPTA_MAP__/);
 });
 
-test("every active foreground agent can tint one tiny block without high-frequency work", () => {
+test("all visible active agents can tint a larger bounded block without high-frequency work", () => {
   assert.match(page, /AsymptaBlockActivity/);
   assert.match(activity, /ACTIVITY_REFRESH_MS = 900/);
-  assert.match(activity, /QUERY_RADIUS_PX = 7/);
-  assert.match(activity, /MAX_ACTIVE_AGENTS = 10/);
+  assert.match(activity, /QUERY_RADIUS_PX = 11/);
+  assert.match(activity, /MAX_ACTIVE_AGENTS = 24/);
   assert.match(activity, /MAX_BLOCKS_PER_AGENT = 1/);
-  assert.match(activity, /MAX_ACTIVITY_BLOCKS = 14/);
-  assert.match(activity, /MAX_BLOCK_SPAN_DEGREES = 0\.00075/);
-  assert.match(activity, /MAX_OPACITY = 0\.26/);
-  assert.match(activity, /ACTIVE_TASK_STATUSES = new Set\(\["moving", "working", "waiting_approval"\]\)/);
-  assert.match(activity, /Camera selection never affects this list/);
+  assert.match(activity, /MAX_ACTIVITY_BLOCKS = 20/);
+  assert.match(activity, /MAX_BLOCK_SPAN_DEGREES = 0\.0011/);
+  assert.match(activity, /MAX_OPACITY = 0\.30/);
+  assert.match(activity, /ACTIVE_AGENT_STATUSES = new Set\(\["moving", "working", "sharing", "waiting", "returning"\]\)/);
+  assert.match(activity, /ACTIVE_AMBIENT_STATUSES = new Set\(\["moving", "working"\]\)/);
+  assert.match(activity, /snapshot\.ambient/);
+  assert.match(activity, /Camera selection and stakeholder side never affect eligibility/);
   assert.match(activity, /geometryFitsBudget/);
-  assert.match(activity, /ACTIVITY_HOLD_MS = 1_600/);
-  assert.match(activity, /ACTIVITY_FADE_MS = 8_000/);
+  assert.match(activity, /ACTIVITY_HOLD_MS = 1_900/);
+  assert.match(activity, /ACTIVITY_FADE_MS = 8_500/);
   assert.match(activity, /queryRenderedFeatures/);
   assert.match(activity, /asympta-activity-blocks-fill/);
   assert.doesNotMatch(activity, /requestAnimationFrame|MutationObserver|setState|advanceAtlasWorld/);
