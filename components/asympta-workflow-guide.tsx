@@ -11,6 +11,9 @@ const COPY: Record<Locale, string> = {
   ja: "ワークフローを選択",
 };
 
+// Calm UI deliberately no longer auto-opens .atlas-console through .atlas-menu-identity
+// or identity.click(). Previous guidance copy was: 點選任一流程開始 / ワークフローを選ぶと開始.
+
 function locale(): Locale {
   const value = document.documentElement.lang.toLowerCase();
   if (value.startsWith("zh")) return "zh-Hant";
