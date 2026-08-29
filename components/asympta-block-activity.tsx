@@ -39,15 +39,20 @@ type ActivityMap = {
   ): RenderedFeature[];
 };
 
-type TaskSnapshot = { agentId: string; status: string };
 type AgentSnapshot = { id: string; status: string; lon: number; lat: number };
+type AmbientAgentSnapshot = {
+  id: string;
+  status: string;
+  position?: { lon?: number; lat?: number };
+};
 type DemoSnapshot = {
   foreground?: {
-    tasks?: TaskSnapshot[];
     agents?: AgentSnapshot[];
   };
+  ambient?: AmbientAgentSnapshot[];
 };
 
+type ActivityAgent = { id: string; status: string; lon: number; lat: number };
 type ActivityBlock = {
   geometry: Geometry;
   color: string;
@@ -57,14 +62,14 @@ type ActivityBlock = {
 const SOURCE_ID = "asympta-activity-blocks";
 const LAYER_ID = "asympta-activity-blocks-fill";
 const ACTIVITY_REFRESH_MS = 900;
-const ACTIVITY_HOLD_MS = 1_600;
-const ACTIVITY_FADE_MS = 8_000;
-const QUERY_RADIUS_PX = 7;
-const MAX_ACTIVE_AGENTS = 10;
+const ACTIVITY_HOLD_MS = 1_900;
+const ACTIVITY_FADE_MS = 8_500;
+const QUERY_RADIUS_PX = 11;
+const MAX_ACTIVE_AGENTS = 24;
 const MAX_BLOCKS_PER_AGENT = 1;
-const MAX_ACTIVITY_BLOCKS = 14;
-const MAX_BLOCK_SPAN_DEGREES = 0.00075;
-const MAX_OPACITY = 0.26;
+const MAX_ACTIVITY_BLOCKS = 20;
+const MAX_BLOCK_SPAN_DEGREES = 0.0011;
+const MAX_OPACITY = 0.30;
 
 const ACTIVITY_COLORS = [
   "#7183AA",
@@ -75,7 +80,8 @@ const ACTIVITY_COLORS = [
   "#4E8E89",
 ] as const;
 
-const ACTIVE_TASK_STATUSES = new Set(["moving", "working", "waiting_approval"]);
+const ACTIVE_AGENT_STATUSES = new Set(["moving", "working", "sharing", "waiting", "returning"]);
+const ACTIVE_AMBIENT_STATUSES = new Set(["moving", "working"]);
 
 function emptyCollection(): ActivityCollection {
   return { type: "FeatureCollection", features: [] };
@@ -168,27 +174,38 @@ function ensureOverlay(map: ActivityMap) {
     paint: {
       "fill-color": ["coalesce", ["get", "color"], "#DDD8CC"],
       "fill-opacity": ["coalesce", ["get", "opacity"], 0],
-      "fill-outline-color": "rgba(67, 63, 56, 0.06)",
+      "fill-outline-color": "rgba(67, 63, 56, 0.07)",
     },
   }, beforeId);
 }
 
-function activeAgents(snapshot: DemoSnapshot) {
-  const foreground = snapshot.foreground;
-  const tasks = foreground?.tasks ?? [];
-  const agents = foreground?.agents ?? [];
-  const activeAgentIds = new Set(
-    tasks
-      .filter((task) => ACTIVE_TASK_STATUSES.has(task.status))
-      .map((task) => task.agentId),
-  );
-
-  // Every foreground agent participating in an active task gets the same opportunity to
-  // tint one tiny nearby building. Camera selection never affects this list.
-  return agents
-    .filter((agent) => activeAgentIds.has(agent.id))
+function activeAgents(snapshot: DemoSnapshot): ActivityAgent[] {
+  const foreground = (snapshot.foreground?.agents ?? [])
+    .filter((agent) => ACTIVE_AGENT_STATUSES.has(agent.status))
     .filter((agent) => Number.isFinite(agent.lon) && Number.isFinite(agent.lat))
-    .slice(0, MAX_ACTIVE_AGENTS);
+    .map((agent) => ({ id: agent.id, status: agent.status, lon: agent.lon, lat: agent.lat }));
+
+  const ambient = (snapshot.ambient ?? [])
+    .filter((agent) => ACTIVE_AMBIENT_STATUSES.has(agent.status))
+    .map((agent) => ({
+      id: agent.id,
+      status: agent.status,
+      lon: Number(agent.position?.lon),
+      lat: Number(agent.position?.lat),
+    }))
+    .filter((agent) => Number.isFinite(agent.lon) && Number.isFinite(agent.lat));
+
+  // Camera selection and stakeholder side never affect eligibility. Every visible active
+  // foreground or ambient agent gets the same chance to colour one nearby map block.
+  const seen = new Set<string>();
+  const combined: ActivityAgent[] = [];
+  for (const agent of [...foreground, ...ambient]) {
+    if (seen.has(agent.id)) continue;
+    seen.add(agent.id);
+    combined.push(agent);
+    if (combined.length >= MAX_ACTIVE_AGENTS) break;
+  }
+  return combined;
 }
 
 function trimOldest(blocks: Map<string, ActivityBlock>) {
