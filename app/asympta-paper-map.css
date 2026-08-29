@@ -1,0 +1,57 @@
+/* Final paper-map tuning. Imported after the moving-marker styles. */
+
+.map-canvas,
+.map-canvas .maplibregl-canvas-container {
+  background: #EEEDE6;
+}
+
+/* Very small fallback tint while the vector style is being recoloured by the bootstrap. */
+.map-canvas .maplibregl-canvas {
+  opacity: 0.96;
+}
+
+/*
+  The older marker rule used contain: paint for speed. That clips anything drawn
+  outside the 36px marker box, which made the dialogue above and status below
+  technically exist but invisible. Keep layout/style containment, not paint.
+*/
+.animal-map-marker {
+  contain: layout style !important;
+  overflow: visible !important;
+}
+
+.animal-map-marker__dialogue,
+.animal-map-marker__status-text {
+  width: max-content;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  visibility: visible;
+}
+
+.animal-map-marker--foreground.has-dialogue .animal-map-marker__dialogue {
+  opacity: 0.98;
+}
+
+.animal-map-marker--foreground .animal-map-marker__status-text {
+  opacity: 0.92;
+}
+
+.animal-map-marker--foreground.is-selected .animal-map-marker__dialogue {
+  border-color: color-mix(in srgb, var(--agent-color) 28%, rgba(67,63,56,0.12));
+  box-shadow: 0 2px 8px rgba(54,50,42,0.08);
+}
+
+/* Keep ambient chatter quiet: only the few explicitly selected by culling show it. */
+.animal-map-marker--ambient .animal-map-marker__status-text {
+  opacity: 0.56;
+}
+
+@media (max-width: 640px) {
+  .animal-map-marker--foreground .animal-map-marker__dialogue {
+    max-width: min(136px, 42vw);
+  }
+
+  .animal-map-marker--foreground .animal-map-marker__status-text {
+    max-width: 116px;
+  }
+}
