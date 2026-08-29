@@ -1,6 +1,18 @@
 "use client";
 
-import { Eye, EyeOff, LocateFixed, Minus, Plus, RotateCcw } from "lucide-react";
+import {
+  Eye,
+  EyeOff,
+  HeartPulse,
+  LocateFixed,
+  Minus,
+  Package,
+  Plus,
+  RotateCcw,
+  ShieldCheck,
+  ShoppingCart,
+  Utensils,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
@@ -32,13 +44,10 @@ type GeoJsonFeatureCollection = {
   features: Array<Record<string, unknown>>;
 };
 
-type MapFeature = { properties?: Record<string, unknown> };
-type MapLayerEvent = { features?: MapFeature[] };
 type GeoJsonSource = { setData(data: GeoJsonFeatureCollection): void };
 
 type MapLibreMap = {
   on(event: string, handler: () => void): void;
-  on(event: string, layerId: string, handler: (event: MapLayerEvent) => void): void;
   addSource(id: string, source: { type: "geojson"; data: GeoJsonFeatureCollection }): void;
   addLayer(layer: Record<string, unknown>): void;
   getSource(id: string): GeoJsonSource | undefined;
@@ -46,14 +55,23 @@ type MapLibreMap = {
   easeTo(options: Record<string, unknown>): void;
   zoomIn(options?: Record<string, unknown>): void;
   zoomOut(options?: Record<string, unknown>): void;
-  getCanvas(): HTMLCanvasElement;
   remove(): void;
   touchZoomRotate: { enable(): void; disableRotation(): void };
   dragRotate: { disable(): void };
   touchPitch?: { disable(): void };
 };
 
-type MapLibreNamespace = { Map: new (options: Record<string, unknown>) => MapLibreMap };
+type MapLibreMarker = {
+  setLngLat(coordinates: [number, number]): MapLibreMarker;
+  addTo(map: MapLibreMap): MapLibreMarker;
+  getElement(): HTMLElement;
+  remove(): void;
+};
+
+type MapLibreNamespace = {
+  Map: new (options: Record<string, unknown>) => MapLibreMap;
+  Marker: new (options: { element: HTMLElement; anchor?: "center" }) => MapLibreMarker;
+};
 
 type WebMcpTool = {
   name: string;
@@ -109,7 +127,45 @@ const SIDE_LABELS: Record<StakeholderSide, string> = {
   market: "Market",
 };
 
+const ANIMALS_BY_SIDE: Record<StakeholderSide, string[]> = {
+  user: ["🐱", "🐰", "🐹"],
+  customer: ["🐶", "🐰", "🐱"],
+  business: ["🦊", "🐻", "🐯"],
+  supplier: ["🐻", "🐼", "🐮"],
+  operations: ["🦝", "🐨", "🐵"],
+  finance: ["🐼", "🦉", "🐧"],
+  logistics: ["🐶", "🐧", "🦊"],
+  support: ["🐨", "🐰", "🐶"],
+  quality: ["🦉", "🦝", "🐼"],
+  market: ["🐦", "🦊", "🐱"],
+};
+
 let mapLibrePromise: Promise<MapLibreNamespace> | null = null;
+
+function stableHash(value: string) {
+  let result = 0;
+  for (const character of value) result = (result * 31 + character.charCodeAt(0)) >>> 0;
+  return result;
+}
+
+function animalFor(id: string, side: StakeholderSide) {
+  const options = ANIMALS_BY_SIDE[side];
+  return options[stableHash(id) % options.length];
+}
+
+function workflowIcon(id: WorkflowId) {
+  if (id === "custom-order") return <ShoppingCart size={18} strokeWidth={1.75} />;
+  if (id === "dinner-network") return <Utensils size={18} strokeWidth={1.75} />;
+  if (id === "launch-stock") return <Package size={18} strokeWidth={1.75} />;
+  return <HeartPulse size={18} strokeWidth={1.75} />;
+}
+
+function workflowSubtitle(id: WorkflowId) {
+  if (id === "custom-order") return "Intent";
+  if (id === "dinner-network") return "Request";
+  if (id === "launch-stock") return "Plan";
+  return "Service";
+}
 
 function ensureMapLibreCss() {
   if (document.querySelector("link[data-asympta-maplibre='true']")) return;
@@ -147,19 +203,12 @@ function sideColorExpression() {
   return ["match", ["get", "side"], ...Object.entries(SIDE_COLORS).flatMap(([side, color]) => [side, color]), "#5F5C55"];
 }
 
-function activeAgentGeoJson(world: AtlasWorldState, selectedAgentId: string | null): GeoJsonFeatureCollection {
+function activeAgentGeoJson(world: AtlasWorldState): GeoJsonFeatureCollection {
   return {
     type: "FeatureCollection",
     features: world.agents.map((agent) => ({
       type: "Feature",
-      properties: {
-        id: agent.id,
-        name: agent.name,
-        role: agent.role,
-        side: agent.side,
-        status: agent.status,
-        selected: agent.id === selectedAgentId ? 1 : 0,
-      },
+      properties: { id: agent.id, name: agent.name, role: agent.role, side: agent.side, status: agent.status },
       geometry: { type: "Point", coordinates: [agent.position.lon, agent.position.lat] },
     })),
   };
@@ -202,14 +251,7 @@ function cityAgentGeoJson(actors: CityLifeActor[]): GeoJsonFeatureCollection {
     type: "FeatureCollection",
     features: actors.map((actor) => ({
       type: "Feature",
-      properties: {
-        id: actor.id,
-        name: actor.name,
-        side: actor.side,
-        status: actor.status,
-        task: actor.task,
-        demo: 1,
-      },
+      properties: { id: actor.id, name: actor.name, side: actor.side, status: actor.status, task: actor.task, demo: 1 },
       geometry: { type: "Point", coordinates: [actor.position.lon, actor.position.lat] },
     })),
   };
@@ -233,82 +275,76 @@ function addMapLayers(map: MapLibreMap, world: AtlasWorldState) {
   map.addSource("city-life-agents", { type: "geojson", data: cityAgentGeoJson(city) });
   map.addSource("atlas-routes", { type: "geojson", data: activeRouteGeoJson(world) });
   map.addSource("atlas-messages", { type: "geojson", data: messageGeoJson(world) });
-  map.addSource("atlas-agents", { type: "geojson", data: activeAgentGeoJson(world, null) });
+  map.addSource("atlas-agents", { type: "geojson", data: activeAgentGeoJson(world) });
 
   map.addLayer({
     id: "city-life-routes",
     type: "line",
     source: "city-life-routes",
-    paint: { "line-color": sideColorExpression(), "line-width": 1, "line-opacity": 0.14, "line-dasharray": [1.2, 2.4] },
-  });
-  map.addLayer({
-    id: "city-life-halo",
-    type: "circle",
-    source: "city-life-agents",
-    paint: { "circle-radius": 7, "circle-color": sideColorExpression(), "circle-opacity": 0.08, "circle-blur": 0.22 },
-  });
-  map.addLayer({
-    id: "city-life-agents",
-    type: "circle",
-    source: "city-life-agents",
-    paint: {
-      "circle-radius": ["case", ["==", ["get", "status"], "moving"], 4.2, 3.2],
-      "circle-color": sideColorExpression(),
-      "circle-opacity": ["case", ["==", ["get", "status"], "moving"], 0.78, 0.52],
-      "circle-stroke-color": "rgba(247,243,233,0.9)",
-      "circle-stroke-width": 0.8,
-    },
+    paint: { "line-color": sideColorExpression(), "line-width": 1.15, "line-opacity": 0.22, "line-dasharray": [1.1, 2.6] },
   });
   map.addLayer({
     id: "city-life-labels",
     type: "symbol",
     source: "city-life-agents",
-    minzoom: 13.3,
-    layout: { "text-field": ["concat", ["get", "name"], " · ", ["get", "task"]], "text-size": 9, "text-offset": [0, 1], "text-anchor": "top", "text-allow-overlap": false },
-    paint: { "text-color": "rgba(55,52,47,0.68)", "text-halo-color": "rgba(247,243,233,0.9)", "text-halo-width": 1.6 },
+    minzoom: 13.7,
+    layout: { "text-field": ["get", "name"], "text-size": 8.5, "text-offset": [0, 2.25], "text-anchor": "top", "text-allow-overlap": false },
+    paint: { "text-color": "rgba(55,52,47,0.58)", "text-halo-color": "rgba(247,243,233,0.92)", "text-halo-width": 1.7 },
   });
 
-  map.addLayer({ id: "atlas-route-shadow", type: "line", source: "atlas-routes", paint: { "line-color": "rgba(247,243,233,0.94)", "line-width": 6, "line-opacity": 0.72 } });
-  map.addLayer({ id: "atlas-routes", type: "line", source: "atlas-routes", paint: { "line-color": sideColorExpression(), "line-width": 2.6, "line-opacity": 0.82, "line-dasharray": [2, 2.2] } });
-  map.addLayer({ id: "atlas-messages", type: "line", source: "atlas-messages", paint: { "line-color": sideColorExpression(), "line-width": 1.4, "line-opacity": 0.5, "line-dasharray": [0.7, 1.5] } });
-  map.addLayer({
-    id: "atlas-agent-halo",
-    type: "circle",
-    source: "atlas-agents",
-    paint: {
-      "circle-radius": ["case", ["==", ["get", "selected"], 1], 20, ["==", ["get", "status"], "moving"], 15, 12],
-      "circle-color": sideColorExpression(),
-      "circle-opacity": ["case", ["==", ["get", "status"], "idle"], 0.08, 0.2],
-      "circle-blur": 0.18,
-    },
-  });
-  map.addLayer({
-    id: "atlas-agents",
-    type: "circle",
-    source: "atlas-agents",
-    paint: {
-      "circle-radius": ["case", ["==", ["get", "selected"], 1], 9.5, ["==", ["get", "status"], "idle"], 5.5, 7.2],
-      "circle-color": sideColorExpression(),
-      "circle-opacity": ["case", ["==", ["get", "status"], "idle"], 0.62, 0.98],
-      "circle-stroke-color": "#F7F3E9",
-      "circle-stroke-width": ["case", ["==", ["get", "selected"], 1], 2.4, 1.3],
-    },
-  });
+  map.addLayer({ id: "atlas-route-shadow", type: "line", source: "atlas-routes", paint: { "line-color": "rgba(247,243,233,0.95)", "line-width": 6, "line-opacity": 0.82 } });
+  map.addLayer({ id: "atlas-routes", type: "line", source: "atlas-routes", paint: { "line-color": sideColorExpression(), "line-width": 2.25, "line-opacity": 0.78, "line-dasharray": [1.6, 2.1] } });
+  map.addLayer({ id: "atlas-messages", type: "line", source: "atlas-messages", paint: { "line-color": sideColorExpression(), "line-width": 1.35, "line-opacity": 0.44, "line-dasharray": [0.65, 1.7] } });
   map.addLayer({
     id: "atlas-agent-labels",
     type: "symbol",
     source: "atlas-agents",
-    minzoom: 11.8,
-    layout: { "text-field": ["get", "name"], "text-size": 11, "text-offset": [0, 1.2], "text-anchor": "top", "text-allow-overlap": false },
+    minzoom: 12.7,
+    layout: { "text-field": ["get", "name"], "text-size": 10.5, "text-offset": [0, 2.45], "text-anchor": "top", "text-allow-overlap": false },
     paint: { "text-color": "#33312D", "text-halo-color": "rgba(247,243,233,0.96)", "text-halo-width": 2 },
   });
 }
 
-function syncMapSources(map: MapLibreMap, world: AtlasWorldState, selectedAgentId: string | null) {
+function createAnimalMarkerElement(
+  id: string,
+  side: StakeholderSide,
+  label: string,
+  ambient: boolean,
+  onSelect?: () => void,
+) {
+  const element = onSelect ? document.createElement("button") : document.createElement("div");
+  if (element instanceof HTMLButtonElement) element.type = "button";
+  element.className = `animal-map-marker ${ambient ? "animal-map-marker--ambient" : "animal-map-marker--foreground"}`;
+  element.dataset.agentId = id;
+  element.dataset.side = side;
+  element.style.setProperty("--agent-color", SIDE_COLORS[side]);
+  element.title = label;
+  if (ambient) element.setAttribute("aria-hidden", "true");
+  else element.setAttribute("aria-label", label);
+
+  const face = document.createElement("span");
+  face.className = "animal-map-marker__face";
+  face.textContent = animalFor(id, side);
+  element.appendChild(face);
+
+  const status = document.createElement("span");
+  status.className = "animal-map-marker__status";
+  element.appendChild(status);
+
+  if (onSelect) {
+    element.addEventListener("click", (event) => {
+      event.stopPropagation();
+      onSelect();
+    });
+  }
+  return element;
+}
+
+function syncMapSources(map: MapLibreMap, world: AtlasWorldState) {
   const city = cityLifeSnapshot(world.now);
   map.getSource("city-life-agents")?.setData(cityAgentGeoJson(city));
   map.getSource("city-life-routes")?.setData(cityRouteGeoJson(city));
-  map.getSource("atlas-agents")?.setData(activeAgentGeoJson(world, selectedAgentId));
+  map.getSource("atlas-agents")?.setData(activeAgentGeoJson(world));
   map.getSource("atlas-routes")?.setData(activeRouteGeoJson(world));
   map.getSource("atlas-messages")?.setData(messageGeoJson(world));
 }
@@ -324,14 +360,17 @@ function phaseLabel(world: AtlasWorldState) {
 export function AsymptaWorldLiveDemo() {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
+  const mapLibreRef = useRef<MapLibreNamespace | null>(null);
+  const foregroundMarkersRef = useRef(new Map<string, MapLibreMarker>());
+  const cityMarkersRef = useRef(new Map<string, MapLibreMarker>());
   const [world, setWorld] = useState<AtlasWorldState>(() => createAtlasDemoWorld());
   const worldRef = useRef(world);
   const lastFollowRef = useRef(0);
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const [webMcpState, setWebMcpState] = useState<"checking" | "ready" | "unavailable">("checking");
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>("agent-user");
-  const [cameraFollow, setCameraFollow] = useState(true);
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const [cameraFollow, setCameraFollow] = useState(false);
 
   const apply = useCallback((change: (current: AtlasWorldState) => AtlasWorldState) => {
     const next = change(worldRef.current);
@@ -342,11 +381,8 @@ export function AsymptaWorldLiveDemo() {
 
   const startWorkflow = useCallback((workflowId: WorkflowId) => {
     const next = apply((current) => startAtlasDemoWorkflow(current, workflowId));
-    const firstMoving = next.agents.find((agent) => agent.status === "moving") ?? next.agents.find((agent) => agent.status !== "idle");
-    if (firstMoving) {
-      setSelectedAgentId(firstMoving.id);
-      setCameraFollow(true);
-    }
+    setSelectedAgentId(null);
+    setCameraFollow(false);
     return next;
   }, [apply]);
 
@@ -364,11 +400,70 @@ export function AsymptaWorldLiveDemo() {
 
   const restartDemo = useCallback(() => startWorkflow("custom-order"), [startWorkflow]);
 
+  const mountAnimalMarkers = useCallback((maplibre: MapLibreNamespace, map: MapLibreMap, current: AtlasWorldState) => {
+    for (const agent of current.agents) {
+      const element = createAnimalMarkerElement(
+        agent.id,
+        agent.side,
+        `${agent.name} · ${SIDE_LABELS[agent.side]} · ${agent.role}`,
+        false,
+        () => {
+          setSelectedAgentId(agent.id);
+          setCameraFollow(true);
+        },
+      );
+      const marker = new maplibre.Marker({ element, anchor: "center" })
+        .setLngLat([agent.position.lon, agent.position.lat])
+        .addTo(map);
+      foregroundMarkersRef.current.set(agent.id, marker);
+    }
+
+    for (const actor of cityLifeSnapshot(current.now)) {
+      const element = createAnimalMarkerElement(
+        actor.id,
+        actor.side,
+        `${actor.name} · ${actor.role} · ${actor.task} · synthetic demo actor`,
+        true,
+      );
+      const marker = new maplibre.Marker({ element, anchor: "center" })
+        .setLngLat([actor.position.lon, actor.position.lat])
+        .addTo(map);
+      cityMarkersRef.current.set(actor.id, marker);
+    }
+  }, []);
+
+  const syncAnimalMarkers = useCallback((current: AtlasWorldState, selectedId: string | null) => {
+    for (const agent of current.agents) {
+      const marker = foregroundMarkersRef.current.get(agent.id);
+      if (!marker) continue;
+      marker.setLngLat([agent.position.lon, agent.position.lat]);
+      const element = marker.getElement();
+      element.dataset.status = agent.status;
+      element.classList.toggle("is-moving", agent.status === "moving" || agent.status === "returning");
+      element.classList.toggle("is-working", agent.status === "working" || agent.status === "sharing");
+      element.classList.toggle("is-selected", agent.id === selectedId);
+      const task = current.tasks.find((candidate) => candidate.agentId === agent.id && ["moving", "working", "waiting_approval"].includes(candidate.status));
+      element.title = `${agent.name} · ${agent.role}${task ? ` · ${task.title}` : ""}`;
+    }
+
+    for (const actor of cityLifeSnapshot(current.now)) {
+      const marker = cityMarkersRef.current.get(actor.id);
+      if (!marker) continue;
+      marker.setLngLat([actor.position.lon, actor.position.lat]);
+      const element = marker.getElement();
+      element.dataset.status = actor.status;
+      element.classList.toggle("is-moving", actor.status === "moving");
+      element.classList.toggle("is-working", actor.status === "working");
+      element.title = `${actor.name} · ${actor.role} · ${actor.task} · synthetic demo actor`;
+    }
+  }, []);
+
   useEffect(() => {
     let disposed = false;
     loadMapLibre()
       .then((maplibre) => {
         if (disposed || !mapContainerRef.current) return;
+        mapLibreRef.current = maplibre;
         const map = new maplibre.Map({
           container: mapContainerRef.current,
           style: OPENFREEMAP_STYLE,
@@ -391,32 +486,32 @@ export function AsymptaWorldLiveDemo() {
         map.on("load", () => {
           if (disposed) return;
           addMapLayers(map, worldRef.current);
-          syncMapSources(map, worldRef.current, "agent-user");
+          mountAnimalMarkers(maplibre, map, worldRef.current);
+          syncMapSources(map, worldRef.current);
+          syncAnimalMarkers(worldRef.current, null);
           setMapReady(true);
         });
-        map.on("click", "atlas-agents", (event) => {
-          const id = String(event.features?.[0]?.properties?.id ?? "");
-          if (!id) return;
-          setSelectedAgentId(id);
-          setCameraFollow(true);
-        });
-        map.on("mouseenter", "atlas-agents", () => { map.getCanvas().style.cursor = "pointer"; });
-        map.on("mouseleave", "atlas-agents", () => { map.getCanvas().style.cursor = "grab"; });
       })
       .catch((reason: unknown) => {
         if (!disposed) setMapError(reason instanceof Error ? reason.message : "The map could not be loaded.");
       });
     return () => {
       disposed = true;
+      for (const marker of foregroundMarkersRef.current.values()) marker.remove();
+      for (const marker of cityMarkersRef.current.values()) marker.remove();
+      foregroundMarkersRef.current.clear();
+      cityMarkersRef.current.clear();
       mapRef.current?.remove();
       mapRef.current = null;
+      mapLibreRef.current = null;
     };
-  }, []);
+  }, [mountAnimalMarkers, syncAnimalMarkers]);
 
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
-    syncMapSources(mapRef.current, world, selectedAgentId);
-  }, [mapReady, selectedAgentId, world]);
+    syncMapSources(mapRef.current, world);
+    syncAnimalMarkers(world, selectedAgentId);
+  }, [mapReady, selectedAgentId, syncAnimalMarkers, world]);
 
   useEffect(() => {
     let frame = 0;
@@ -541,6 +636,7 @@ export function AsymptaWorldLiveDemo() {
   const pendingApproval = world.approvals.find((approval) => approval.status === "pending") ?? null;
   const selectedAgent = world.agents.find((agent) => agent.id === selectedAgentId) ?? null;
   const selectedTask = selectedAgent ? world.tasks.find((task) => task.agentId === selectedAgent.id && ["moving", "working", "waiting_approval"].includes(task.status)) : undefined;
+  const approvalAgent = pendingApproval?.agentId ? world.agents.find((agent) => agent.id === pendingApproval.agentId) : null;
   const completedTasks = world.tasks.filter((task) => task.status === "done").length;
   const progress = world.tasks.length ? completedTasks / world.tasks.length : 0;
   const activeWorkflow = world.workflowId ? workflowFor(world.workflowId) : null;
@@ -550,49 +646,59 @@ export function AsymptaWorldLiveDemo() {
   const recenter = () => mapRef.current?.flyTo({ center: TOKYO_CENTER, zoom: TOKYO_ZOOM, bearing: 0, pitch: 0, duration: 650, essential: true });
 
   return (
-    <main className="map-app" data-map-app="true" data-map-style="paper-living-city-demo">
-      <div ref={mapContainerRef} className="map-canvas" role="application" aria-label="Interactive paper map with autonomous stakeholder agents and simulated city activity" />
+    <main className="map-app" data-map-app="true" data-map-style="paper-animal-living-city-demo">
+      <div ref={mapContainerRef} className="map-canvas" role="application" aria-label="Interactive paper map with cute animal stakeholder agents and simulated city activity" />
       <div className="map-paper-wash" aria-hidden="true" />
       <div className="map-paper-grain" aria-hidden="true" />
 
       <section className="atlas-console" aria-label="Coordination workflows">
         <div className="atlas-console__head">
-          <div><div className="atlas-eyebrow">ASYMPTA WORLD</div><div className="atlas-title">Living Coordination Atlas</div></div>
-          <span className={`atlas-phase atlas-phase--${world.phase}`}>{phaseLabel(world)}</span>
+          <div>
+            <div className="atlas-eyebrow">ASYMPTA WORLD</div>
+            <div className="atlas-title">Living Coordination<br />Atlas</div>
+          </div>
+          <div className={`atlas-phase atlas-phase--${world.phase}`}>
+            <span className="atlas-phase__dot" />
+            <span>{phaseLabel(world)}</span>
+            <span className="atlas-phase__animal">{selectedAgent ? animalFor(selectedAgent.id, selectedAgent.side) : "🐱"}</span>
+          </div>
         </div>
-        <div className="atlas-tool-state"><span className={`atlas-tool-dot atlas-tool-dot--${webMcpState}`} />{webMcpState === "ready" ? "WebMCP ready" : webMcpState === "checking" ? "Checking WebMCP" : "WebMCP browser API unavailable"}</div>
-        <div className="atlas-tool-state"><span className="atlas-tool-dot atlas-tool-dot--ready" />Demo city · {movingAmbient}/{CITY_LIFE_COUNT} ambient actors moving · {movingForeground} workflow agents moving</div>
+
+        <div className="atlas-status-stack">
+          <div className="atlas-tool-state"><span className={`atlas-tool-dot atlas-tool-dot--${webMcpState}`} />{webMcpState === "ready" ? "WebMCP ready" : webMcpState === "checking" ? "Checking WebMCP" : "WebMCP browser API unavailable"}</div>
+          <div className="atlas-tool-state"><span className="atlas-tool-dot atlas-tool-dot--ready" />Demo city · {movingAmbient}/{CITY_LIFE_COUNT} actors moving · {movingForeground} workflow agents moving</div>
+        </div>
+
         <div className="atlas-workflows">
           {ATLAS_WORKFLOWS.map((workflow) => (
             <button key={workflow.id} type="button" className={`atlas-workflow${world.workflowId === workflow.id ? " is-active" : ""}`} onClick={() => startWorkflow(workflow.id)}>
-              <strong>{workflow.shortName}</strong><span>{workflow.summary}</span>
+              <span className="atlas-workflow__icon">{workflowIcon(workflow.id)}</span>
+              <strong>{workflow.shortName}</strong>
+              <span>{workflowSubtitle(workflow.id)}</span>
             </button>
           ))}
         </div>
+
         {activeWorkflow ? (
           <div className="atlas-progress-block">
-            <div className="atlas-progress-copy"><span>{activeWorkflow.name}</span><span>{completedTasks}/{world.tasks.length}</span></div>
+            <div className="atlas-progress-copy"><span>{activeWorkflow.name}</span><span>{completedTasks} / {world.tasks.length}</span></div>
             <div className="atlas-progress"><i style={{ width: `${Math.round(progress * 100)}%` }} /></div>
             <button type="button" className="atlas-reset" onClick={restartDemo}><RotateCcw size={13} /> Restart demo</button>
           </div>
         ) : null}
       </section>
 
-      <section className="atlas-sides" aria-label="Stakeholder agents">
-        {(Object.keys(SIDE_LABELS) as StakeholderSide[]).map((side) => <span key={side}><i style={{ background: SIDE_COLORS[side] }} />{SIDE_LABELS[side]}</span>)}
-      </section>
-
       {world.events.length ? (
         <aside className="atlas-stream" aria-label="Coordination stream">
           <div className="atlas-stream__title">Live coordination</div>
-          {world.events.slice(0, 4).map((event) => <div className="atlas-event" key={event.id}><strong>{event.title}</strong><span>{event.detail}</span></div>)}
+          {world.events.slice(0, 3).map((event) => <div className="atlas-event" key={event.id}><strong>{event.title}</strong><span>{event.detail}</span></div>)}
         </aside>
       ) : null}
 
-      {selectedAgent ? (
+      {selectedAgent && !pendingApproval ? (
         <aside className="atlas-agent-card" aria-live="polite">
           <div className="atlas-agent-card__top">
-            <span className="atlas-agent-dot" style={{ background: SIDE_COLORS[selectedAgent.side] }} />
+            <span className="atlas-agent-avatar" style={{ borderColor: SIDE_COLORS[selectedAgent.side] }}>{animalFor(selectedAgent.id, selectedAgent.side)}</span>
             <div><strong>{selectedAgent.name}</strong><small>{selectedAgent.role} · {selectedAgent.organisation}</small></div>
             <button type="button" className="atlas-card-close" aria-label="Close agent" onClick={() => { setSelectedAgentId(null); setCameraFollow(false); }}>×</button>
           </div>
@@ -605,13 +711,21 @@ export function AsymptaWorldLiveDemo() {
 
       {pendingApproval ? (
         <aside className={`atlas-approval${pendingApproval.source === "webmcp" ? " atlas-approval--webmcp" : ""}`} aria-live="assertive">
-          <div className="atlas-approval__eyebrow">{pendingApproval.source === "webmcp" ? "WEBMCP REQUEST" : "HUMAN CHECKPOINT"}</div>
-          <strong>{pendingApproval.title}</strong>
-          <p>{pendingApproval.detail}</p>
-          <small>{pendingApproval.consequence}</small>
+          <div className="atlas-sheet-handle" aria-hidden="true" />
+          <div className="atlas-approval__body">
+            <div className="atlas-approval__avatar" style={{ borderColor: approvalAgent ? SIDE_COLORS[approvalAgent.side] : SIDE_COLORS.supplier }}>
+              {approvalAgent ? animalFor(approvalAgent.id, approvalAgent.side) : "🦊"}
+            </div>
+            <div className="atlas-approval__copy">
+              <div className="atlas-approval__eyebrow">{pendingApproval.source === "webmcp" ? "WEBMCP REQUEST" : "HUMAN CHECKPOINT"}</div>
+              <strong>{pendingApproval.title}</strong>
+              <p>{pendingApproval.detail}</p>
+              <small>{pendingApproval.consequence}</small>
+            </div>
+          </div>
           <div className="atlas-approval__actions">
             <button type="button" className="atlas-decline" onClick={() => resolveApproval(pendingApproval.id, false)}>Decline</button>
-            <button type="button" className="atlas-allow" onClick={() => resolveApproval(pendingApproval.id, true)}>Allow simulated action</button>
+            <button type="button" className="atlas-allow" onClick={() => resolveApproval(pendingApproval.id, true)}><ShieldCheck size={17} /> Allow simulated action</button>
           </div>
         </aside>
       ) : null}
