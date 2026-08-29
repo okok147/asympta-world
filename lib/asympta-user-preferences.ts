@@ -3,6 +3,7 @@ export type AsymptaLocale = "en" | "zh-Hant" | "ja";
 export type AsymptaUserPreferences = {
   locale: AsymptaLocale;
   autoExplore: boolean;
+  autoJobMode: boolean;
 };
 
 export const ASYMPTA_USER_PREFERENCES_KEY = "asympta-world.user-preferences.v1";
@@ -11,6 +12,7 @@ export const ASYMPTA_USER_PREFERENCES_EVENT = "asympta-world:user-preferences";
 export const DEFAULT_ASYMPTA_USER_PREFERENCES: AsymptaUserPreferences = {
   locale: "en",
   autoExplore: true,
+  autoJobMode: true,
 };
 
 function isLocale(value: unknown): value is AsymptaLocale {
@@ -23,6 +25,7 @@ function normalizePreferences(value: unknown): AsymptaUserPreferences {
   return {
     locale: isLocale(candidate.locale) ? candidate.locale : DEFAULT_ASYMPTA_USER_PREFERENCES.locale,
     autoExplore: typeof candidate.autoExplore === "boolean" ? candidate.autoExplore : DEFAULT_ASYMPTA_USER_PREFERENCES.autoExplore,
+    autoJobMode: typeof candidate.autoJobMode === "boolean" ? candidate.autoJobMode : DEFAULT_ASYMPTA_USER_PREFERENCES.autoJobMode,
   };
 }
 
