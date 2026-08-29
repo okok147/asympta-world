@@ -20,6 +20,8 @@
       }
     ],
     "paths": {
+      "@/lib/atlas-simulation": ["./lib/atlas-canonical-world.ts"],
+      "@/lib/atlas-demo": ["./lib/atlas-canonical-demo.ts"],
       "@/*": ["./*"]
     }
   },
