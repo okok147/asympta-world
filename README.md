@@ -8,6 +8,18 @@ Asympta World is a living coordination map built for the WebMCP Challenge. A hum
 
 The current challenge build contains four end-to-end simulated workflows: Custom Order, Dinner, Launch Stock and Service Recovery. Agent movement, task dependencies, information exchange, approval state, the map and WebMCP tools all read the same deterministic state engine.
 
+## AI-ready, not AI-dependent
+
+The demo deliberately runs with **zero AI API dependency**. The deterministic Atlas engine remains the source of truth, so the deployed challenge build continues to work without an API key, model availability or inference latency.
+
+At the same time, `lib/agent-runtime/` now provides the future AI boundary: agent profiles, bounded context building, per-agent decision schemas, untrusted-output validation, a deterministic fallback provider and a vendor-neutral AI provider adapter. A future model can be inserted above the engine without rewriting the map, workflows, WebMCP tools or approval system.
+
+Core invariant:
+
+> **Model proposes. Runtime validates. Engine executes. Human approves consequences.**
+
+See [`docs/AI_AGENT_RUNTIME.md`](docs/AI_AGENT_RUNTIME.md) and run `npm run test:agent-runtime`.
+
 ## WebMCP is part of the product
 
 The deployed page uses the imperative WebMCP API directly through `document.modelContext.registerTool(...)`. The WebMCP surface is intentionally narrow, schema-bounded and inspectable.
@@ -54,12 +66,15 @@ npm run dev
 ```bash
 npm run lint
 npm run typecheck
+npm run test:agent-runtime
 npm run test:webmcp
 npm run test:engine
 npm run build
 npm run test:rendered
 npm run export:pages
 ```
+
+`tests/agent-runtime.test.mjs` proves that every visible agent has a future AI profile, context stays bounded and coordinate-free, the demo requires no AI provider, an AI provider can be injected without changing Atlas, overpowered model output fails closed, and generated schemas expose only each agent's allowed capabilities.
 
 `tests/webmcp-contract.test.mjs` verifies the eight expected tool names, JSON-Schema discovery shape, direct `document.modelContext.registerTool(...)` source integration, abort lifecycle, approval-safety invariant and documentation/source agreement. GitHub Pages runs the validation chain before every deployment from `main`.
 
