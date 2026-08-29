@@ -5,6 +5,7 @@ import { AsymptaEstimatedProgress } from "@/components/asympta-estimated-progres
 import { AsymptaGlobalLocale } from "@/components/asympta-global-locale";
 import { AsymptaPaperMapTone } from "@/components/asympta-paper-map-tone";
 import { AsymptaProcessCameraFollow } from "@/components/asympta-process-camera-follow";
+import { AsymptaResourceLedger } from "@/components/asympta-resource-ledger";
 import { AsymptaSafeSchedule } from "@/components/asympta-safe-schedule";
 import { AsymptaScheduleAutomationControls } from "@/components/asympta-schedule-automation-controls";
 import { AsymptaScheduleTotalTime } from "@/components/asympta-schedule-total-time";
@@ -21,6 +22,7 @@ export default function HomePage() {
       <AsymptaSafeSchedule />
       <AsymptaScheduleTotalTime />
       <AsymptaScheduleAutomationControls />
+      <AsymptaResourceLedger />
       <AsymptaEstimatedProgress />
       <AsymptaProcessCameraFollow />
       <AsymptaTaskCelebration />
