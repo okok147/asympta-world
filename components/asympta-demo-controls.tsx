@@ -16,15 +16,6 @@ import {
 type AnyRecord = Record<string, any>;
 type DemoSnapshot = { foreground?: AnyRecord; ambient?: AnyRecord[] };
 
-declare global {
-  interface Window {
-    __ASYMPTA_DEMO__?: {
-      snapshot: () => unknown;
-      approve: (approvalId: string, approved: boolean) => unknown;
-    };
-  }
-}
-
 function safeSnapshot(): DemoSnapshot | null {
   try {
     const value = window.__ASYMPTA_DEMO__?.snapshot();
