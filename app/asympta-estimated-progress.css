@@ -1,0 +1,25 @@
+.atlas-safe-task__progress[data-asympta-estimated-progress] {
+  font-size: 0;
+}
+
+.atlas-safe-task__progress[data-asympta-estimated-progress]::after {
+  content: attr(data-asympta-estimated-progress);
+  color: var(--ink-soft);
+  font-size: 7px;
+  font-variant-numeric: tabular-nums;
+}
+
+.animal-map-marker__status-text[data-asympta-estimated-status] {
+  font-size: 0;
+}
+
+.animal-map-marker__status-text[data-asympta-estimated-status]::after {
+  content: attr(data-asympta-estimated-status);
+  color: inherit;
+  font-size: 7px;
+  white-space: nowrap;
+}
+
+.animal-map-marker--ambient .animal-map-marker__status-text[data-asympta-estimated-status]::after {
+  font-size: 6px;
+}
