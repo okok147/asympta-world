@@ -9,8 +9,10 @@ const cardLocale = await readFile(new URL("../components/asympta-agent-card-loca
 const estimatedProgress = await readFile(new URL("../components/asympta-estimated-progress.tsx", import.meta.url), "utf8");
 const processFollow = await readFile(new URL("../components/asympta-process-camera-follow.tsx", import.meta.url), "utf8");
 const cardCollapse = await readFile(new URL("../components/asympta-card-collapse.tsx", import.meta.url), "utf8");
+const resourceLedger = await readFile(new URL("../components/asympta-resource-ledger.tsx", import.meta.url), "utf8");
 const workflowGuide = await readFile(new URL("../components/asympta-workflow-guide.tsx", import.meta.url), "utf8");
 const collapseCss = await readFile(new URL("../app/asympta-card-collapse.css", import.meta.url), "utf8");
+const resourceCss = await readFile(new URL("../app/asympta-resource-ledger.css", import.meta.url), "utf8");
 const celebration = await readFile(new URL("../components/asympta-task-celebration.tsx", import.meta.url), "utf8");
 const celebrationCss = await readFile(new URL("../app/asympta-task-celebration.css", import.meta.url), "utf8");
 const progressMath = await readFile(new URL("../lib/atlas-display-progress.ts", import.meta.url), "utf8");
@@ -46,17 +48,42 @@ test("workflow tiles remain native cross-browser buttons while also enabling pro
   assert.doesNotMatch(processFollow, /startWorkflow|advanceAtlasWorld|requestAnimationFrame|MutationObserver|JSON\.parse\(JSON\.stringify/);
 });
 
-test("schedule and agent cards expose bounded collapse behavior", () => {
+test("mobile schedule and main menu are mutually adaptive while agent card auto-collapses", () => {
   assert.match(page, /AsymptaCardCollapse/);
   assert.match(cardCollapse, /AGENT_AUTO_COLLAPSE_MS = 5_500/);
-  assert.match(cardCollapse, /window\.matchMedia\("\(max-width: 700px\)"\)/);
-  assert.match(cardCollapse, /applySchedule\(!mobile\)/);
-  assert.match(cardCollapse, /atlas-safe-schedule__header/);
-  assert.match(cardCollapse, /atlas-agent-card__top/);
+  assert.match(cardCollapse, /MOBILE_MAX_WIDTH = 700/);
+  assert.match(cardCollapse, /applySchedule\(!isMobile\(\)\)/);
+  assert.match(cardCollapse, /if \(isMobile\(\) && expanded && menuIsOpen\(\)\)/);
+  assert.match(cardCollapse, /setMenuOpen\(false\)/);
+  assert.match(cardCollapse, /asymptaMobileDock = "below-menu"/);
+  assert.match(cardCollapse, /asymptaMobileDock = "bottom"/);
+  assert.match(cardCollapse, /visualViewport\?\.addEventListener\("resize"/);
+  assert.match(cardCollapse, /orientationchange/);
+  assert.match(collapseCss, /data-asympta-mobile-dock="below-menu"/);
+  assert.match(collapseCss, /data-asympta-mobile-dock="bottom"/);
+  assert.match(collapseCss, /data-asympta-mobile-panels="schedule-bottom"/);
   assert.match(collapseCss, /atlas-safe-schedule\.is-collapsed \.atlas-safe-schedule__tasks/);
   assert.match(collapseCss, /atlas-safe-schedule\.is-collapsed \.atlas-safe-automation/);
   assert.match(collapseCss, /atlas-agent-card\.is-collapsed \.atlas-agent-status/);
   assert.doesNotMatch(cardCollapse, /requestAnimationFrame|MutationObserver|advanceAtlasWorld|JSON\.parse\(JSON\.stringify/);
+});
+
+test("top-left resource ledger counts task and action effects without becoming simulation state", () => {
+  assert.match(page, /AsymptaResourceLedger/);
+  assert.match(layout, /asympta-resource-ledger\.css/);
+  assert.match(resourceLedger, /REFRESH_MS = 500/);
+  assert.match(resourceLedger, /"budget" \| "materials" \| "inventory" \| "capacity" \| "compute" \| "delivery" \| "trust"/);
+  assert.match(resourceLedger, /taskFraction/);
+  assert.match(resourceLedger, /task\.actionType === "reserve_capacity"/);
+  assert.match(resourceLedger, /task\.actionType === "authorize_payment"/);
+  assert.match(resourceLedger, /task\.actionType === "release_shipment"/);
+  assert.match(resourceLedger, /task\.actionType === "send_customer_update"/);
+  assert.match(resourceLedger, /SIDE_COMPUTE/);
+  assert.match(resourceLedger, /算力/);
+  assert.match(resourceLedger, /資金/);
+  assert.match(resourceCss, /atlas-resource-ledger/);
+  assert.match(resourceCss, /data-resource="compute"/);
+  assert.doesNotMatch(resourceLedger, /requestAnimationFrame|MutationObserver|advanceAtlasWorld|startAtlas|resolveAtlas|JSON\.parse\(JSON\.stringify/);
 });
 
 test("default menu opens with a localized workflow-selection hint", () => {
