@@ -14,6 +14,8 @@ import {
 type Viewport = { width: number; height: number };
 type Camera = { lat: number; lon: number; zoom: number };
 type Drag = { pointerId: number; x: number; y: number; camera: Camera };
+type PointerPoint = { x: number; y: number };
+type Pinch = { distance: number; camera: Camera; anchorLat: number; anchorLon: number; centerX: number; centerY: number };
 type Marker = {
   id: string;
   name: string;
@@ -24,9 +26,9 @@ type Marker = {
 };
 
 const TILE_SIZE = 256;
-const MIN_ZOOM = 1.5;
-const MAX_ZOOM = 17;
-const DEFAULT_CAMERA: Camera = { lat: 35.6762, lon: 139.6503, zoom: 10.6 };
+const MIN_ZOOM = 2;
+const MAX_ZOOM = 19;
+const DEFAULT_CAMERA: Camera = { lat: 35.6762, lon: 139.6503, zoom: 12.2 };
 const DEFAULT_VIEWPORT: Viewport = { width: 1440, height: 900 };
 
 const MARKERS: Marker[] = [
@@ -35,7 +37,7 @@ const MARKERS: Marker[] = [
   { id: "marunouchi", name: "Marunouchi", lat: 35.6812, lon: 139.7639, category: "business", weight: 34 },
   { id: "nihonbashi", name: "Nihonbashi", lat: 35.6837, lon: 139.7744, category: "business", weight: 19 },
   { id: "shinagawa", name: "Shinagawa", lat: 35.6285, lon: 139.7387, category: "infrastructure", weight: 23 },
-  { id: "toyosu", name: "Toyosu", lat: 35.6550, lon: 139.7967, category: "supply", weight: 18 },
+  { id: "toyosu", name: "Toyosu", lat: 35.655, lon: 139.7967, category: "supply", weight: 18 },
   { id: "haneda", name: "Haneda", lat: 35.5494, lon: 139.7798, category: "infrastructure", weight: 30 },
   { id: "ueno", name: "Ueno", lat: 35.7138, lon: 139.7773, category: "people", weight: 17 },
   { id: "ikebukuro", name: "Ikebukuro", lat: 35.7295, lon: 139.7109, category: "people", weight: 20 },
@@ -60,7 +62,7 @@ function lonToWorldX(lon: number, zoom: number) {
 function latToWorldY(lat: number, zoom: number) {
   const safeLat = clamp(lat, -85.05112878, 85.05112878);
   const rad = (safeLat * Math.PI) / 180;
-  return (1 - Math.asinh(Math.tan(rad)) / Math.PI) / 2 * TILE_SIZE * 2 ** zoom;
+  return ((1 - Math.asinh(Math.tan(rad)) / Math.PI) / 2) * TILE_SIZE * 2 ** zoom;
 }
 
 function worldXToLon(x: number, zoom: number) {
@@ -81,10 +83,17 @@ function project(lat: number, lon: number, camera: Camera, viewport: Viewport) {
   };
 }
 
+function screenToLatLon(camera: Camera, rect: DOMRect, x: number, y: number) {
+  const cx = lonToWorldX(camera.lon, camera.zoom);
+  const cy = latToWorldY(camera.lat, camera.zoom);
+  const wx = cx + x - rect.left - rect.width / 2;
+  const wy = cy + y - rect.top - rect.height / 2;
+  return { lat: worldYToLat(wy, camera.zoom), lon: worldXToLon(wx, camera.zoom) };
+}
+
 function getTiles(camera: Camera, viewport: Viewport) {
   const tileZoom = Math.floor(camera.zoom);
   const scale = 2 ** (camera.zoom - tileZoom);
-  const worldSize = TILE_SIZE * 2 ** tileZoom;
   const centerX = lonToWorldX(camera.lon, tileZoom);
   const centerY = latToWorldY(camera.lat, tileZoom);
   const widthAtTileZoom = viewport.width / scale;
@@ -95,7 +104,7 @@ function getTiles(camera: Camera, viewport: Viewport) {
   const maxX = Math.floor((left + widthAtTileZoom) / TILE_SIZE) + 1;
   const minY = Math.max(0, Math.floor(top / TILE_SIZE) - 1);
   const maxY = Math.min(2 ** tileZoom - 1, Math.floor((top + heightAtTileZoom) / TILE_SIZE) + 1);
-  const tiles: Array<{ key: string; x: number; y: number; z: number; left: number; top: number; size: number; urlX: number }> = [];
+  const tiles: Array<{ key: string; y: number; z: number; left: number; top: number; size: number; urlX: number }> = [];
   const tileCount = 2 ** tileZoom;
 
   for (let y = minY; y <= maxY; y += 1) {
@@ -103,7 +112,6 @@ function getTiles(camera: Camera, viewport: Viewport) {
       const urlX = ((x % tileCount) + tileCount) % tileCount;
       tiles.push({
         key: `${tileZoom}-${x}-${y}`,
-        x,
         y,
         z: tileZoom,
         urlX,
@@ -120,6 +128,8 @@ function getTiles(camera: Camera, viewport: Viewport) {
 export function AsymptaWorldExperience() {
   const mapRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<Drag | null>(null);
+  const pointersRef = useRef(new Map<number, PointerPoint>());
+  const pinchRef = useRef<Pinch | null>(null);
   const [viewport, setViewport] = useState<Viewport>(DEFAULT_VIEWPORT);
   const [camera, setCamera] = useState<Camera>(DEFAULT_CAMERA);
   const [panning, setPanning] = useState(false);
@@ -157,13 +167,30 @@ export function AsymptaWorldExperience() {
       const nextCenterX = anchorX * ratio - (clientX - rect.left - rect.width / 2);
       const nextCenterY = anchorY * ratio - (clientY - rect.top - rect.height / 2);
 
-      return {
-        zoom,
-        lon: worldXToLon(nextCenterX, zoom),
-        lat: worldYToLat(nextCenterY, zoom),
-      };
+      return { zoom, lon: worldXToLon(nextCenterX, zoom), lat: worldYToLat(nextCenterY, zoom) };
     });
   }, []);
+
+  const beginPinch = useCallback(() => {
+    const element = mapRef.current;
+    if (!element || pointersRef.current.size !== 2) {
+      pinchRef.current = null;
+      return;
+    }
+    const [a, b] = Array.from(pointersRef.current.values());
+    const centerX = (a.x + b.x) / 2;
+    const centerY = (a.y + b.y) / 2;
+    const rect = element.getBoundingClientRect();
+    const anchor = screenToLatLon(camera, rect, centerX, centerY);
+    pinchRef.current = {
+      distance: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
+      camera,
+      anchorLat: anchor.lat,
+      anchorLon: anchor.lon,
+      centerX,
+      centerY,
+    };
+  }, [camera]);
 
   const handleWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -171,29 +198,65 @@ export function AsymptaWorldExperience() {
   };
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0) return;
+    if (event.pointerType === "mouse" && event.button !== 0) return;
     event.currentTarget.setPointerCapture(event.pointerId);
-    dragRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, camera };
-    setPanning(true);
+    pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+    if (pointersRef.current.size === 1) {
+      dragRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, camera };
+      setPanning(true);
+    } else if (pointersRef.current.size === 2) {
+      dragRef.current = null;
+      setPanning(false);
+      beginPinch();
+    }
   };
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!pointersRef.current.has(event.pointerId)) return;
+    pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+    if (pointersRef.current.size === 2) {
+      const element = mapRef.current;
+      const pinch = pinchRef.current;
+      if (!element || !pinch) return beginPinch();
+      const [a, b] = Array.from(pointersRef.current.values());
+      const distance = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
+      const centerX = (a.x + b.x) / 2;
+      const centerY = (a.y + b.y) / 2;
+      const rect = element.getBoundingClientRect();
+      const zoom = clamp(pinch.camera.zoom + Math.log2(distance / pinch.distance), MIN_ZOOM, MAX_ZOOM);
+      const anchorWorldX = lonToWorldX(pinch.anchorLon, zoom);
+      const anchorWorldY = latToWorldY(pinch.anchorLat, zoom);
+      const centerOffsetX = centerX - rect.left - rect.width / 2;
+      const centerOffsetY = centerY - rect.top - rect.height / 2;
+      const nextCenterX = anchorWorldX - centerOffsetX;
+      const nextCenterY = anchorWorldY - centerOffsetY;
+      setCamera({ zoom, lon: worldXToLon(nextCenterX, zoom), lat: worldYToLat(nextCenterY, zoom) });
+      return;
+    }
+
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     const dx = event.clientX - drag.x;
     const dy = event.clientY - drag.y;
     const cx = lonToWorldX(drag.camera.lon, drag.camera.zoom) - dx;
     const cy = latToWorldY(drag.camera.lat, drag.camera.zoom) - dy;
-    setCamera({
-      ...drag.camera,
-      lon: worldXToLon(cx, drag.camera.zoom),
-      lat: worldYToLat(cy, drag.camera.zoom),
-    });
+    setCamera({ ...drag.camera, lon: worldXToLon(cx, drag.camera.zoom), lat: worldYToLat(cy, drag.camera.zoom) });
   };
 
   const handlePointerEnd = (event: ReactPointerEvent<HTMLDivElement>) => {
+    pointersRef.current.delete(event.pointerId);
     if (dragRef.current?.pointerId === event.pointerId) dragRef.current = null;
-    setPanning(false);
+    pinchRef.current = null;
+
+    if (pointersRef.current.size === 1) {
+      const [pointerId, point] = Array.from(pointersRef.current.entries())[0];
+      dragRef.current = { pointerId, x: point.x, y: point.y, camera };
+      setPanning(true);
+    } else {
+      setPanning(false);
+    }
   };
 
   const toggleCategory = (category: Marker["category"]) => {
@@ -206,12 +269,12 @@ export function AsymptaWorldExperience() {
   };
 
   return (
-    <main className="map-app" data-map-app="true" data-map-style="real-map-visualizer">
+    <main className="map-app" data-map-app="true" data-map-style="real-street-visualizer">
       <div
         ref={mapRef}
         className={`map-canvas${panning ? " is-panning" : ""}`}
         role="application"
-        aria-label="Interactive real-world map visualizer"
+        aria-label="Interactive real-world street map visualizer"
         onWheel={handleWheel}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -223,7 +286,7 @@ export function AsymptaWorldExperience() {
             <img
               key={tile.key}
               className="map-tile"
-              src={`https://a.basemaps.cartocdn.com/dark_all/${tile.z}/${tile.urlX}/${tile.y}@2x.png`}
+              src={`https://tile.openstreetmap.org/${tile.z}/${tile.urlX}/${tile.y}.png`}
               alt=""
               draggable={false}
               style={{ left: tile.left, top: tile.top, width: tile.size, height: tile.size }}
@@ -246,7 +309,7 @@ export function AsymptaWorldExperience() {
               >
                 <circle r={radius + 5} className="map-node-halo" />
                 <circle r={radius} className="map-node-core" />
-                {(camera.zoom >= 11.4 || isSelected) && <text x={radius + 8} y="4">{marker.name}</text>}
+                {(camera.zoom >= 12.8 || isSelected) && <text x={radius + 8} y="4">{marker.name}</text>}
               </g>
             );
           })}
@@ -255,7 +318,7 @@ export function AsymptaWorldExperience() {
 
       <section className="map-legend" aria-label="Visualizer filters">
         <div className="map-legend__eyebrow">ASYMPTA WORLD</div>
-        <div className="map-legend__title">Tokyo activity map</div>
+        <div className="map-legend__title">Tokyo street activity map</div>
         <div className="map-legend__filters">
           {(Object.keys(CATEGORY_LABELS) as Array<Marker["category"]>).map((category) => (
             <button
@@ -281,7 +344,7 @@ export function AsymptaWorldExperience() {
         <LocateFixed size={18} strokeWidth={1.8} />
       </button>
 
-      <div className="map-attribution">© OpenStreetMap contributors · © CARTO</div>
+      <div className="map-attribution">© OpenStreetMap contributors</div>
     </main>
   );
 }
