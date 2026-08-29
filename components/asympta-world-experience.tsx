@@ -51,10 +51,11 @@ type MapLibreNamespace = { Map: new (options: Record<string, unknown>) => MapLib
 
 type WebMcpTool = {
   name: string;
+  title: string;
   description: string;
-  inputSchema?: Record<string, unknown>;
-  annotations?: { readOnlyHint?: boolean; untrustedContentHint?: boolean };
-  execute: (input: Record<string, unknown>) => Promise<unknown> | unknown;
+  inputSchema: Record<string, unknown>;
+  annotations: { readOnlyHint: boolean; untrustedContentHint: boolean };
+  execute: (input: Record<string, unknown>) => Promise<string>;
 };
 
 declare global {
@@ -65,12 +66,6 @@ declare global {
       startWorkflow: (workflowId: WorkflowId) => unknown;
       advance: (milliseconds: number) => unknown;
       approve: (approvalId: string, approved: boolean) => unknown;
-    };
-  }
-
-  interface Document {
-    modelContext?: {
-      registerTool: (tool: WebMcpTool, options?: { signal?: AbortSignal }) => Promise<void> | void;
     };
   }
 }
@@ -281,20 +276,7 @@ export function AsymptaWorldExperience() {
     loadMapLibre()
       .then((maplibre) => {
         if (disposed || !mapContainerRef.current) return;
-        const map = new maplibre.Map({
-          container: mapContainerRef.current,
-          style: OPENFREEMAP_STYLE,
-          center: TOKYO_CENTER,
-          zoom: TOKYO_ZOOM,
-          minZoom: 3,
-          maxZoom: 20,
-          attributionControl: true,
-          pitchWithRotate: false,
-          dragRotate: false,
-          touchPitch: false,
-          cooperativeGestures: false,
-          fadeDuration: 80,
-        });
+        const map = new maplibre.Map({ container: mapContainerRef.current, style: OPENFREEMAP_STYLE, center: TOKYO_CENTER, zoom: TOKYO_ZOOM, minZoom: 3, maxZoom: 20, attributionControl: true, pitchWithRotate: false, dragRotate: false, touchPitch: false, cooperativeGestures: false, fadeDuration: 80 });
         mapRef.current = map;
         map.dragRotate.disable();
         map.touchPitch?.disable();
@@ -315,9 +297,7 @@ export function AsymptaWorldExperience() {
         map.on("mouseenter", "atlas-agents", () => { map.getCanvas().style.cursor = "pointer"; });
         map.on("mouseleave", "atlas-agents", () => { map.getCanvas().style.cursor = "grab"; });
       })
-      .catch((reason: unknown) => {
-        if (!disposed) setMapError(reason instanceof Error ? reason.message : "The map could not be loaded.");
-      });
+      .catch((reason: unknown) => { if (!disposed) setMapError(reason instanceof Error ? reason.message : "The map could not be loaded."); });
     return () => {
       disposed = true;
       mapRef.current?.remove();
@@ -363,9 +343,7 @@ export function AsymptaWorldExperience() {
     const controller = new AbortController();
     const modelContext = document.modelContext;
     if (!modelContext) {
-      queueMicrotask(() => {
-        if (!controller.signal.aborted) setWebMcpState("unavailable");
-      });
+      queueMicrotask(() => { if (!controller.signal.aborted) setWebMcpState("unavailable"); });
       return () => controller.abort();
     }
 
@@ -376,62 +354,62 @@ export function AsymptaWorldExperience() {
     const tools: WebMcpTool[] = [
       {
         name: "asympta_observe_coordination_atlas",
+        title: "Observe coordination atlas",
         description: "Read the current Asympta World coordination state, moving agents, dependency tasks, messages and pending human approvals without changing anything.",
         inputSchema: { type: "object", properties: {}, additionalProperties: false },
         annotations: readOnly,
-        execute: async () => ({ ok: true, world: atlasSnapshot(worldRef.current) }),
+        execute: async () => JSON.stringify({ ok: true, world: atlasSnapshot(worldRef.current) }),
       },
       {
         name: "asympta_list_workflows",
+        title: "List coordination workflows",
         description: "List the available multi-stakeholder simulation workflows and what each one coordinates.",
         inputSchema: { type: "object", properties: {}, additionalProperties: false },
         annotations: readOnly,
-        execute: async () => ({ ok: true, workflows: ATLAS_WORKFLOWS.map((workflow) => ({ id: workflow.id, name: workflow.name, summary: workflow.summary })) }),
+        execute: async () => JSON.stringify({ ok: true, workflows: ATLAS_WORKFLOWS.map((workflow) => ({ id: workflow.id, name: workflow.name, summary: workflow.summary })) }),
       },
       {
         name: "asympta_request_workflow",
+        title: "Request a coordination workflow",
         description: "Request that Asympta World start a multi-agent workflow. This never starts immediately from WebMCP: it creates a visible approval request and waits for the user to allow it.",
         inputSchema: { type: "object", properties: { workflowId: { type: "string", enum: workflowIds } }, required: ["workflowId"], additionalProperties: false },
         annotations: mutating,
         execute: async (input) => {
           const workflowId = String(input.workflowId ?? "") as WorkflowId;
-          if (!workflowIds.includes(workflowId)) return { ok: false, error: "Unknown workflow." };
+          if (!workflowIds.includes(workflowId)) return JSON.stringify({ ok: false, error: "Unknown workflow." });
           const next = apply((current) => requestWebMcpWorkflow(current, workflowId));
           const approval = [...next.approvals].reverse().find((item) => item.kind === "webmcp-start" && item.workflowId === workflowId && item.status === "pending");
-          return { ok: true, queuedForHumanApproval: true, approvalId: approval?.id ?? null };
+          return JSON.stringify({ ok: true, queuedForHumanApproval: true, approvalId: approval?.id ?? null });
         },
       },
       {
         name: "asympta_request_external_action",
+        title: "Request a consequential action",
         description: "Request a consequential coordination action such as reserving capacity, authorising simulated payment, releasing simulated shipment, or sending a simulated customer update. The action is always queued for explicit user approval before simulation advances.",
-        inputSchema: {
-          type: "object",
-          properties: { action: { type: "string", enum: ACTIONS }, agentId: { type: "string", enum: agentIds }, reason: { type: "string", minLength: 3, maxLength: 220 } },
-          required: ["action", "agentId", "reason"],
-          additionalProperties: false,
-        },
+        inputSchema: { type: "object", properties: { action: { type: "string", enum: ACTIONS }, agentId: { type: "string", enum: agentIds }, reason: { type: "string", minLength: 3, maxLength: 220 } }, required: ["action", "agentId", "reason"], additionalProperties: false },
         annotations: mutating,
         execute: async (input) => {
           const action = String(input.action ?? "") as ExternalAction;
           const agentId = String(input.agentId ?? "");
           const reason = String(input.reason ?? "").trim();
-          if (!ACTIONS.includes(action) || !agentIds.includes(agentId) || reason.length < 3) return { ok: false, error: "Invalid action request." };
+          if (!ACTIONS.includes(action) || !agentIds.includes(agentId) || reason.length < 3) return JSON.stringify({ ok: false, error: "Invalid action request." });
           const next = apply((current) => requestWebMcpAction(current, action, agentId, reason));
           const approval = [...next.approvals].reverse().find((item) => item.status === "pending" && item.actionType === action);
-          return { ok: true, queuedForHumanApproval: true, approvalId: approval?.id ?? null };
+          return JSON.stringify({ ok: true, queuedForHumanApproval: true, approvalId: approval?.id ?? null });
         },
       },
       {
         name: "asympta_follow_agent",
+        title: "Follow an agent on the map",
         description: "Focus the map camera on one simulation agent and keep tracking that agent as it moves. This changes only the local visual camera.",
         inputSchema: { type: "object", properties: { agentId: { type: "string", enum: agentIds } }, required: ["agentId"], additionalProperties: false },
         annotations: readOnly,
         execute: async (input) => {
           const agentId = String(input.agentId ?? "");
-          if (!agentIds.includes(agentId)) return { ok: false, error: "Unknown agent." };
+          if (!agentIds.includes(agentId)) return JSON.stringify({ ok: false, error: "Unknown agent." });
           setSelectedAgentId(agentId);
           setCameraFollow(true);
-          return { ok: true, following: agentId };
+          return JSON.stringify({ ok: true, following: agentId });
         },
       },
     ];
