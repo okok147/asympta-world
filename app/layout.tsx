@@ -8,6 +8,7 @@ import "./asympta-marker-bubbles.css";
 import "./asympta-agent-card-locale.css";
 import "./asympta-schedule-automation.css";
 import "./asympta-estimated-progress.css";
+import "./asympta-global-locale.css";
 
 export const metadata: Metadata = {
   title: "Asympta World",
