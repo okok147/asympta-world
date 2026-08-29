@@ -1,5 +1,6 @@
 import { AsymptaAgentCardLocale } from "@/components/asympta-agent-card-locale";
 import { AsymptaBlockActivity } from "@/components/asympta-block-activity";
+import { AsymptaCalmDefaults } from "@/components/asympta-calm-defaults";
 import { AsymptaCardCollapse } from "@/components/asympta-card-collapse";
 import { AsymptaEscalationGuard } from "@/components/asympta-escalation-guard";
 import { AsymptaEstimatedProgress } from "@/components/asympta-estimated-progress";
@@ -35,6 +36,7 @@ export default function HomePage() {
       <AsymptaProcessCameraFollow />
       <AsymptaTaskCelebration />
       <AsymptaCardCollapse />
+      <AsymptaCalmDefaults />
       <AsymptaWorkflowGuide />
       <AsymptaAgentCardLocale />
       <AsymptaGlobalLocale />
