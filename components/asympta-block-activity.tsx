@@ -59,11 +59,12 @@ const LAYER_ID = "asympta-activity-blocks-fill";
 const ACTIVITY_REFRESH_MS = 900;
 const ACTIVITY_HOLD_MS = 2_600;
 const ACTIVITY_FADE_MS = 15_000;
-const QUERY_RADIUS_PX = 22;
-const MAX_ACTIVE_AGENTS = 4;
-const MAX_BLOCKS_PER_AGENT = 4;
-const MAX_ACTIVITY_BLOCKS = 28;
-const MAX_OPACITY = 0.42;
+const QUERY_RADIUS_PX = 10;
+const MAX_ACTIVE_AGENTS = 3;
+const MAX_BLOCKS_PER_AGENT = 2;
+const MAX_ACTIVITY_BLOCKS = 10;
+const MAX_BLOCK_SPAN_DEGREES = 0.0012;
+const MAX_OPACITY = 0.32;
 
 const ACTIVITY_COLORS = [
   "#7183AA",
@@ -92,9 +93,29 @@ function firstCoordinate(value: unknown): [number, number] | null {
   return null;
 }
 
+function geometryFitsBudget(geometry: Geometry) {
+  const bounds = { minLon: Infinity, maxLon: -Infinity, minLat: Infinity, maxLat: -Infinity };
+  const visit = (value: unknown) => {
+    if (!Array.isArray(value)) return;
+    if (value.length >= 2 && typeof value[0] === "number" && typeof value[1] === "number") {
+      bounds.minLon = Math.min(bounds.minLon, value[0]);
+      bounds.maxLon = Math.max(bounds.maxLon, value[0]);
+      bounds.minLat = Math.min(bounds.minLat, value[1]);
+      bounds.maxLat = Math.max(bounds.maxLat, value[1]);
+      return;
+    }
+    for (const item of value) visit(item);
+  };
+  visit(geometry.coordinates);
+  if (!Number.isFinite(bounds.minLon) || !Number.isFinite(bounds.minLat)) return false;
+  return (bounds.maxLon - bounds.minLon) <= MAX_BLOCK_SPAN_DEGREES
+    && (bounds.maxLat - bounds.minLat) <= MAX_BLOCK_SPAN_DEGREES;
+}
+
 function usableGeometry(feature: RenderedFeature): Geometry | null {
   const geometry = feature.geometry;
   if (!geometry || !["Polygon", "MultiPolygon"].includes(geometry.type) || !Array.isArray(geometry.coordinates)) return null;
+  if (!geometryFitsBudget(geometry)) return null;
   return geometry;
 }
 
@@ -158,7 +179,7 @@ function activeAgents(snapshot: DemoSnapshot) {
   const agents = foreground?.agents ?? [];
   const activeAgentIds = new Set(tasks.filter((task) => ACTIVE_TASK_STATUSES.has(task.status)).map((task) => task.agentId));
   return agents
-    .filter((agent) => activeAgentIds.has(agent.id) || agent.status === "working" || agent.status === "sharing")
+    .filter((agent) => activeAgentIds.has(agent.id) || agent.status === "working")
     .filter((agent) => Number.isFinite(agent.lon) && Number.isFinite(agent.lat))
     .slice(0, MAX_ACTIVE_AGENTS);
 }
