@@ -5,6 +5,7 @@ import "./asympta-animal-art.css";
 import "./asympta-live-60hz.css";
 import "./asympta-safe-schedule.css";
 import "./asympta-marker-bubbles.css";
+import "./asympta-agent-card-locale.css";
 
 export const metadata: Metadata = {
   title: "Asympta World",
@@ -29,7 +30,8 @@ const ASYMPTA_MAP_BRIDGE_BOOTSTRAP = `(() => {
     const OriginalMap = value.Map;
     value.Map = class AsymptaCameraBridgeMap extends OriginalMap {
       constructor(options) {
-        super(options);
+        const deviceRatio = Math.min(window.devicePixelRatio || 1, 2);
+        super({ ...options, pixelRatio: options?.pixelRatio ?? deviceRatio });
         window.__ASYMPTA_MAP__ = this;
       }
 
