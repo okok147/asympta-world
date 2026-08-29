@@ -1,0 +1,24 @@
+.atlas-safe-total-time {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.atlas-safe-total-time > span {
+  color: var(--ink-faint);
+  font-size: 6.7px;
+}
+
+.atlas-safe-total-time > strong {
+  color: var(--ink-soft);
+  font-size: 7.2px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 750;
+}
+
+@media (max-width: 700px) {
+  .atlas-safe-schedule__summary { gap: 7px; }
+  .atlas-safe-total-time > span { display: none; }
+}
