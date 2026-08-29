@@ -69,8 +69,33 @@
 }
 
 @media (max-width: 700px) {
+  /* Mobile uses one expanded upper panel at a time. The compact Schedule card is
+     dynamically docked outside the expanded coordination menu. */
+  .atlas-safe-schedule {
+    max-height: calc(100dvh - 20px);
+    transition: top 180ms ease, bottom 180ms ease, width 180ms ease, transform 180ms ease;
+  }
+
+  .atlas-safe-schedule[data-asympta-mobile-dock="top"] {
+    top: max(76px, calc(env(safe-area-inset-top) + 76px));
+    right: max(10px, env(safe-area-inset-right));
+    bottom: auto;
+  }
+
+  .atlas-safe-schedule[data-asympta-mobile-dock="below-menu"] {
+    top: var(--asympta-mobile-schedule-top, 76px);
+    right: max(10px, env(safe-area-inset-right));
+    bottom: auto;
+  }
+
+  .atlas-safe-schedule[data-asympta-mobile-dock="bottom"] {
+    top: auto;
+    right: max(10px, env(safe-area-inset-right));
+    bottom: max(88px, calc(env(safe-area-inset-bottom) + 88px));
+  }
+
   .atlas-safe-schedule.is-collapsed {
-    width: min(264px, calc(100vw - 20px));
+    width: min(248px, calc(100vw - 20px));
   }
   .atlas-safe-schedule.is-collapsed .atlas-safe-schedule__header {
     min-height: 46px;
@@ -80,4 +105,28 @@
     padding-top: 4px;
     padding-bottom: 4px;
   }
+
+  .atlas-safe-schedule:not(.is-collapsed) {
+    width: min(292px, calc(100vw - 20px));
+  }
+  .atlas-safe-schedule:not(.is-collapsed) .atlas-safe-schedule__tasks {
+    max-height: min(174px, 29dvh);
+  }
+
+  /* If the compact Schedule has to dock at the bottom, keep the selected-agent card
+     above that zone so the two controls never cover each other on narrow phones. */
+  html[data-asympta-mobile-panels="schedule-bottom"] .atlas-agent-card {
+    bottom: max(178px, calc(env(safe-area-inset-bottom) + 178px));
+  }
+
+  .atlas-console {
+    max-height: calc(100dvh - max(18px, env(safe-area-inset-bottom)));
+  }
+  .atlas-console.is-open .atlas-menu-panel {
+    max-height: calc(100dvh - 86px - env(safe-area-inset-top));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+  }
+  .atlas-console.is-open .atlas-menu-panel::-webkit-scrollbar { display: none; }
 }
