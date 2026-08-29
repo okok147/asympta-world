@@ -1,0 +1,241 @@
+/* 60Hz living-map additions. Keep moving layers cheap: no backdrop-filter, no continuous shadow animation. */
+
+.animal-map-marker__dialogue,
+.animal-map-marker__status-text {
+  position: absolute;
+  left: 50%;
+  z-index: 5;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(-50%);
+  transition: opacity 100ms linear;
+}
+
+.animal-map-marker__dialogue {
+  bottom: calc(100% + 5px);
+  padding: 4px 7px;
+  border: 1px solid rgba(67, 63, 56, 0.12);
+  border-radius: 9px;
+  background: rgba(250, 247, 239, 0.96);
+  color: #514d46;
+  box-shadow: 0 2px 7px rgba(54, 50, 42, 0.07);
+  font-size: 8px;
+  line-height: 1.15;
+}
+
+.animal-map-marker__dialogue::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: 6px;
+  height: 6px;
+  border-right: 1px solid rgba(67, 63, 56, 0.12);
+  border-bottom: 1px solid rgba(67, 63, 56, 0.12);
+  background: rgba(250, 247, 239, 0.96);
+  transform: translate(-50%, -3px) rotate(45deg);
+}
+
+.animal-map-marker__status-text {
+  top: calc(100% + 3px);
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: rgba(248, 245, 236, 0.88);
+  color: rgba(58, 54, 49, 0.66);
+  font-size: 7px;
+  line-height: 1.1;
+}
+
+.animal-map-marker.has-dialogue .animal-map-marker__dialogue,
+.animal-map-marker--foreground .animal-map-marker__status-text,
+.animal-map-marker--ambient .animal-map-marker__status-text {
+  opacity: 1;
+}
+
+.animal-map-marker--ambient .animal-map-marker__dialogue {
+  max-width: 112px;
+  padding: 3px 5px;
+  border-radius: 7px;
+  font-size: 6.5px;
+  opacity: 0;
+}
+
+.animal-map-marker--ambient.has-dialogue .animal-map-marker__dialogue { opacity: 0.82; }
+.animal-map-marker--ambient .animal-map-marker__status-text { font-size: 6px; opacity: 0.64; }
+
+.animal-map-marker__status-dot {
+  position: absolute;
+  z-index: 6;
+  right: 0;
+  bottom: 0;
+  width: 7px;
+  height: 7px;
+  border: 1.5px solid rgba(249,246,237,0.98);
+  border-radius: 50%;
+  background: var(--agent-color);
+}
+
+.animal-map-marker--ambient .animal-map-marker__status-dot {
+  right: -1px;
+  bottom: -1px;
+  width: 5px;
+  height: 5px;
+  border-width: 1px;
+}
+
+.animal-map-marker[data-status="idle"] .animal-map-marker__status-dot { opacity: 0.3; }
+.animal-map-marker.is-working .animal-map-marker__status-dot { opacity: 0.7; }
+
+/* The inspector is deliberately flat and compact: it should read like a paper technical note, not a devtool overlay. */
+.atlas-webmcp-inspector {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid rgba(67,63,56,0.09);
+  border-radius: 12px;
+  background: rgba(255,255,255,0.20);
+}
+
+.atlas-webmcp-tool-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
+
+.atlas-webmcp-tool-list > button {
+  min-width: 0;
+  min-height: 45px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  padding: 6px 7px;
+  border: 1px solid rgba(67,63,56,0.08);
+  border-radius: 9px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.atlas-webmcp-tool-list > button.is-active {
+  border-color: rgba(75,127,166,0.24);
+  background: rgba(75,127,166,0.06);
+}
+
+.atlas-webmcp-tool-list strong,
+.atlas-webmcp-tool-list small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.atlas-webmcp-tool-list strong { color: #4d4943; font-size: 8px; }
+.atlas-webmcp-tool-list small { margin-top: 2px; color: #8d877d; font: 6.5px ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+.atlas-permission {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 35px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  font-size: 6.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.atlas-permission--read { background: rgba(75,127,166,0.09); color: #426d8d; }
+.atlas-permission--write { background: rgba(168,104,96,0.10); color: #875a54; }
+
+.atlas-webmcp-action-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.atlas-webmcp-action-row button {
+  min-width: 0;
+  min-height: 31px;
+  padding: 4px 5px;
+  border: 1px solid rgba(67,63,56,0.08);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.26);
+  color: #69645c;
+  font-size: 7px;
+  line-height: 1.15;
+  cursor: pointer;
+}
+
+.atlas-json-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.atlas-json-grid section {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid rgba(67,63,56,0.08);
+  border-radius: 9px;
+  background: rgba(247,244,235,0.62);
+}
+
+.atlas-json-title {
+  min-height: 27px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 7px;
+  border-bottom: 1px solid rgba(67,63,56,0.07);
+  color: #746e65;
+  font-size: 7px;
+  font-weight: 760;
+  letter-spacing: 0.04em;
+}
+
+.atlas-json-title button {
+  width: 25px;
+  height: 25px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #777168;
+  cursor: pointer;
+}
+
+.atlas-json-grid pre {
+  max-height: 150px;
+  margin: 0;
+  padding: 8px;
+  overflow: auto;
+  color: #4d4943;
+  font: 7px/1.45 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Keep the expanded menu bounded so it never consumes the entire mobile map. */
+.atlas-console.is-open .atlas-menu-panel {
+  max-height: min(68vh, 610px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+@media (max-width: 640px) {
+  .animal-map-marker__dialogue { max-width: 126px; font-size: 7px; }
+  .animal-map-marker--ambient .animal-map-marker__dialogue { max-width: 92px; font-size: 6px; }
+  .atlas-webmcp-tool-list { grid-template-columns: 1fr; }
+  .atlas-webmcp-action-row { grid-template-columns: 1fr 1fr; }
+  .atlas-json-grid { grid-template-columns: 1fr; }
+  .atlas-json-grid pre { max-height: 120px; }
+  .atlas-console.is-open .atlas-menu-panel { max-height: min(62vh, 520px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animal-map-marker__dialogue,
+  .animal-map-marker__status-text { transition: none; }
+}
