@@ -1,0 +1,335 @@
+/* Final presentation layer: one world, one active story, one necessary action. */
+:root {
+  --panel: rgba(248, 246, 239, 0.91);
+  --panel-strong: rgba(249, 247, 241, 0.96);
+  --line: rgba(67, 63, 56, 0.095);
+  --line-strong: rgba(67, 63, 56, 0.15);
+  --shadow: 0 1px 2px rgba(54, 50, 42, 0.035), 0 5px 16px rgba(54, 50, 42, 0.035);
+}
+
+/* The map is the product. UI surfaces should feel like annotations on paper. */
+.atlas-console,
+.atlas-safe-schedule,
+.atlas-agent-card,
+.atlas-approval,
+.map-control,
+.map-status {
+  box-shadow: var(--shadow);
+}
+
+.atlas-console {
+  width: min(420px, calc(100vw - 24px));
+  border-radius: 14px;
+  background: var(--panel);
+}
+.atlas-console.is-collapsed { width: min(298px, calc(100vw - 24px)); }
+.atlas-menu-bar {
+  min-height: 46px;
+  grid-template-columns: minmax(0, 1fr) 34px 34px;
+  gap: 2px;
+  padding: 4px;
+}
+.atlas-menu-identity {
+  min-height: 36px;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  gap: 6px;
+  padding: 3px 5px;
+  border-radius: 10px;
+}
+.atlas-menu-icon {
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+}
+.atlas-menu-copy small { display: none; }
+.atlas-menu-copy strong {
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  font-size: 12px;
+  font-weight: 620;
+  letter-spacing: -0.01em;
+}
+.atlas-mini-phase { max-width: 96px; font-size: 7px; opacity: 0.78; }
+.atlas-mini-phase i { width: 5px; height: 5px; }
+.atlas-quick-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+}
+
+.atlas-menu-panel {
+  gap: 7px;
+  padding: 5px 9px 9px;
+  border-top-color: rgba(67,63,56,0.055);
+}
+
+/* Technical health and resource telemetry are details, not the default story. */
+.atlas-status-stack { gap: 0; padding: 0; }
+.atlas-status-stack > .atlas-tool-state { display: none; }
+.atlas-resource-ledger { display: none; }
+.atlas-menu-panel:has(.atlas-webmcp-inspector) .atlas-resource-ledger {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 3px;
+  padding: 2px 0 1px;
+}
+.atlas-resource-chip {
+  padding: 4px 5px;
+  border-color: rgba(67,63,56,0.055);
+  background: transparent;
+}
+.atlas-resource-chip span { font-size: 5.7px; }
+.atlas-resource-chip strong { font-size: 7.2px; }
+.atlas-resource-chip[data-resource="exchange"] { grid-column: 1 / -1; }
+
+/* Three utility actions collapse to small icon controls. */
+.atlas-tool-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 3px;
+}
+.atlas-tool-actions button {
+  width: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  padding: 0;
+  border-color: transparent;
+  border-radius: 8px;
+  background: transparent;
+}
+.atlas-tool-actions button span { display: none; }
+.atlas-tool-actions button.is-active {
+  border-color: rgba(75,127,166,0.10);
+  background: rgba(75,127,166,0.045);
+}
+
+/* Workflows become a quiet mode picker. Job Mode is the fifth mode. */
+.atlas-workflows {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 3px;
+}
+.atlas-workflow {
+  min-height: 47px;
+  gap: 2px;
+  padding: 5px 2px;
+  border-color: transparent;
+  border-radius: 9px;
+  background: transparent;
+}
+.atlas-workflow__icon { width: 18px; height: 17px; opacity: 0.72; }
+.atlas-workflow strong { font-size: 8px; font-weight: 680; }
+.atlas-workflow > span:last-child { display: none; }
+.asympta-job-mode__tile > span:last-child {
+  display: block;
+  color: var(--ink-faint);
+  font-size: 5.8px;
+  line-height: 1;
+}
+.atlas-workflow.is-active {
+  border-color: rgba(67,63,56,0.07);
+  background: rgba(255,255,255,0.30);
+}
+.atlas-workflow-guide { display: none; }
+
+.atlas-progress-block {
+  padding-top: 6px;
+  border-top-color: rgba(67,63,56,0.055);
+}
+.atlas-progress-copy { margin-bottom: 4px; font-size: 7px; }
+.atlas-progress { height: 2px; background: rgba(67,63,56,0.065); }
+
+/* WebMCP remains fully available, but visually reads as an explicitly opened technical layer. */
+.atlas-webmcp-inspector {
+  gap: 6px;
+  padding: 7px 0 0;
+  border: 0;
+  border-top: 1px solid rgba(67,63,56,0.06);
+  border-radius: 0;
+  background: transparent;
+}
+.atlas-webmcp-tool-list { gap: 3px; }
+.atlas-webmcp-tool-list > button {
+  min-height: 38px;
+  padding: 5px 6px;
+  border-color: rgba(67,63,56,0.055);
+  background: transparent;
+}
+.atlas-webmcp-action-row { gap: 3px; }
+.atlas-webmcp-action-row button {
+  min-height: 28px;
+  border-color: rgba(67,63,56,0.055);
+  background: transparent;
+}
+.atlas-json-grid section { border-color: rgba(67,63,56,0.055); background: rgba(247,244,235,0.28); }
+
+/* Schedule defaults compact. Expanding it reveals tasks + automation, not duplicate resources. */
+.atlas-safe-schedule {
+  width: min(238px, calc(100vw - 24px));
+  border-radius: 13px;
+  background: rgba(248,246,239,0.90);
+}
+.atlas-safe-schedule.is-collapsed { width: min(226px, calc(100vw - 24px)); }
+.atlas-safe-schedule__header {
+  min-height: 43px;
+  padding: 7px 9px 6px;
+  border-bottom-color: rgba(67,63,56,0.055);
+}
+.atlas-safe-schedule__header small { display: none; }
+.atlas-safe-schedule__header strong {
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  font-size: 10px;
+  font-weight: 650;
+}
+.atlas-safe-schedule__phase { font-size: 6.5px; }
+.atlas-safe-schedule__phase i { width: 5px; height: 5px; }
+.atlas-safe-schedule__summary {
+  min-height: 23px;
+  gap: 8px;
+  padding: 4px 9px;
+  border-bottom-color: rgba(67,63,56,0.05);
+  font-size: 6.5px;
+}
+.atlas-safe-schedule__tasks { max-height: 190px; }
+.atlas-safe-task {
+  min-height: 36px;
+  padding: 5px 8px 5px 7px;
+}
+.atlas-safe-task__body strong { font-size: 7.7px; font-weight: 620; }
+.atlas-safe-task__body small,
+.atlas-safe-task__progress { font-size: 6.2px; }
+.atlas-safe-resources { display: none !important; }
+.atlas-safe-automation { border-top-color: rgba(67,63,56,0.055); }
+
+/* Only one agent speaks visually at a time. The rest remain legible as quiet map actors. */
+.animal-map-marker--ambient .animal-map-marker__dialogue,
+.animal-map-marker--ambient .animal-map-marker__status-text {
+  display: none !important;
+}
+.animal-map-marker--foreground:not(.is-selected) .animal-map-marker__dialogue,
+.animal-map-marker--foreground:not(.is-selected) .animal-map-marker__status-text {
+  opacity: 0 !important;
+}
+.animal-map-marker--foreground {
+  width: 32px;
+  height: 32px;
+}
+.animal-map-marker--foreground .animal-map-marker__face {
+  width: 29px;
+  height: 29px;
+  box-shadow: none;
+}
+.animal-map-marker--ambient {
+  width: 19px;
+  height: 19px;
+  opacity: 0.58;
+}
+.animal-map-marker--ambient .animal-map-marker__face {
+  width: 18px;
+  height: 18px;
+  box-shadow: none;
+}
+.animal-map-marker__dialogue {
+  padding: 3px 6px;
+  border-color: rgba(67,63,56,0.09);
+  background: rgba(249,247,241,0.94);
+  box-shadow: none;
+  font-size: 7px;
+}
+.animal-map-marker__status-text {
+  padding: 1px 4px;
+  background: transparent;
+  font-size: 6px;
+}
+
+/* Selected-agent card is a compact annotation, not a second dashboard. */
+.atlas-agent-card {
+  width: min(248px, calc(100vw - 24px));
+  border-radius: 13px;
+  background: rgba(248,246,239,0.92);
+}
+.atlas-agent-card.is-collapsed {
+  width: min(212px, calc(100vw - 24px));
+  padding: 6px 7px;
+}
+.atlas-agent-card.is-collapsed .atlas-agent-avatar { width: 28px; height: 28px; }
+
+/* Approvals are the one surface allowed to become prominent because they need a human. */
+.atlas-approval {
+  width: min(470px, calc(100vw - 24px));
+  border-radius: 15px;
+  background: rgba(249,247,241,0.975);
+}
+.atlas-approval__copy p { margin: 3px 0; }
+.atlas-approval__actions { margin-top: 7px; }
+
+/* Native pan / wheel / pinch make permanent +/- controls unnecessary. */
+.map-zoom { display: none !important; }
+.map-control--locate {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  box-shadow: none;
+  opacity: 0.72;
+}
+.map-status { box-shadow: none; }
+
+/* Job Mode should run quietly in the world. Its panel is only for inspection/editing. */
+.map-app[data-asympta-job-mode="on"] .animal-map-marker--foreground:not(.asympta-job-marker) { opacity: 0.72; }
+.asympta-job-panel { margin-top: 2px !important; }
+.asympta-job-disclosure { opacity: 0.72; }
+
+/* Escalation is transient and quiet unless it needs the user. */
+.asympta-escalation-notice {
+  width: min(280px, calc(100% - 28px)) !important;
+  padding: 8px 9px !important;
+  border-color: rgba(67,63,56,0.09) !important;
+  background: rgba(249,247,241,0.95) !important;
+  box-shadow: var(--shadow) !important;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .atlas-workflow:hover,
+  .atlas-tool-actions button:hover,
+  .atlas-quick-icon:hover,
+  .map-control--locate:hover {
+    background: rgba(255,255,255,0.30);
+  }
+}
+
+@media (max-width: 700px) {
+  .atlas-console {
+    top: max(8px, env(safe-area-inset-top));
+    left: max(8px, env(safe-area-inset-left));
+    width: min(360px, calc(100vw - 16px));
+  }
+  .atlas-console.is-collapsed { width: min(286px, calc(100vw - 16px)); }
+  .atlas-menu-bar { grid-template-columns: minmax(0,1fr) 32px 32px; }
+  .atlas-menu-panel { padding: 4px 7px 8px; }
+  .atlas-workflows { gap: 2px; }
+  .atlas-workflow { min-height: 44px; }
+  .atlas-workflow strong { font-size: 7.4px; }
+  .atlas-safe-schedule,
+  .atlas-safe-schedule.is-collapsed {
+    width: min(216px, calc(100vw - 20px));
+  }
+  .atlas-safe-schedule[data-asympta-mobile-dock="top"] { top: max(66px, calc(env(safe-area-inset-top) + 66px)); }
+  .atlas-agent-card { width: min(226px, calc(100vw - 18px)); }
+  .atlas-approval { width: calc(100vw - 16px); }
+  .atlas-menu-panel:has(.atlas-webmcp-inspector) .atlas-resource-ledger { grid-template-columns: repeat(2, minmax(0,1fr)); }
+}
+
+@media (max-width: 390px) {
+  .atlas-console.is-collapsed { width: min(270px, calc(100vw - 16px)); }
+  .atlas-workflows { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .atlas-workflow__icon { width: 16px; height: 15px; }
+  .atlas-workflow strong { font-size: 6.9px; }
+  .asympta-job-mode__tile > span:last-child { font-size: 5px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .atlas-console,
+  .atlas-safe-schedule,
+  .atlas-agent-card,
+  .asympta-escalation-notice { transition: none !important; animation: none !important; }
+}
