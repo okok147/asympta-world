@@ -1,0 +1,36 @@
+.animal-map-marker {
+  contain: layout style !important;
+  overflow: visible !important;
+}
+
+.animal-map-marker__dialogue,
+.animal-map-marker__status-text {
+  width: max-content;
+  visibility: visible;
+}
+
+.animal-map-marker--foreground.has-dialogue .animal-map-marker__dialogue {
+  opacity: 0.98;
+}
+
+.animal-map-marker--foreground .animal-map-marker__status-text {
+  opacity: 0.92;
+}
+
+.animal-map-marker--ambient.has-dialogue .animal-map-marker__dialogue {
+  opacity: 0.8;
+}
+
+.animal-map-marker--ambient .animal-map-marker__status-text {
+  opacity: 0.58;
+}
+
+@media (max-width: 700px) {
+  .animal-map-marker--foreground .animal-map-marker__dialogue {
+    max-width: min(140px, 44vw);
+  }
+
+  .animal-map-marker--foreground .animal-map-marker__status-text {
+    max-width: 118px;
+  }
+}
