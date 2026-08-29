@@ -122,7 +122,7 @@ test("Job Mode and escalation guard are mounted as first-class Asympta World pro
   assert.match(jobComponent, /targetEarned/);
   assert.match(jobComponent, /balanceRef\.current \+= delta/);
   assert.match(jobComponent, /animalSvgMarkup/);
-  assert.match(jobComponent, /Handle enquiries|Handle enquiries/);
+  assert.match(jobComponent, /buildJobStages/);
   assert.match(guardComponent, /decideWorkflowEscalation/);
   assert.match(guardComponent, /api\.startWorkflow\(decision\.workflowId\)/);
   assert.match(guardComponent, /api\.approve\(decision\.approvalId, true\)/);
