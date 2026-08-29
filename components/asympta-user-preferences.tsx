@@ -50,13 +50,17 @@ export function AsymptaUserPreferences() {
     let disposed = false;
     let retryFrame = 0;
     let applyingPreference = false;
+    let preferredLocale: AsymptaLocale;
 
     if (!hasStoredAsymptaUserPreferences()) {
       writeAsymptaUserPreferences({ locale: localeFromDocument() });
     }
 
+    preferredLocale = readAsymptaUserPreferences().locale;
+
     const restore = (preferences: AsymptaUserPreferences, attempts = 0) => {
       if (disposed) return;
+      preferredLocale = preferences.locale;
       applyingPreference = true;
       const applied = applyLocale(preferences.locale);
       applyingPreference = false;
@@ -69,24 +73,38 @@ export function AsymptaUserPreferences() {
     restore(readAsymptaUserPreferences());
 
     const menu = document.querySelector<HTMLElement>(LANGUAGE_SELECTOR);
-    const observer = menu
+    const menuObserver = menu
       ? new MutationObserver(() => {
           if (applyingPreference) return;
           const locale = activeLocaleFromMenu();
           if (!locale) return;
+          preferredLocale = locale;
           document.documentElement.lang = locale;
           const stored = readAsymptaUserPreferences();
           if (stored.locale !== locale) writeAsymptaUserPreferences({ locale });
         })
       : null;
 
-    observer?.observe(menu as HTMLElement, {
+    menuObserver?.observe(menu as HTMLElement, {
       attributes: true,
       attributeFilter: ["class"],
       subtree: true,
     });
 
+    // The main World component also writes <html lang> from its own React effect.
+    // Enforce the saved locale if that older effect briefly writes its default
+    // during hydration, so translated UI never visibly flashes back to English.
+    const documentObserver = new MutationObserver(() => {
+      if (applyingPreference || localeFromDocument() === preferredLocale) return;
+      restore({ ...readAsymptaUserPreferences(), locale: preferredLocale });
+    });
+    documentObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["lang"],
+    });
+
     const unsubscribe = subscribeAsymptaUserPreferences((preferences) => {
+      preferredLocale = preferences.locale;
       if (preferences.locale === activeLocaleFromMenu() && localeFromDocument() === preferences.locale) return;
       restore(preferences);
     });
@@ -94,7 +112,8 @@ export function AsymptaUserPreferences() {
     return () => {
       disposed = true;
       if (retryFrame) window.cancelAnimationFrame(retryFrame);
-      observer?.disconnect();
+      menuObserver?.disconnect();
+      documentObserver.disconnect();
       unsubscribe();
     };
   }, []);
