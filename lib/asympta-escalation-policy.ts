@@ -11,19 +11,11 @@ export type ForegroundSnapshot = {
 export type EscalationDecision =
   | { kind: "none" }
   | { kind: "approve-missed-auto"; approvalId: string; code: "auto-approve-recovery" }
-  | { kind: "remind-human"; approvalId: string; code: "human-authority-required" }
-  | { kind: "restart-workflow"; workflowId: WorkflowId; code: "safe-replay" };
+  | { kind: "remind-human"; approvalId: string; code: "human-authority-required" };
 
 export const CORE_STALL_ESCALATION_MS = 5_500;
 export const APPROVAL_ESCALATION_MS = 6_500;
 export const BLOCKED_RECOVERY_MS = 1_500;
-
-const WORKFLOW_BY_NAME: Record<string, WorkflowId> = {
-  "Custom Order Network": "custom-order",
-  "Dinner Coordination": "dinner-network",
-  "Launch Stock Orchestration": "launch-stock",
-  "Service Recovery Network": "service-recovery",
-};
 
 export function foregroundProgressSignature(snapshot: ForegroundSnapshot) {
   const tasks = (snapshot.tasks ?? [])
@@ -52,20 +44,18 @@ export function decideWorkflowEscalation(
     return { kind: "remind-human", approvalId: pending.id, code: "human-authority-required" };
   }
 
-  const workflowId = snapshot.workflow ? WORKFLOW_BY_NAME[snapshot.workflow] : undefined;
-  if (!workflowId) return { kind: "none" };
-
-  const unfinished = (snapshot.tasks ?? []).some((task) => task.status !== "done");
-  if (!unfinished) return { kind: "none" };
-
-  // A declined checkpoint intentionally blocks the current attempt, but must not
-  // deadlock the whole demo. Senior coordination starts a fresh safe attempt after
-  // a short cooling-off period. The declined action itself is never auto-approved.
+  // Runtime/agent cooperation owns operational recovery. A stalled or blocked
+  // workflow must remain the same workflow so higher agents can inspect the real
+  // state, preserve funds/history/progress, solve the dependency, and resume.
+  // This UI guard therefore never restarts or replays a workflow automatically.
   if (snapshot.phase === "blocked") {
     if (stagnantMs < BLOCKED_RECOVERY_MS) return { kind: "none" };
-    return { kind: "restart-workflow", workflowId, code: "safe-replay" };
+    return { kind: "none" };
   }
 
-  if (snapshot.phase !== "running" || stagnantMs < CORE_STALL_ESCALATION_MS) return { kind: "none" };
-  return { kind: "restart-workflow", workflowId, code: "safe-replay" };
+  if (snapshot.phase === "running" && stagnantMs >= CORE_STALL_ESCALATION_MS) {
+    return { kind: "none" };
+  }
+
+  return { kind: "none" };
 }
