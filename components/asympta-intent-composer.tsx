@@ -1,7 +1,8 @@
 "use client";
 
 import { ArrowUp, Check, LoaderCircle } from "lucide-react";
-import { FormEvent, KeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { FormEvent, KeyboardEvent } from "react";
 
 import { AnimalPortrait } from "@/components/asympta-animal-art";
 import { readBrowserProtocolConfig, storeBrowserProtocolConfig } from "@/lib/asympta-browser-protocols";
@@ -93,6 +94,10 @@ function humanStatus(locale: Locale, status?: AsymptaActivityStatus) {
   return status ? copy[status] : copy.idle;
 }
 
+function isConnected(config: AsymptaProtocolConfig) {
+  return config.a2a.length + config.mcp.length > 0;
+}
+
 function showAgentMoment(event: AsymptaActivityEvent, locale: Locale) {
   if (!event.actorId) return;
   const selector = `.animal-map-marker--foreground[data-agent-id="${CSS.escape(event.actorId)}"]`;
@@ -125,13 +130,16 @@ export function AsymptaIntentComposer() {
   const [locale, setLocale] = useState<Locale>("en");
   const [text, setText] = useState("");
   const [running, setRunning] = useState(false);
+  const [connected, setConnected] = useState(false);
   const [activity, setActivity] = useState<AsymptaActivity | null>(null);
   const configRef = useRef<AsymptaProtocolConfig>({ mcp: [], a2a: [] });
   const activityRef = useRef<AsymptaActivity | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    configRef.current = readBrowserProtocolConfig();
+    const config = readBrowserProtocolConfig();
+    configRef.current = config;
+    setConnected(isConnected(config));
     const syncLocale = () => setLocale(localeFromDocument());
     syncLocale();
     const observer = new MutationObserver(syncLocale);
@@ -172,8 +180,10 @@ export function AsymptaIntentComposer() {
     window.__ASYMPTA_PROTOCOLS__ = {
       config: () => configRef.current,
       configure: (next, options = {}) => {
-        configRef.current = options.persist ? storeBrowserProtocolConfig(next) : next;
-        return configRef.current;
+        const config = options.persist ? storeBrowserProtocolConfig(next) : next;
+        configRef.current = config;
+        setConnected(isConnected(config));
+        return config;
       },
       runIntent,
       lastActivity: () => activityRef.current,
@@ -206,7 +216,6 @@ export function AsymptaIntentComposer() {
 
   const status = activity?.status;
   const copy = COPY[locale];
-  const connected = configRef.current.a2a.length + configRef.current.mcp.length > 0;
 
   return (
     <div className="asympta-intent-shell" data-status={status ?? "idle"}>
