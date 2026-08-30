@@ -3,11 +3,17 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
+  advanceAtlasWorld,
   createAtlasWorld,
   projectWorldCooperationToAnimals,
+  resolveAtlasApproval,
   startAtlasWorkflow,
 } from "../lib/atlas-animal-cooperation.ts";
 import { startAtlasDemoWorkflow } from "../lib/atlas-canonical-demo.ts";
+
+function balances(world) {
+  return Object.fromEntries(world.runtime.accounts.map((account) => [account.ownerId, account.balance]));
+}
 
 test("canonical world events become visible cooperation messages between animal agents", () => {
   let world = createAtlasWorld(1_000, 1234);
@@ -47,13 +53,75 @@ test("local workflow switching preserves the existing fund ledger", () => {
   assert.equal(world.runtime.accounts.find((account) => account.ownerId === "agent-business")?.balance, 84_219);
 });
 
-test("idle information panels auto collapse without hiding approval checkpoints", () => {
+test("schedule and agent cards auto collapse while the main menu stays user controlled", () => {
   const source = readFileSync(new URL("../components/asympta-card-collapse.tsx", import.meta.url), "utf8");
   assert.match(source, /PANEL_AUTO_COLLAPSE_MS = 8_000/);
   assert.match(source, /scheduleExpanded && now - lastScheduleInteractionAt >= PANEL_AUTO_COLLAPSE_MS/);
-  assert.match(source, /menuIsOpen\(\) && now - lastMenuInteractionAt >= PANEL_AUTO_COLLAPSE_MS/);
-  assert.match(source, /setMenuOpen\(false\)/);
+  assert.match(source, /AGENT_AUTO_COLLAPSE_MS = 5_500/);
+  assert.doesNotMatch(source, /lastMenuInteractionAt/);
+  assert.doesNotMatch(source, /menuIsOpen\(\) && now - .*PANEL_AUTO_COLLAPSE_MS/);
   assert.doesNotMatch(source, /atlas-approval/);
+});
+
+test("blocked persisted worlds are preserved instead of silently reset", () => {
+  const source = readFileSync(new URL("../lib/atlas-canonical-demo.ts", import.meta.url), "utf8");
+  assert.match(source, /if \(persisted && persisted\.workflowId\) return persisted/);
+  assert.doesNotMatch(source, /persisted\.phase !== ["']blocked["']/);
+});
+
+test("service recovery visibly gets stuck, escalates to a higher agent, solves it, and continues", () => {
+  let world = startAtlasWorkflow(createAtlasWorld(10_000, 8080), "service-recovery");
+  let sawOriginalStuck = false;
+  let sawHigherAgentTask = false;
+  let sawResolved = false;
+  let stuckBalances = null;
+  let resolvedBalances = null;
+
+  for (let step = 0; step < 20_000; step += 1) {
+    world = advanceAtlasWorld(world, 120);
+
+    const supplierTask = world.tasks.find((task) => task.id === "sr-supplier");
+    const escalationTask = world.tasks.find((task) => task.id === "escalation-sr-supplier");
+    if (supplierTask?.status === "blocked") {
+      sawOriginalStuck = true;
+      stuckBalances ??= balances(world);
+      assert.ok((supplierTask.progress ?? 0) >= 0.42, "stuck task should preserve meaningful prior progress");
+    }
+    if (escalationTask && ["moving", "working", "done"].includes(escalationTask.status)) {
+      sawHigherAgentTask = true;
+      assert.equal(escalationTask.agentId, "agent-business");
+    }
+
+    if (world.runtime.history.some((event) => event.type === "escalation_resolved" && event.intentId === "task:sr-supplier")) {
+      if (!sawResolved) resolvedBalances = balances(world);
+      sawResolved = true;
+    }
+
+    let approval = world.approvals.find((item) => item.status === "pending");
+    while (approval) {
+      world = resolveAtlasApproval(world, approval.id, true);
+      approval = world.approvals.find((item) => item.status === "pending");
+    }
+
+    if (world.phase === "completed") break;
+    if (world.phase === "blocked" && sawResolved) {
+      assert.fail("workflow became blocked again after the higher-agent escalation resolved");
+    }
+  }
+
+  assert.equal(sawOriginalStuck, true);
+  assert.equal(sawHigherAgentTask, true);
+  assert.equal(sawResolved, true);
+  assert.ok(stuckBalances && resolvedBalances);
+  assert.deepEqual(resolvedBalances, stuckBalances, "escalation must not reset or mutate funds while solving the planning blockage");
+  assert.equal(world.workflowId, "service-recovery");
+  assert.equal(world.tasks.find((task) => task.id === "sr-supplier")?.status, "done");
+  assert.equal(world.tasks.find((task) => task.id === "escalation-sr-supplier")?.status, "done");
+  assert.equal(world.phase, "completed");
+  assert.ok(world.runtime.information.some((info) => info.subject === "recovery-escalation"));
+  assert.ok(world.runtime.history.some((event) => event.type === "escalation_requested"));
+  assert.ok(world.runtime.history.some((event) => event.type === "escalation_resolved"));
+  assert.ok(world.messages.some((message) => /higher-level path|escalating/i.test(message.text)) || world.runtime.history.some((event) => /higher agent|higher-level/i.test(`${event.title} ${event.detail}`)));
 });
 
 test("product still renders cute moving animals, dialogue bubbles and cooperation lines", () => {
