@@ -156,12 +156,13 @@
   transform: translateY(-1px) scale(1.045);
 }
 
-/* The protocol is real infrastructure, not consumer chrome. Keep the existing
-   map language and cute agents; remove preset-workflow/debug-dashboard surfaces. */
+/* Protocol details remain available to qualification/debug code, but the human
+   product stays a living map plus natural-language intention surface. */
 .atlas-menu-panel .atlas-status-stack,
 .atlas-menu-panel .atlas-tool-actions,
 .atlas-menu-panel .atlas-webmcp-inspector,
 .atlas-menu-panel .atlas-workflows,
+.atlas-menu-panel .atlas-progress-block,
 .atlas-workflow-guide {
   display: none !important;
 }
