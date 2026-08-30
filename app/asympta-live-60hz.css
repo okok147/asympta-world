@@ -225,6 +225,12 @@
   overscroll-behavior: contain;
 }
 
+/* Legacy workflow checkpoints must never cover the intent composer. WebMCP-requested approvals keep their explicit card. */
+.atlas-approval:not(.atlas-approval--webmcp) {
+  display: none !important;
+  pointer-events: none !important;
+}
+
 @media (max-width: 640px) {
   .animal-map-marker__dialogue { max-width: 126px; font-size: 7px; }
   .animal-map-marker--ambient .animal-map-marker__dialogue { max-width: 92px; font-size: 6px; }
