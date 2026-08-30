@@ -2,7 +2,7 @@
   "name": "asympta-world",
   "version": "0.1.0",
   "private": true,
-  "description": "A world-scale WebMCP coordination model where specialised agents move food, materials, merchandise, medicine and power through visible global supply networks.",
+  "description": "A human-first living world where natural-language intentions coordinate real MCP tools and A2A agents through a persistent Asympta activity kernel.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -20,9 +20,9 @@
     "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log NODE_OPTIONS='--experimental-loader ./scripts/cloudflare-node-loader.mjs' vinext start",
     "test": "npm run build && npm run test:all",
     "test:all": "node --experimental-loader ./scripts/cloudflare-node-loader.mjs --test tests/*.test.mjs",
-    "test:engine": "node --experimental-loader ./scripts/cloudflare-node-loader.mjs --test tests/atlas-simulation.test.mjs tests/workflow-expansion.test.mjs tests/camera-block-activity.test.mjs tests/safe-automation-controls.test.mjs tests/job-mode-escalation.test.mjs tests/calm-ui.test.mjs tests/economy-simulation.test.mjs tests/global-world.test.mjs tests/living-world-engine.test.mjs tests/living-world-product.test.mjs tests/webmcp-contract.test.mjs tests/agent-runtime.test.mjs tests/agentic-world-runtime.test.mjs tests/canonical-world-integration.test.mjs tests/agent-message-bridge.test.mjs tests/animal-world-cooperation.test.mjs",
-    "test:webmcp": "node --experimental-loader ./scripts/cloudflare-node-loader.mjs --test tests/webmcp-contract.test.mjs tests/agent-message-bridge.test.mjs",
-    "test:agent-runtime": "node --experimental-loader ./scripts/cloudflare-node-loader.mjs --test tests/agent-runtime.test.mjs",
+    "test:engine": "node --experimental-loader ./scripts/cloudflare-node-loader.mjs --test tests/atlas-simulation.test.mjs tests/workflow-expansion.test.mjs tests/camera-block-activity.test.mjs tests/safe-automation-controls.test.mjs tests/job-mode-escalation.test.mjs tests/calm-ui.test.mjs tests/economy-simulation.test.mjs tests/global-world.test.mjs tests/living-world-engine.test.mjs tests/living-world-product.test.mjs tests/webmcp-contract.test.mjs tests/agent-runtime.test.mjs tests/agentic-world-runtime.test.mjs tests/canonical-world-integration.test.mjs tests/agent-message-bridge.test.mjs tests/animal-world-cooperation.test.mjs tests/asympta-protocol-runtime.test.mjs",
+    "test:webmcp": "node --experimental-loader ./scripts/cloudflare-node-loader.mjs --test tests/webmcp-contract.test.mjs tests/agent-message-bridge.test.mjs tests/asympta-protocol-runtime.test.mjs",
+    "test:agent-runtime": "node --experimental-loader ./scripts/cloudflare-node-loader.mjs --test tests/agent-runtime.test.mjs tests/asympta-protocol-runtime.test.mjs",
     "test:rendered": "node --experimental-loader ./scripts/cloudflare-node-loader.mjs --test tests/rendered-html.test.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "bash scripts/sites-env.sh -- eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern pages-dist"
