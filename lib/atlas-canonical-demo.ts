@@ -60,8 +60,23 @@ function forceFreshActiveTasksToTravel(world: AtlasWorldState) {
   return world;
 }
 
+function preserveFundLedger(previous: AtlasWorldState, next: AtlasWorldState) {
+  const previousAccounts = new Map(previous.runtime.accounts.map((account) => [account.ownerId, account]));
+  next.runtime.accounts = next.runtime.accounts.map((account) => ({
+    ...account,
+    balance: previousAccounts.get(account.ownerId)?.balance ?? account.balance,
+  }));
+
+  for (const account of previous.runtime.accounts) {
+    if (next.runtime.accounts.some((candidate) => candidate.ownerId === account.ownerId)) continue;
+    next.runtime.accounts.push({ ...account });
+  }
+  return next;
+}
+
 export function startAtlasDemoWorkflow(current: AtlasWorldState, workflowId: WorkflowId) {
-  const next = forceFreshActiveTasksToTravel(startAtlasWorkflow(current, workflowId));
+  const started = startAtlasWorkflow(current, workflowId);
+  const next = forceFreshActiveTasksToTravel(preserveFundLedger(current, started));
   persistAtlasWorld(next);
   return next;
 }
