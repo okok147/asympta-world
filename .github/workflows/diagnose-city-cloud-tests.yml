@@ -1,0 +1,45 @@
+name: Diagnose simulated city cloud tests
+
+on:
+  push:
+    branches:
+      - codex/simulated-city-cloud-20260830
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/simulated-city-cloud-debug
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Add failure-only response diagnostics
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("tests/asympta-public-agent-worker.test.mjs")
+          source = path.read_text()
+          source = source.replace(
+              "const body = await response.json();\n",
+              "const body = await response.json();\n  if (response.status >= 400) console.error('WORKER_FAILURE_BODY', JSON.stringify(body));\n",
+          )
+          source = source.replace(
+              "const { text, body } = await responseJson(response);\n",
+              "const { text, body } = await responseJson(response);\n  if (response.status >= 400) console.error('WORKER_FAILURE_BODY', JSON.stringify(body));\n",
+          )
+          path.write_text(source)
+          PY
+      - name: Run focused worker tests
+        run: node --test --test-reporter=spec tests/asympta-public-agent-worker.test.mjs
+      - name: Run focused frontend tests
+        if: always()
+        run: node --test --test-reporter=spec tests/public-agent-frontend.test.mjs
