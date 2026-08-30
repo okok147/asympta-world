@@ -51,13 +51,9 @@ export function AsymptaSimulationSpeed() {
   useEffect(() => {
     const stored = readSpeed();
     speedRef.current = stored;
-    setSpeed(stored);
+    const frame = window.requestAnimationFrame(() => setSpeed(stored));
+    return () => window.cancelAnimationFrame(frame);
   }, []);
-
-  useEffect(() => {
-    speedRef.current = speed;
-    writeSpeed(speed);
-  }, [speed]);
 
   useEffect(() => {
     const sync = () => {
@@ -66,9 +62,12 @@ export function AsymptaSimulationSpeed() {
       const nextLocale = currentLocale();
       setLocale((current) => current === nextLocale ? current : nextLocale);
     };
-    sync();
+    const kickoff = window.setTimeout(sync, 0);
     const timer = window.setInterval(sync, 500);
-    return () => window.clearInterval(timer);
+    return () => {
+      window.clearTimeout(kickoff);
+      window.clearInterval(timer);
+    };
   }, []);
 
   useEffect(() => {
@@ -94,6 +93,12 @@ export function AsymptaSimulationSpeed() {
     return () => window.clearInterval(timer);
   }, []);
 
+  const selectSpeed = (value: SimulationSpeed) => {
+    speedRef.current = value;
+    writeSpeed(value);
+    setSpeed(value);
+  };
+
   if (!target) return null;
 
   return createPortal(
@@ -116,7 +121,7 @@ export function AsymptaSimulationSpeed() {
               type="button"
               className={speed === value ? "is-active" : ""}
               aria-pressed={speed === value}
-              onClick={() => setSpeed(value)}
+              onClick={() => selectSpeed(value)}
             >
               {value}×
             </button>
