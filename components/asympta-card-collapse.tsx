@@ -46,7 +46,7 @@ function setMenuOpen(open: boolean) {
 export function AsymptaCardCollapse() {
   useEffect(() => {
     let scheduleInitialized = false;
-    let scheduleExpanded = true;
+    let scheduleExpanded = false;
     let lastAgentId: string | null = null;
     let lastTaskKey = "";
     let lastAgentInteractionAt = performance.now();
@@ -70,8 +70,6 @@ export function AsymptaCardCollapse() {
         return;
       }
 
-      // The menu owns the upper viewport while expanded. Keep the compact Schedule card
-      // completely outside it: below when space allows, otherwise dock at the bottom.
       const menuRect = menu.getBoundingClientRect();
       const scheduleHeight = Math.max(72, schedule.getBoundingClientRect().height);
       const desiredTop = Math.ceil(menuRect.bottom + PANEL_GAP_PX);
@@ -101,9 +99,9 @@ export function AsymptaCardCollapse() {
         header.setAttribute("aria-expanded", expanded ? "true" : "false");
       }
 
-      // On narrow screens there is only one expanded top panel at a time. This avoids
-      // the Schedule and coordination menu covering each other on Safari/Chrome/Brave.
-      if (isMobile() && expanded && menuIsOpen()) {
+      // One major information surface at a time on every viewport. If Schedule expands,
+      // close the coordination menu first instead of allowing two dashboards to overlap.
+      if (expanded && menuIsOpen()) {
         window.setTimeout(() => {
           setMenuOpen(false);
           window.setTimeout(positionMobileSchedule, 0);
@@ -141,12 +139,11 @@ export function AsymptaCardCollapse() {
       const schedule = document.querySelector<HTMLElement>(".atlas-safe-schedule");
       if (schedule && !scheduleInitialized) {
         scheduleInitialized = true;
-        applySchedule(!isMobile());
+        applySchedule(false);
       }
 
-      // If the main menu becomes open through React, keyboard input, or the default guide,
-      // immediately compact Schedule before measuring its adaptive position.
-      if (isMobile() && menuIsOpen() && scheduleExpanded) applySchedule(false);
+      // Coordination menu owns the detailed-information slot while it is open.
+      if (menuIsOpen() && scheduleExpanded) applySchedule(false);
       positionMobileSchedule();
 
       const card = document.querySelector<HTMLElement>(".atlas-agent-card");
@@ -184,7 +181,7 @@ export function AsymptaCardCollapse() {
       }
 
       const menuToggle = target.closest(".atlas-menu-identity, .atlas-menu-bar > .atlas-quick-icon:last-child");
-      if (menuToggle && isMobile()) {
+      if (menuToggle) {
         window.setTimeout(() => {
           if (menuIsOpen()) applySchedule(false);
           positionMobileSchedule();
