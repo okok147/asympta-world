@@ -6,14 +6,21 @@ type GlobalWorldBridge = {
   setScale: (scale: "world" | "city") => void;
 };
 
+type MapBridge = {
+  flyTo: (options: Record<string, unknown>) => void;
+};
+
 const SCALE_KEY = "asympta-world.scale.v1";
 const RESTORE_KEY = "asympta-world.cute-agents-restored.v1";
 const RETRY_MS = 120;
 const MAX_ATTEMPTS = 50;
+const TOKYO_CENTER: [number, number] = [139.7544, 35.6762];
+const TOKYO_CUTE_AGENT_ZOOM = 12.2;
 
 function browserWindow() {
   return window as unknown as Window & {
     __ASYMPTA_GLOBAL_WORLD__?: GlobalWorldBridge;
+    __ASYMPTA_MAP__?: MapBridge;
   };
 }
 
@@ -39,10 +46,22 @@ export function AsymptaCuteAgentVisibility() {
     let attempts = 0;
     const restoreCity = () => {
       attempts += 1;
-      const bridge = browserWindow().__ASYMPTA_GLOBAL_WORLD__;
+      const currentWindow = browserWindow();
+      const bridge = currentWindow.__ASYMPTA_GLOBAL_WORLD__;
       if (!bridge) return false;
       try {
         bridge.setScale("city");
+        // Restore the original wider Tokyo living-city composition instead of the
+        // tighter global-layer city zoom, so foreground and ambient animals are
+        // visible together again.
+        currentWindow.__ASYMPTA_MAP__?.flyTo({
+          center: TOKYO_CENTER,
+          zoom: TOKYO_CUTE_AGENT_ZOOM,
+          bearing: 0,
+          pitch: 0,
+          duration: 520,
+          essential: true,
+        });
         return true;
       } catch {
         return false;
