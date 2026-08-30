@@ -83,7 +83,9 @@ export function startAtlasDemoWorkflow(current: AtlasWorldState, workflowId: Wor
 
 export function createAtlasDemoWorld(now = Date.now()) {
   const persisted = loadPersistedAtlasWorld();
-  if (persisted && persisted.workflowId && persisted.phase !== "blocked") return persisted;
+  // A blocked world is still the same world. Never silently replace it with a new
+  // custom-order workflow; the escalation layer must resolve it in place.
+  if (persisted && persisted.workflowId) return persisted;
   return startAtlasDemoWorkflow(createAtlasWorld(now), "custom-order");
 }
 
