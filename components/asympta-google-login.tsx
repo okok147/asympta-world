@@ -2,6 +2,7 @@
 
 import { LogOut, UserRound } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import {
   ASYMPTA_AUTH_EVENT,
@@ -48,6 +49,8 @@ type AuthWindow = Window & {
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID?.trim() ?? "";
 const GIS_SCRIPT = "https://accounts.google.com/gsi/client";
+const MENU_BAR_SELECTOR = ".atlas-menu-bar";
+const AUTH_HOST_ATTRIBUTE = "data-asympta-auth-host";
 
 const COPY: Record<Locale, {
   account: string;
@@ -108,10 +111,11 @@ export function AsymptaGoogleLogin() {
   const [locale, setLocale] = useState<Locale>("en");
   const [open, setOpen] = useState(false);
   const [gisReady, setGisReady] = useState(false);
+  const [gisFailed, setGisFailed] = useState(false);
   const [session, setSession] = useState<AsymptaGoogleSession | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
   const buttonHostRef = useRef<HTMLDivElement | null>(null);
-  const anchorRef = useRef<HTMLDivElement | null>(null);
   const sessionRef = useRef<AsymptaGoogleSession | null>(null);
   const copy = COPY[locale];
 
@@ -140,6 +144,38 @@ export function AsymptaGoogleLogin() {
     publishSession({ credential, identity });
     setOpen(false);
   }, [publishSession]);
+
+  useEffect(() => {
+    let frame = 0;
+    let attempts = 0;
+    let ownedHost: HTMLElement | null = null;
+
+    const attach = () => {
+      const menuBar = document.querySelector<HTMLElement>(MENU_BAR_SELECTOR);
+      if (!menuBar) {
+        if (attempts++ < 60) frame = window.requestAnimationFrame(attach);
+        return;
+      }
+
+      const existing = menuBar.querySelector<HTMLElement>(`[${AUTH_HOST_ATTRIBUTE}]`);
+      const host = existing ?? document.createElement("div");
+      if (!existing) {
+        host.className = "asympta-auth-anchor";
+        host.setAttribute(AUTH_HOST_ATTRIBUTE, "true");
+        const collapseButton = menuBar.lastElementChild;
+        if (collapseButton) menuBar.insertBefore(host, collapseButton);
+        else menuBar.appendChild(host);
+        ownedHost = host;
+      }
+      setPortalHost(host);
+    };
+
+    attach();
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      ownedHost?.remove();
+    };
+  }, []);
 
   useEffect(() => {
     setLocale(localeFromDocument());
@@ -185,7 +221,15 @@ export function AsymptaGoogleLogin() {
     }
 
     let script = document.querySelector<HTMLScriptElement>(`script[src="${GIS_SCRIPT}"]`);
-    const ready = () => setGisReady(Boolean(authWindow().google?.accounts.id));
+    const ready = () => {
+      const available = Boolean(authWindow().google?.accounts.id);
+      setGisReady(available);
+      setGisFailed(!available);
+    };
+    const failed = () => {
+      setGisReady(false);
+      setGisFailed(true);
+    };
     if (!script) {
       script = document.createElement("script");
       script.src = GIS_SCRIPT;
@@ -195,10 +239,10 @@ export function AsymptaGoogleLogin() {
       document.head.appendChild(script);
     }
     script.addEventListener("load", ready);
-    script.addEventListener("error", ready);
+    script.addEventListener("error", failed);
     return () => {
       script?.removeEventListener("load", ready);
-      script?.removeEventListener("error", ready);
+      script?.removeEventListener("error", failed);
     };
   }, []);
 
@@ -228,9 +272,9 @@ export function AsymptaGoogleLogin() {
   }, [gisReady, handleCredential, open, session]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !portalHost) return;
     const onPointerDown = (event: PointerEvent) => {
-      if (!anchorRef.current?.contains(event.target as Node)) setOpen(false);
+      if (!portalHost.contains(event.target as Node)) setOpen(false);
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") setOpen(false);
@@ -241,14 +285,16 @@ export function AsymptaGoogleLogin() {
       window.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [open]);
+  }, [open, portalHost]);
 
   const identity = session?.identity ?? null;
   const label = identity ? identity.name : copy.account;
   const status = useMemo(() => identity ? `${copy.signedIn} · ${identity.email}` : copy.description, [copy, identity]);
 
-  return (
-    <div className="asympta-auth-anchor" ref={anchorRef}>
+  if (!portalHost) return null;
+
+  return createPortal(
+    <>
       <button
         type="button"
         className={`atlas-quick-icon asympta-auth-trigger${identity ? " is-authenticated" : ""}`}
@@ -276,14 +322,15 @@ export function AsymptaGoogleLogin() {
           ) : GOOGLE_CLIENT_ID ? (
             <>
               <div ref={buttonHostRef} className="asympta-google-button" />
-              {!gisReady ? <p className="asympta-auth-note">{copy.loading}</p> : null}
-              {error ? <p className="asympta-auth-note is-error">{error}</p> : null}
+              {!gisReady && !gisFailed ? <p className="asympta-auth-note">{copy.loading}</p> : null}
+              {gisFailed || error ? <p className="asympta-auth-note is-error">{error ?? copy.failed}</p> : null}
             </>
           ) : (
             <p className="asympta-auth-note">{copy.missing}</p>
           )}
         </div>
       ) : null}
-    </div>
+    </>,
+    portalHost,
   );
 }
