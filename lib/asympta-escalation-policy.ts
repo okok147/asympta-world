@@ -16,6 +16,7 @@ export type EscalationDecision =
 
 export const CORE_STALL_ESCALATION_MS = 5_500;
 export const APPROVAL_ESCALATION_MS = 6_500;
+export const BLOCKED_RECOVERY_MS = 1_500;
 
 const WORKFLOW_BY_NAME: Record<string, WorkflowId> = {
   "Custom Order Network": "custom-order",
@@ -51,11 +52,20 @@ export function decideWorkflowEscalation(
     return { kind: "remind-human", approvalId: pending.id, code: "human-authority-required" };
   }
 
-  if (snapshot.phase !== "running" || stagnantMs < CORE_STALL_ESCALATION_MS) return { kind: "none" };
   const workflowId = snapshot.workflow ? WORKFLOW_BY_NAME[snapshot.workflow] : undefined;
   if (!workflowId) return { kind: "none" };
 
   const unfinished = (snapshot.tasks ?? []).some((task) => task.status !== "done");
   if (!unfinished) return { kind: "none" };
+
+  // A declined checkpoint intentionally blocks the current attempt, but must not
+  // deadlock the whole demo. Senior coordination starts a fresh safe attempt after
+  // a short cooling-off period. The declined action itself is never auto-approved.
+  if (snapshot.phase === "blocked") {
+    if (stagnantMs < BLOCKED_RECOVERY_MS) return { kind: "none" };
+    return { kind: "restart-workflow", workflowId, code: "safe-replay" };
+  }
+
+  if (snapshot.phase !== "running" || stagnantMs < CORE_STALL_ESCALATION_MS) return { kind: "none" };
   return { kind: "restart-workflow", workflowId, code: "safe-replay" };
 }
