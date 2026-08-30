@@ -43,7 +43,8 @@ test("workflow tiles remain native cross-browser buttons while also enabling pro
   assert.doesNotMatch(processFollow, /preventDefault\(\)|stopPropagation\(\)|addEventListener\("click", enableFromWorkflowClick, true\)/);
   assert.match(processFollow, /FOLLOW_REFRESH_MS = 450/);
   assert.match(processFollow, /ACTIVE_STATUSES = \["working", "moving", "waiting_approval"\]/);
-  assert.match(processFollow, /activeMap\.on\("dragstart", disableProcessLock\)/);
+  assert.match(processFollow, /const manualMapDrag = \(\) => disableProcessLock\(true\)/);
+  assert.match(processFollow, /activeMap\.on\("dragstart", manualMapDrag\)/);
   assert.match(processFollow, /clickAgent\(nextAgentId\)/);
   assert.doesNotMatch(processFollow, /startWorkflow|advanceAtlasWorld|requestAnimationFrame|MutationObserver|JSON\.parse\(JSON\.stringify/);
 });
