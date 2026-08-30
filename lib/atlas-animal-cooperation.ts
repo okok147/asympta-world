@@ -3,6 +3,12 @@ import type { RuntimeHistoryEvent } from "./agentic-world-runtime.ts";
 
 export * from "./atlas-canonical-world.ts";
 
+type AnimalCooperationWorld = canonical.AtlasWorldState & {
+  cooperationProjection?: {
+    eventIds: string[];
+  };
+};
+
 const COOPERATION_EVENT_TYPES = new Set([
   "workflow_started",
   "supplier_capacity_shock",
@@ -79,28 +85,27 @@ function cooperationPair(world: canonical.AtlasWorldState, event: RuntimeHistory
 }
 
 export function projectWorldCooperationToAnimals(current: canonical.AtlasWorldState) {
-  const world = JSON.parse(JSON.stringify(current)) as canonical.AtlasWorldState;
-  const known = new Set(world.messages.map((message) => message.id));
+  const world = JSON.parse(JSON.stringify(current)) as AnimalCooperationWorld;
+  const projected = new Set(world.cooperationProjection?.eventIds ?? []);
   const recent = world.runtime.history.slice(-24);
 
   for (const event of recent) {
-    if (!COOPERATION_EVENT_TYPES.has(event.type)) continue;
-    const id = `runtime-cooperation:${event.id}`;
-    if (known.has(id)) continue;
+    if (!COOPERATION_EVENT_TYPES.has(event.type) || projected.has(event.id)) continue;
     const pair = cooperationPair(world, event);
     if (!pair) continue;
 
     world.messages.push({
-      id,
+      id: `runtime-cooperation:${event.id}`,
       fromAgentId: pair.fromAgentId,
       toAgentId: pair.toAgentId,
       text: cooperationText(event),
       createdAt: world.now,
       expiresAt: world.now + 5_800,
     });
-    known.add(id);
+    projected.add(event.id);
   }
 
+  world.cooperationProjection = { eventIds: [...projected].slice(-96) };
   if (world.messages.length > 24) world.messages.splice(0, world.messages.length - 24);
   return world;
 }
