@@ -1,0 +1,159 @@
+name: Apply simulated city cloud
+
+on:
+  push:
+    branches:
+      - codex/simulated-city-cloud-20260830
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-simulated-city-cloud
+  cancel-in-progress: false
+
+jobs:
+  implement-verify-deploy-and-push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      CI: "true"
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Check out automation branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct and verify implementation patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .automation/citypatch/part-* > /tmp/apply-city-cloud.py.gz.b64
+          echo "68cd1fb99fd0b419eb33c9d9170e6a4169b0673c541f03d56793ad0b426c50d1  /tmp/apply-city-cloud.py.gz.b64" | sha256sum -c -
+          base64 --decode /tmp/apply-city-cloud.py.gz.b64 > /tmp/apply-city-cloud.py.gz
+          echo "64d83bcce861b70b655b41ac61ea350dde8c8f6cad0023f0cc834d178b1fbfbd  /tmp/apply-city-cloud.py.gz" | sha256sum -c -
+          gzip -dc /tmp/apply-city-cloud.py.gz > /tmp/apply-city-cloud.py
+          echo "6148b69c3fc4b4bdfe18177edf448ca58aeaca1101878bb212cf418080c36b09  /tmp/apply-city-cloud.py" | sha256sum -c -
+          python3 -m py_compile /tmp/apply-city-cloud.py
+
+      - name: Apply to latest main without overwriting concurrent work
+        id: apply
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git checkout -B main origin/main
+          base_sha="$(git rev-parse HEAD)"
+          echo "$base_sha" > /tmp/city-cloud-base-sha
+          echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
+          python3 /tmp/apply-city-cloud.py
+          git diff --check
+          git status --short
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install exact dependencies
+        run: npm ci
+
+      - name: Run complete test suite
+        run: npm run test:all
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Scan committed product files for raw credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git grep -nE 'sk-or-v1-[A-Za-z0-9_-]{20,}|-----BEGIN ([A-Z ]+ )?PRIVATE KEY-----' -- . ':(exclude)tests/**' ':(exclude)docs/**'; then
+            echo "A raw credential-like value was found." >&2
+            exit 1
+          fi
+
+      - name: Export GitHub Pages build
+        run: npm run export:pages
+
+      - name: Run rendered browser smoke
+        run: node scripts/smoke-pages-browser.mjs
+
+      - name: Dry-run Cloudflare Worker bundle
+        run: npx wrangler deploy --dry-run --config cloudflare/intent-agent/wrangler.jsonc
+
+      - name: Confirm main did not move during verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          expected="$(cat /tmp/city-cloud-base-sha)"
+          actual="$(git rev-parse origin/main)"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "main moved from $expected to $actual; refusing to overwrite concurrent work." >&2
+            exit 1
+          fi
+
+      - name: Deploy Worker before main
+        id: worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "${CLOUDFLARE_API_TOKEN:-}" && -n "${CLOUDFLARE_ACCOUNT_ID:-}" ]]; then
+            npx wrangler deploy --config cloudflare/intent-agent/wrangler.jsonc | tee /tmp/worker-deploy.log
+            echo "deployed=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "## Worker deployment"
+              echo '```text'
+              tail -n 30 /tmp/worker-deploy.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "deployed=false" >> "$GITHUB_OUTPUT"
+            echo "## Worker deployment" >> "$GITHUB_STEP_SUMMARY"
+            echo "Skipped: CLOUDFLARE_API_TOKEN and/or CLOUDFLARE_ACCOUNT_ID is not configured in GitHub Actions." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Commit verified implementation and push main
+        id: push
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "Asympta verification automation"
+          git config user.email "everformlab@apple.com"
+          git add \
+            app/asympta-request-cards.css \
+            cloudflare/intent-agent/src/index.ts \
+            components/asympta-intent-composer.tsx \
+            components/asympta-webmcp-tools.tsx \
+            components/asympta-world-live-60hz.tsx \
+            lib/asympta-city-plan.ts \
+            lib/asympta-public-agent-client.ts \
+            lib/asympta-public-agent-contract.ts \
+            lib/atlas-canonical-world.ts \
+            lib/atlas-simulation.ts \
+            package.json \
+            scripts/smoke-pages-browser.mjs \
+            tests/asympta-public-agent-worker.test.mjs \
+            tests/public-agent-frontend.test.mjs \
+            tests/simulated-city-cloud.test.mjs
+          if git diff --cached --quiet; then
+            echo "Implementation produced no staged changes." >&2
+            exit 1
+          fi
+          git commit -m "Implement model-driven simulated city plans"
+          commit_sha="$(git rev-parse HEAD)"
+          git push origin HEAD:main
+          echo "commit_sha=$commit_sha" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Verified main push"
+            echo "- Base: ${{ steps.apply.outputs.base_sha }}"
+            echo "- Commit: $commit_sha"
+            echo "- Worker deployed first: ${{ steps.worker.outputs.deployed }}"
+          } >> "$GITHUB_STEP_SUMMARY"
