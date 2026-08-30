@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, Check, ExternalLink, LoaderCircle, ShieldAlert } from "lucide-react";
+import { ArrowUp, Check, ExternalLink, Globe2, Home, LoaderCircle, ShieldAlert } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
 
@@ -13,6 +13,16 @@ import {
   type AsymptaActivityStatus,
 } from "@/lib/asympta-activity";
 import { readBrowserProtocolConfig, storeBrowserProtocolConfig } from "@/lib/asympta-browser-protocols";
+import {
+  beginInformationJourney,
+  EMPTY_INFORMATION_JOURNEY,
+  failInformationJourney,
+  finishInformationJourney,
+  gatherInformationJourney,
+  returnInformationJourney,
+  type InformationJourneyDestination,
+  type InformationJourneyState,
+} from "@/lib/asympta-information-journey";
 import { runAsymptaIntent, type AsymptaProtocolConfig } from "@/lib/asympta-protocol-runtime";
 import {
   getOrCreatePublicAgentClientId,
@@ -137,6 +147,82 @@ const COPY: Record<Locale, {
   },
 };
 
+const JOURNEY_COPY: Record<Locale, {
+  title: string;
+  home: string;
+  destinations: Record<InformationJourneyDestination, string>;
+  phases: Record<InformationJourneyState["phase"], string>;
+  alreadyThere: string;
+  returnedSources: (count: number) => string;
+}> = {
+  en: {
+    title: "Information journey",
+    home: "Asympta",
+    destinations: {
+      external: "Outside information",
+      weather: "Weather station",
+      "public-web": "Public web",
+      planning: "Planning desk",
+      clarification: "Clarification desk",
+    },
+    phases: {
+      idle: "Ready to travel",
+      departing: "Going out to current public sources…",
+      gathering: "At the source · collecting the result…",
+      returning: "Returning with the result and evidence…",
+      delivered: "Returned with the result.",
+      waiting: "Returned with a question or proposal.",
+      failed: "Returned without a usable result.",
+    },
+    alreadyThere: "Already there · collecting before returning…",
+    returnedSources: (count) => `Returned with ${count} source${count === 1 ? "" : "s"}.`,
+  },
+  "zh-Hant": {
+    title: "資訊旅程",
+    home: "Asympta",
+    destinations: {
+      external: "外部資訊站",
+      weather: "天氣資料站",
+      "public-web": "公開網絡",
+      planning: "安全規劃站",
+      clarification: "資料確認站",
+    },
+    phases: {
+      idle: "準備出發",
+      departing: "正在前往最新的公開資料來源…",
+      gathering: "已到達來源 · 正在取回結果…",
+      returning: "正在帶着結果與證據返回…",
+      delivered: "已返回並交付結果。",
+      waiting: "已帶回問題或方案，等待你決定。",
+      failed: "已返回，但未取得可用結果。",
+    },
+    alreadyThere: "已在資訊站 · 取回最新結果後返回…",
+    returnedSources: (count) => `已帶回 ${count} 個資料來源。`,
+  },
+  ja: {
+    title: "情報の旅",
+    home: "Asympta",
+    destinations: {
+      external: "外部情報所",
+      weather: "気象情報所",
+      "public-web": "公開ウェブ",
+      planning: "安全計画所",
+      clarification: "確認所",
+    },
+    phases: {
+      idle: "出発準備",
+      departing: "最新の公開情報へ向かっています…",
+      gathering: "情報源に到着 · 結果を集めています…",
+      returning: "結果と根拠を持って戻っています…",
+      delivered: "戻って結果を届けました。",
+      waiting: "質問または提案を持ち帰りました。",
+      failed: "戻りましたが、利用できる結果はありません。",
+    },
+    alreadyThere: "すでに情報源にいます · 収集して戻ります…",
+    returnedSources: (count) => `${count} 件の情報源を持ち帰りました。`,
+  },
+};
+
 function localeFromDocument(): Locale {
   const value = document.documentElement.lang.toLowerCase();
   if (value.startsWith("zh")) return "zh-Hant";
@@ -164,6 +250,73 @@ function formatCheckedAt(value: string, locale: Locale) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
+}
+
+function informationDestination(response: PublicAgentSuccessResponse): InformationJourneyDestination {
+  if (response.goal.kind === "weather") return "weather";
+  if (response.goal.kind === "research") return "public-web";
+  if (response.goal.kind === "action") return "planning";
+  return "clarification";
+}
+
+function waitForJourneyMotion(signal: AbortSignal, milliseconds: number) {
+  if (signal.aborted) return Promise.reject(new DOMException("Aborted", "AbortError"));
+  return new Promise<void>((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      signal.removeEventListener("abort", abort);
+      resolve();
+    }, milliseconds);
+    const abort = () => {
+      window.clearTimeout(timer);
+      reject(new DOMException("Aborted", "AbortError"));
+    };
+    signal.addEventListener("abort", abort, { once: true });
+  });
+}
+
+function InformationJourneyTicket({ journey, locale }: {
+  journey: InformationJourneyState;
+  locale: Locale;
+}) {
+  if (journey.phase === "idle") return null;
+  const copy = JOURNEY_COPY[locale];
+  const status = journey.phase === "gathering" && journey.alreadyAtDestination
+    ? copy.alreadyThere
+    : journey.phase === "delivered" && journey.sourceCount > 0
+      ? copy.returnedSources(journey.sourceCount)
+      : copy.phases[journey.phase];
+
+  return (
+    <section
+      className="asympta-information-journey"
+      data-phase={journey.phase}
+      data-already-there={journey.alreadyAtDestination ? "true" : "false"}
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    >
+      <header>
+        <span>{copy.title}</span>
+        <strong>{status}</strong>
+      </header>
+      <div className="asympta-information-journey__route" aria-hidden="true">
+        <span className="asympta-information-journey__place asympta-information-journey__place--home">
+          <Home size={13} strokeWidth={1.7} />
+          <b>{copy.home}</b>
+        </span>
+        <svg viewBox="0 0 320 28" preserveAspectRatio="none">
+          <path d="M8 18 C78 2 236 2 312 18" pathLength="100" />
+        </svg>
+        <span className="asympta-information-journey__traveller">
+          <AnimalPortrait id="agent-user" side="user" />
+        </span>
+        <span className="asympta-information-journey__place asympta-information-journey__place--source">
+          <Globe2 size={13} strokeWidth={1.7} />
+          <b>{copy.destinations[journey.destination]}</b>
+        </span>
+      </div>
+    </section>
+  );
 }
 
 function PublicAgentResultPanel({ response, locale }: {
@@ -262,9 +415,11 @@ export function AsymptaIntentComposer() {
   const [running, setRunning] = useState(false);
   const [activity, setActivity] = useState<AsymptaActivity | null>(null);
   const [publicResult, setPublicResult] = useState<PublicAgentSuccessResponse | null>(null);
+  const [journey, setJourney] = useState<InformationJourneyState>(EMPTY_INFORMATION_JOURNEY);
   const [requestError, setRequestError] = useState<{ message: string; retryable: boolean } | null>(null);
   const configRef = useRef<AsymptaProtocolConfig>({ mcp: [], a2a: [] });
   const activityRef = useRef<AsymptaActivity | null>(null);
+  const journeyRef = useRef<InformationJourneyState>(EMPTY_INFORMATION_JOURNEY);
   const abortRef = useRef<AbortController | null>(null);
   const turnstileRef = useRef<HTMLDivElement | null>(null);
 
@@ -284,6 +439,13 @@ export function AsymptaIntentComposer() {
     window.dispatchEvent(new CustomEvent("asympta:activity", { detail: { activity: next, event } }));
   }, [locale]);
 
+  const updateJourney = useCallback((transition: (current: InformationJourneyState) => InformationJourneyState) => {
+    const next = transition(journeyRef.current);
+    journeyRef.current = next;
+    setJourney(next);
+    return next;
+  }, []);
+
   const runIntent = useCallback(async (intention: string) => {
     const clean = intention.trim();
     if (!clean) throw new Error("An intention is required.");
@@ -292,6 +454,11 @@ export function AsymptaIntentComposer() {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
+    const isCurrentRun = () => abortRef.current === controller && !controller.signal.aborted;
+    const assertCurrentRun = () => {
+      if (!isCurrentRun()) throw new DOMException("Aborted", "AbortError");
+    };
+    let activeTripId: string | null = null;
     setRunning(true);
     setRequestError(null);
     setPublicResult(null);
@@ -304,6 +471,9 @@ export function AsymptaIntentComposer() {
           locale,
           principalId: getOrCreatePublicAgentClientId(),
         });
+        const tripId = next.id;
+        activeTripId = tripId;
+        updateJourney((current) => beginInformationJourney(current, tripId));
         const emit = (
           status: AsymptaActivityStatus,
           summary: string,
@@ -333,10 +503,11 @@ export function AsymptaIntentComposer() {
             siteKey: publicConfig.turnstileSiteKey,
             signal: controller.signal,
           });
-          emit("discovering", "Searching current sources and checking the safe next step.", "agent-market");
-
           let response: PublicAgentSuccessResponse;
           try {
+            assertCurrentRun();
+            updateJourney((current) => gatherInformationJourney(current, tripId));
+            emit("discovering", "Searching current sources and checking the safe next step.", "agent-market");
             response = await runPublicAgentIntent({
               intent: clean,
               locale,
@@ -347,6 +518,7 @@ export function AsymptaIntentComposer() {
               endpoint: publicConfig.endpoint,
               signal: controller.signal,
             });
+            assertCurrentRun();
           } finally {
             turnstile.release();
           }
@@ -365,9 +537,16 @@ export function AsymptaIntentComposer() {
             "agent-quality",
             { publicActivityId: response.activityId, verification: response.result?.verification.status },
           );
+          updateJourney((current) => returnInformationJourney(current, tripId, {
+            destination: informationDestination(response),
+            sourceCount: (response.result?.sources ?? []).filter((source) => isSafePublicAgentSourceUrl(source.url)).length,
+          }));
+          await waitForJourneyMotion(controller.signal, 680);
+          assertCurrentRun();
           setPublicResult(response);
 
           if (response.goal.status === "awaiting_confirmation") {
+            updateJourney((current) => finishInformationJourney(current, tripId, "waiting"));
             emit(
               "waiting_input",
               "The action is ready for review and has not been executed.",
@@ -375,6 +554,7 @@ export function AsymptaIntentComposer() {
               { publicActivityId: response.activityId, consequence: response.action?.consequence },
             );
           } else if (response.goal.status === "needs_clarification") {
+            updateJourney((current) => finishInformationJourney(current, tripId, "waiting"));
             emit(
               "waiting_input",
               response.goal.summary,
@@ -391,6 +571,7 @@ export function AsymptaIntentComposer() {
                 value: response,
               },
             };
+            updateJourney((current) => finishInformationJourney(current, tripId, "delivered"));
             emit(
               "completed",
               response.result?.answer ?? response.goal.summary,
@@ -400,7 +581,10 @@ export function AsymptaIntentComposer() {
           }
           return next;
         } catch (error) {
-          if (error instanceof DOMException && error.name === "AbortError") throw error;
+          if ((error instanceof DOMException && error.name === "AbortError") || !isCurrentRun()) {
+            throw new DOMException("Aborted", "AbortError");
+          }
+          updateJourney((current) => failInformationJourney(current, tripId));
           emit(
             "failed",
             error instanceof Error ? error.message : String(error),
@@ -414,24 +598,33 @@ export function AsymptaIntentComposer() {
       const result = await runAsymptaIntent(clean, configRef.current, {
         locale,
         signal: controller.signal,
-        onActivity: publishActivity,
+        onActivity: (next, event) => {
+          if (isCurrentRun()) publishActivity(next, event);
+        },
       });
+      assertCurrentRun();
       activityRef.current = result;
       setActivity(result);
       return result;
     } catch (error) {
-      if (!(error instanceof DOMException && error.name === "AbortError")) {
-        setRequestError({
-          message: error instanceof Error ? error.message : COPY[locale].failed,
-          retryable: error instanceof PublicAgentClientError ? error.retryable : true,
-        });
+      if ((error instanceof DOMException && error.name === "AbortError") || !isCurrentRun()) {
+        if (abortRef.current === controller && activeTripId) {
+          updateJourney((current) => current.tripId === activeTripId ? EMPTY_INFORMATION_JOURNEY : current);
+        }
+        throw new DOMException("Aborted", "AbortError");
       }
+      setRequestError({
+        message: error instanceof Error ? error.message : COPY[locale].failed,
+        retryable: error instanceof PublicAgentClientError ? error.retryable : true,
+      });
       throw error;
     } finally {
-      if (abortRef.current === controller) abortRef.current = null;
-      setRunning(false);
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+        setRunning(false);
+      }
     }
-  }, [locale, publishActivity]);
+  }, [locale, publishActivity, updateJourney]);
 
   useEffect(() => {
     window.__ASYMPTA_PROTOCOLS__ = {
@@ -486,6 +679,7 @@ export function AsymptaIntentComposer() {
           ) : null}
         </div>
       ) : null}
+      <InformationJourneyTicket journey={journey} locale={locale} />
       <div
         ref={turnstileRef}
         className="asympta-intent-turnstile"

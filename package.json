@@ -24,7 +24,7 @@
     "test:webmcp": "node --experimental-loader ./scripts/cloudflare-node-loader.mjs --test tests/webmcp-contract.test.mjs tests/agent-message-bridge.test.mjs tests/asympta-protocol-runtime.test.mjs",
     "test:agent-runtime": "node --experimental-loader ./scripts/cloudflare-node-loader.mjs --test tests/agent-runtime.test.mjs tests/asympta-protocol-runtime.test.mjs",
     "test:intent-agent": "node --test tests/asympta-public-agent-worker.test.mjs",
-    "test:public-agent": "npm run test:intent-agent && node --test tests/public-agent-frontend.test.mjs",
+    "test:public-agent": "npm run test:intent-agent && node --test tests/public-agent-frontend.test.mjs tests/asympta-information-journey.test.mjs",
     "test:rendered": "node --experimental-loader ./scripts/cloudflare-node-loader.mjs --test tests/rendered-html.test.mjs",
     "deploy:intent-agent": "wrangler deploy --config cloudflare/intent-agent/wrangler.jsonc",
     "typecheck": "tsc --noEmit",

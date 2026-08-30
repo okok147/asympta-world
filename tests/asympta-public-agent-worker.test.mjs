@@ -58,6 +58,12 @@ function openRouterMessage(content, overrides = {}) {
   });
 }
 
+function openRouterTextMessage(content, overrides = {}) {
+  return Response.json({
+    choices: [{ message: { content, ...overrides } }],
+  });
+}
+
 function goal(kind, overrides = {}) {
   const common = {
     title: "Check today's weather",
@@ -285,8 +291,9 @@ test("weather intent uses bounded Open-Meteo geocoding and forecast data", async
     if (url.hostname === "openrouter.ai") {
       const requestBody = JSON.parse(init.body);
       assert.equal(requestBody.model, "minimax/minimax-m3:free");
-      assert.equal(requestBody.provider.require_parameters, true);
-      assert.equal(requestBody.response_format.json_schema.strict, true);
+      assert.equal(requestBody.provider, undefined);
+      assert.equal(requestBody.response_format, undefined);
+      assert.match(requestBody.messages[0].content, /must match this schema exactly/);
       assert.equal(requestBody.temperature, undefined);
       return openRouterMessage(goal("weather", { weatherLocation: "Hong Kong" }));
     }
@@ -357,10 +364,7 @@ test("research intent requires one bounded OpenRouter web search and trusts URL 
           risk: "low",
         }));
       }
-      return openRouterMessage({
-        answer: "ECMA-262 is maintained as the ECMAScript language specification.",
-        sources: [{ title: "Untrusted model URL", url: "https://invented.invalid/page", publishedAt: null }],
-      }, {
+      return openRouterTextMessage("ECMA-262 is maintained as the ECMAScript language specification.", {
         annotations: [{
           type: "url_citation",
           url_citation: {
@@ -404,7 +408,96 @@ test("research intent requires one bounded OpenRouter web search and trusts URL 
     },
   });
   assert.equal(researchBody.temperature, undefined);
-  assert.equal(researchBody.provider.require_parameters, true);
+  assert.equal(researchBody.provider, undefined);
+  assert.equal(researchBody.response_format, undefined);
+  assert.doesNotMatch(researchBody.messages[0].content, /must match this schema exactly/);
+  assert.match(researchBody.messages[0].content, /canonical citations are returned separately/);
+  assert.equal(researchBody.max_tokens, 1_200);
+});
+
+test("research rejects model-authored URLs and malformed citation annotations", async () => {
+  const invalidAnnotations = [
+    {
+      type: "not_a_citation",
+      url_citation: { title: "Wrong type", url: "https://example.com/looks-valid" },
+    },
+    {
+      type: "url_citation",
+      url_citation: { title: "Credentials", url: "https://user:password@example.com/private" },
+    },
+    {
+      type: "url_citation",
+      url_citation: { title: "Plain HTTP", url: "http://example.com/insecure" },
+    },
+  ];
+  let openRouterCalls = 0;
+  const agent = deterministicAgent(async (input) => {
+    const url = new URL(String(input));
+    if (url.hostname === "challenges.cloudflare.com") return turnstileSuccess();
+    if (url.hostname === "openrouter.ai") {
+      openRouterCalls += 1;
+      if (openRouterCalls === 1) {
+        return openRouterMessage(goal("research", {
+          title: "Research a current standard",
+          summary: "Find the current official information and cite direct sources.",
+          researchQuery: "Current ECMAScript language specification edition",
+          risk: "low",
+        }));
+      }
+      return openRouterTextMessage(
+        "A model-authored URL like https://invented.invalid must never become a source.",
+        { annotations: invalidAnnotations },
+      );
+    }
+    throw new Error(`unexpected fetch: ${url}`);
+  });
+  const { env } = baseEnv();
+
+  const response = await agent.fetch(intentRequest(validBody({ intent: "Research the current ECMAScript specification" })), env);
+  const { text, body } = await responseJson(response);
+  assert.equal(response.status, 502);
+  assert.equal(body.error.code, "invalid_upstream_response");
+  assert.match(body.error.message, /verifiable sources/);
+  assert.doesNotMatch(text, /invented\.invalid|user:password/);
+});
+
+test("research normalizes, deduplicates, and bounds valid HTTPS citation annotations", async () => {
+  let openRouterCalls = 0;
+  const agent = deterministicAgent(async (input) => {
+    const url = new URL(String(input));
+    if (url.hostname === "challenges.cloudflare.com") return turnstileSuccess();
+    if (url.hostname === "openrouter.ai") {
+      openRouterCalls += 1;
+      if (openRouterCalls === 1) {
+        return openRouterMessage(goal("research", {
+          title: "Research a current standard",
+          summary: "Find the current official information and cite direct sources.",
+          researchQuery: "Current ECMAScript language specification edition",
+          risk: "low",
+        }));
+      }
+      return openRouterTextMessage("The current specification is maintained online.", {
+        annotations: [
+          { type: "url_citation", url_citation: { title: "ECMA-262 section", url: "https://tc39.es/ecma262/#sec-intro" } },
+          { type: "url_citation", url_citation: { title: "Duplicate", url: "https://tc39.es/ecma262/#sec-scope" } },
+          { type: "url_citation", url_citation: { title: "", url: "https://www.ecma-international.org/publications-and-standards/standards/ecma-262/" } },
+        ],
+      });
+    }
+    throw new Error(`unexpected fetch: ${url}`);
+  });
+  const { env } = baseEnv();
+
+  const response = await agent.fetch(intentRequest(validBody({ intent: "Research the current ECMAScript specification" })), env);
+  const body = await response.json();
+  assert.equal(response.status, 200);
+  assert.deepEqual(body.result.sources.map(({ title, url }) => ({ title, url })), [
+    { title: "ECMA-262 section", url: "https://tc39.es/ecma262/" },
+    {
+      title: "www.ecma-international.org",
+      url: "https://www.ecma-international.org/publications-and-standards/standards/ecma-262/",
+    },
+  ]);
 });
 
 test("rate and daily global limits fail closed before OpenRouter", async () => {

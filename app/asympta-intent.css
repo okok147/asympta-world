@@ -12,6 +12,171 @@
   font-family: var(--font-sans, ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif);
 }
 
+.asympta-information-journey {
+  width: calc(100% - 22px);
+  margin: 0 auto 8px;
+  padding: 8px 12px 7px;
+  color: #49433a;
+  background:
+    linear-gradient(105deg, rgba(255, 255, 255, 0.24), transparent 42%),
+    rgba(248, 244, 234, 0.94);
+  border: 1px solid rgba(76, 94, 86, 0.11);
+  border-radius: 15px;
+  box-shadow: 0 7px 24px rgba(70, 60, 45, 0.08);
+  backdrop-filter: blur(15px) saturate(0.86);
+  -webkit-backdrop-filter: blur(15px) saturate(0.86);
+  pointer-events: none;
+}
+
+.asympta-information-journey > header {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.asympta-information-journey > header > span {
+  flex: 0 0 auto;
+  color: rgba(65, 77, 70, 0.56);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.075em;
+  text-transform: uppercase;
+}
+
+.asympta-information-journey > header > strong {
+  min-width: 0;
+  overflow: hidden;
+  color: rgba(61, 61, 54, 0.76);
+  font-size: 10px;
+  font-weight: 580;
+  line-height: 1.3;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asympta-information-journey__route {
+  position: relative;
+  height: 36px;
+  margin-top: 3px;
+}
+
+.asympta-information-journey__route > svg {
+  position: absolute;
+  top: 1px;
+  left: 40px;
+  width: calc(100% - 80px);
+  height: 25px;
+  overflow: visible;
+}
+
+.asympta-information-journey__route > svg path {
+  fill: none;
+  stroke: rgba(72, 106, 105, 0.3);
+  stroke-width: 1.2;
+  stroke-dasharray: 2 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.asympta-information-journey__place {
+  position: absolute;
+  top: 5px;
+  z-index: 1;
+  display: grid;
+  width: 76px;
+  justify-items: center;
+  gap: 2px;
+  color: rgba(67, 69, 61, 0.63);
+}
+
+.asympta-information-journey__place b {
+  width: 100%;
+  overflow: hidden;
+  font-size: 8px;
+  font-weight: 620;
+  line-height: 1.15;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asympta-information-journey__place--home { left: -12px; }
+.asympta-information-journey__place--source { right: -12px; }
+
+.asympta-information-journey__place--source::before {
+  content: "";
+  position: absolute;
+  top: -4px;
+  left: 50%;
+  width: 21px;
+  height: 21px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(72, 106, 105, 0.12);
+  border-radius: 50%;
+}
+
+.asympta-information-journey__traveller {
+  position: absolute;
+  top: 0;
+  left: 42px;
+  z-index: 2;
+  display: block;
+  width: 28px;
+  height: 28px;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 3px 5px rgba(64, 58, 47, 0.13));
+}
+
+.asympta-information-journey__traveller .asympta-animal-portrait {
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(73, 93, 86, 0.14);
+  border-radius: 50%;
+  background: #f8f3e7;
+}
+
+.asympta-information-journey[data-phase="departing"] .asympta-information-journey__traveller {
+  animation: asympta-information-outbound 700ms cubic-bezier(0.34, 0.68, 0.37, 1) forwards;
+}
+
+.asympta-information-journey[data-phase="gathering"] .asympta-information-journey__traveller {
+  left: calc(100% - 42px);
+}
+
+.asympta-information-journey[data-phase="gathering"] .asympta-information-journey__place--source::before {
+  animation: asympta-information-signal 1.45s ease-out infinite;
+}
+
+.asympta-information-journey[data-phase="returning"] .asympta-information-journey__traveller {
+  animation: asympta-information-return 680ms cubic-bezier(0.34, 0.68, 0.37, 1) forwards;
+}
+
+.asympta-information-journey[data-phase="delivered"] .asympta-information-journey__route > svg path,
+.asympta-information-journey[data-phase="waiting"] .asympta-information-journey__route > svg path {
+  stroke: rgba(79, 119, 91, 0.42);
+}
+
+.asympta-information-journey[data-phase="failed"] .asympta-information-journey__route > svg path {
+  stroke: rgba(142, 88, 67, 0.32);
+}
+
+@keyframes asympta-information-outbound {
+  from { left: 42px; }
+  to { left: calc(100% - 42px); }
+}
+
+@keyframes asympta-information-return {
+  from { left: calc(100% - 42px); }
+  to { left: 42px; }
+}
+
+@keyframes asympta-information-signal {
+  0% { opacity: 0.7; transform: translateX(-50%) scale(0.85); }
+  70%, 100% { opacity: 0; transform: translateX(-50%) scale(1.5); }
+}
+
 .asympta-intent-result {
   width: calc(100% - 22px);
   max-height: min(36svh, 236px);
@@ -192,14 +357,18 @@
 
 .asympta-intent-turnstile {
   width: min(300px, 100%);
-  min-height: 65px;
-  margin: 0 auto 7px;
+  min-height: 0;
+  margin: 0 auto;
   pointer-events: auto;
+  line-height: 0;
 }
 
 .asympta-intent-turnstile:empty {
-  min-height: 0;
-  margin: 0;
+  display: none;
+}
+
+.asympta-intent-turnstile:not(:empty) {
+  margin-bottom: 7px;
 }
 
 .asympta-intent-presence {
@@ -384,8 +553,17 @@
   }
 
   .asympta-intent-result,
-  .asympta-intent-error {
+  .asympta-intent-error,
+  .asympta-information-journey {
     width: calc(100% - 12px);
+  }
+
+  .asympta-information-journey {
+    padding-inline: 10px;
+  }
+
+  .asympta-information-journey > header > strong {
+    font-size: 9.5px;
   }
 
   .asympta-intent-result {
@@ -430,6 +608,24 @@
     padding-block: 6px;
   }
 
+  .asympta-information-journey {
+    margin-bottom: 5px;
+    padding-block: 5px 3px;
+  }
+
+  .asympta-information-journey__route {
+    height: 29px;
+    margin-top: 0;
+  }
+
+  .asympta-information-journey__place b {
+    display: none;
+  }
+
+  .asympta-information-journey__traveller {
+    top: -1px;
+  }
+
   .asympta-intent-presence {
     margin-bottom: 4px;
   }
@@ -453,6 +649,18 @@
 
 @media (prefers-reduced-motion: reduce) {
   .asympta-intent-spinner { animation-duration: 1.8s; }
+  .asympta-information-journey[data-phase="departing"] .asympta-information-journey__traveller,
+  .asympta-information-journey[data-phase="gathering"] .asympta-information-journey__traveller {
+    left: calc(100% - 42px);
+    animation: none;
+  }
+  .asympta-information-journey[data-phase="returning"] .asympta-information-journey__traveller {
+    left: 42px;
+    animation: none;
+  }
+  .asympta-information-journey[data-phase="gathering"] .asympta-information-journey__place--source::before {
+    animation: none;
+  }
   .asympta-intent-composer button,
   .asympta-protocol-bubble,
   .asympta-intent-result__meta a,

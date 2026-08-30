@@ -21,7 +21,7 @@ npx wrangler secret put TURNSTILE_SECRET_KEY --config cloudflare/intent-agent/wr
 
 Use a newly rotated, dedicated OpenRouter key with its own provider-side spending limit. If an initial deployment temporarily used a key that had been pasted into chat or otherwise exposed, rotate it immediately and replace the Worker secret before treating the deployment as production-ready.
 
-The Turnstile widget must issue tokens with action `asympta_public_intent` and allow the GitHub Pages hostname. The Worker validates both action and hostname through server-side Siteverify.
+Configure the production Turnstile widget in **Non-Interactive** mode so its browser challenge runs without a checkbox or visitor click. It must issue tokens with action `asympta_public_intent` and allow the GitHub Pages hostname. The frontend uses explicit `execute` with interaction-only appearance and automatic transient-error retry; the Worker validates both action and hostname through server-side Siteverify.
 
 ## Public-usage guards
 
@@ -37,7 +37,7 @@ The single global Durable Object deliberately favours an exact low-volume demo b
 
 The default model is `minimax/minimax-m3:free`; `OPENROUTER_MODEL` is a non-secret Worker variable and may override it. Every response reports the actual configured model in provenance.
 
-The first model call only classifies and validates the goal. Weather reads Open-Meteo. Research may make at most one required `openrouter:web_search` server-tool call and returns sources from OpenRouter URL annotations. An action is only a proposal with `requiresConfirmation: true`; this Worker has no side-effect connector and never executes it.
+The first model call only classifies the goal. The model is instructed to return one schema-shaped JSON object, then the Worker validates every field, allowed key, enum, length, and cross-field safety invariant locally before using it. This avoids trusting provider-specific structured-output support. Weather reads Open-Meteo. Research may make at most one required `openrouter:web_search` server-tool call and returns sources from OpenRouter URL annotations. An action is only a proposal with `requiresConfirmation: true`; this Worker has no side-effect connector and never executes it.
 
 ## Local validation
 

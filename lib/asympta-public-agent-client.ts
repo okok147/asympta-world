@@ -13,6 +13,7 @@ const TURNSTILE_SCRIPT_URL = "https://challenges.cloudflare.com/turnstile/v0/api
 const CLIENT_ID_STORAGE_KEY = "asympta.public-agent.client-id";
 const TURNSTILE_TIMEOUT_MS = 30_000;
 const TURNSTILE_SCRIPT_TIMEOUT_MS = 15_000;
+const TURNSTILE_RETRY_INTERVAL_MS = 8_000;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ERROR_CODES = new Set<PublicAgentErrorCode>([
   "invalid_origin",
@@ -37,8 +38,10 @@ type TurnstileOptions = {
   action: string;
   execution: "execute";
   appearance: "interaction-only";
+  retry: "auto";
+  "retry-interval": number;
   callback: (token: string) => void;
-  "error-callback": (code?: string) => void;
+  "error-callback": (code?: string) => boolean;
   "expired-callback": () => void;
   "timeout-callback": () => void;
 };
@@ -303,6 +306,9 @@ export async function requestTurnstileToken(input: {
   if (input.signal?.aborted) throw new DOMException("Aborted", "AbortError");
 
   return new Promise<{ token: string; release: () => void }>((resolve, reject) => {
+    const mount = input.container.ownerDocument.createElement("div");
+    mount.className = "asympta-intent-turnstile__mount";
+    input.container.appendChild(mount);
     let widgetId: string | null = null;
     let settled = false;
     let released = false;
@@ -320,7 +326,7 @@ export async function requestTurnstileToken(input: {
         api.remove(widgetId);
         widgetId = null;
       }
-      input.container.replaceChildren();
+      mount.remove();
     };
     const succeed = (token: string) => {
       if (settled) return;
@@ -350,14 +356,17 @@ export async function requestTurnstileToken(input: {
 
     input.signal?.addEventListener("abort", abort, { once: true });
     try {
-      input.container.replaceChildren();
-      widgetId = api.render(input.container, {
+      widgetId = api.render(mount, {
         sitekey: input.siteKey,
         action: ASYMPTA_PUBLIC_AGENT_TURNSTILE_ACTION,
         execution: "execute",
         appearance: "interaction-only",
+        retry: "auto",
+        "retry-interval": TURNSTILE_RETRY_INTERVAL_MS,
         callback: succeed,
-        "error-callback": () => fail("Verification could not be completed. Please try again."),
+        // Returning false preserves Turnstile's automatic retry path. The
+        // outer 30-second timer remains the fail-closed boundary.
+        "error-callback": () => false,
         "expired-callback": () => fail("Verification expired. Please try again."),
         "timeout-callback": () => fail("Verification timed out. Please try again."),
       });

@@ -43,6 +43,29 @@ function validInformationResponse() {
   };
 }
 
+function fakeTurnstileContainer() {
+  const children = [];
+  const container = {
+    ownerDocument: {
+      createElement: () => {
+        const mount = {
+          className: "",
+          remove: () => {
+            const index = children.indexOf(mount);
+            if (index >= 0) children.splice(index, 1);
+          },
+        };
+        return mount;
+      },
+    },
+    appendChild: (mount) => {
+      children.push(mount);
+      return mount;
+    },
+  };
+  return { container, children };
+}
+
 test("browser surface only knows the public gateway and never embeds an upstream credential or endpoint", () => {
   const browserSurface = `${client}\n${composer}`;
   assert.match(client, /NEXT_PUBLIC_ASYMPTA_AGENT_API_URL/);
@@ -52,22 +75,34 @@ test("browser surface only knows the public gateway and never embeds an upstream
   assert.match(client, /referrerPolicy: "no-referrer"/);
 });
 
-test("Turnstile uses explicit, interaction-only execution and obtains a token for each public submit", () => {
+test("Turnstile uses explicit non-interactive execution with bounded automatic retry", () => {
   assert.match(client, /turnstile\/v0\/api\.js\?render=explicit/);
   assert.match(client, /execution: "execute"/);
   assert.match(client, /appearance: "interaction-only"/);
+  assert.match(client, /retry: "auto"/);
+  assert.match(client, /"retry-interval": TURNSTILE_RETRY_INTERVAL_MS/);
+  assert.match(client, /"error-callback": \(\) => false/);
+  assert.doesNotMatch(client, /"error-callback": \(\) => fail/);
   assert.match(client, /api\.execute\(widgetId\)/);
   assert.match(client, /api\.remove\(widgetId\)/);
+  assert.match(client, /api\.render\(mount/);
+  assert.match(client, /mount\.remove\(\)/);
+  assert.doesNotMatch(client, /input\.container\.replaceChildren/);
   assert.match(client, /TURNSTILE_SCRIPT_TIMEOUT_MS/);
+  assert.match(client, /TURNSTILE_TIMEOUT_MS = 30_000/);
   assert.match(composer, /await requestTurnstileToken/);
   assert.match(composer, /turnstileToken: turnstile\.token/);
   assert.match(composer, /turnstile\.release\(\)/);
+  assert.match(composer, /requestError\.retryable/);
+  assert.match(composer, /onClick=\{\(\) => void submit\(\)\}/);
 });
 
-test("each Turnstile execution yields a fresh lease that remains mounted through its request", async () => {
+test("a transient Turnstile error stays mounted for auto retry and each submit gets a fresh token", async () => {
   const originalWindow = globalThis.window;
   const executions = [];
   const removals = [];
+  const errorCallbackResults = [];
+  const retryConfigurations = [];
   let renderCount = 0;
   globalThis.window = {
     setTimeout: globalThis.setTimeout,
@@ -75,29 +110,154 @@ test("each Turnstile execution yields a fresh lease that remains mounted through
     turnstile: {
       render: (_container, options) => {
         renderCount += 1;
-        const widgetId = `widget-${renderCount}`;
-        queueMicrotask(() => options.callback(`token-${renderCount}`));
+        const currentRender = renderCount;
+        const widgetId = `widget-${currentRender}`;
+        retryConfigurations.push([options.retry, options["retry-interval"]]);
+        queueMicrotask(() => {
+          if (currentRender === 1) {
+            errorCallbackResults.push(options["error-callback"]("network-error"));
+          }
+          queueMicrotask(() => options.callback(`token-${currentRender}`));
+        });
         return widgetId;
       },
       execute: (widgetId) => executions.push(widgetId),
       remove: (widgetId) => removals.push(widgetId),
     },
   };
-  const container = { replaceChildren: () => {} };
+  const { container, children } = fakeTurnstileContainer();
 
   try {
     const first = await requestTurnstileToken({ container, siteKey: "public-site-key" });
     assert.equal(first.token, "token-1");
     assert.deepEqual(executions, ["widget-1"]);
+    assert.deepEqual(errorCallbackResults, [false]);
+    assert.deepEqual(retryConfigurations, [["auto", 8_000]]);
     assert.deepEqual(removals, []);
+    assert.equal(children.length, 1);
     first.release();
     assert.deepEqual(removals, ["widget-1"]);
+    assert.equal(children.length, 0);
 
     const second = await requestTurnstileToken({ container, siteKey: "public-site-key" });
     assert.equal(second.token, "token-2");
     assert.deepEqual(executions, ["widget-1", "widget-2"]);
+    assert.deepEqual(retryConfigurations, [["auto", 8_000], ["auto", 8_000]]);
     second.release();
     assert.deepEqual(removals, ["widget-1", "widget-2"]);
+    assert.equal(children.length, 0);
+  } finally {
+    if (originalWindow === undefined) delete globalThis.window;
+    else globalThis.window = originalWindow;
+  }
+});
+
+test("releasing an older Turnstile lease cannot remove a newer request's widget", async () => {
+  const originalWindow = globalThis.window;
+  const callbacks = [];
+  const renderedMounts = [];
+  const removals = [];
+  let markFirstRendered;
+  let markSecondRendered;
+  const firstRendered = new Promise((resolve) => { markFirstRendered = resolve; });
+  const secondRendered = new Promise((resolve) => { markSecondRendered = resolve; });
+  globalThis.window = {
+    setTimeout: globalThis.setTimeout,
+    clearTimeout: globalThis.clearTimeout,
+    turnstile: {
+      render: (mount, options) => {
+        renderedMounts.push(mount);
+        callbacks.push(options.callback);
+        if (renderedMounts.length === 1) markFirstRendered();
+        else markSecondRendered();
+        return `widget-${renderedMounts.length}`;
+      },
+      execute: () => {},
+      remove: (widgetId) => removals.push(widgetId),
+    },
+  };
+  const { container, children } = fakeTurnstileContainer();
+
+  try {
+    const firstPending = requestTurnstileToken({ container, siteKey: "public-site-key" });
+    await firstRendered;
+    callbacks[0]("token-1");
+    const first = await firstPending;
+
+    const secondPending = requestTurnstileToken({ container, siteKey: "public-site-key" });
+    await secondRendered;
+    assert.equal(children.length, 2);
+    callbacks[1]("token-2");
+    const second = await secondPending;
+
+    first.release();
+    assert.deepEqual(removals, ["widget-1"]);
+    assert.equal(children.length, 1);
+    assert.equal(children[0], renderedMounts[1]);
+
+    second.release();
+    assert.deepEqual(removals, ["widget-1", "widget-2"]);
+    assert.equal(children.length, 0);
+  } finally {
+    if (originalWindow === undefined) delete globalThis.window;
+    else globalThis.window = originalWindow;
+  }
+});
+
+test("aborting a pending Turnstile attempt fails closed and removes its widget", async () => {
+  const originalWindow = globalThis.window;
+  const removals = [];
+  let markExecuted;
+  const executed = new Promise((resolve) => { markExecuted = resolve; });
+  globalThis.window = {
+    setTimeout: globalThis.setTimeout,
+    clearTimeout: globalThis.clearTimeout,
+    turnstile: {
+      render: () => "widget-abort",
+      execute: () => markExecuted(),
+      remove: (widgetId) => removals.push(widgetId),
+    },
+  };
+  const controller = new AbortController();
+  const { container } = fakeTurnstileContainer();
+
+  try {
+    const pending = requestTurnstileToken({ container, siteKey: "public-site-key", signal: controller.signal });
+    await executed;
+    controller.abort();
+    await assert.rejects(pending, (error) => error instanceof DOMException && error.name === "AbortError");
+    assert.deepEqual(removals, ["widget-abort"]);
+  } finally {
+    if (originalWindow === undefined) delete globalThis.window;
+    else globalThis.window = originalWindow;
+  }
+});
+
+test("the 30-second Turnstile cap fails closed after automatic retries do not recover", async () => {
+  const originalWindow = globalThis.window;
+  const removals = [];
+  globalThis.window = {
+    setTimeout: (callback, delay) => {
+      if (delay === 30_000) queueMicrotask(callback);
+      return 1;
+    },
+    clearTimeout: () => {},
+    turnstile: {
+      render: () => "widget-timeout",
+      execute: () => {},
+      remove: (widgetId) => removals.push(widgetId),
+    },
+  };
+  const { container } = fakeTurnstileContainer();
+
+  try {
+    await assert.rejects(
+      requestTurnstileToken({ container, siteKey: "public-site-key" }),
+      (error) => error instanceof PublicAgentClientError
+        && error.code === "turnstile_failed"
+        && error.retryable,
+    );
+    assert.deepEqual(removals, ["widget-timeout"]);
   } finally {
     if (originalWindow === undefined) delete globalThis.window;
     else globalThis.window = originalWindow;
@@ -168,6 +328,27 @@ test("an action cannot cross the confirmation boundary even if an upstream respo
   assert.match(composer, /Nothing has been carried out/);
   assert.doesNotMatch(composer, /executePublicAgentAction|confirmPublicAgentAction/);
   assert.doesNotMatch(composer, /emit\(\s*"executing"/);
+});
+
+test("the information journey follows real request stages and returns before showing a result", () => {
+  assert.match(composer, /beginInformationJourney\(current, tripId\)/);
+  assert.match(composer, /gatherInformationJourney\(current, tripId\)/);
+  assert.match(composer, /returnInformationJourney\(current, tripId/);
+  assert.match(composer, /await waitForJourneyMotion\(controller\.signal, 680\)/);
+  assert.match(composer, /finishInformationJourney\(current, tripId, "delivered"\)/);
+  assert.match(composer, /finishInformationJourney\(current, tripId, "waiting"\)/);
+  assert.ok(
+    composer.indexOf("await waitForJourneyMotion(controller.signal, 680)")
+      < composer.indexOf("setPublicResult(response)"),
+  );
+  assert.match(composer, /InformationJourneyTicket journey=\{journey\}/);
+  assert.match(composer, /abortRef\.current === controller && !controller\.signal\.aborted/);
+  assert.ok((composer.match(/assertCurrentRun\(\)/g) ?? []).length >= 4);
+  assert.match(composer, /if \(isCurrentRun\(\)\) publishActivity\(next, event\)/);
+  assert.match(composer, /current\.tripId === activeTripId \? EMPTY_INFORMATION_JOURNEY : current/);
+  assert.match(css, /@keyframes asympta-information-outbound/);
+  assert.match(css, /@keyframes asympta-information-return/);
+  assert.match(css, /prefers-reduced-motion: reduce/);
 });
 
 test("result rendering is compact, source-safe, responsive and accessible", () => {
