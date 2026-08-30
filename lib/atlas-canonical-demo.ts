@@ -20,6 +20,8 @@ import {
 export { CITY_LIFE_COUNT, cityLifeActorAt, cityLifeSnapshot, demoDisclosure };
 export type { CityLifeActor, CityLifeStatus };
 
+type DemoWorldWithSpeed = AtlasWorldState & { simulationSpeed?: number };
+
 const LOCATION_IDS = Object.keys(ATLAS_LOCATIONS);
 
 function hash(value: string) {
@@ -74,9 +76,15 @@ function preserveFundLedger(previous: AtlasWorldState, next: AtlasWorldState) {
   return next;
 }
 
+function preserveSimulationSpeed(previous: AtlasWorldState, next: AtlasWorldState) {
+  const speed = (previous as DemoWorldWithSpeed).simulationSpeed;
+  if (Number.isFinite(speed)) (next as DemoWorldWithSpeed).simulationSpeed = speed;
+  return next;
+}
+
 export function startAtlasDemoWorkflow(current: AtlasWorldState, workflowId: WorkflowId) {
   const started = startAtlasWorkflow(current, workflowId);
-  const next = forceFreshActiveTasksToTravel(preserveFundLedger(current, started));
+  const next = forceFreshActiveTasksToTravel(preserveSimulationSpeed(current, preserveFundLedger(current, started)));
   persistAtlasWorld(next);
   return next;
 }
@@ -91,8 +99,11 @@ export function createAtlasDemoWorld(now = Date.now()) {
 
 export function resolveAtlasDemoApproval(current: AtlasWorldState, approvalId: string, approved: boolean) {
   const approval = current.approvals.find((item) => item.id === approvalId);
-  let next = resolveAtlasApproval(current, approvalId, approved);
-  if (!approved) return next;
+  let next = preserveSimulationSpeed(current, resolveAtlasApproval(current, approvalId, approved));
+  if (!approved) {
+    persistAtlasWorld(next);
+    return next;
+  }
   if (approval?.kind === "webmcp-start") {
     next = forceFreshActiveTasksToTravel(next);
   } else if (approval?.taskId) {
