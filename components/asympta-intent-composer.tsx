@@ -1,13 +1,28 @@
 "use client";
 
-import { ArrowUp, Check, LoaderCircle } from "lucide-react";
+import { ArrowUp, Check, ExternalLink, LoaderCircle, ShieldAlert } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
 
 import { AnimalPortrait } from "@/components/asympta-animal-art";
+import {
+  appendAsymptaEvent,
+  createAsymptaActivity,
+  type AsymptaActivity,
+  type AsymptaActivityEvent,
+  type AsymptaActivityStatus,
+} from "@/lib/asympta-activity";
 import { readBrowserProtocolConfig, storeBrowserProtocolConfig } from "@/lib/asympta-browser-protocols";
 import { runAsymptaIntent, type AsymptaProtocolConfig } from "@/lib/asympta-protocol-runtime";
-import type { AsymptaActivity, AsymptaActivityEvent, AsymptaActivityStatus } from "@/lib/asympta-activity";
+import {
+  getOrCreatePublicAgentClientId,
+  getPublicAgentConfig,
+  isSafePublicAgentSourceUrl,
+  PublicAgentClientError,
+  requestTurnstileToken,
+  runPublicAgentIntent,
+} from "@/lib/asympta-public-agent-client";
+import type { PublicAgentSuccessResponse } from "@/lib/asympta-public-agent-contract";
 
 type Locale = "en" | "zh-Hant" | "ja";
 
@@ -37,6 +52,16 @@ const COPY: Record<Locale, {
   completed: string;
   blocked: string;
   failed: string;
+  result: string;
+  validatedGoal: string;
+  checked: string;
+  sources: string;
+  pendingConfirmation: string;
+  consequence: string;
+  nothingExecuted: string;
+  simulated: string;
+  retry: string;
+  verification: string;
 }> = {
   en: {
     placeholder: "Tell Asympta what you want to happen…",
@@ -51,6 +76,16 @@ const COPY: Record<Locale, {
     completed: "Done.",
     blocked: "There is not a connected service for this yet.",
     failed: "I could not finish this one yet.",
+    result: "Asympta result",
+    validatedGoal: "Validated goal",
+    checked: "Checked",
+    sources: "Sources",
+    pendingConfirmation: "Waiting for your confirmation",
+    consequence: "Consequence",
+    nothingExecuted: "Nothing has been carried out.",
+    simulated: "Simulated planning",
+    retry: "Try again",
+    verification: "Browser verification",
   },
   "zh-Hant": {
     placeholder: "告訴 Asympta 你想發生甚麼…",
@@ -65,6 +100,16 @@ const COPY: Record<Locale, {
     completed: "完成了。",
     blocked: "目前還沒有可連接的服務完成這件事。",
     failed: "這次暫時未能完成。",
+    result: "Asympta 結果",
+    validatedGoal: "已確認目標",
+    checked: "查核時間",
+    sources: "資料來源",
+    pendingConfirmation: "等待你的確認",
+    consequence: "可能影響",
+    nothingExecuted: "尚未執行任何行動。",
+    simulated: "模擬規劃",
+    retry: "再試一次",
+    verification: "瀏覽器驗證",
   },
   ja: {
     placeholder: "Asympta に、実現してほしいことを話してください…",
@@ -79,6 +124,16 @@ const COPY: Record<Locale, {
     completed: "完了しました。",
     blocked: "この依頼を実行できる接続先がまだありません。",
     failed: "今回はまだ完了できませんでした。",
+    result: "Asympta の結果",
+    validatedGoal: "確認済みの目標",
+    checked: "確認時刻",
+    sources: "情報源",
+    pendingConfirmation: "確認を待っています",
+    consequence: "影響",
+    nothingExecuted: "まだ何も実行していません。",
+    simulated: "シミュレーション計画",
+    retry: "もう一度試す",
+    verification: "ブラウザー認証",
   },
 };
 
@@ -92,6 +147,85 @@ function localeFromDocument(): Locale {
 function humanStatus(locale: Locale, status?: AsymptaActivityStatus) {
   const copy = COPY[locale];
   return status ? copy[status] : copy.idle;
+}
+
+function browserTimezone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    return "UTC";
+  }
+}
+
+function formatCheckedAt(value: string, locale: Locale) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return value;
+  return new Intl.DateTimeFormat(locale, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+}
+
+function PublicAgentResultPanel({ response, locale }: {
+  response: PublicAgentSuccessResponse;
+  locale: Locale;
+}) {
+  const copy = COPY[locale];
+  const sources = (response.result?.sources ?? [])
+    .filter((source) => isSafePublicAgentSourceUrl(source.url))
+    .slice(0, 4);
+  const pendingAction = response.goal.status === "awaiting_confirmation" ? response.action : null;
+
+  return (
+    <section
+      className="asympta-intent-result"
+      data-kind={response.goal.kind}
+      aria-label={copy.result}
+      aria-live="polite"
+      aria-atomic="true"
+    >
+      <div className="asympta-intent-result__goal">
+        <span>{copy.validatedGoal}</span>
+        <strong>{response.goal.title}</strong>
+      </div>
+      {response.goal.summary && response.goal.summary !== response.goal.title ? (
+        <p className="asympta-intent-result__summary">{response.goal.summary}</p>
+      ) : null}
+      {response.result?.answer ? (
+        <p className="asympta-intent-result__answer">{response.result.answer}</p>
+      ) : null}
+      {pendingAction ? (
+        <div className="asympta-intent-result__action" role="status">
+          <strong><ShieldAlert size={14} aria-hidden="true" />{copy.pendingConfirmation}</strong>
+          <p>{pendingAction.description}</p>
+          <p><span>{copy.consequence}:</span> {pendingAction.consequence}</p>
+          <small>{copy.nothingExecuted}</small>
+        </div>
+      ) : null}
+      <footer className="asympta-intent-result__meta">
+        {response.result?.checkedAt ? (
+          <time dateTime={response.result.checkedAt}>
+            {copy.checked} {formatCheckedAt(response.result.checkedAt, locale)}
+          </time>
+        ) : null}
+        {response.provenance.simulated ? <span>{copy.simulated}</span> : null}
+        {sources.length ? (
+          <nav aria-label={copy.sources}>
+            {sources.map((source, index) => (
+              <a
+                key={`${source.url}-${index}`}
+                href={source.url}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {source.title}<ExternalLink size={10} aria-hidden="true" />
+              </a>
+            ))}
+          </nav>
+        ) : null}
+      </footer>
+    </section>
+  );
 }
 
 function showAgentMoment(event: AsymptaActivityEvent, locale: Locale) {
@@ -127,9 +261,12 @@ export function AsymptaIntentComposer() {
   const [text, setText] = useState("");
   const [running, setRunning] = useState(false);
   const [activity, setActivity] = useState<AsymptaActivity | null>(null);
+  const [publicResult, setPublicResult] = useState<PublicAgentSuccessResponse | null>(null);
+  const [requestError, setRequestError] = useState<{ message: string; retryable: boolean } | null>(null);
   const configRef = useRef<AsymptaProtocolConfig>({ mcp: [], a2a: [] });
   const activityRef = useRef<AsymptaActivity | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const turnstileRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     configRef.current = readBrowserProtocolConfig();
@@ -140,34 +277,161 @@ export function AsymptaIntentComposer() {
     return () => observer.disconnect();
   }, []);
 
+  const publishActivity = useCallback((next: AsymptaActivity, event: AsymptaActivityEvent) => {
+    activityRef.current = next;
+    setActivity(next);
+    showAgentMoment(event, locale);
+    window.dispatchEvent(new CustomEvent("asympta:activity", { detail: { activity: next, event } }));
+  }, [locale]);
+
   const runIntent = useCallback(async (intention: string) => {
     const clean = intention.trim();
     if (!clean) throw new Error("An intention is required.");
+    if (clean.length > 600) throw new Error("An intention can contain at most 600 characters.");
 
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
     setRunning(true);
+    setRequestError(null);
+    setPublicResult(null);
 
     try {
+      const publicConfig = getPublicAgentConfig();
+      if (publicConfig) {
+        let next = createAsymptaActivity({
+          intent: clean,
+          locale,
+          principalId: getOrCreatePublicAgentClientId(),
+        });
+        const emit = (
+          status: AsymptaActivityStatus,
+          summary: string,
+          actorId: string,
+          data?: Record<string, unknown>,
+        ) => {
+          next = appendAsymptaEvent(next, {
+            status,
+            protocol: "asympta",
+            actorId,
+            summary,
+            data,
+          });
+          const emitted = next.events.at(-1);
+          if (emitted) publishActivity(next, emitted);
+        };
+
+        emit("interpreting", "Turning the intention into a bounded, validated goal.", "agent-user");
+        try {
+          const turnstileContainer = turnstileRef.current;
+          if (!turnstileContainer) throw new PublicAgentClientError("Browser verification is not ready yet.", {
+            code: "turnstile_failed",
+            retryable: true,
+          });
+          const turnstile = await requestTurnstileToken({
+            container: turnstileContainer,
+            siteKey: publicConfig.turnstileSiteKey,
+            signal: controller.signal,
+          });
+          emit("discovering", "Searching current sources and checking the safe next step.", "agent-market");
+
+          let response: PublicAgentSuccessResponse;
+          try {
+            response = await runPublicAgentIntent({
+              intent: clean,
+              locale,
+              timezone: browserTimezone(),
+              turnstileToken: turnstile.token,
+              clientId: next.principal.id,
+            }, {
+              endpoint: publicConfig.endpoint,
+              signal: controller.signal,
+            });
+          } finally {
+            turnstile.release();
+          }
+
+          if (response.goal.kind === "action") {
+            emit(
+              "coordinating",
+              "Preparing the requested action without carrying it out.",
+              "agent-operations",
+              { publicActivityId: response.activityId, confirmationRequired: true },
+            );
+          }
+          emit(
+            "verifying",
+            response.result?.verification.details ?? "Checking the goal and returned evidence.",
+            "agent-quality",
+            { publicActivityId: response.activityId, verification: response.result?.verification.status },
+          );
+          setPublicResult(response);
+
+          if (response.goal.status === "awaiting_confirmation") {
+            emit(
+              "waiting_input",
+              "The action is ready for review and has not been executed.",
+              "agent-user",
+              { publicActivityId: response.activityId, consequence: response.action?.consequence },
+            );
+          } else if (response.goal.status === "needs_clarification") {
+            emit(
+              "waiting_input",
+              response.goal.summary,
+              "agent-user",
+              { publicActivityId: response.activityId, missingFields: response.goal.missingFields },
+            );
+          } else {
+            next = {
+              ...next,
+              outcome: {
+                verified: response.result?.verification.status === "verified",
+                verification: "protocol-response",
+                summary: response.result?.answer ?? response.goal.summary,
+                value: response,
+              },
+            };
+            emit(
+              "completed",
+              response.result?.answer ?? response.goal.summary,
+              "agent-quality",
+              { publicActivityId: response.activityId },
+            );
+          }
+          return next;
+        } catch (error) {
+          if (error instanceof DOMException && error.name === "AbortError") throw error;
+          emit(
+            "failed",
+            error instanceof Error ? error.message : String(error),
+            "agent-support",
+            error instanceof PublicAgentClientError ? { code: error.code, retryable: error.retryable } : undefined,
+          );
+          throw error;
+        }
+      }
+
       const result = await runAsymptaIntent(clean, configRef.current, {
         locale,
         signal: controller.signal,
-        onActivity: (next, event) => {
-          activityRef.current = next;
-          setActivity(next);
-          showAgentMoment(event, locale);
-          window.dispatchEvent(new CustomEvent("asympta:activity", { detail: { activity: next, event } }));
-        },
+        onActivity: publishActivity,
       });
       activityRef.current = result;
       setActivity(result);
       return result;
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === "AbortError")) {
+        setRequestError({
+          message: error instanceof Error ? error.message : COPY[locale].failed,
+          retryable: error instanceof PublicAgentClientError ? error.retryable : true,
+        });
+      }
+      throw error;
     } finally {
       if (abortRef.current === controller) abortRef.current = null;
       setRunning(false);
     }
-  }, [locale]);
+  }, [locale, publishActivity]);
 
   useEffect(() => {
     window.__ASYMPTA_PROTOCOLS__ = {
@@ -190,9 +454,9 @@ export function AsymptaIntentComposer() {
     event?.preventDefault();
     const intention = text.trim();
     if (!intention || running) return;
-    setText("");
     try {
       await runIntent(intention);
+      setText("");
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       console.error("Asympta intention failed", error);
@@ -211,6 +475,22 @@ export function AsymptaIntentComposer() {
 
   return (
     <div className="asympta-intent-shell" data-status={status ?? "idle"}>
+      {publicResult ? <PublicAgentResultPanel response={publicResult} locale={locale} /> : null}
+      {requestError ? (
+        <div className="asympta-intent-error" role="alert">
+          <span>{requestError.message}</span>
+          {requestError.retryable ? (
+            <button type="button" onClick={() => void submit()} disabled={running || !text.trim()}>
+              {COPY[locale].retry}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      <div
+        ref={turnstileRef}
+        className="asympta-intent-turnstile"
+        aria-label={COPY[locale].verification}
+      />
       <div className="asympta-intent-presence" aria-live="polite">
         <AnimalPortrait id="agent-user" side="user" className="asympta-intent-avatar" />
         <span>{humanStatus(locale, status)}</span>
@@ -220,11 +500,14 @@ export function AsymptaIntentComposer() {
         <textarea
           value={text}
           rows={1}
-          maxLength={1_200}
+          maxLength={600}
           spellCheck
           aria-label={copy.placeholder}
           placeholder={copy.placeholder}
-          onChange={(event) => setText(event.target.value)}
+          onChange={(event) => {
+            setText(event.target.value);
+            if (requestError) setRequestError(null);
+          }}
           onKeyDown={onKeyDown}
         />
         <button type="submit" aria-label={copy.send} disabled={running || !text.trim()}>

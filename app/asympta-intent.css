@@ -3,10 +3,203 @@
   left: 50%;
   bottom: max(18px, calc(env(safe-area-inset-bottom) + 10px));
   z-index: 80;
+  display: flex;
+  flex-direction: column;
   width: min(680px, calc(100vw - 28px));
+  max-height: calc(100svh - 28px);
   transform: translateX(-50%);
   pointer-events: none;
   font-family: var(--font-sans, ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif);
+}
+
+.asympta-intent-result {
+  width: calc(100% - 22px);
+  max-height: min(36svh, 236px);
+  margin: 0 auto 8px;
+  padding: 14px 16px 12px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  color: #423d35;
+  background:
+    linear-gradient(112deg, rgba(255, 255, 255, 0.22), transparent 36%),
+    rgba(250, 247, 239, 0.96);
+  border: 1px solid rgba(79, 71, 58, 0.1);
+  border-radius: 17px;
+  box-shadow: 0 10px 34px rgba(70, 60, 45, 0.1);
+  backdrop-filter: blur(18px) saturate(0.88);
+  -webkit-backdrop-filter: blur(18px) saturate(0.88);
+  pointer-events: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(76, 70, 61, 0.25) transparent;
+}
+
+.asympta-intent-result__goal {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: baseline;
+  gap: 9px;
+}
+
+.asympta-intent-result__goal > span,
+.asympta-intent-result__meta,
+.asympta-intent-result__action small {
+  color: rgba(67, 61, 52, 0.56);
+  font-size: 10px;
+  line-height: 1.3;
+  letter-spacing: 0.025em;
+}
+
+.asympta-intent-result__goal > span {
+  text-transform: uppercase;
+}
+
+.asympta-intent-result__goal > strong {
+  overflow: hidden;
+  color: #38342e;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asympta-intent-result__summary,
+.asympta-intent-result__answer,
+.asympta-intent-result__action p {
+  margin: 0;
+}
+
+.asympta-intent-result__summary {
+  margin-top: 5px;
+  color: rgba(64, 58, 49, 0.66);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.asympta-intent-result__answer {
+  margin-top: 9px;
+  color: #454037;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.asympta-intent-result__action {
+  margin-top: 10px;
+  padding: 10px 0 0 13px;
+  border-top: 1px solid rgba(142, 103, 49, 0.14);
+  border-left: 2px solid rgba(164, 116, 47, 0.48);
+}
+
+.asympta-intent-result__action > strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 5px;
+  color: #72542d;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.asympta-intent-result__action p {
+  color: rgba(70, 60, 47, 0.78);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.asympta-intent-result__action p + p {
+  margin-top: 3px;
+}
+
+.asympta-intent-result__action p > span {
+  font-weight: 650;
+}
+
+.asympta-intent-result__action small {
+  display: block;
+  margin-top: 6px;
+}
+
+.asympta-intent-result__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px 10px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(82, 74, 62, 0.07);
+}
+
+.asympta-intent-result__meta nav {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 9px;
+}
+
+.asympta-intent-result__meta a {
+  display: inline-flex;
+  max-width: 180px;
+  align-items: center;
+  gap: 3px;
+  overflow: hidden;
+  color: #486a69;
+  text-decoration-color: rgba(72, 106, 105, 0.28);
+  text-underline-offset: 2px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asympta-intent-result__meta a:hover {
+  color: #315958;
+  text-decoration-color: currentColor;
+}
+
+.asympta-intent-error {
+  display: flex;
+  width: calc(100% - 22px);
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 auto 8px;
+  padding: 8px 9px 8px 12px;
+  color: #704a3f;
+  background: rgba(252, 244, 233, 0.96);
+  border: 1px solid rgba(139, 83, 62, 0.13);
+  border-radius: 13px;
+  box-shadow: 0 7px 22px rgba(79, 57, 43, 0.07);
+  pointer-events: auto;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.asympta-intent-error > span {
+  min-width: 0;
+}
+
+.asympta-intent-error button {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  color: #68493e;
+  background: rgba(255, 255, 255, 0.48);
+  border: 1px solid rgba(113, 72, 57, 0.17);
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 650;
+}
+
+.asympta-intent-turnstile {
+  width: min(300px, 100%);
+  min-height: 65px;
+  margin: 0 auto 7px;
+  pointer-events: auto;
+}
+
+.asympta-intent-turnstile:empty {
+  min-height: 0;
+  margin: 0;
 }
 
 .asympta-intent-presence {
@@ -118,6 +311,14 @@
   cursor: default;
 }
 
+.asympta-intent-composer textarea:focus-visible,
+.asympta-intent-composer button:focus-visible,
+.asympta-intent-error button:focus-visible,
+.asympta-intent-result__meta a:focus-visible {
+  outline: 2px solid rgba(61, 100, 99, 0.72);
+  outline-offset: 2px;
+}
+
 .asympta-intent-spinner {
   animation: asympta-intent-spin 0.9s linear infinite;
 }
@@ -182,6 +383,15 @@
     font-size: 10.5px;
   }
 
+  .asympta-intent-result,
+  .asympta-intent-error {
+    width: calc(100% - 12px);
+  }
+
+  .asympta-intent-result {
+    padding: 12px 13px 11px;
+  }
+
   .asympta-intent-composer {
     padding-left: 12px;
     border-radius: 21px;
@@ -192,8 +402,59 @@
   }
 }
 
+@media (max-height: 430px) and (orientation: landscape) {
+  .asympta-intent-shell {
+    bottom: max(6px, calc(env(safe-area-inset-bottom) + 4px));
+    width: min(720px, calc(100vw - 14px));
+    max-height: calc(100svh - 12px);
+  }
+
+  .asympta-intent-result {
+    max-height: min(32svh, 104px);
+    margin-bottom: 5px;
+    padding: 9px 12px;
+  }
+
+  .asympta-intent-result__summary,
+  .asympta-intent-result__answer {
+    margin-top: 5px;
+  }
+
+  .asympta-intent-result__meta {
+    margin-top: 6px;
+    padding-top: 5px;
+  }
+
+  .asympta-intent-error {
+    margin-bottom: 5px;
+    padding-block: 6px;
+  }
+
+  .asympta-intent-presence {
+    margin-bottom: 4px;
+  }
+
+  .asympta-intent-composer {
+    grid-template-columns: minmax(0, 1fr) 34px;
+    padding-block: 5px;
+  }
+
+  .asympta-intent-composer textarea {
+    min-height: 34px;
+    max-height: 68px;
+    padding-block: 7px;
+  }
+
+  .asympta-intent-composer button {
+    width: 34px;
+    height: 34px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .asympta-intent-spinner { animation-duration: 1.8s; }
   .asympta-intent-composer button,
-  .asympta-protocol-bubble { transition: none; }
+  .asympta-protocol-bubble,
+  .asympta-intent-result__meta a,
+  .asympta-intent-error button { transition: none; }
 }
