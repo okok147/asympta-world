@@ -14,6 +14,7 @@ import "./asympta-global-locale.css";
 import "./asympta-task-celebration.css";
 import "./asympta-card-collapse.css";
 import "./asympta-calm-ui.css";
+import "./asympta-global-world.css";
 
 const faviconPath = process.env.ASYMPTA_PAGES_BUILD === "1"
   ? "/asympta-world/favicon-asympta-cat-20260829.svg"
@@ -24,7 +25,7 @@ const faviconDataUrl = `data:image/svg+xml,${encodeURIComponent(`${faviconInline
 
 export const metadata: Metadata = {
   title: "Asympta World",
-  description: "A calm, map-first spatial world.",
+  description: "A calm, map-first world-scale coordination model.",
   applicationName: "Asympta World",
   icons: {
     icon: [{ url: faviconPath, type: "image/svg+xml" }],
