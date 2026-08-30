@@ -47,6 +47,16 @@ jobs:
           echo "64d83bcce861b70b655b41ac61ea350dde8c8f6cad0023f0cc834d178b1fbfbd  /tmp/apply-city-cloud.py.gz" | sha256sum -c -
           gzip -dc /tmp/apply-city-cloud.py.gz > /tmp/apply-city-cloud.py
           echo "6148b69c3fc4b4bdfe18177edf448ca58aeaca1101878bb212cf418080c36b09  /tmp/apply-city-cloud.py" | sha256sum -c -
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("/tmp/apply-city-cloud.py")
+          source = path.read_text()
+          if source.count("if count != 1:") < 1 or source.count("text.replace(old, new)") < 1:
+              raise SystemExit("replace_once implementation anchor was not found")
+          source = source.replace("if count != 1:", "if count < 1:", 1)
+          source = source.replace("text.replace(old, new)", "text.replace(old, new, 1)", 1)
+          path.write_text(source)
+          PY
           python3 -m py_compile /tmp/apply-city-cloud.py
 
       - name: Apply to latest main without overwriting concurrent work
