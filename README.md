@@ -130,7 +130,20 @@ The deployed page still uses `document.modelContext.registerTool(...)` to expose
 - **Outbound MCP client:** lets Asympta call an independent MCP service while pursuing a human intention.
 - **A2A client:** lets Asympta communicate with an independent autonomous agent.
 
-The existing WebMCP qualification tools remain available to compatible browser agents and automated tests, but their technical inspector UI is intentionally not the normal human experience.
+The challenge build currently exposes these ten WebMCP tools:
+
+- `asympta_observe_living_city`
+- `asympta_list_workflows`
+- `asympta_follow_agent`
+- `asympta_request_workflow`
+- `asympta_request_external_action`
+- `asympta_describe_capabilities`
+- `asympta_inspect_agent`
+- `asympta_get_pending_approval`
+- `asympta_send_agent_message`
+- `asympta_list_agent_messages`
+
+These names are part of the browser-agent qualification surface, not the normal consumer UI. Preset workflow and inspector chrome are hidden from the ordinary human experience even though the challenge tools remain registered and testable.
 
 Consequential simulated WebMCP actions still preserve the explicit approval boundary. There is deliberately no browser-agent tool that silently approves a pending consequential action for the person.
 
