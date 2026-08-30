@@ -7,6 +7,7 @@ type DemoSnapshot = { foreground?: { tasks?: TaskSnapshot[] } };
 
 const COLLAPSE_SYNC_MS = 320;
 const AGENT_AUTO_COLLAPSE_MS = 5_500;
+const PANEL_AUTO_COLLAPSE_MS = 8_000;
 const MOBILE_MAX_WIDTH = 700;
 const PANEL_GAP_PX = 10;
 const BOTTOM_UI_RESERVE_PX = 92;
@@ -50,6 +51,8 @@ export function AsymptaCardCollapse() {
     let lastAgentId: string | null = null;
     let lastTaskKey = "";
     let lastAgentInteractionAt = performance.now();
+    let lastScheduleInteractionAt = performance.now();
+    let lastMenuInteractionAt = performance.now();
 
     const positionMobileSchedule = () => {
       const schedule = document.querySelector<HTMLElement>(".atlas-safe-schedule");
@@ -90,6 +93,7 @@ export function AsymptaCardCollapse() {
       const card = document.querySelector<HTMLElement>(".atlas-safe-schedule");
       if (!card) return;
       scheduleExpanded = expanded;
+      if (expanded) lastScheduleInteractionAt = performance.now();
       setExpanded(card, expanded);
       const header = card.querySelector<HTMLElement>(".atlas-safe-schedule__header");
       if (header) {
@@ -142,6 +146,10 @@ export function AsymptaCardCollapse() {
         applySchedule(false);
       }
 
+      const now = performance.now();
+      if (scheduleExpanded && now - lastScheduleInteractionAt >= PANEL_AUTO_COLLAPSE_MS) applySchedule(false);
+      if (menuIsOpen() && now - lastMenuInteractionAt >= PANEL_AUTO_COLLAPSE_MS) setMenuOpen(false);
+
       // Coordination menu owns the detailed-information slot while it is open.
       if (menuIsOpen() && scheduleExpanded) applySchedule(false);
       positionMobileSchedule();
@@ -168,12 +176,15 @@ export function AsymptaCardCollapse() {
       }
 
       const expanded = card.dataset.asymptaExpanded !== "false";
-      if (expanded && performance.now() - lastAgentInteractionAt >= AGENT_AUTO_COLLAPSE_MS) collapseAgentCard();
+      if (expanded && now - lastAgentInteractionAt >= AGENT_AUTO_COLLAPSE_MS) collapseAgentCard();
     };
 
     const onClick = (event: MouseEvent) => {
       const target = event.target instanceof Element ? event.target : null;
       if (!target) return;
+
+      if (target.closest(".atlas-safe-schedule")) lastScheduleInteractionAt = performance.now();
+      if (target.closest(".atlas-console")) lastMenuInteractionAt = performance.now();
 
       if (target.closest(".atlas-safe-schedule__header")) {
         applySchedule(!scheduleExpanded);
@@ -182,6 +193,7 @@ export function AsymptaCardCollapse() {
 
       const menuToggle = target.closest(".atlas-menu-identity, .atlas-menu-bar > .atlas-quick-icon:last-child");
       if (menuToggle) {
+        lastMenuInteractionAt = performance.now();
         window.setTimeout(() => {
           if (menuIsOpen()) applySchedule(false);
           positionMobileSchedule();
@@ -205,15 +217,21 @@ export function AsymptaCardCollapse() {
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target instanceof Element ? event.target : null;
       if (!target) return;
+      const now = performance.now();
+      if (target.closest(".atlas-safe-schedule")) lastScheduleInteractionAt = now;
+      if (target.closest(".atlas-console")) lastMenuInteractionAt = now;
       if (target.closest(".atlas-agent-card") || target.closest(".animal-map-marker--foreground")) {
-        lastAgentInteractionAt = performance.now();
+        lastAgentInteractionAt = now;
       }
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Enter" && event.key !== " ") return;
       const target = event.target instanceof Element ? event.target : null;
       if (!target) return;
+      const now = performance.now();
+      if (target.closest(".atlas-safe-schedule")) lastScheduleInteractionAt = now;
+      if (target.closest(".atlas-console")) lastMenuInteractionAt = now;
+      if (event.key !== "Enter" && event.key !== " ") return;
       if (target.closest(".atlas-safe-schedule__header")) {
         event.preventDefault();
         applySchedule(!scheduleExpanded);
