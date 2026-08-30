@@ -27,6 +27,10 @@ import {
   publishAsymptaCurrentRequest,
   type AsymptaCurrentRequest,
 } from "@/lib/asympta-current-request";
+import {
+  buildPublicAgentCityContextFromWindow,
+  dispatchPublicAgentCityPlan,
+} from "@/lib/asympta-city-plan";
 import { runAsymptaIntent, type AsymptaProtocolConfig } from "@/lib/asympta-protocol-runtime";
 import {
   getOrCreatePublicAgentClientId,
@@ -309,6 +313,7 @@ function formatCheckedAt(value: string, locale: Locale) {
 }
 
 function informationDestination(response: PublicAgentSuccessResponse): InformationJourneyDestination {
+  if (response.cityPlan) return "planning";
   if (response.goal.kind === "weather") return "weather";
   if (response.goal.kind === "research") return "public-web";
   if (response.goal.kind === "action") return "planning";
@@ -628,6 +633,7 @@ export function AsymptaIntentComposer() {
               timezone: browserTimezone(),
               turnstileToken: turnstile.token,
               clientId: next.principal.id,
+              cityContext: buildPublicAgentCityContextFromWindow(),
             }, {
               endpoint: publicConfig.endpoint,
               signal: controller.signal,
@@ -635,6 +641,21 @@ export function AsymptaIntentComposer() {
             assertCurrentRun();
           } finally {
             turnstile.release();
+          }
+
+          if (response.cityPlan) {
+            assertCurrentRun();
+            const dispatched = dispatchPublicAgentCityPlan(
+              trackedRequestId ?? response.activityId,
+              response.cityPlan,
+              controller.signal,
+            );
+            if (!dispatched) {
+              throw new PublicAgentClientError("The validated city plan could not be applied safely.", {
+                code: "invalid_upstream_response",
+                retryable: true,
+              });
+            }
           }
 
           if (response.goal.kind === "action") {
@@ -656,7 +677,7 @@ export function AsymptaIntentComposer() {
           publishRequest({
             goal: response.goal.title,
             kind: response.goal.kind,
-            permission: response.goal.kind === "action" ? "WRITE_REQUEST" : "READ",
+            permission: response.cityPlan?.access ?? (response.goal.kind === "action" ? "WRITE_REQUEST" : "READ"),
             status: "returning",
             actor: response.goal.kind === "research" ? REQUEST_ACTOR_COPY[locale].research : REQUEST_ACTOR_COPY[locale].verification,
             step: response.result?.verification.details ?? COPY[locale].verifying,

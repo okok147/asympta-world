@@ -1,3 +1,6 @@
+import type { PublicAgentCityPlan } from "./asympta-public-agent-contract.ts";
+import { isPublicAgentCityPlan } from "./asympta-city-plan.ts";
+
 export type StakeholderSide =
   | "user"
   | "customer"
@@ -104,6 +107,24 @@ export type AtlasApproval = {
   workflowId?: WorkflowId;
   agentId?: string;
   actionType?: ExternalAction;
+  cityRequestId?: string;
+  cityOperation?: PublicAgentCityPlan["operation"];
+  cityMessage?: string;
+  cityReason?: string;
+};
+
+export type AtlasCityPlanEvidence = {
+  requestId: string;
+  access: PublicAgentCityPlan["access"];
+  operation: PublicAgentCityPlan["operation"];
+  selectedAgentId: string;
+  workflowId: WorkflowId | null;
+  actionType: ExternalAction | null;
+  reason: string;
+  message: string | null;
+  approvalId: string | null;
+  status: "observed" | "pending_approval" | "approved" | "declined";
+  worldRevision: number;
 };
 
 export type AtlasWorldState = {
@@ -116,6 +137,7 @@ export type AtlasWorldState = {
   messages: AtlasMessage[];
   events: AtlasEvent[];
   approvals: AtlasApproval[];
+  lastCityPlan: AtlasCityPlanEvidence | null;
 };
 
 const EVENT_LIMIT = 90;
@@ -303,6 +325,7 @@ export function createAtlasWorld(now = Date.now()): AtlasWorldState {
     messages: [],
     events: [],
     approvals: [],
+    lastCityPlan: null,
   };
 }
 
@@ -314,6 +337,7 @@ export function startAtlasWorkflow(current: AtlasWorldState, workflowId: Workflo
   const definition = workflowFor(workflowId);
   const world = createAtlasWorld(current.now);
   world.revision = current.revision;
+  world.lastCityPlan = current.lastCityPlan ? { ...current.lastCityPlan } : null;
   world.workflowId = workflowId;
   world.phase = "running";
   world.tasks = definition.tasks.map((item) => ({
@@ -524,12 +548,19 @@ export function resolveAtlasApproval(current: AtlasWorldState, approvalId: strin
     if (approved) {
       const started = startAtlasWorkflow(world, approval.workflowId);
       pushEvent(started, "WebMCP request allowed", `The user allowed WebMCP to start ${workflowFor(approval.workflowId).name}.`);
+      if (approval.cityRequestId && started.lastCityPlan?.requestId === approval.cityRequestId) {
+        started.lastCityPlan.status = "approved";
+        started.lastCityPlan.worldRevision = started.revision;
+      }
       return started;
     }
     pushEvent(world, "WebMCP request declined", `The user declined ${workflowFor(approval.workflowId).name}.`);
   } else if (approval.kind === "webmcp-action") {
     if (approved && approval.taskId) {
       approveTask(world, approval.taskId, true);
+    } else if (approved && approval.cityOperation === "send_simulated_message" && approval.agentId && approval.cityMessage) {
+      pushMessage(world, "agent-user", approval.agentId, approval.cityMessage);
+      pushEvent(world, "Simulated message allowed", approval.cityMessage, { agentId: approval.agentId });
     } else if (approved) {
       pushEvent(world, "WebMCP action allowed", `${approval.title} ran in simulation mode only.`, { agentId: approval.agentId });
       if (approval.agentId) pushMessage(world, approval.agentId, "human", `${approval.title} · simulated`);
@@ -538,7 +569,12 @@ export function resolveAtlasApproval(current: AtlasWorldState, approvalId: strin
     }
   }
 
+  if (approval.cityRequestId && world.lastCityPlan?.requestId === approval.cityRequestId) {
+    world.lastCityPlan.status = approved ? "approved" : "declined";
+    world.lastCityPlan.worldRevision = world.revision;
+  }
   updatePhase(world);
+  if (!world.workflowId && !world.approvals.some((candidate) => candidate.status === "pending")) world.phase = "idle";
   return world;
 }
 
@@ -598,10 +634,99 @@ export function requestWebMcpAction(current: AtlasWorldState, actionType: Extern
   return world;
 }
 
+function requestWebMcpMessage(current: AtlasWorldState, agentId: string, message: string, reason: string) {
+  const world = cloneWorld(current);
+  const agent = world.agents.find((candidate) => candidate.id === agentId);
+  if (!agent) return world;
+  world.approvals.push({
+    id: nextId(world, "approval"),
+    source: "webmcp",
+    kind: "webmcp-action",
+    status: "pending",
+    title: `Allow simulated message to ${agent.name}`,
+    detail: reason.slice(0, 220),
+    consequence: "Approving adds this message to the local simulation only. It does not contact a real person or organisation.",
+    requestedAt: world.now,
+    agentId,
+    cityOperation: "send_simulated_message",
+    cityMessage: message.slice(0, 240),
+    cityReason: reason.slice(0, 220),
+  });
+  pushEvent(world, "Simulated message requested", `${agent.name} is waiting for human approval.`, { agentId });
+  if (world.phase === "idle") world.phase = "waiting_approval";
+  return world;
+}
+
+export function applyAtlasCityPlan(current: AtlasWorldState, requestId: string, plan: PublicAgentCityPlan) {
+  const cleanRequestId = requestId.trim().slice(0, 128);
+  if (!isPublicAgentCityPlan(plan)) return current;
+  const targetExists = current.agents.some((agent) => agent.id === plan.targetAgentId);
+  if (!cleanRequestId || !targetExists || current.lastCityPlan?.requestId === cleanRequestId) return current;
+
+  if (plan.access === "READ") {
+    const world = cloneWorld(current);
+    world.lastCityPlan = {
+      requestId: cleanRequestId,
+      access: plan.access,
+      operation: plan.operation,
+      selectedAgentId: plan.targetAgentId,
+      workflowId: null,
+      actionType: null,
+      reason: plan.reason,
+      message: null,
+      approvalId: null,
+      status: "observed",
+      worldRevision: world.revision,
+    };
+    return world;
+  }
+
+  let world = current;
+  if (plan.operation === "start_simulated_workflow" && plan.workflowId) {
+    world = requestWebMcpWorkflow(current, plan.workflowId);
+  } else if (plan.operation === "request_simulated_action" && plan.actionType) {
+    world = requestWebMcpAction(current, plan.actionType, plan.targetAgentId, plan.reason);
+  } else if (plan.operation === "send_simulated_message" && plan.message) {
+    world = requestWebMcpMessage(current, plan.targetAgentId, plan.message, plan.reason);
+  } else {
+    return current;
+  }
+
+  const approval = [...world.approvals].reverse().find((candidate) => {
+    if (candidate.status !== "pending") return false;
+    if (plan.operation === "start_simulated_workflow") return candidate.kind === "webmcp-start" && candidate.workflowId === plan.workflowId;
+    if (plan.operation === "request_simulated_action") return candidate.kind === "webmcp-action" && candidate.actionType === plan.actionType;
+    return candidate.kind === "webmcp-action" && candidate.cityOperation === "send_simulated_message";
+  });
+  if (!approval) return current;
+  approval.cityRequestId = cleanRequestId;
+  approval.cityOperation = plan.operation;
+  approval.cityReason = plan.reason;
+  if (plan.message) approval.cityMessage = plan.message;
+  if (world.phase === "idle") world.phase = "waiting_approval";
+  world.lastCityPlan = {
+    requestId: cleanRequestId,
+    access: plan.access,
+    operation: plan.operation,
+    selectedAgentId: plan.targetAgentId,
+    workflowId: plan.workflowId,
+    actionType: plan.actionType,
+    reason: plan.reason,
+    message: plan.message,
+    approvalId: approval.id,
+    status: "pending_approval",
+    worldRevision: world.revision,
+  };
+  return world;
+}
+
 export function atlasSnapshot(world: AtlasWorldState) {
   return {
+    revision: world.revision,
     phase: world.phase,
+    workflowId: world.workflowId ?? null,
     workflow: world.workflowId ? workflowFor(world.workflowId).name : null,
+    lastCityPlan: world.lastCityPlan ? { ...world.lastCityPlan } : null,
     tasks: world.tasks.map((taskState) => ({
       id: taskState.id,
       title: taskState.title,
@@ -627,6 +752,11 @@ export function atlasSnapshot(world: AtlasWorldState) {
       title: approval.title,
       actionType: approval.actionType ?? null,
       taskId: approval.taskId ?? null,
+      workflowId: approval.workflowId ?? null,
+      agentId: approval.agentId ?? null,
+      requestId: approval.cityRequestId ?? null,
+      operation: approval.cityOperation ?? null,
+      reason: approval.cityReason ?? null,
     })),
     messages: world.messages.slice(-8).map((message) => ({
       from: message.fromAgentId,

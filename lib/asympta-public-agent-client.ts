@@ -3,11 +3,13 @@ import {
   ASYMPTA_PUBLIC_AGENT_TURNSTILE_ACTION,
 } from "./asympta-public-agent-contract.ts";
 import type {
+  PublicAgentCityPlan,
   PublicAgentErrorCode,
   PublicAgentRequest,
   PublicAgentResponse,
   PublicAgentSuccessResponse,
 } from "./asympta-public-agent-contract.ts";
+import { isPublicAgentCityPlan } from "./asympta-city-plan.ts";
 
 const TURNSTILE_SCRIPT_URL = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
 const CLIENT_ID_STORAGE_KEY = "asympta.public-agent.client-id";
@@ -92,7 +94,11 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
-function hasValidSuccessShape(value: unknown): value is PublicAgentSuccessResponse {
+type PublicAgentSuccessPayload = Omit<PublicAgentSuccessResponse, "cityPlan"> & {
+  cityPlan?: PublicAgentCityPlan | null;
+};
+
+function hasValidSuccessShape(value: unknown): value is PublicAgentSuccessPayload {
   const response = record(value);
   const goal = record(response?.goal);
   const result = response?.result === null ? null : record(response?.result);
@@ -130,6 +136,7 @@ function hasValidSuccessShape(value: unknown): value is PublicAgentSuccessRespon
       typeof action.description === "string"
       && typeof action.consequence === "string"
     ))
+    && (response.cityPlan === undefined || response.cityPlan === null || isPublicAgentCityPlan(response.cityPlan))
     && ["openrouter", "asympta"].includes(String(provenance?.provider))
     && (typeof provenance?.model === "string" || provenance?.model === null)
     && isStringArray(provenance?.tools)
@@ -148,7 +155,24 @@ function hasValidErrorShape(value: unknown): value is Extract<PublicAgentRespons
 }
 
 function assertActionBoundary(response: PublicAgentSuccessResponse) {
-  const requiresBoundary = response.goal.kind === "action"
+  if (response.cityPlan?.access === "READ") {
+    if (
+      response.goal.kind !== "research"
+      || response.goal.status !== "completed"
+      || response.goal.requiresConfirmation
+      || response.goal.risk !== "none"
+      || response.action !== null
+    ) {
+      throw new PublicAgentClientError(
+        "The service returned an unsafe city READ plan.",
+        { code: "invalid_upstream_response", retryable: true },
+      );
+    }
+    return;
+  }
+
+  const requiresBoundary = response.cityPlan?.access === "WRITE_REQUEST"
+    || response.goal.kind === "action"
     || response.goal.status === "awaiting_confirmation"
     || response.goal.requiresConfirmation
     || response.action !== null;
@@ -188,8 +212,12 @@ function parseResponse(value: unknown, status: number, responseOk: boolean): Pub
       status,
     });
   }
-  assertActionBoundary(value);
-  return value;
+  const normalized: PublicAgentSuccessResponse = {
+    ...value,
+    cityPlan: value.cityPlan ?? null,
+  };
+  assertActionBoundary(normalized);
+  return normalized;
 }
 
 function createUuid() {

@@ -22,6 +22,7 @@ import {
   ATLAS_LOCATIONS,
   ATLAS_WORKFLOWS,
   advanceAtlasWorld,
+  applyAtlasCityPlan,
   atlasSnapshot,
   requestWebMcpAction,
   requestWebMcpWorkflow,
@@ -31,6 +32,10 @@ import {
   type StakeholderSide,
   type WorkflowId,
 } from "@/lib/atlas-simulation";
+import {
+  ASYMPTA_CITY_PLAN_EVENT,
+  readPublicAgentCityPlanEvent,
+} from "@/lib/asympta-city-plan";
 import {
   cityLifeActorAt,
   cityLifeSnapshot,
@@ -380,6 +385,10 @@ function activeAgent(world: AtlasWorldState, selectedId: string | null) {
     ?? world.agents[0];
 }
 
+function prettyJson(value: unknown) {
+  return JSON.stringify(value, null, 2);
+}
+
 export function AsymptaWorldLive60Hz() {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -402,10 +411,16 @@ export function AsymptaWorldLive60Hz() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [languageOpen, setLanguageOpen] = useState(false);
   const [readStateOpen, setReadStateOpen] = useState(false);
+  const [accessJson, setAccessJson] = useState(() => prettyJson({
+    ok: true,
+    access: "READ",
+    status: "ready",
+    note: "Open READ or WRITE REQUEST to inspect the JSON contract.",
+  }));
   const [locale, setLocale] = useState<Locale>("en");
   const [scaleMode, setScaleMode] = useState<ScaleMode>("world");
   const [globalResource, setGlobalResource] = useState<GlobalResource>("food");
-  const [visibleAmbientCount, setVisibleAmbientCount] = useState(0);
+  const [, setVisibleAmbientCount] = useState(0);
 
   const copy = COPY[locale];
 
@@ -539,6 +554,34 @@ export function AsymptaWorldLive60Hz() {
     return next;
   }, [updateForegroundMeta]);
 
+  useEffect(() => {
+    const applyPlan = (event: Event) => {
+      const detail = readPublicAgentCityPlanEvent(event);
+      if (!detail) return;
+      setSelectedAndFollow(detail.plan.targetAgentId, true);
+      const next = syncImmediate(applyAtlasCityPlan(worldRef.current, detail.requestId, detail.plan));
+      const snapshot = atlasSnapshot(next);
+      setMenuOpen(true);
+      setReadStateOpen(true);
+      setAccessJson(prettyJson({
+        ok: true,
+        requestId: detail.requestId,
+        access: detail.plan.access,
+        operation: detail.plan.operation,
+        selectedAgentId: detail.plan.targetAgentId,
+        workflowId: detail.plan.workflowId,
+        actionType: detail.plan.actionType,
+        message: detail.plan.message,
+        reason: detail.plan.reason,
+        queuedForHumanApproval: detail.plan.access === "WRITE_REQUEST",
+        evidence: snapshot.lastCityPlan,
+        snapshot,
+      }));
+    };
+    window.addEventListener(ASYMPTA_CITY_PLAN_EVENT, applyPlan);
+    return () => window.removeEventListener(ASYMPTA_CITY_PLAN_EVENT, applyPlan);
+  }, [setSelectedAndFollow, syncImmediate]);
+
   const startWorkflow = useCallback((workflowId: WorkflowId) => {
     const next = syncImmediate(startAtlasDemoWorkflow(worldRef.current, workflowId));
     const firstMoving = next.agents.find((agent) => agent.status === "moving") ?? null;
@@ -548,6 +591,22 @@ export function AsymptaWorldLive60Hz() {
 
   const resolveApproval = useCallback((approvalId: string, approved: boolean) => {
     const next = syncImmediate(resolveAtlasDemoApproval(worldRef.current, approvalId, approved));
+    const snapshot = atlasSnapshot(next);
+    if (snapshot.lastCityPlan?.approvalId === approvalId) {
+      setReadStateOpen(true);
+      setAccessJson(prettyJson({
+        ok: approved,
+        requestId: snapshot.lastCityPlan.requestId,
+        access: snapshot.lastCityPlan.access,
+        operation: snapshot.lastCityPlan.operation,
+        selectedAgentId: snapshot.lastCityPlan.selectedAgentId,
+        approvalId,
+        approvalStatus: snapshot.lastCityPlan.status,
+        simulatedOnly: true,
+        evidence: snapshot.lastCityPlan,
+        snapshot,
+      }));
+    }
     if (approved) {
       const moving = next.agents.find((agent) => agent.status === "moving");
       if (moving) setSelectedAndFollow(moving.id, true);
@@ -776,8 +835,6 @@ export function AsymptaWorldLive60Hz() {
   const selectedAgent = world.agents.find((agent) => agent.id === selectedAgentId) ?? null;
   const selectedTask = selectedAgent ? world.tasks.find((task) => task.agentId === selectedAgent.id && ["moving", "working", "waiting_approval"].includes(task.status)) : undefined;
   const approvalAgent = pendingApproval?.agentId ? world.agents.find((agent) => agent.id === pendingApproval.agentId) : null;
-  const movingForeground = world.agents.filter((agent) => agent.status === "moving").length;
-
   const recenter = () => {
     setSelectedAndFollow(selectedAgentIdRef.current, false);
     mapRef.current?.flyTo({ center: TOKYO_CENTER, zoom: TOKYO_ZOOM, bearing: 0, pitch: 0, duration: 420, essential: true });
@@ -796,11 +853,43 @@ export function AsymptaWorldLive60Hz() {
     window.__ASYMPTA_GLOBAL_WORLD__?.focusResource(next);
   };
 
+  const openReadJson = () => {
+    const nextOpen = !readStateOpen;
+    setReadStateOpen(nextOpen);
+    if (!nextOpen) return;
+    setAccessJson(prettyJson({
+      ok: true,
+      access: "READ",
+      operation: "observe_city",
+      snapshot: atlasSnapshot(worldRef.current),
+    }));
+  };
+
   const focusRequestComposer = () => {
-    const input = document.querySelector<HTMLTextAreaElement>(".asympta-intent-composer textarea");
-    input?.focus();
-    input?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-    setMenuOpen(false);
+    setMenuOpen(true);
+    setReadStateOpen(true);
+    setAccessJson(prettyJson({
+      ok: true,
+      access: "WRITE_REQUEST",
+      status: "awaiting_natural_language_intention",
+      allowedOperations: [
+        "send_simulated_message",
+        "start_simulated_workflow",
+        "request_simulated_action",
+      ],
+      humanApprovalRequired: true,
+      simulatedOnly: true,
+      note: "The model may create one pending request. It cannot approve or perform a real-world side effect.",
+    }));
+    window.requestAnimationFrame(() => {
+      const input = document.querySelector<HTMLTextAreaElement>(".asympta-intent-composer textarea");
+      input?.focus();
+      input?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    });
+  };
+
+  const copyAccessJson = () => {
+    void navigator.clipboard?.writeText(accessJson);
   };
 
   return (
@@ -830,7 +919,7 @@ export function AsymptaWorldLive60Hz() {
 
         <div className="atlas-menu-panel" aria-hidden={!menuOpen}>
           <div className="asympta-access-actions" aria-label="WebMCP request actions">
-            <button type="button" className={readStateOpen ? "is-active" : ""} aria-expanded={readStateOpen} onClick={() => setReadStateOpen((value) => !value)}>
+            <button type="button" className={readStateOpen ? "is-active" : ""} aria-expanded={readStateOpen} onClick={openReadJson}>
               <span className="asympta-access-action__icon"><Eye size={15} strokeWidth={1.7} /></span>
               <span className="asympta-access-action__copy"><strong>{copy.readState}</strong><small>{copy.readDescription}</small></span>
               <span className="asympta-access-stamp is-read">WEBMCP · READ</span>
@@ -843,10 +932,12 @@ export function AsymptaWorldLive60Hz() {
           </div>
 
           {readStateOpen ? (
-            <div className="asympta-access-readout" role="status" aria-live="polite">
-              <span><small>STATE</small><strong>{phaseCopy(locale, world)}</strong></span>
-              <span><small>AGENTS</small><strong>{movingForeground} active · {visibleAmbientCount} nearby</strong></span>
-              <span><small>APPROVAL</small><strong>{pendingApproval ? "1 waiting" : "clear"}</strong></span>
+            <div className="asympta-access-json" role="status" aria-live="polite">
+              <div className="asympta-access-json__bar">
+                <span><small>JSON</small><strong>{accessJson.includes('"WRITE_REQUEST"') ? "WRITE REQUEST" : "READ"}</strong></span>
+                <button type="button" onClick={copyAccessJson}>{copy.copyJson}</button>
+              </div>
+              <pre data-webmcp-json-output="true">{accessJson}</pre>
             </div>
           ) : null}
 

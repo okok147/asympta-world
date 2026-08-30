@@ -212,6 +212,12 @@ async function run() {
             requestBackgroundAlpha: alpha('.asympta-request-card'),
             scale: document.documentElement.dataset.asymptaScale ?? null,
             phase: snapshot?.phase ?? null,
+            revision: snapshot?.revision ?? null,
+            workflowId: snapshot?.workflowId ?? null,
+            pendingApprovalCount: snapshot?.pendingApprovals?.length ?? 0,
+            lastCityPlan: snapshot?.lastCityPlan ?? null,
+            selectedAgentId: document.querySelector('.animal-map-marker--foreground.is-selected')?.dataset?.agentId ?? null,
+            jsonOutput: document.querySelector('[data-webmcp-json-output="true"]')?.textContent ?? null,
             signature,
             bodyText: document.body?.innerText?.slice(0, 1000) ?? '',
             readyState: document.readyState
@@ -245,6 +251,76 @@ async function run() {
     await new Promise((resolve) => setTimeout(resolve, 1_800));
     const state = await capture();
 
+    const readEvaluation = await command("Runtime.evaluate", {
+      expression: `JSON.stringify((() => {
+        const before = window.__ASYMPTA_DEMO__?.snapshot?.()?.foreground ?? null;
+        window.dispatchEvent(new CustomEvent('asympta:city-plan', { detail: {
+          requestId: 'request-browser-read-1234',
+          plan: {
+            access: 'READ',
+            operation: 'inspect_agent',
+            targetAgentId: 'agent-business',
+            workflowId: null,
+            actionType: null,
+            message: null,
+            reason: 'Inspect the selected business agent in the local simulation.'
+          }
+        } }));
+        const after = window.__ASYMPTA_DEMO__?.snapshot?.()?.foreground ?? null;
+        return {
+          beforeRevision: before?.revision ?? null,
+          afterRevision: after?.revision ?? null,
+          pendingBefore: before?.pendingApprovals?.length ?? 0,
+          pendingAfter: after?.pendingApprovals?.length ?? 0,
+          evidence: after?.lastCityPlan ?? null
+        };
+      })())`,
+      returnByValue: true,
+    });
+    const readTransition = JSON.parse(readEvaluation?.result?.value ?? "{}");
+    await new Promise((resolve) => setTimeout(resolve, 650));
+    const readCardState = await capture();
+
+    const writeEvaluation = await command("Runtime.evaluate", {
+      expression: `JSON.stringify((() => {
+        const before = window.__ASYMPTA_DEMO__?.snapshot?.()?.foreground ?? null;
+        window.dispatchEvent(new CustomEvent('asympta:city-plan', { detail: {
+          requestId: 'request-browser-write-5678',
+          plan: {
+            access: 'WRITE_REQUEST',
+            operation: 'start_simulated_workflow',
+            targetAgentId: 'agent-support',
+            workflowId: 'service-recovery',
+            actionType: null,
+            message: null,
+            reason: 'Start the simulated recovery network only after the person approves.'
+          }
+        } }));
+        const after = window.__ASYMPTA_DEMO__?.snapshot?.()?.foreground ?? null;
+        const approval = (after?.pendingApprovals ?? []).find((item) => item.requestId === 'request-browser-write-5678') ?? null;
+        return {
+          beforeWorkflowId: before?.workflowId ?? null,
+          queuedWorkflowId: after?.workflowId ?? null,
+          approval,
+          evidence: after?.lastCityPlan ?? null
+        };
+      })())`,
+      returnByValue: true,
+    });
+    const writeTransition = JSON.parse(writeEvaluation?.result?.value ?? "{}");
+    await new Promise((resolve) => setTimeout(resolve, 650));
+    const writeCardState = await capture();
+
+    const approvalId = writeTransition.approval?.id;
+    if (!approvalId) throw new Error(`City-plan write did not create an exact pending approval: ${JSON.stringify(writeTransition)}`);
+    const approvedEvaluation = await command("Runtime.evaluate", {
+      expression: `JSON.stringify(window.__ASYMPTA_DEMO__?.approve?.(${JSON.stringify(approvalId)}, true) ?? null)`,
+      returnByValue: true,
+    });
+    const approvedSnapshot = JSON.parse(approvedEvaluation?.result?.value ?? "null");
+    await new Promise((resolve) => setTimeout(resolve, 650));
+    const approvedCardState = await capture();
+
     socket.close();
 
     if (!state.mapApp || !state.accessCard || !state.intentComposer || state.readyState !== "complete") {
@@ -262,6 +338,39 @@ async function run() {
     if (before.phase === "running" && state.phase === "running" && before.signature === state.signature) {
       throw new Error(`Living-world browser stall detected: ${state.signature}`);
     }
+    if (readTransition.beforeRevision !== readTransition.afterRevision
+      || readTransition.pendingBefore !== readTransition.pendingAfter
+      || readTransition.evidence?.status !== "observed"
+      || readTransition.evidence?.requestId !== "request-browser-read-1234") {
+      throw new Error(`City READ mutated state or lost evidence: ${JSON.stringify(readTransition)}`);
+    }
+    const readJson = JSON.parse(readCardState.jsonOutput ?? "null");
+    if (readCardState.selectedAgentId !== "agent-business"
+      || readJson?.access !== "READ"
+      || readJson?.evidence?.requestId !== "request-browser-read-1234") {
+      throw new Error(`City READ JSON card or selected agent failed: ${JSON.stringify(readCardState)}`);
+    }
+    if (writeTransition.queuedWorkflowId !== writeTransition.beforeWorkflowId
+      || writeTransition.evidence?.status !== "pending_approval"
+      || writeTransition.evidence?.approvalId !== writeTransition.approval?.id) {
+      throw new Error(`City WRITE REQUEST crossed approval boundary: ${JSON.stringify(writeTransition)}`);
+    }
+    const writeJson = JSON.parse(writeCardState.jsonOutput ?? "null");
+    if (writeCardState.selectedAgentId !== "agent-support"
+      || writeJson?.access !== "WRITE_REQUEST"
+      || writeJson?.queuedForHumanApproval !== true
+      || writeJson?.evidence?.requestId !== "request-browser-write-5678") {
+      throw new Error(`City WRITE JSON card failed: ${JSON.stringify(writeCardState)}`);
+    }
+    const approvedJson = JSON.parse(approvedCardState.jsonOutput ?? "null");
+    if (approvedSnapshot?.workflowId !== "service-recovery"
+      || approvedSnapshot?.lastCityPlan?.status !== "approved"
+      || approvedSnapshot?.lastCityPlan?.requestId !== "request-browser-write-5678"
+      || approvedCardState.workflowId !== "service-recovery"
+      || approvedJson?.approvalStatus !== "approved"
+      || approvedJson?.evidence?.requestId !== "request-browser-write-5678") {
+      throw new Error(`Approved simulated write did not read back exactly: ${JSON.stringify({ approvedSnapshot, approvedCardState })}`);
+    }
     if (exceptions.length) {
       throw new Error(`Browser runtime exception(s):\n${exceptions.join("\n---\n")}`);
     }
@@ -269,7 +378,7 @@ async function run() {
       throw new Error(`Browser console error(s):\n${consoleErrors.join("\n")}`);
     }
 
-    console.log(`Browser smoke passed: city scale, live world progression, ${state.visibleForegroundAnimals} foreground + ${state.visibleAmbientAnimals} ambient cute agents, request card and primary panels alpha ${state.menuBackgroundAlpha.toFixed(2)}/${state.requestBackgroundAlpha.toFixed(2)}.`);
+    console.log(`Browser smoke passed: city scale, live world progression, JSON READ/WRITE cards, model-plan agent selection, pending approval boundary and exact approved simulation read-back; ${state.visibleForegroundAnimals} foreground + ${state.visibleAmbientAnimals} ambient cute agents.`);
   } finally {
     chrome.kill("SIGTERM");
     server.close();

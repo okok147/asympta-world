@@ -1,4 +1,5 @@
 import * as legacy from "./atlas-simulation.ts";
+import type { PublicAgentCityPlan } from "./asympta-public-agent-contract.ts";
 import {
   advanceAgenticWorldRuntime,
   createAgenticWorldRuntime,
@@ -24,6 +25,7 @@ export type {
   AtlasAgentBlueprint,
   AtlasAgentState,
   AtlasApproval,
+  AtlasCityPlanEvidence,
   AtlasEvent,
   AtlasLocation,
   AtlasMessage,
@@ -344,6 +346,19 @@ export function resolveAtlasApproval(current: LegacyOrCanonicalWorld, approvalId
   bridgeRuntimeHistory(after);
   persistMaybe(after, true);
   return after;
+}
+
+export function applyAtlasCityPlan(
+  current: LegacyOrCanonicalWorld,
+  requestId: string,
+  plan: PublicAgentCityPlan,
+) {
+  const before = canonicalizeAtlasWorld(current);
+  const next = canonicalizeAtlasWorld(legacy.applyAtlasCityPlan(before, requestId, plan));
+  next.runtime = before.runtime;
+  next.runtimeHistoryCursor = before.runtimeHistoryCursor;
+  persistMaybe(next, true);
+  return next;
 }
 
 export function requestWebMcpWorkflow(current: LegacyOrCanonicalWorld, workflowId: legacy.WorkflowId) {

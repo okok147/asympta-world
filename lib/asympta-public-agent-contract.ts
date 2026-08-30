@@ -1,9 +1,72 @@
 export const ASYMPTA_PUBLIC_AGENT_API_PATH = "/v1/intent" as const;
 export const ASYMPTA_PUBLIC_AGENT_TURNSTILE_ACTION = "asympta_public_intent" as const;
 
+export const ASYMPTA_CITY_AGENT_IDS = [
+  "agent-user",
+  "agent-customer",
+  "agent-business",
+  "agent-supplier",
+  "agent-operations",
+  "agent-finance",
+  "agent-logistics",
+  "agent-support",
+  "agent-quality",
+  "agent-market",
+] as const;
+
+export const ASYMPTA_CITY_WORKFLOW_IDS = [
+  "custom-order",
+  "dinner-network",
+  "launch-stock",
+  "service-recovery",
+] as const;
+
+export const ASYMPTA_CITY_ACTION_TYPES = [
+  "reserve_capacity",
+  "authorize_payment",
+  "release_shipment",
+  "send_customer_update",
+] as const;
+
+export const ASYMPTA_CITY_OPERATIONS = [
+  "observe_city",
+  "inspect_agent",
+  "send_simulated_message",
+  "start_simulated_workflow",
+  "request_simulated_action",
+] as const;
+
 export type PublicAgentIntentKind = "weather" | "research" | "action" | "clarification";
 export type PublicAgentStage = "completed" | "needs_clarification" | "awaiting_confirmation";
 export type PublicAgentRisk = "none" | "low" | "medium" | "high";
+export type PublicAgentCityAccess = "READ" | "WRITE_REQUEST";
+export type PublicAgentCityAgentId = (typeof ASYMPTA_CITY_AGENT_IDS)[number];
+export type PublicAgentCityWorkflowId = (typeof ASYMPTA_CITY_WORKFLOW_IDS)[number];
+export type PublicAgentCityActionType = (typeof ASYMPTA_CITY_ACTION_TYPES)[number];
+export type PublicAgentCityOperation = (typeof ASYMPTA_CITY_OPERATIONS)[number];
+export type PublicAgentCityPhase = "idle" | "running" | "waiting_approval" | "completed" | "blocked";
+export type PublicAgentCityAgentStatus = "idle" | "moving" | "working" | "sharing" | "waiting" | "returning";
+
+export type PublicAgentCityContext = {
+  phase: PublicAgentCityPhase;
+  workflow: PublicAgentCityWorkflowId | null;
+  pendingApprovalCount: number;
+  agents: Array<{
+    id: PublicAgentCityAgentId;
+    role: string;
+    status: PublicAgentCityAgentStatus;
+  }>;
+};
+
+export type PublicAgentCityPlan = {
+  access: PublicAgentCityAccess;
+  operation: PublicAgentCityOperation;
+  targetAgentId: PublicAgentCityAgentId;
+  workflowId: PublicAgentCityWorkflowId | null;
+  actionType: PublicAgentCityActionType | null;
+  message: string | null;
+  reason: string;
+};
 
 export type PublicAgentRequest = {
   intent: string;
@@ -11,6 +74,7 @@ export type PublicAgentRequest = {
   timezone: string;
   turnstileToken: string;
   clientId: string;
+  cityContext?: PublicAgentCityContext | null;
 };
 
 export type PublicAgentGoal = {
@@ -60,6 +124,7 @@ export type PublicAgentSuccessResponse = {
   goal: PublicAgentGoal;
   result: PublicAgentResult | null;
   action: PublicAgentAction | null;
+  cityPlan: PublicAgentCityPlan | null;
   provenance: PublicAgentProvenance;
 };
 

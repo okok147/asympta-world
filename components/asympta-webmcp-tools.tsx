@@ -231,9 +231,11 @@ export function AsymptaWebMcpTools() {
         annotations: readOnlyUntrusted,
         execute: async (input) => {
           const request = readBrowserWebMcpRequest(input.requestId);
-          return request
-            ? JSON.stringify({ ok: true, request })
-            : JSON.stringify({ ok: false, error: "Request not found." });
+          if (!request) return JSON.stringify({ ok: false, error: "Request not found." });
+          const foreground = readForegroundSnapshot();
+          const evidence = foreground ? asRecord(foreground.lastCityPlan) : null;
+          const cityEvidence = evidence?.requestId === request.requestId ? evidence : null;
+          return JSON.stringify({ ok: true, request, cityEvidence });
         },
       },
       {

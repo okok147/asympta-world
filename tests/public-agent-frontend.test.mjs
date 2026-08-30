@@ -39,6 +39,7 @@ function validInformationResponse() {
       verification: { status: "verified", details: "Checked against the weather source." },
     },
     action: null,
+    cityPlan: null,
     provenance: { provider: "asympta", model: null, tools: ["weather"], simulated: false },
   };
 }
@@ -368,4 +369,57 @@ test("result rendering is compact, source-safe, responsive and accessible", () =
   assert.match(css, /orientation: landscape/);
   assert.match(css, /prefers-reduced-motion: reduce/);
   assert.match(css, /focus-visible/);
+});
+
+test("browser validates city plans again and only dispatches the latest non-aborted response", async () => {
+  const safe = validInformationResponse();
+  safe.goal.kind = "research";
+  safe.goal.risk = "none";
+  safe.cityPlan = {
+    access: "READ",
+    operation: "inspect_agent",
+    targetAgentId: "agent-business",
+    workflowId: null,
+    actionType: null,
+    message: null,
+    reason: "Inspect the business agent in the local simulation.",
+  };
+  safe.provenance.simulated = true;
+  safe.provenance.tools = ["asympta:atlas-city-plan"];
+  const parsed = await runPublicAgentIntent({
+    intent: "Inspect the merchant agent",
+    locale: "en",
+    timezone: "UTC",
+    turnstileToken: "single-use-browser-token",
+    clientId: "18e8ae4f-f4b7-46a0-b307-377f9bb1a69a",
+    cityContext: null,
+  }, {
+    endpoint: "https://agent.example/v1/intent",
+    fetcher: async () => new Response(JSON.stringify(safe), { status: 200 }),
+  });
+  assert.equal(parsed.cityPlan.operation, "inspect_agent");
+
+  const unsafe = structuredClone(safe);
+  unsafe.cityPlan.extra = "not allowed";
+  await assert.rejects(
+    runPublicAgentIntent({
+      intent: "Inspect the merchant agent",
+      locale: "en",
+      timezone: "UTC",
+      turnstileToken: "single-use-browser-token",
+      clientId: "18e8ae4f-f4b7-46a0-b307-377f9bb1a69a",
+    }, {
+      endpoint: "https://agent.example/v1/intent",
+      fetcher: async () => new Response(JSON.stringify(unsafe), { status: 200 }),
+    }),
+    (error) => error instanceof PublicAgentClientError && error.code === "invalid_upstream_response",
+  );
+
+  assert.match(composer, /cityContext: buildPublicAgentCityContextFromWindow\(\)/);
+  assert.match(composer, /dispatchPublicAgentCityPlan/);
+  const dispatchIndex = composer.indexOf("dispatchPublicAgentCityPlan(");
+  assert.ok(dispatchIndex > 0);
+  assert.ok(composer.lastIndexOf("assertCurrentRun();", dispatchIndex) < dispatchIndex);
+  assert.match(composer, /controller\.signal/);
+  assert.match(composer, /response\.cityPlan\?\.access/);
 });
