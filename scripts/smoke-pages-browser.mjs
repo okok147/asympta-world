@@ -201,13 +201,15 @@ async function run() {
           }) : '';
           return {
             mapApp: Boolean(document.querySelector('.map-app')),
-            schedule: Boolean(document.querySelector('.atlas-safe-schedule')),
+            accessCard: Boolean(document.querySelector('.asympta-access-card')),
+            intentComposer: Boolean(document.querySelector('.asympta-intent-composer')),
+            requestCard: Boolean(document.querySelector('.asympta-request-card')),
             foregroundAnimals: document.querySelectorAll('.animal-map-marker--foreground').length,
             ambientAnimals: document.querySelectorAll('.animal-map-marker--ambient').length,
             visibleForegroundAnimals: visible('.animal-map-marker--foreground'),
             visibleAmbientAnimals: visible('.animal-map-marker--ambient'),
             menuBackgroundAlpha: alpha('.atlas-console'),
-            scheduleBackgroundAlpha: alpha('.atlas-safe-schedule'),
+            requestBackgroundAlpha: alpha('.asympta-request-card'),
             scale: document.documentElement.dataset.asymptaScale ?? null,
             phase: snapshot?.phase ?? null,
             signature,
@@ -221,19 +223,41 @@ async function run() {
     };
 
     const before = await capture();
+    await command("Runtime.evaluate", {
+      expression: `window.dispatchEvent(new CustomEvent('asympta:current-request', { detail: {
+        requestId: 'request-hydration-smoke-1234',
+        source: 'human',
+        intent: 'Check current information',
+        goal: 'Check current information',
+        kind: 'research',
+        permission: 'READ',
+        status: 'completed',
+        actor: 'Cross-check agent',
+        step: 'Cross-check complete.',
+        destination: 'External information',
+        sourceCount: 0,
+        verification: 'not_verified',
+        events: ['Goal validated', 'Cross-check complete'],
+        updatedAt: new Date().toISOString()
+      } }))`,
+      returnByValue: true,
+    });
     await new Promise((resolve) => setTimeout(resolve, 1_800));
     const state = await capture();
 
     socket.close();
 
-    if (!state.mapApp || !state.schedule || state.readyState !== "complete") {
+    if (!state.mapApp || !state.accessCard || !state.intentComposer || state.readyState !== "complete") {
       throw new Error(`Hydration smoke failed: ${JSON.stringify(state)}`);
+    }
+    if (before.requestCard || !state.requestCard || !state.bodyText.includes("Check current information")) {
+      throw new Error(`Current-request card smoke failed: ${JSON.stringify({ before, state })}`);
     }
     if (state.scale !== "city" || state.foregroundAnimals < 1 || state.visibleForegroundAnimals < 1 || state.ambientAnimals < 1 || state.visibleAmbientAnimals < 1) {
       throw new Error(`Cute-agent visibility smoke failed: ${JSON.stringify(state)}`);
     }
-    if (state.menuBackgroundAlpha < 0.8 || state.scheduleBackgroundAlpha < 0.8) {
-      throw new Error(`Primary canvas opacity smoke failed: ${JSON.stringify({ menuBackgroundAlpha: state.menuBackgroundAlpha, scheduleBackgroundAlpha: state.scheduleBackgroundAlpha })}`);
+    if (state.menuBackgroundAlpha < 0.8 || state.requestBackgroundAlpha < 0.8) {
+      throw new Error(`Primary canvas opacity smoke failed: ${JSON.stringify({ menuBackgroundAlpha: state.menuBackgroundAlpha, requestBackgroundAlpha: state.requestBackgroundAlpha })}`);
     }
     if (before.phase === "running" && state.phase === "running" && before.signature === state.signature) {
       throw new Error(`Living-world browser stall detected: ${state.signature}`);
@@ -245,7 +269,7 @@ async function run() {
       throw new Error(`Browser console error(s):\n${consoleErrors.join("\n")}`);
     }
 
-    console.log(`Browser smoke passed: city scale, live world progression, ${state.visibleForegroundAnimals} foreground + ${state.visibleAmbientAnimals} ambient cute agents, primary panels alpha ${state.menuBackgroundAlpha.toFixed(2)}/${state.scheduleBackgroundAlpha.toFixed(2)}.`);
+    console.log(`Browser smoke passed: city scale, live world progression, ${state.visibleForegroundAnimals} foreground + ${state.visibleAmbientAnimals} ambient cute agents, request card and primary panels alpha ${state.menuBackgroundAlpha.toFixed(2)}/${state.requestBackgroundAlpha.toFixed(2)}.`);
   } finally {
     chrome.kill("SIGTERM");
     server.close();
