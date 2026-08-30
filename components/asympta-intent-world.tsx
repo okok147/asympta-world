@@ -8,6 +8,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 
 import { useIntentWorldBridge } from "@/components/asympta-intent-world-bridge";
@@ -41,16 +42,38 @@ import type {
   IntentWorldState,
 } from "@/lib/intent-world/types";
 import {
+  DEFAULT_ASYMPTA_USER_PREFERENCES,
   readAsymptaUserPreferences,
   subscribeAsymptaUserPreferences,
   writeAsymptaUserPreferences,
 } from "@/lib/asympta-user-preferences";
 
+const DEFAULT_PREFERENCE_SNAPSHOT = `${DEFAULT_ASYMPTA_USER_PREFERENCES.locale}|${DEFAULT_ASYMPTA_USER_PREFERENCES.autoExplore ? "1" : "0"}`;
+
+function readPreferenceSnapshot() {
+  const preferences = readAsymptaUserPreferences();
+  return `${preferences.locale}|${preferences.autoExplore ? "1" : "0"}`;
+}
+
+function subscribePreferenceSnapshot(notify: () => void) {
+  return subscribeAsymptaUserPreferences(() => notify());
+}
+
+function parsePreferenceSnapshot(snapshot: string): { locale: Locale; autoRun: boolean } {
+  const [rawLocale, rawAutoRun] = snapshot.split("|");
+  const locale: Locale = rawLocale === "zh-Hant" || rawLocale === "ja" ? rawLocale : "en";
+  return { locale, autoRun: rawAutoRun !== "0" };
+}
+
 export function AsymptaIntentWorld() {
   const [world, setWorld] = useState<IntentWorldState>(() => createIntentWorld());
   const worldRef = useRef(world);
-  const [locale, setLocale] = useState<Locale>("en");
-  const [autoRun, setAutoRun] = useState(true);
+  const preferenceSnapshot = useSyncExternalStore(
+    subscribePreferenceSnapshot,
+    readPreferenceSnapshot,
+    () => DEFAULT_PREFERENCE_SNAPSHOT,
+  );
+  const { locale, autoRun } = parsePreferenceSnapshot(preferenceSnapshot);
   const autoRunRef = useRef(autoRun);
   const [conversation, setConversation] = useState<ChatMessage[]>([]);
   const conversationRef = useRef(conversation);
@@ -75,18 +98,9 @@ export function AsymptaIntentWorld() {
   }, [autoRun]);
 
   useEffect(() => {
-    const preferences = readAsymptaUserPreferences();
-    setLocale(preferences.locale);
-    setAutoRun(preferences.autoExplore);
-    document.documentElement.lang = preferences.locale;
+    document.documentElement.lang = locale;
     document.documentElement.dataset.asymptaScale = "city";
-    const unsubscribe = subscribeAsymptaUserPreferences((next) => {
-      setLocale(next.locale);
-      setAutoRun(next.autoExplore);
-      document.documentElement.lang = next.locale;
-    });
-    return unsubscribe;
-  }, []);
+  }, [locale]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -227,12 +241,10 @@ export function AsymptaIntentWorld() {
   const toggleAutoRun = useCallback(() => {
     const next = !autoRunRef.current;
     autoRunRef.current = next;
-    setAutoRun(next);
     writeAsymptaUserPreferences({ autoExplore: next });
   }, []);
 
   const changeLocale = useCallback((next: Locale) => {
-    setLocale(next);
     document.documentElement.lang = next;
     writeAsymptaUserPreferences({ locale: next });
     setLanguageOpen(false);
