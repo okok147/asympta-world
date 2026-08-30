@@ -8,17 +8,15 @@ import {
   decideWorkflowEscalation,
   foregroundProgressSignature,
   type ForegroundSnapshot,
-  type WorkflowId,
 } from "@/lib/asympta-escalation-policy";
 
 type Locale = "en" | "zh-Hant" | "ja";
 type DemoApi = {
   snapshot: () => { foreground?: ForegroundSnapshot };
-  startWorkflow: (workflowId: WorkflowId) => unknown;
   approve: (approvalId: string, approved: boolean) => unknown;
 };
 
-type NoticeCode = "auto-approve-recovery" | "human-authority-required" | "safe-replay";
+type NoticeCode = "auto-approve-recovery" | "human-authority-required";
 type Notice = { code: NoticeCode; workflow?: string | null };
 
 const POLL_MS = 650;
@@ -27,21 +25,18 @@ const NOTICE_MS = 5_200;
 const COPY: Record<Locale, Record<NoticeCode | "title", string>> = {
   en: {
     title: "Senior Coordinator",
-    "auto-approve-recovery": "No progress was detected at an Auto Approve checkpoint. The senior agent recovered the missed simulated approval and continued the workflow.",
-    "human-authority-required": "This step still needs a human decision. The senior agent escalated it, clarified the dependency, and will not override human authority.",
-    "safe-replay": "The workflow stopped making progress. The senior agent chose a clean safe replay so the demo cannot remain permanently stuck.",
+    "auto-approve-recovery": "No progress was detected at an Auto Approve checkpoint. The senior agent recovered the missed simulated approval and continued the same workflow.",
+    "human-authority-required": "This step still needs a human decision. The senior agent clarified the dependency and will not override human authority or restart the workflow.",
   },
   "zh-Hant": {
     title: "高階協調代理",
-    "auto-approve-recovery": "系統在自動批准節點偵測到長時間沒有進度。高階代理已補救漏掉的模擬批准並繼續流程。",
-    "human-authority-required": "這一步仍需要人類決定。高階代理已升級處理並釐清依賴，但不會越權取代人類批准。",
-    "safe-replay": "工作流長時間沒有任何進度。高階代理已決定從安全基準重新執行，避免示範永久卡死。",
+    "auto-approve-recovery": "系統在自動批准節點偵測到長時間沒有進度。高階代理已補救漏掉的模擬批准，並在同一工作流繼續。",
+    "human-authority-required": "這一步仍需要人類決定。高階代理已釐清依賴，但不會越權取代人類批准，也不會重新啟動工作流。",
   },
   ja: {
     title: "上位調整エージェント",
-    "auto-approve-recovery": "自動承認チェックポイントで進行停止を検知しました。上位エージェントが欠落したシミュレーション承認を復旧し、処理を継続しました。",
-    "human-authority-required": "この手順は人の判断が必要です。上位エージェントがエスカレーションして依存関係を整理しましたが、人の権限を上書きしません。",
-    "safe-replay": "ワークフローの進行が停止しました。上位エージェントが安全な再実行を選び、デモが永久停止しないよう復旧しました。",
+    "auto-approve-recovery": "自動承認チェックポイントで進行停止を検知しました。上位エージェントが欠落した承認を復旧し、同じワークフローを継続しました。",
+    "human-authority-required": "この手順は人の判断が必要です。上位エージェントは依存関係を整理しますが、人の権限を上書きせず、ワークフローも再起動しません。",
   },
 };
 
@@ -100,15 +95,13 @@ export function AsymptaEscalationGuard() {
       const decision = decideWorkflowEscalation(foreground, stagnantMs, autoApproveIsOn());
       if (decision.kind === "none") return;
 
-      const decisionKey = `${decision.kind}:${decision.kind === "restart-workflow" ? decision.workflowId : decision.approvalId}`;
+      const decisionKey = `${decision.kind}:${decision.approvalId}`;
       if (handledDecisionRef.current === decisionKey) return;
       handledDecisionRef.current = decisionKey;
       lastProgressAtRef.current = now;
 
       if (decision.kind === "approve-missed-auto") {
         try { api.approve(decision.approvalId, true); } catch {}
-      } else if (decision.kind === "restart-workflow") {
-        try { api.startWorkflow(decision.workflowId); } catch {}
       }
 
       const code = decision.code;
