@@ -7,6 +7,7 @@ import { AsymptaEscalationGuard } from "@/components/asympta-escalation-guard";
 import { AsymptaEstimatedProgress } from "@/components/asympta-estimated-progress";
 import { AsymptaGlobalLocale } from "@/components/asympta-global-locale";
 import { AsymptaGlobalWorld } from "@/components/asympta-global-world";
+import { AsymptaIntentComposer } from "@/components/asympta-intent-composer";
 import { AsymptaJobMode } from "@/components/asympta-job-mode";
 import { AsymptaPaperMapTone } from "@/components/asympta-paper-map-tone";
 import { AsymptaProcessCameraFollow } from "@/components/asympta-process-camera-follow";
@@ -20,7 +21,6 @@ import { AsymptaUltraCalm } from "@/components/asympta-ultra-calm";
 import { AsymptaUserPreferences } from "@/components/asympta-user-preferences";
 import { AsymptaWebMcpTools } from "@/components/asympta-webmcp-tools";
 import { AsymptaWorkflowEconomy } from "@/components/asympta-workflow-economy";
-import { AsymptaWorkflowGuide } from "@/components/asympta-workflow-guide";
 import { AsymptaWorldLive60Hz } from "@/components/asympta-world-live-60hz";
 
 export default function HomePage() {
@@ -29,6 +29,7 @@ export default function HomePage() {
       <AsymptaWorldLive60Hz />
       <AsymptaCuteAgentVisibility />
       <AsymptaGlobalWorld />
+      <AsymptaIntentComposer />
       <AsymptaUserPreferences />
       <AsymptaEscalationGuard />
       <AsymptaJobMode />
@@ -47,7 +48,6 @@ export default function HomePage() {
       <AsymptaCardCollapse />
       <AsymptaCalmDefaults />
       <AsymptaUltraCalm />
-      <AsymptaWorkflowGuide />
       <AsymptaAgentCardLocale />
       <AsymptaGlobalLocale />
     </>
