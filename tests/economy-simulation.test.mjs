@@ -67,9 +67,9 @@ test("Job Mode models gross income, expenses and positive expected net value", (
   assert.ok(projected.breakdown.compute > 0);
 });
 
-test("real-time economics reuse calm UI without cross-root React portals", () => {
-  assert.match(page, /AsymptaWorkflowEconomy/);
-  assert.match(page, /AsymptaUltraCalm/);
+test("legacy economic projections remain reusable but preset economy UI is not mounted", () => {
+  assert.match(page, /AsymptaIntentWorld/);
+  assert.doesNotMatch(page, /AsymptaWorkflowEconomy|AsymptaUltraCalm/);
   assert.match(workflowEconomy, /REFRESH_MS = 350/);
   assert.match(workflowEconomy, /workflowTaskAccruedEconomy/);
   assert.match(workflowEconomy, /dataset\.asymptaWorkflowCost/);
