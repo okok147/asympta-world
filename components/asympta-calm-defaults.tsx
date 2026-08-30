@@ -10,7 +10,15 @@ export function AsymptaCalmDefaults() {
     let scheduleCompacted = false;
 
     const sync = () => {
-      if (scheduleCompacted || document.hidden) return;
+      if (document.hidden) return;
+
+      const menu = document.querySelector<HTMLElement>(".atlas-console");
+      if (menu?.classList.contains("is-collapsed")) {
+        const webMcpToggle = menu.querySelector<HTMLButtonElement>(".atlas-tool-actions button:first-child[aria-expanded='true']");
+        webMcpToggle?.click();
+      }
+
+      if (scheduleCompacted) return;
       const schedule = document.querySelector<HTMLElement>(".atlas-safe-schedule");
       const header = schedule?.querySelector<HTMLElement>(".atlas-safe-schedule__header[data-asympta-collapse-toggle='schedule']");
       if (!schedule || !header) return;
