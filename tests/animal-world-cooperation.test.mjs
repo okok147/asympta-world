@@ -53,13 +53,16 @@ test("local workflow switching preserves the existing fund ledger", () => {
   assert.equal(world.runtime.accounts.find((account) => account.ownerId === "agent-business")?.balance, 84_219);
 });
 
-test("schedule and agent cards auto collapse while the main menu stays user controlled", () => {
+test("schedule and main menu stay user controlled while the agent card may auto collapse", () => {
   const source = readFileSync(new URL("../components/asympta-card-collapse.tsx", import.meta.url), "utf8");
-  assert.match(source, /PANEL_AUTO_COLLAPSE_MS = 8_000/);
-  assert.match(source, /scheduleExpanded && now - lastScheduleInteractionAt >= PANEL_AUTO_COLLAPSE_MS/);
   assert.match(source, /AGENT_AUTO_COLLAPSE_MS = 5_500/);
+  assert.match(source, /atlas-safe-schedule__header/);
+  assert.match(source, /applySchedule\(!scheduleExpanded\)/);
+  assert.doesNotMatch(source, /PANEL_AUTO_COLLAPSE_MS/);
+  assert.doesNotMatch(source, /lastScheduleInteractionAt/);
   assert.doesNotMatch(source, /lastMenuInteractionAt/);
-  assert.doesNotMatch(source, /menuIsOpen\(\) && now - .*PANEL_AUTO_COLLAPSE_MS/);
+  assert.doesNotMatch(source, /scheduleExpanded && .*performance\.now\(\).*applySchedule\(false\)/);
+  assert.doesNotMatch(source, /menuIsOpen\(\) && .*performance\.now\(\).*setMenuOpen\(false\)/);
   assert.doesNotMatch(source, /atlas-approval/);
 });
 
