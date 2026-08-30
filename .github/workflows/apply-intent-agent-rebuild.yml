@@ -1,0 +1,119 @@
+name: Apply validated intent-agent rebuild
+
+on:
+  push:
+    branches:
+      - feat/intent-agent-world-20260830
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  validate-and-promote:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out candidate branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Materialize staged rebuild
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f rebuild/package.json
+          test -f rebuild/src/engine/orchestrator.js
+          test -f rebuild/api/agent.js
+          test -f rebuild/tests/engine.test.js
+
+          rm -rf src api tests public dist node_modules
+          rm -f package-lock.json
+          cp -R rebuild/src ./src
+          cp -R rebuild/api ./api
+          cp -R rebuild/tests ./tests
+          cp -R rebuild/public ./public
+          cp rebuild/package.json ./package.json
+          cp rebuild/index.html ./index.html
+          cp rebuild/vite.config.js ./vite.config.js
+          cp rebuild/.env.example ./.env.example
+          cp rebuild/.gitignore ./.gitignore
+          cp rebuild/README.md ./README.md
+          cp rebuild/ARCHITECTURE.md ./ARCHITECTURE.md
+
+          rm -rf rebuild
+          rm -f .github/workflows/apply-intent-agent-rebuild.yml
+
+      - name: Install locked dependency graph
+        run: npm install --no-audit --no-fund
+
+      - name: Run lifecycle tests
+        run: npm test
+
+      - name: Build production client
+        run: npm run build
+
+      - name: Verify secret boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -R --line-number \
+            --exclude-dir=.git \
+            --exclude-dir=node_modules \
+            --exclude-dir=dist \
+            -E 'sk-or-v1-[A-Za-z0-9]{20,}' .; then
+            echo 'OpenRouter secret-like token found in repository content.' >&2
+            exit 1
+          fi
+          if grep -R --line-number -E 'sk-or-v1-|OPENROUTER_API_KEY' dist; then
+            echo 'Server credential material leaked into browser bundle.' >&2
+            exit 1
+          fi
+
+      - name: Verify architecture contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'validateAction' src/engine/orchestrator.js
+          grep -q 'verifyTransition' src/engine/orchestrator.js
+          grep -q 'validateWorldInvariants' src/engine/orchestrator.js
+          grep -q 'openai/gpt-oss-120b:free' api/agent.js
+          grep -q 'openai/gpt-oss-20b:free' api/agent.js
+          if grep -R --line-number -E 'preset workflow|preset-workflow|workflow preset' src; then
+            echo 'Preset workflow implementation is still present.' >&2
+            exit 1
+          fi
+
+      - name: Commit verified candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'Asympta Builder'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A
+          git commit -m 'Rebuild world around validated conversational agents'
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
+      - name: Fast-forward main or open a pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git push origin HEAD:main; then
+            echo 'Validated rebuild fast-forwarded to main.'
+          else
+            gh pr view --head "${GITHUB_REF_NAME}" >/dev/null 2>&1 || \
+              gh pr create \
+                --base main \
+                --head "${GITHUB_REF_NAME}" \
+                --title 'Rebuild Asympta World around validated conversational agents' \
+                --body $'Conversation-first rebuild with no preset workflows.\n\nEvidence gates run before this PR is created:\n- lifecycle unit tests\n- production Vite build\n- repository and browser-bundle secret scan\n- validated action / transition / invariant architecture checks\n\nThe OpenRouter route is server-only and constrained to free GPT-OSS model IDs.'
