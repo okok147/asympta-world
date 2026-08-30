@@ -4,15 +4,35 @@ import test from "node:test";
 
 import {
   advanceAtlasWorld,
+  atlasSimulationSpeed,
   createAtlasWorld,
   projectWorldCooperationToAnimals,
   resolveAtlasApproval,
+  setAtlasSimulationSpeed,
   startAtlasWorkflow,
 } from "../lib/atlas-animal-cooperation.ts";
 import { startAtlasDemoWorkflow } from "../lib/atlas-canonical-demo.ts";
 
 function balances(world) {
   return Object.fromEntries(world.runtime.accounts.map((account) => [account.ownerId, account.balance]));
+}
+
+function completeWorkflow(workflowId, speed = 5, seed = 9000) {
+  let world = setAtlasSimulationSpeed(createAtlasWorld(10_000, seed), speed);
+  world = startAtlasWorkflow(world, workflowId);
+  const initialTaskIds = world.tasks.map((task) => task.id);
+
+  for (let step = 0; step < 20_000; step += 1) {
+    world = advanceAtlasWorld(world, 120);
+    let approval = world.approvals.find((item) => item.status === "pending");
+    while (approval) {
+      world = resolveAtlasApproval(world, approval.id, true);
+      approval = world.approvals.find((item) => item.status === "pending");
+    }
+    if (world.phase === "completed") break;
+  }
+
+  return { world, initialTaskIds };
 }
 
 test("canonical world events become visible cooperation messages between animal agents", () => {
@@ -72,8 +92,45 @@ test("blocked persisted worlds are preserved instead of silently reset", () => {
   assert.doesNotMatch(source, /persisted\.phase !== ["']blocked["']/);
 });
 
+test("simulation speed supports every 1x through 5x world-time multiplier", () => {
+  for (const speed of [1, 2, 3, 4, 5]) {
+    let world = setAtlasSimulationSpeed(createAtlasWorld(50_000 + speed, 5100 + speed), speed);
+    world = startAtlasWorkflow(world, "custom-order");
+    const before = world.now;
+    world = advanceAtlasWorld(world, 120);
+    assert.equal(atlasSimulationSpeed(world), speed);
+    assert.equal(world.now - before, 120 * speed);
+  }
+});
+
+test("all four local workflows run successfully to completion without replay", () => {
+  const workflows = ["custom-order", "dinner-network", "launch-stock", "service-recovery"];
+  workflows.forEach((workflowId, index) => {
+    const { world, initialTaskIds } = completeWorkflow(workflowId, 5, 9200 + index);
+    assert.equal(world.workflowId, workflowId, `${workflowId} must remain the same workflow`);
+    assert.equal(world.phase, "completed", `${workflowId} must reach completed`);
+    assert.ok(initialTaskIds.every((id) => world.tasks.find((task) => task.id === id)?.status === "done"), `${workflowId} must finish every original task`);
+    assert.equal(new Set(world.tasks.map((task) => task.id)).size, world.tasks.length, `${workflowId} must not replay duplicate tasks`);
+    assert.ok(world.runtime.orders.at(-1), `${workflowId} must retain a runtime order`);
+  });
+});
+
+test("Dinner repairs its missing reservation through a higher agent and resumes the same dispatch", () => {
+  const { world } = completeWorkflow("dinner-network", 5, 7777);
+  const escalation = world.tasks.find((task) => task.id === "escalation-dn-dispatch");
+  assert.ok(escalation, "Dinner should expose a real higher-agent escalation task");
+  assert.equal(escalation.status, "done");
+  assert.equal(world.tasks.find((task) => task.id === "dn-dispatch")?.status, "done");
+  assert.equal(world.phase, "completed");
+  assert.ok(world.runtime.reservations.some((reservation) => reservation.status === "consumed"));
+  assert.ok(world.runtime.history.some((event) => event.type === "escalation_requested" && event.intentId === "task:dn-dispatch"));
+  assert.ok(world.runtime.history.some((event) => event.type === "escalation_resolved" && event.intentId === "task:dn-dispatch"));
+  assert.ok(world.runtime.information.some((info) => info.subject === "task:dn-dispatch:shipment-recovery"));
+});
+
 test("service recovery visibly gets stuck, escalates to a higher agent, solves it, and continues", () => {
-  let world = startAtlasWorkflow(createAtlasWorld(10_000, 8080), "service-recovery");
+  let world = setAtlasSimulationSpeed(createAtlasWorld(10_000, 8080), 5);
+  world = startAtlasWorkflow(world, "service-recovery");
   let sawOriginalStuck = false;
   let sawHigherAgentTask = false;
   let sawResolved = false;
