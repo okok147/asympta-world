@@ -24,13 +24,7 @@ const MIME = {
 };
 
 function findChrome() {
-  const candidates = [
-    process.env.CHROME_BIN,
-    "google-chrome",
-    "google-chrome-stable",
-    "chromium",
-    "chromium-browser",
-  ].filter(Boolean);
+  const candidates = [process.env.CHROME_BIN, "google-chrome", "google-chrome-stable", "chromium", "chromium-browser"].filter(Boolean);
   for (const candidate of candidates) {
     if (candidate.includes("/")) return candidate;
     const result = spawnSync("which", [candidate], { encoding: "utf8" });
@@ -182,15 +176,27 @@ async function run() {
       loaded,
       new Promise((_, reject) => setTimeout(() => reject(new Error("Timed out waiting for page load.")), 12_000)),
     ]);
-    await new Promise((resolve) => setTimeout(resolve, 4_000));
+    await new Promise((resolve) => setTimeout(resolve, 4_500));
 
     const result = await command("Runtime.evaluate", {
-      expression: `JSON.stringify({
-        mapApp: Boolean(document.querySelector('.map-app')),
-        schedule: Boolean(document.querySelector('.atlas-safe-schedule')),
-        bodyText: document.body?.innerText?.slice(0, 1000) ?? '',
-        readyState: document.readyState
-      })`,
+      expression: `JSON.stringify((() => {
+        const visible = (selector) => [...document.querySelectorAll(selector)].filter((node) => {
+          const rect = node.getBoundingClientRect();
+          const style = getComputedStyle(node);
+          return !node.hidden && style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity || 1) > 0 && rect.width > 0 && rect.height > 0 && rect.right >= 0 && rect.bottom >= 0 && rect.left <= innerWidth && rect.top <= innerHeight;
+        }).length;
+        return {
+          mapApp: Boolean(document.querySelector('.map-app')),
+          schedule: Boolean(document.querySelector('.atlas-safe-schedule')),
+          foregroundAnimals: document.querySelectorAll('.animal-map-marker--foreground').length,
+          ambientAnimals: document.querySelectorAll('.animal-map-marker--ambient').length,
+          visibleForegroundAnimals: visible('.animal-map-marker--foreground'),
+          visibleAmbientAnimals: visible('.animal-map-marker--ambient'),
+          scale: document.documentElement.dataset.asymptaScale ?? null,
+          bodyText: document.body?.innerText?.slice(0, 1000) ?? '',
+          readyState: document.readyState
+        };
+      })())`,
       returnByValue: true,
     });
     const state = JSON.parse(result?.result?.value ?? "{}");
@@ -200,6 +206,9 @@ async function run() {
     if (!state.mapApp || !state.schedule || state.readyState !== "complete") {
       throw new Error(`Hydration smoke failed: ${JSON.stringify(state)}`);
     }
+    if (state.scale !== "city" || state.foregroundAnimals < 1 || state.visibleForegroundAnimals < 1 || state.ambientAnimals < 1 || state.visibleAmbientAnimals < 1) {
+      throw new Error(`Cute-agent visibility smoke failed: ${JSON.stringify(state)}`);
+    }
     if (exceptions.length) {
       throw new Error(`Browser runtime exception(s):\n${exceptions.join("\n---\n")}`);
     }
@@ -207,7 +216,7 @@ async function run() {
       throw new Error(`Browser console error(s):\n${consoleErrors.join("\n")}`);
     }
 
-    console.log("Browser hydration smoke passed: map + schedule mounted without uncaught runtime exceptions.");
+    console.log(`Browser hydration smoke passed: city scale with ${state.visibleForegroundAnimals} visible foreground and ${state.visibleAmbientAnimals} visible ambient cute agents.`);
   } finally {
     chrome.kill("SIGTERM");
     server.close();
