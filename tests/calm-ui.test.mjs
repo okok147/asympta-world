@@ -9,6 +9,7 @@ const calmDefaults = await readFile(new URL("../components/asympta-calm-defaults
 const cardCollapse = await readFile(new URL("../components/asympta-card-collapse.tsx", import.meta.url), "utf8");
 const workflowGuide = await readFile(new URL("../components/asympta-workflow-guide.tsx", import.meta.url), "utf8");
 const jobMode = await readFile(new URL("../components/asympta-job-mode.tsx", import.meta.url), "utf8");
+const ultraCalm = await readFile(new URL("../components/asympta-ultra-calm.tsx", import.meta.url), "utf8");
 const preferences = await readFile(new URL("../lib/asympta-user-preferences.ts", import.meta.url), "utf8");
 
 test("the map stays the primary surface instead of opening dashboards by default", () => {
@@ -20,6 +21,15 @@ test("the map stays the primary surface instead of opening dashboards by default
   assert.match(cardCollapse, /applySchedule\(false\)/);
   assert.doesNotMatch(cardCollapse, /applySchedule\(!isMobile\(\)\)/);
   assert.doesNotMatch(workflowGuide, /if \(consoleCard\.classList\.contains\("is-collapsed"\)\)/);
+});
+
+test("top menu and schedule canvases stay readable near ninety percent opacity", () => {
+  assert.match(ultraCalm, /atlas-console[\s\S]*rgba\(248,246,239,\.88\)/);
+  assert.match(ultraCalm, /atlas-safe-schedule[\s\S]*rgba\(248,246,239,\.88\)/);
+  assert.match(ultraCalm, /atlas-console\.is-collapsed[\s\S]*\.84/);
+  assert.match(ultraCalm, /atlas-safe-schedule\.is-collapsed[\s\S]*\.84/);
+  assert.doesNotMatch(ultraCalm, /atlas-console \{[\s\S]{0,120}rgba\(248,246,239,\.30\)/);
+  assert.doesNotMatch(ultraCalm, /atlas-safe-schedule \{[\s\S]{0,120}rgba\(248,246,239,\.28\)/);
 });
 
 test("only one detailed information surface can own the map at a time", () => {
