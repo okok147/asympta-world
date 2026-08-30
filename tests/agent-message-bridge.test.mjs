@@ -72,14 +72,19 @@ test("message state survives serialization and restoration", () => {
   assert.equal(restored.messages[0].body, "Please help me with this order.");
 });
 
-test("camera process lock follows schedule-task handoffs and re-arms dropped follow", () => {
+test("camera process follow respects sticky manual off and only task interaction re-arms automatic follow", () => {
   const source = readFileSync(new URL("../components/asympta-process-camera-follow.tsx", import.meta.url), "utf8");
-  assert.match(source, /\.atlas-safe-task/);
+  assert.match(source, /manualFollowLock/);
+  assert.match(source, /asymptaCameraFollowManualLock/);
+  assert.match(source, /disableProcessLock\(true\)/);
+  assert.match(source, /const scheduledTask = element\?\.closest\("\.atlas-safe-task"\)/);
+  assert.match(source, /if \(scheduledTask\) clearManualFollowLock\(\)/);
+  assert.match(source, /if \(manualFollowLock\) return/);
+  assert.match(source, /disableVisibleCameraFollow/);
   assert.match(source, /taskChanged/);
   assert.match(source, /followDropped/);
-  assert.match(source, /cameraFollowIsActive/);
   assert.match(source, /clickAgent\(nextAgentId\)/);
-  assert.match(source, /activeMap\.on\("dragstart", disableProcessLock\)/);
+  assert.match(source, /activeMap\.on\("dragstart", manualMapDrag\)/);
   assert.match(source, /FOLLOW_REFRESH_MS = 450/);
   assert.doesNotMatch(source, /requestAnimationFrame|MutationObserver|preventDefault\(\)|stopPropagation\(\)/);
 });
