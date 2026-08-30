@@ -53,23 +53,40 @@ function cameraFollowIsActive() {
   return Boolean(document.querySelector(".atlas-follow.is-active"));
 }
 
+function disableVisibleCameraFollow() {
+  const toggle = document.querySelector<HTMLButtonElement>(".atlas-follow.is-active");
+  toggle?.click();
+}
+
 export function AsymptaProcessCameraFollow() {
   useEffect(() => {
     let processLock = false;
+    let manualFollowLock = false;
     let followedAgentId: string | null = null;
     let followedTaskKey: string | null = null;
     let activeMap: FollowMap | null = null;
 
-    const disableProcessLock = () => {
+    const syncManualDataset = () => {
+      document.documentElement.dataset.asymptaCameraFollowManualLock = manualFollowLock ? "on" : "off";
+    };
+
+    const disableProcessLock = (manual = false) => {
       processLock = false;
       followedAgentId = null;
       followedTaskKey = null;
+      if (manual) manualFollowLock = true;
       document.documentElement.dataset.asymptaProcessCameraLock = "off";
+      syncManualDataset();
     };
 
     const enableProcessLock = () => {
       processLock = true;
       document.documentElement.dataset.asymptaProcessCameraLock = "on";
+    };
+
+    const clearManualFollowLock = () => {
+      manualFollowLock = false;
+      syncManualDataset();
     };
 
     const followCurrentAgent = () => {
@@ -83,8 +100,16 @@ export function AsymptaProcessCameraFollow() {
       const foreground = snapshot.foreground;
       if (!foreground) return;
 
-      // Turning on the regular Camera Follow control during a running workflow upgrades it
-      // into process lock automatically. The user does not need to understand a second mode.
+      // A manual off/drag is authoritative. Runtime handoffs, approvals and recovery
+      // may still try to select/follow an agent, but they are not allowed to turn the
+      // camera back on until the user explicitly re-triggers it.
+      if (manualFollowLock) {
+        if (cameraFollowIsActive()) disableVisibleCameraFollow();
+        return;
+      }
+
+      // Before a manual override, an explicit Camera Follow click can still promote
+      // regular follow into process follow for the currently running workflow.
       if (!processLock && cameraFollowIsActive() && foreground.phase !== "completed" && foreground.phase !== "idle") {
         enableProcessLock();
       }
@@ -100,8 +125,8 @@ export function AsymptaProcessCameraFollow() {
       const taskChanged = taskKey !== followedTaskKey;
       const followDropped = !cameraFollowIsActive();
 
-      // Re-clicking the marker is intentional when a task changes or the underlying map
-      // temporarily dropped camera-follow. It re-arms the real 60Hz follow loop.
+      // Re-click only while process follow is genuinely armed. A user-disabled camera
+      // is filtered above and is never treated as an accidental dropped follow.
       if (agentChanged || taskChanged || followDropped) {
         followedAgentId = nextAgentId;
         followedTaskKey = taskKey;
@@ -115,8 +140,11 @@ export function AsymptaProcessCameraFollow() {
       const scheduledTask = element?.closest(".atlas-safe-task");
       if (!workflow && !scheduledTask) return;
 
-      // Do not cancel the real button click. We only add process camera lock after the
-      // workflow/schedule interaction so React remains responsible for the actual task.
+      // Schedule-task clicks are the canonical re-trigger after a manual camera off.
+      // A workflow tile must not silently override a user's manual camera choice.
+      if (scheduledTask) clearManualFollowLock();
+      if (manualFollowLock) return;
+
       enableProcessLock();
       followedAgentId = null;
       followedTaskKey = null;
@@ -128,11 +156,13 @@ export function AsymptaProcessCameraFollow() {
       if (!element) return;
       window.setTimeout(() => {
         if (cameraFollowIsActive()) {
+          // Explicit user ON is allowed. It is not an automatic re-enable.
+          clearManualFollowLock();
           enableProcessLock();
           followedTaskKey = null;
           followCurrentAgent();
         } else {
-          disableProcessLock();
+          disableProcessLock(true);
         }
       }, 0);
     };
@@ -140,15 +170,17 @@ export function AsymptaProcessCameraFollow() {
     document.addEventListener("click", enableFromWorkflowClick);
     document.addEventListener("click", syncManualFollowToggle);
 
+    const manualMapDrag = () => disableProcessLock(true);
+
     const syncMapListener = () => {
       const map = bridge().__ASYMPTA_MAP__ ?? null;
       if (map === activeMap) return;
       if (activeMap?.off) {
-        try { activeMap.off("dragstart", disableProcessLock); } catch {}
+        try { activeMap.off("dragstart", manualMapDrag); } catch {}
       }
       activeMap = map;
       if (activeMap) {
-        try { activeMap.on("dragstart", disableProcessLock); } catch {}
+        try { activeMap.on("dragstart", manualMapDrag); } catch {}
       }
     };
 
@@ -158,6 +190,7 @@ export function AsymptaProcessCameraFollow() {
       followCurrentAgent();
     };
 
+    syncManualDataset();
     tick();
     const timer = window.setInterval(tick, FOLLOW_REFRESH_MS);
     return () => {
@@ -165,9 +198,10 @@ export function AsymptaProcessCameraFollow() {
       document.removeEventListener("click", enableFromWorkflowClick);
       document.removeEventListener("click", syncManualFollowToggle);
       if (activeMap?.off) {
-        try { activeMap.off("dragstart", disableProcessLock); } catch {}
+        try { activeMap.off("dragstart", manualMapDrag); } catch {}
       }
       delete document.documentElement.dataset.asymptaProcessCameraLock;
+      delete document.documentElement.dataset.asymptaCameraFollowManualLock;
     };
   }, []);
 
