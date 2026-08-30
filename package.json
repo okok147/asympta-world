@@ -1,8 +1,8 @@
 {
   "name": "asympta-world",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "A world-scale WebMCP coordination model where specialised agents move food, materials, merchandise, medicine and power through visible global supply networks.",
+  "description": "An intention-first multi-agent simulation where natural-language goals become validated task graphs, deterministic execution and human-gated consequential actions.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -20,7 +20,7 @@
     "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log NODE_OPTIONS='--experimental-loader ./scripts/cloudflare-node-loader.mjs' vinext start",
     "test": "npm run build && npm run test:all",
     "test:all": "node --experimental-loader ./scripts/cloudflare-node-loader.mjs --test tests/*.test.mjs",
-    "test:engine": "node --experimental-loader ./scripts/cloudflare-node-loader.mjs --test tests/atlas-simulation.test.mjs tests/workflow-expansion.test.mjs tests/camera-block-activity.test.mjs tests/safe-automation-controls.test.mjs tests/job-mode-escalation.test.mjs tests/calm-ui.test.mjs tests/economy-simulation.test.mjs tests/global-world.test.mjs tests/living-world-engine.test.mjs tests/living-world-product.test.mjs tests/webmcp-contract.test.mjs tests/agent-runtime.test.mjs tests/agentic-world-runtime.test.mjs tests/canonical-world-integration.test.mjs tests/agent-message-bridge.test.mjs tests/animal-world-cooperation.test.mjs",
+    "test:engine": "node --experimental-loader ./scripts/cloudflare-node-loader.mjs --test tests/atlas-simulation.test.mjs tests/workflow-expansion.test.mjs tests/camera-block-activity.test.mjs tests/safe-automation-controls.test.mjs tests/job-mode-escalation.test.mjs tests/calm-ui.test.mjs tests/economy-simulation.test.mjs tests/global-world.test.mjs tests/living-world-engine.test.mjs tests/living-world-product.test.mjs tests/webmcp-contract.test.mjs tests/agent-runtime.test.mjs tests/agentic-world-runtime.test.mjs tests/canonical-world-integration.test.mjs tests/agent-message-bridge.test.mjs tests/animal-world-cooperation.test.mjs tests/intent-world.test.mjs tests/intent-planner-api.test.mjs",
     "test:webmcp": "node --experimental-loader ./scripts/cloudflare-node-loader.mjs --test tests/webmcp-contract.test.mjs tests/agent-message-bridge.test.mjs",
     "test:agent-runtime": "node --experimental-loader ./scripts/cloudflare-node-loader.mjs --test tests/agent-runtime.test.mjs",
     "test:rendered": "node --experimental-loader ./scripts/cloudflare-node-loader.mjs --test tests/rendered-html.test.mjs",
@@ -42,7 +42,6 @@
     "@types/node": "22.19.19",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
-    "@types/three": "^0.185.4",
     "@vitejs/plugin-react": "6.1.0",
     "@vitejs/plugin-rsc": "0.5.34",
     "eslint": "9.39.4",
