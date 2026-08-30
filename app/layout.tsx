@@ -16,6 +16,7 @@ import "./asympta-card-collapse.css";
 import "./asympta-calm-ui.css";
 import "./asympta-global-world.css";
 import "./asympta-intent.css";
+import "./asympta-request-cards.css";
 
 const faviconPath = process.env.ASYMPTA_PAGES_BUILD === "1"
   ? "/asympta-world/favicon-asympta-cat-20260829.svg"

@@ -23,6 +23,10 @@ import {
   type InformationJourneyDestination,
   type InformationJourneyState,
 } from "@/lib/asympta-information-journey";
+import {
+  publishAsymptaCurrentRequest,
+  type AsymptaCurrentRequest,
+} from "@/lib/asympta-current-request";
 import { runAsymptaIntent, type AsymptaProtocolConfig } from "@/lib/asympta-protocol-runtime";
 import {
   getOrCreatePublicAgentClientId,
@@ -33,6 +37,11 @@ import {
   runPublicAgentIntent,
 } from "@/lib/asympta-public-agent-client";
 import type { PublicAgentSuccessResponse } from "@/lib/asympta-public-agent-contract";
+import {
+  subscribeBrowserWebMcpRequests,
+  updateBrowserWebMcpRequest,
+  type AsymptaWebMcpRequest,
+} from "@/lib/asympta-webmcp-request-state";
 
 type Locale = "en" | "zh-Hant" | "ja";
 
@@ -41,6 +50,11 @@ type ProtocolBridge = {
   configure: (config: AsymptaProtocolConfig, options?: { persist?: boolean }) => AsymptaProtocolConfig;
   runIntent: (intention: string) => Promise<AsymptaActivity>;
   lastActivity: () => AsymptaActivity | null;
+};
+
+type RequestContext = {
+  source: "human" | "webmcp";
+  requestId?: string;
 };
 
 declare global {
@@ -223,6 +237,48 @@ const JOURNEY_COPY: Record<Locale, {
   },
 };
 
+const REQUEST_ACTOR_COPY: Record<Locale, {
+  intent: string;
+  information: string;
+  research: string;
+  verification: string;
+  safety: string;
+  asympta: string;
+  webMcpReady: string;
+  review: string;
+}> = {
+  en: {
+    intent: "Intent agent",
+    information: "Information agents",
+    research: "2 research agents + 1 cross-check agent",
+    verification: "Verification agent",
+    safety: "Safety gate",
+    asympta: "Asympta",
+    webMcpReady: "WebMCP request ready for your review",
+    review: "Review request",
+  },
+  "zh-Hant": {
+    intent: "意圖代理",
+    information: "資訊代理",
+    research: "2 個研究代理 + 1 個交叉檢查代理",
+    verification: "驗證代理",
+    safety: "安全閘門",
+    asympta: "Asympta",
+    webMcpReady: "WebMCP 請求已準備好，等待你審核",
+    review: "審核請求",
+  },
+  ja: {
+    intent: "意図エージェント",
+    information: "情報エージェント",
+    research: "2 調査エージェント + 1 相互確認エージェント",
+    verification: "検証エージェント",
+    safety: "安全ゲート",
+    asympta: "Asympta",
+    webMcpReady: "WebMCP リクエストを確認できます",
+    review: "リクエストを確認",
+  },
+};
+
 function localeFromDocument(): Locale {
   const value = document.documentElement.lang.toLowerCase();
   if (value.startsWith("zh")) return "zh-Hant";
@@ -362,6 +418,14 @@ function PublicAgentResultPanel({ response, locale }: {
           </time>
         ) : null}
         {response.provenance.simulated ? <span>{copy.simulated}</span> : null}
+        {response.result?.verification ? (
+          <span
+            className="asympta-intent-result__verification"
+            data-verification={response.result.verification.status}
+          >
+            {response.result.verification.details}
+          </span>
+        ) : null}
         {sources.length ? (
           <nav aria-label={copy.sources}>
             {sources.map((source, index) => (
@@ -417,9 +481,11 @@ export function AsymptaIntentComposer() {
   const [publicResult, setPublicResult] = useState<PublicAgentSuccessResponse | null>(null);
   const [journey, setJourney] = useState<InformationJourneyState>(EMPTY_INFORMATION_JOURNEY);
   const [requestError, setRequestError] = useState<{ message: string; retryable: boolean } | null>(null);
+  const [webMcpDraft, setWebMcpDraft] = useState<AsymptaWebMcpRequest | null>(null);
   const configRef = useRef<AsymptaProtocolConfig>({ mcp: [], a2a: [] });
   const activityRef = useRef<AsymptaActivity | null>(null);
   const journeyRef = useRef<InformationJourneyState>(EMPTY_INFORMATION_JOURNEY);
+  const currentRequestRef = useRef<AsymptaCurrentRequest | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const turnstileRef = useRef<HTMLDivElement | null>(null);
 
@@ -431,6 +497,10 @@ export function AsymptaIntentComposer() {
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ["lang"] });
     return () => observer.disconnect();
   }, []);
+
+  useEffect(() => subscribeBrowserWebMcpRequests((request) => {
+    if (request.status === "pending_human_review") setWebMcpDraft(request);
+  }), []);
 
   const publishActivity = useCallback((next: AsymptaActivity, event: AsymptaActivityEvent) => {
     activityRef.current = next;
@@ -446,7 +516,7 @@ export function AsymptaIntentComposer() {
     return next;
   }, []);
 
-  const runIntent = useCallback(async (intention: string) => {
+  const runIntent = useCallback(async (intention: string, requestContext: RequestContext = { source: "human" }) => {
     const clean = intention.trim();
     if (!clean) throw new Error("An intention is required.");
     if (clean.length > 600) throw new Error("An intention can contain at most 600 characters.");
@@ -459,6 +529,22 @@ export function AsymptaIntentComposer() {
       if (!isCurrentRun()) throw new DOMException("Aborted", "AbortError");
     };
     let activeTripId: string | null = null;
+    let trackedRequestId = requestContext.requestId ?? null;
+    let currentRequest: AsymptaCurrentRequest | null = null;
+    const publishRequest = (patch: Partial<AsymptaCurrentRequest>, event?: string) => {
+      if (!currentRequest) return;
+      const events = event
+        ? [...currentRequest.events, event].filter(Boolean).slice(-6)
+        : currentRequest.events;
+      currentRequest = {
+        ...currentRequest,
+        ...patch,
+        events,
+        updatedAt: new Date().toISOString(),
+      };
+      currentRequestRef.current = currentRequest;
+      publishAsymptaCurrentRequest(currentRequest);
+    };
     setRunning(true);
     setRequestError(null);
     setPublicResult(null);
@@ -472,7 +558,29 @@ export function AsymptaIntentComposer() {
           principalId: getOrCreatePublicAgentClientId(),
         });
         const tripId = next.id;
+        trackedRequestId = trackedRequestId ?? tripId;
         activeTripId = tripId;
+        currentRequest = {
+          requestId: trackedRequestId,
+          source: requestContext.source,
+          intent: clean,
+          goal: null,
+          kind: null,
+          permission: "READ",
+          status: "interpreting",
+          actor: REQUEST_ACTOR_COPY[locale].intent,
+          step: COPY[locale].interpreting,
+          destination: null,
+          sourceCount: 0,
+          verification: null,
+          events: [COPY[locale].interpreting],
+          updatedAt: new Date().toISOString(),
+        };
+        currentRequestRef.current = currentRequest;
+        publishAsymptaCurrentRequest(currentRequest);
+        if (requestContext.source === "webmcp" && requestContext.requestId) {
+          updateBrowserWebMcpRequest(requestContext.requestId, { status: "running" });
+        }
         updateJourney((current) => beginInformationJourney(current, tripId));
         const emit = (
           status: AsymptaActivityStatus,
@@ -508,6 +616,12 @@ export function AsymptaIntentComposer() {
             assertCurrentRun();
             updateJourney((current) => gatherInformationJourney(current, tripId));
             emit("discovering", "Searching current sources and checking the safe next step.", "agent-market");
+            publishRequest({
+              status: "gathering",
+              actor: REQUEST_ACTOR_COPY[locale].information,
+              step: COPY[locale].discovering,
+              destination: JOURNEY_COPY[locale].destinations.external,
+            }, COPY[locale].discovering);
             response = await runPublicAgentIntent({
               intent: clean,
               locale,
@@ -537,9 +651,22 @@ export function AsymptaIntentComposer() {
             "agent-quality",
             { publicActivityId: response.activityId, verification: response.result?.verification.status },
           );
+          const destination = informationDestination(response);
+          const sourceCount = (response.result?.sources ?? []).filter((source) => isSafePublicAgentSourceUrl(source.url)).length;
+          publishRequest({
+            goal: response.goal.title,
+            kind: response.goal.kind,
+            permission: response.goal.kind === "action" ? "WRITE_REQUEST" : "READ",
+            status: "returning",
+            actor: response.goal.kind === "research" ? REQUEST_ACTOR_COPY[locale].research : REQUEST_ACTOR_COPY[locale].verification,
+            step: response.result?.verification.details ?? COPY[locale].verifying,
+            destination: JOURNEY_COPY[locale].destinations[destination],
+            sourceCount,
+            verification: response.result?.verification.status ?? null,
+          }, response.result?.verification.details ?? COPY[locale].verifying);
           updateJourney((current) => returnInformationJourney(current, tripId, {
-            destination: informationDestination(response),
-            sourceCount: (response.result?.sources ?? []).filter((source) => isSafePublicAgentSourceUrl(source.url)).length,
+            destination,
+            sourceCount,
           }));
           await waitForJourneyMotion(controller.signal, 680);
           assertCurrentRun();
@@ -547,6 +674,11 @@ export function AsymptaIntentComposer() {
 
           if (response.goal.status === "awaiting_confirmation") {
             updateJourney((current) => finishInformationJourney(current, tripId, "waiting"));
+            publishRequest({
+              status: "awaiting_confirmation",
+              actor: REQUEST_ACTOR_COPY[locale].safety,
+              step: response.action?.consequence ?? COPY[locale].pendingConfirmation,
+            }, COPY[locale].pendingConfirmation);
             emit(
               "waiting_input",
               "The action is ready for review and has not been executed.",
@@ -555,6 +687,11 @@ export function AsymptaIntentComposer() {
             );
           } else if (response.goal.status === "needs_clarification") {
             updateJourney((current) => finishInformationJourney(current, tripId, "waiting"));
+            publishRequest({
+              status: "waiting_input",
+              actor: REQUEST_ACTOR_COPY[locale].asympta,
+              step: response.goal.summary,
+            }, response.goal.summary);
             emit(
               "waiting_input",
               response.goal.summary,
@@ -572,6 +709,11 @@ export function AsymptaIntentComposer() {
               },
             };
             updateJourney((current) => finishInformationJourney(current, tripId, "delivered"));
+            publishRequest({
+              status: "completed",
+              actor: REQUEST_ACTOR_COPY[locale].asympta,
+              step: response.result?.answer ?? response.goal.summary,
+            }, COPY[locale].completed);
             emit(
               "completed",
               response.result?.answer ?? response.goal.summary,
@@ -579,12 +721,30 @@ export function AsymptaIntentComposer() {
               { publicActivityId: response.activityId },
             );
           }
+          if (requestContext.source === "webmcp" && requestContext.requestId) {
+            const requestStatus = response.goal.status === "awaiting_confirmation"
+              ? "awaiting_confirmation"
+              : response.goal.status === "needs_clarification"
+                ? "needs_clarification"
+                : "completed";
+            updateBrowserWebMcpRequest(requestContext.requestId, {
+              status: requestStatus,
+              resultSummary: response.goal.status === "awaiting_confirmation"
+                ? response.action?.consequence ?? response.goal.summary
+                : response.result?.answer ?? response.goal.summary,
+            });
+          }
           return next;
         } catch (error) {
           if ((error instanceof DOMException && error.name === "AbortError") || !isCurrentRun()) {
             throw new DOMException("Aborted", "AbortError");
           }
           updateJourney((current) => failInformationJourney(current, tripId));
+          publishRequest({
+            status: "failed",
+            actor: REQUEST_ACTOR_COPY[locale].asympta,
+            step: error instanceof Error ? error.message : COPY[locale].failed,
+          }, COPY[locale].failed);
           emit(
             "failed",
             error instanceof Error ? error.message : String(error),
@@ -608,10 +768,29 @@ export function AsymptaIntentComposer() {
       return result;
     } catch (error) {
       if ((error instanceof DOMException && error.name === "AbortError") || !isCurrentRun()) {
+        if (requestContext.source === "webmcp" && requestContext.requestId) {
+          updateBrowserWebMcpRequest(requestContext.requestId, {
+            status: "failed",
+            resultSummary: "Request was interrupted before completion.",
+          });
+        }
         if (abortRef.current === controller && activeTripId) {
           updateJourney((current) => current.tripId === activeTripId ? EMPTY_INFORMATION_JOURNEY : current);
         }
         throw new DOMException("Aborted", "AbortError");
+      }
+      if (requestContext.source === "webmcp" && requestContext.requestId) {
+        updateBrowserWebMcpRequest(requestContext.requestId, {
+          status: "failed",
+          resultSummary: error instanceof Error ? error.message : COPY[locale].failed,
+        });
+      }
+      if (currentRequest && currentRequest.status !== "failed") {
+        publishRequest({
+          status: "failed",
+          actor: REQUEST_ACTOR_COPY[locale].asympta,
+          step: error instanceof Error ? error.message : COPY[locale].failed,
+        }, COPY[locale].failed);
       }
       setRequestError({
         message: error instanceof Error ? error.message : COPY[locale].failed,
@@ -647,8 +826,14 @@ export function AsymptaIntentComposer() {
     event?.preventDefault();
     const intention = text.trim();
     if (!intention || running) return;
+    const reviewedWebMcpRequest = webMcpDraft?.status === "pending_human_review" && webMcpDraft.intent === intention
+      ? webMcpDraft
+      : null;
     try {
-      await runIntent(intention);
+      if (reviewedWebMcpRequest) setWebMcpDraft(null);
+      await runIntent(intention, reviewedWebMcpRequest
+        ? { source: "webmcp", requestId: reviewedWebMcpRequest.requestId }
+        : { source: "human" });
       setText("");
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
@@ -661,6 +846,17 @@ export function AsymptaIntentComposer() {
       event.preventDefault();
       void submit();
     }
+  };
+
+  const reviewWebMcpDraft = () => {
+    if (!webMcpDraft || running) return;
+    setText(webMcpDraft.intent);
+    setRequestError(null);
+    window.requestAnimationFrame(() => {
+      const input = document.querySelector<HTMLTextAreaElement>(".asympta-intent-composer textarea");
+      input?.focus();
+      input?.setSelectionRange(input.value.length, input.value.length);
+    });
   };
 
   const status = activity?.status;
@@ -680,6 +876,17 @@ export function AsymptaIntentComposer() {
         </div>
       ) : null}
       <InformationJourneyTicket journey={journey} locale={locale} />
+      {webMcpDraft ? (
+        <button
+          type="button"
+          className="asympta-webmcp-draft"
+          onClick={reviewWebMcpDraft}
+          disabled={running}
+        >
+          <span><strong>{REQUEST_ACTOR_COPY[locale].webMcpReady}</strong><small>{webMcpDraft.intent}</small></span>
+          <b>{REQUEST_ACTOR_COPY[locale].review}</b>
+        </button>
+      ) : null}
       <div
         ref={turnstileRef}
         className="asympta-intent-turnstile"

@@ -25,6 +25,7 @@ export type AsymptaRuntimeOptions = {
   principalId?: string;
   fetcher?: FetchLike;
   signal?: AbortSignal;
+  trustedMcpEndpoints?: readonly string[];
   onActivity?: (activity: AsymptaActivity, event: AsymptaActivityEvent) => void;
 };
 
@@ -138,6 +139,23 @@ function mcpInputRequired(result: unknown) {
 function mcpIsError(result: unknown) {
   const root = record(result);
   return root?.isError === true || root?.resultType === "error";
+}
+
+function canonicalTrustedMcpEndpoint(value: string) {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" || url.username || url.password) return null;
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function isTrustedMcpEndpoint(peer: McpPeer, trustedEndpoints: readonly string[] | undefined) {
+  const endpoint = canonicalTrustedMcpEndpoint(peer.url);
+  if (!endpoint || !trustedEndpoints?.length) return false;
+  return trustedEndpoints.some((candidate) => canonicalTrustedMcpEndpoint(candidate) === endpoint);
 }
 
 function delay(milliseconds: number, signal?: AbortSignal) {
@@ -308,6 +326,31 @@ export async function runAsymptaIntent(
         peer: peer.name ?? peer.url,
         summary: "A connected tool needs a little more information before it can act.",
         data: { tool: bestMcp.tool.name, missingFields: prepared.missing },
+      });
+      return activity;
+    }
+
+    const annotations = record(bestMcp.tool.annotations);
+    const explicitlyReadOnly = annotations?.readOnlyHint === true;
+    const trustedEndpoint = isTrustedMcpEndpoint(peer, options.trustedMcpEndpoints);
+    if (!explicitlyReadOnly || !trustedEndpoint) {
+      const reason = !trustedEndpoint ? "untrusted_mcp_endpoint" : "tool_not_explicitly_read_only";
+      emit({
+        status: "waiting_input",
+        protocol: "mcp",
+        actorId: "agent-user",
+        peer: peer.name ?? peer.url,
+        summary: !trustedEndpoint
+          ? "This MCP endpoint is not in Asympta's trusted list. Review it before any tool call."
+          : "This MCP tool is not explicitly read-only. Human approval is required before any tool call.",
+        data: {
+          tool: bestMcp.tool.name,
+          reason,
+          approvalRequired: true,
+          explicitlyReadOnly,
+          trustedEndpoint,
+          toolCallMade: false,
+        },
       });
       return activity;
     }

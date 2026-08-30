@@ -105,15 +105,84 @@ test("runtime can discover and execute a real MCP tool when no A2A agent is avai
     const body = JSON.parse(String(init.body));
     methods.push(body.method);
     if (body.method === "tools/list") {
-      return jsonResponse({ jsonrpc: "2.0", id: body.id, result: { tools: [{ name: "food_search", title: "Food search", description: "Search food and groceries", inputSchema: { type: "object", properties: { query: { type: "string" } }, required: ["query"] } }] } });
+      return jsonResponse({ jsonrpc: "2.0", id: body.id, result: { tools: [{ name: "food_search", title: "Food search", description: "Search food and groceries", inputSchema: { type: "object", properties: { query: { type: "string" } }, required: ["query"] }, annotations: { readOnlyHint: true } }] } });
     }
     return jsonResponse({ jsonrpc: "2.0", id: body.id, result: { content: [{ type: "text", text: "found" }], isError: false } });
   };
 
-  const activity = await runAsymptaIntent("Find food near me", { a2a: [], mcp: [{ url: "https://tools.example/mcp" }] }, { fetcher });
+  const activity = await runAsymptaIntent("Find food near me", { a2a: [], mcp: [{ url: "https://tools.example/mcp" }] }, {
+    fetcher,
+    trustedMcpEndpoints: ["https://tools.example/mcp"],
+  });
   assert.equal(activity.status, "completed");
   assert.deepEqual(methods, ["tools/list", "tools/call"]);
   assert.equal(activity.outcome?.verification, "tool-result");
+});
+
+test("runtime never calls an MCP tool unless it is explicitly read-only", async () => {
+  for (const annotations of [undefined, { readOnlyHint: false }]) {
+    const methods = [];
+    const fetcher = async (url, init) => {
+      const body = JSON.parse(String(init.body));
+      methods.push(body.method);
+      return jsonResponse({
+        jsonrpc: "2.0",
+        id: body.id,
+        result: {
+          tools: [{
+            name: "reserve_inventory",
+            description: "Reserve inventory for an order",
+            inputSchema: { type: "object", properties: { request: { type: "string" } }, required: ["request"] },
+            ...(annotations ? { annotations } : {}),
+          }],
+        },
+      });
+    };
+
+    const activity = await runAsymptaIntent("Reserve inventory for my order", {
+      a2a: [],
+      mcp: [{ url: "https://tools.example/mcp" }],
+    }, {
+      fetcher,
+      trustedMcpEndpoints: ["https://tools.example/mcp"],
+    });
+    assert.equal(activity.status, "waiting_input");
+    assert.deepEqual(methods, ["tools/list"]);
+    assert.equal(activity.events.at(-1)?.data?.reason, "tool_not_explicitly_read_only");
+    assert.equal(activity.events.at(-1)?.data?.toolCallMade, false);
+  }
+});
+
+test("runtime never calls an explicitly read-only MCP tool from an untrusted endpoint", async () => {
+  const methods = [];
+  const fetcher = async (url, init) => {
+    const body = JSON.parse(String(init.body));
+    methods.push(body.method);
+    return jsonResponse({
+      jsonrpc: "2.0",
+      id: body.id,
+      result: {
+        tools: [{
+          name: "weather_lookup",
+          description: "Read current weather information",
+          inputSchema: { type: "object", properties: { query: { type: "string" } }, required: ["query"] },
+          annotations: { readOnlyHint: true },
+        }],
+      },
+    });
+  };
+
+  const activity = await runAsymptaIntent("Check the weather", {
+    a2a: [],
+    mcp: [{ url: "https://untrusted.example/mcp" }],
+  }, {
+    fetcher,
+    trustedMcpEndpoints: ["https://tools.example/mcp"],
+  });
+  assert.equal(activity.status, "waiting_input");
+  assert.deepEqual(methods, ["tools/list"]);
+  assert.equal(activity.events.at(-1)?.data?.reason, "untrusted_mcp_endpoint");
+  assert.equal(activity.events.at(-1)?.data?.toolCallMade, false);
 });
 
 test("MCP arguments are conservative: Asympta asks rather than inventing consequential required fields", () => {

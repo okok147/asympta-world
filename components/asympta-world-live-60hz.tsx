@@ -3,21 +3,16 @@
 import {
   ChevronDown,
   ChevronUp,
-  Copy,
   Eye,
   EyeOff,
   Globe2,
-  HeartPulse,
   LocateFixed,
   Menu,
   Minus,
   Package,
   PlayCircle,
   Plus,
-  RotateCcw,
   ShieldCheck,
-  ShoppingCart,
-  Utensils,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -30,7 +25,6 @@ import {
   atlasSnapshot,
   requestWebMcpAction,
   requestWebMcpWorkflow,
-  workflowFor,
   type AtlasWorldState,
   type ExternalAction,
   type GeoPoint,
@@ -38,7 +32,6 @@ import {
   type WorkflowId,
 } from "@/lib/atlas-simulation";
 import {
-  CITY_LIFE_COUNT,
   cityLifeActorAt,
   cityLifeSnapshot,
   createAtlasDemoWorld,
@@ -49,13 +42,8 @@ import {
 } from "@/lib/atlas-demo";
 
 type Locale = "en" | "zh-Hant" | "ja";
-type PermissionMode = "READ" | "WRITE";
-type WebMcpToolName =
-  | "asympta_observe_living_city"
-  | "asympta_list_workflows"
-  | "asympta_follow_agent"
-  | "asympta_request_workflow"
-  | "asympta_request_external_action";
+type ScaleMode = "world" | "city";
+type GlobalResource = "food" | "material" | "merchandise" | "power" | "medicine";
 
 type GeoJsonFeatureCollection = { type: "FeatureCollection"; features: Array<Record<string, unknown>> };
 type GeoJsonSource = { setData(data: GeoJsonFeatureCollection): void };
@@ -109,6 +97,11 @@ declare global {
       advance: (milliseconds: number) => unknown;
       approve: (approvalId: string, approved: boolean) => unknown;
     };
+    __ASYMPTA_GLOBAL_WORLD__?: {
+      snapshot: () => unknown;
+      setScale: (scale: ScaleMode) => void;
+      focusResource: (resource: GlobalResource) => void;
+    };
   }
 }
 
@@ -129,13 +122,6 @@ const AMBIENT_DIALOGUE_LIMIT = 4;
 const FOREGROUND_SMOOTHING_MS = 54;
 
 const ACTIONS: ExternalAction[] = ["reserve_capacity", "authorize_payment", "release_shipment", "send_customer_update"];
-const ACTION_OWNER: Record<ExternalAction, string> = {
-  reserve_capacity: "agent-supplier",
-  authorize_payment: "agent-finance",
-  release_shipment: "agent-logistics",
-  send_customer_update: "agent-support",
-};
-
 const SIDE_COLORS: Record<StakeholderSide, string> = {
   user: "#4B7FA6",
   customer: "#6D8EB6",
@@ -171,6 +157,7 @@ const COPY: Record<Locale, Record<string, string>> = {
     webmcpRequest: "WEBMCP REQUEST", decline: "Decline", allow: "Allow simulated action", reserve: "Reserve capacity", payment: "Authorise payment",
     shipment: "Release shipment", customerUpdate: "Customer update", standingBy: "Standing by", drawing: "Drawing the living street atlas…",
     menu: "Open coordination menu", closeMenu: "Collapse coordination menu", liveState: "Live agent state", jsonCall: "JSON call", copyJson: "Copy JSON",
+    access: "Agent access", readState: "Read current state", readDescription: "Request, journey and approval state", writeRequest: "Write a request", writeDescription: "Opens a human-reviewed request", safetyNote: "Consequential actions still require your approval.", mapScope: "Map scope", network: "Network",
   },
   "zh-Hant": {
     livingCity: "協作城市", ready: "就緒", coordinating: "協作中", waiting: "等候確認", completed: "已完成", blocked: "已暫停",
@@ -180,6 +167,7 @@ const COPY: Record<Locale, Record<string, string>> = {
     webmcpRequest: "WEBMCP 請求", decline: "拒絕", allow: "允許模擬動作", reserve: "預留產能", payment: "授權付款",
     shipment: "放行出貨", customerUpdate: "客戶更新", standingBy: "待命中", drawing: "正在繪製城市地圖…",
     menu: "開啟協作選單", closeMenu: "收起協作選單", liveState: "即時角色狀態", jsonCall: "JSON 呼叫", copyJson: "複製 JSON",
+    access: "代理入口", readState: "讀取目前狀態", readDescription: "請求、旅程與批准狀態", writeRequest: "寫入一個請求", writeDescription: "先交給你審核，再送出請求", safetyNote: "涉及實際影響的行動仍需要你批准。", mapScope: "地圖範圍", network: "網絡",
   },
   ja: {
     livingCity: "協調都市", ready: "準備完了", coordinating: "連携中", waiting: "確認待ち", completed: "完了", blocked: "停止中",
@@ -189,37 +177,11 @@ const COPY: Record<Locale, Record<string, string>> = {
     webmcpRequest: "WEBMCP リクエスト", decline: "拒否", allow: "シミュレーションを許可", reserve: "容量を予約", payment: "支払いを承認",
     shipment: "出荷を解放", customerUpdate: "顧客更新", standingBy: "待機中", drawing: "都市マップを描画中…",
     menu: "協調メニューを開く", closeMenu: "協調メニューを閉じる", liveState: "ライブエージェント状態", jsonCall: "JSON 呼び出し", copyJson: "JSON をコピー",
+    access: "エージェント入口", readState: "現在の状態を読む", readDescription: "リクエスト・移動・承認状態", writeRequest: "リクエストを書く", writeDescription: "人が確認してから送信", safetyNote: "影響を伴う操作には承認が必要です。", mapScope: "地図範囲", network: "ネットワーク",
   },
 };
 
-const WORKFLOW_COPY: Record<Locale, Record<WorkflowId, { label: string; subtitle: string; name: string }>> = {
-  en: {
-    "custom-order": { label: "Order", subtitle: "Intent", name: "Custom Order Network" },
-    "dinner-network": { label: "Dinner", subtitle: "Request", name: "Dinner Coordination" },
-    "launch-stock": { label: "Launch", subtitle: "Plan", name: "Launch Stock Orchestration" },
-    "service-recovery": { label: "Recovery", subtitle: "Service", name: "Service Recovery Network" },
-  },
-  "zh-Hant": {
-    "custom-order": { label: "訂單", subtitle: "需求", name: "客製訂單協作" },
-    "dinner-network": { label: "晚餐", subtitle: "請求", name: "晚餐協作" },
-    "launch-stock": { label: "上架", subtitle: "規劃", name: "上架庫存協作" },
-    "service-recovery": { label: "復原", subtitle: "服務", name: "服務復原協作" },
-  },
-  ja: {
-    "custom-order": { label: "注文", subtitle: "要望", name: "カスタム注文連携" },
-    "dinner-network": { label: "夕食", subtitle: "依頼", name: "夕食コーディネーション" },
-    "launch-stock": { label: "発売", subtitle: "計画", name: "在庫ローンチ連携" },
-    "service-recovery": { label: "復旧", subtitle: "対応", name: "サービス復旧連携" },
-  },
-};
-
-const WEBMCP_CATALOG: Array<{ name: WebMcpToolName; mode: PermissionMode; label: string }> = [
-  { name: "asympta_observe_living_city", mode: "READ", label: "Observe living city" },
-  { name: "asympta_list_workflows", mode: "READ", label: "List workflows" },
-  { name: "asympta_follow_agent", mode: "READ", label: "Follow agent" },
-  { name: "asympta_request_workflow", mode: "WRITE", label: "Request workflow" },
-  { name: "asympta_request_external_action", mode: "WRITE", label: "Request external action" },
-];
+const GLOBAL_RESOURCES: GlobalResource[] = ["food", "material", "merchandise", "power", "medicine"];
 
 let mapLibrePromise: Promise<MapLibreNamespace> | null = null;
 
@@ -253,13 +215,6 @@ function loadMapLibre(): Promise<MapLibreNamespace> {
     document.head.appendChild(script);
   });
   return mapLibrePromise;
-}
-
-function workflowIcon(id: WorkflowId) {
-  if (id === "custom-order") return <ShoppingCart size={17} strokeWidth={1.7} />;
-  if (id === "dinner-network") return <Utensils size={17} strokeWidth={1.7} />;
-  if (id === "launch-stock") return <Package size={17} strokeWidth={1.7} />;
-  return <HeartPulse size={17} strokeWidth={1.7} />;
 }
 
 function phaseCopy(locale: Locale, world: AtlasWorldState) {
@@ -425,21 +380,6 @@ function activeAgent(world: AtlasWorldState, selectedId: string | null) {
     ?? world.agents[0];
 }
 
-function webMcpCall(tool: WebMcpToolName, world: AtlasWorldState, selectedId: string | null, action: ExternalAction) {
-  const agent = activeAgent(world, selectedId);
-  if (tool === "asympta_observe_living_city" || tool === "asympta_list_workflows") return { tool, arguments: {} };
-  if (tool === "asympta_follow_agent") return { tool, arguments: { agentId: agent?.id ?? "agent-user" } };
-  if (tool === "asympta_request_workflow") return { tool, arguments: { workflowId: world.workflowId ?? "custom-order" } };
-  return {
-    tool,
-    arguments: {
-      action,
-      agentId: ACTION_OWNER[action],
-      reason: "Demonstration request from the Asympta World WebMCP inspector.",
-    },
-  };
-}
-
 export function AsymptaWorldLive60Hz() {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -461,17 +401,24 @@ export function AsymptaWorldLive60Hz() {
   const [cameraFollow, setCameraFollow] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [languageOpen, setLanguageOpen] = useState(false);
-  const [webMcpOpen, setWebMcpOpen] = useState(false);
+  const [readStateOpen, setReadStateOpen] = useState(false);
   const [locale, setLocale] = useState<Locale>("en");
+  const [scaleMode, setScaleMode] = useState<ScaleMode>("world");
+  const [globalResource, setGlobalResource] = useState<GlobalResource>("food");
   const [visibleAmbientCount, setVisibleAmbientCount] = useState(0);
-  const [inspectorTool, setInspectorTool] = useState<WebMcpToolName>("asympta_observe_living_city");
-  const [inspectorAction, setInspectorAction] = useState<ExternalAction>("reserve_capacity");
 
   const copy = COPY[locale];
 
   useEffect(() => { selectedAgentIdRef.current = selectedAgentId; }, [selectedAgentId]);
   useEffect(() => { cameraFollowRef.current = cameraFollow; }, [cameraFollow]);
   useEffect(() => { document.documentElement.lang = locale; }, [locale]);
+  useEffect(() => {
+    const syncScale = () => setScaleMode(document.documentElement.dataset.asymptaScale === "city" ? "city" : "world");
+    syncScale();
+    const observer = new MutationObserver(syncScale);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-asympta-scale"] });
+    return () => observer.disconnect();
+  }, []);
 
   const setSelectedAndFollow = useCallback((agentId: string | null, follow: boolean) => {
     selectedAgentIdRef.current = agentId;
@@ -605,16 +552,6 @@ export function AsymptaWorldLive60Hz() {
       const moving = next.agents.find((agent) => agent.status === "moving");
       if (moving) setSelectedAndFollow(moving.id, true);
     }
-    return next;
-  }, [setSelectedAndFollow, syncImmediate]);
-
-  const queueWebMcpDemoAction = useCallback((action: ExternalAction) => {
-    setInspectorAction(action);
-    setInspectorTool("asympta_request_external_action");
-    setWebMcpOpen(true);
-    const agentId = ACTION_OWNER[action];
-    const next = syncImmediate(requestWebMcpAction(worldRef.current, action, agentId, "Requested from the Asympta World WebMCP inspector."));
-    setSelectedAndFollow(agentId, true);
     return next;
   }, [setSelectedAndFollow, syncImmediate]);
 
@@ -766,12 +703,13 @@ export function AsymptaWorldLive60Hz() {
     const workflowIds = ATLAS_WORKFLOWS.map((workflow) => workflow.id);
     const agentIds = ATLAS_AGENTS.map((agent) => agent.id);
     const readOnly = { readOnlyHint: true, untrustedContentHint: false };
+    const readOnlyUntrusted = { readOnlyHint: true, untrustedContentHint: true };
     const mutating = { readOnlyHint: false, untrustedContentHint: true };
     const tools: WebMcpTool[] = [
       {
         name: "asympta_observe_living_city", title: "Observe Asympta living city",
         description: "Read the foreground workflow plus currently visible synthetic background agents.",
-        inputSchema: { type: "object", properties: {}, additionalProperties: false }, annotations: readOnly,
+        inputSchema: { type: "object", properties: {}, additionalProperties: false }, annotations: readOnlyUntrusted,
         execute: async () => JSON.stringify({ ok: true, foreground: atlasSnapshot(worldRef.current), ambient: visibleAmbientIndicesRef.current.map((index) => cityLifeActorAt(index, worldRef.current.now)), disclosure: demoDisclosure() }),
       },
       {
@@ -805,7 +743,7 @@ export function AsymptaWorldLive60Hz() {
       },
       {
         name: "asympta_follow_agent", title: "Follow an active agent", description: "Follow a foreground agent with the local map camera.",
-        inputSchema: { type: "object", properties: { agentId: { type: "string", enum: agentIds } }, required: ["agentId"], additionalProperties: false }, annotations: readOnly,
+        inputSchema: { type: "object", properties: { agentId: { type: "string", enum: agentIds } }, required: ["agentId"], additionalProperties: false }, annotations: mutating,
         execute: async (input) => {
           const agentId = String(input.agentId ?? "");
           if (!agentIds.includes(agentId)) return JSON.stringify({ ok: false, error: "Unknown agent." });
@@ -836,33 +774,33 @@ export function AsymptaWorldLive60Hz() {
 
   const pendingApproval = world.approvals.find((approval) => approval.status === "pending") ?? null;
   const selectedAgent = world.agents.find((agent) => agent.id === selectedAgentId) ?? null;
-  const inspectorAgent = activeAgent(world, selectedAgentId);
   const selectedTask = selectedAgent ? world.tasks.find((task) => task.agentId === selectedAgent.id && ["moving", "working", "waiting_approval"].includes(task.status)) : undefined;
-  const inspectorTask = inspectorAgent ? world.tasks.find((task) => task.agentId === inspectorAgent.id && ["moving", "working", "waiting_approval"].includes(task.status)) : undefined;
   const approvalAgent = pendingApproval?.agentId ? world.agents.find((agent) => agent.id === pendingApproval.agentId) : null;
-  const completedTasks = world.tasks.filter((task) => task.status === "done").length;
-  const progress = world.tasks.length ? completedTasks / world.tasks.length : 0;
-  const activeWorkflow = world.workflowId ? workflowFor(world.workflowId) : null;
   const movingForeground = world.agents.filter((agent) => agent.status === "moving").length;
-  const activeWorkflowCopy = world.workflowId ? WORKFLOW_COPY[locale][world.workflowId] : null;
-  const currentCall = webMcpCall(inspectorTool, world, selectedAgentId, inspectorAction);
-  const liveWebMcpState = {
-    phase: world.phase,
-    permission: WEBMCP_CATALOG.find((tool) => tool.name === inspectorTool)?.mode ?? "READ",
-    agent: inspectorAgent ? { id: inspectorAgent.id, name: inspectorAgent.name, side: inspectorAgent.side, status: inspectorAgent.status } : null,
-    task: inspectorTask ? { id: inspectorTask.id, title: inspectorTask.title, status: inspectorTask.status, progress: Number(inspectorTask.progress.toFixed(2)) } : null,
-    pendingApproval: pendingApproval ? { id: pendingApproval.id, source: pendingApproval.source, actionType: pendingApproval.actionType ?? null, status: pendingApproval.status } : null,
-    visibleAmbientAgents: visibleAmbientCount,
-  };
 
   const recenter = () => {
     setSelectedAndFollow(selectedAgentIdRef.current, false);
     mapRef.current?.flyTo({ center: TOKYO_CENTER, zoom: TOKYO_ZOOM, bearing: 0, pitch: 0, duration: 420, essential: true });
   };
 
-  const copyCurrentJson = () => {
-    const value = JSON.stringify(currentCall, null, 2);
-    void navigator.clipboard?.writeText(value);
+  const toggleScale = () => {
+    const next: ScaleMode = scaleMode === "world" ? "city" : "world";
+    setScaleMode(next);
+    window.__ASYMPTA_GLOBAL_WORLD__?.setScale(next);
+  };
+
+  const cycleGlobalResource = () => {
+    const current = GLOBAL_RESOURCES.indexOf(globalResource);
+    const next = GLOBAL_RESOURCES[(current + 1) % GLOBAL_RESOURCES.length];
+    setGlobalResource(next);
+    window.__ASYMPTA_GLOBAL_WORLD__?.focusResource(next);
+  };
+
+  const focusRequestComposer = () => {
+    const input = document.querySelector<HTMLTextAreaElement>(".asympta-intent-composer textarea");
+    input?.focus();
+    input?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    setMenuOpen(false);
   };
 
   return (
@@ -871,12 +809,12 @@ export function AsymptaWorldLive60Hz() {
       <div className="map-paper-wash" aria-hidden="true" />
       <div className="map-paper-grain" aria-hidden="true" />
 
-      <section className={`atlas-console ${menuOpen ? "is-open" : "is-collapsed"}`} aria-label="Coordination menu">
+      <section className={`atlas-console asympta-access-card ${menuOpen ? "is-open" : "is-collapsed"}`} aria-label={copy.access}>
         <div className="atlas-menu-bar">
           <button type="button" className="atlas-menu-identity" aria-expanded={menuOpen} aria-label={menuOpen ? copy.closeMenu : copy.menu} onClick={() => setMenuOpen((value) => !value)}>
             <span className="atlas-menu-icon"><Menu size={17} strokeWidth={1.7} /></span>
-            <span className="atlas-menu-copy"><small>ASYMPTA WORLD</small><strong>{activeWorkflowCopy?.name ?? copy.livingCity}</strong></span>
-            <span className={`atlas-mini-phase atlas-mini-phase--${world.phase}`}><i />{phaseCopy(locale, world)}</span>
+            <span className="atlas-menu-copy"><small>ASYMPTA WORLD</small><strong>{copy.access}</strong></span>
+            <span className={`atlas-mini-phase atlas-mini-phase--${webMcpState}`}><i />{webMcpState === "ready" ? copy.webmcpReady : webMcpState === "checking" ? copy.webmcpChecking : copy.webmcpUnavailable}</span>
           </button>
           <button type="button" className={`atlas-quick-icon${languageOpen ? " is-active" : ""}`} aria-label={copy.language} aria-expanded={languageOpen} onClick={() => setLanguageOpen((value) => !value)}><Globe2 size={17} strokeWidth={1.7} /></button>
           <button type="button" className="atlas-quick-icon" aria-label={menuOpen ? copy.closeMenu : copy.menu} onClick={() => setMenuOpen((value) => !value)}>{menuOpen ? <ChevronUp size={17} /> : <ChevronDown size={17} />}</button>
@@ -891,65 +829,37 @@ export function AsymptaWorldLive60Hz() {
         </div>
 
         <div className="atlas-menu-panel" aria-hidden={!menuOpen}>
-          <div className="atlas-status-stack">
-            <div className="atlas-tool-state"><span className={`atlas-tool-dot atlas-tool-dot--${webMcpState}`} />{webMcpState === "ready" ? copy.webmcpReady : webMcpState === "checking" ? copy.webmcpChecking : copy.webmcpUnavailable}</div>
-            <div className="atlas-tool-state"><span className="atlas-tool-dot atlas-tool-dot--ready" />60Hz visual · {visibleAmbientCount} nearby ambient · {movingForeground} {copy.workflowAgents}</div>
+          <div className="asympta-access-actions" aria-label="WebMCP request actions">
+            <button type="button" className={readStateOpen ? "is-active" : ""} aria-expanded={readStateOpen} onClick={() => setReadStateOpen((value) => !value)}>
+              <span className="asympta-access-action__icon"><Eye size={15} strokeWidth={1.7} /></span>
+              <span className="asympta-access-action__copy"><strong>{copy.readState}</strong><small>{copy.readDescription}</small></span>
+              <span className="asympta-access-stamp is-read">WEBMCP · READ</span>
+            </button>
+            <button type="button" onClick={focusRequestComposer}>
+              <span className="asympta-access-action__icon"><PlayCircle size={15} strokeWidth={1.7} /></span>
+              <span className="asympta-access-action__copy"><strong>{copy.writeRequest}</strong><small>{copy.writeDescription}</small></span>
+              <span className="asympta-access-stamp is-write">WEBMCP · WRITE REQUEST</span>
+            </button>
           </div>
 
-          <div className="atlas-tool-actions">
-            <button type="button" className={webMcpOpen ? "is-active" : ""} aria-expanded={webMcpOpen} onClick={() => setWebMcpOpen((value) => !value)}><PlayCircle size={15} /><span>{copy.webmcpInspector}</span></button>
-            <button type="button" className={cameraFollow ? "is-active" : ""} onClick={toggleCameraFollow}>{cameraFollow ? <Eye size={15} /> : <EyeOff size={15} />}<span>{cameraFollow && selectedAgent ? `${copy.following} ${selectedAgent.name}` : copy.cameraFollow}</span></button>
-            <button type="button" onClick={() => startWorkflow("custom-order")}><RotateCcw size={14} /><span>{copy.restart}</span></button>
-          </div>
-
-          {webMcpOpen ? (
-            <div className="atlas-webmcp-inspector" aria-label="WebMCP live inspector">
-              <div className="atlas-webmcp-tool-list">
-                {WEBMCP_CATALOG.map((tool) => (
-                  <button key={tool.name} type="button" className={inspectorTool === tool.name ? "is-active" : ""} onClick={() => setInspectorTool(tool.name)}>
-                    <span className={`atlas-permission atlas-permission--${tool.mode.toLowerCase()}`}>{tool.mode}</span>
-                    <span><strong>{tool.label}</strong><small>{tool.name}</small></span>
-                  </button>
-                ))}
-              </div>
-
-              <div className="atlas-webmcp-action-row">
-                <button type="button" onClick={() => queueWebMcpDemoAction("reserve_capacity")}>{copy.reserve}</button>
-                <button type="button" onClick={() => queueWebMcpDemoAction("authorize_payment")}>{copy.payment}</button>
-                <button type="button" onClick={() => queueWebMcpDemoAction("release_shipment")}>{copy.shipment}</button>
-                <button type="button" onClick={() => queueWebMcpDemoAction("send_customer_update")}>{copy.customerUpdate}</button>
-              </div>
-
-              <div className="atlas-json-grid">
-                <section>
-                  <div className="atlas-json-title"><span>{copy.jsonCall}</span><button type="button" aria-label={copy.copyJson} onClick={copyCurrentJson}><Copy size={13} /></button></div>
-                  <pre>{JSON.stringify(currentCall, null, 2)}</pre>
-                </section>
-                <section>
-                  <div className="atlas-json-title"><span>{copy.liveState}</span><span className={`atlas-permission atlas-permission--${liveWebMcpState.permission.toLowerCase()}`}>{liveWebMcpState.permission}</span></div>
-                  <pre>{JSON.stringify(liveWebMcpState, null, 2)}</pre>
-                </section>
-              </div>
+          {readStateOpen ? (
+            <div className="asympta-access-readout" role="status" aria-live="polite">
+              <span><small>STATE</small><strong>{phaseCopy(locale, world)}</strong></span>
+              <span><small>AGENTS</small><strong>{movingForeground} active · {visibleAmbientCount} nearby</strong></span>
+              <span><small>APPROVAL</small><strong>{pendingApproval ? "1 waiting" : "clear"}</strong></span>
             </div>
           ) : null}
 
-          <div className="atlas-workflows">
-            {ATLAS_WORKFLOWS.map((workflow) => {
-              const translated = WORKFLOW_COPY[locale][workflow.id];
-              return (
-                <button key={workflow.id} type="button" className={`atlas-workflow${world.workflowId === workflow.id ? " is-active" : ""}`} onClick={() => startWorkflow(workflow.id)}>
-                  <span className="atlas-workflow__icon">{workflowIcon(workflow.id)}</span><strong>{translated.label}</strong><span>{translated.subtitle}</span>
-                </button>
-              );
-            })}
+          <div className="asympta-access-map-controls" aria-label={copy.mapScope}>
+            <button type="button" onClick={toggleScale} aria-label={copy.mapScope}>
+              <Globe2 size={14} strokeWidth={1.7} /><span>{scaleMode === "world" ? "World" : "City"}</span>
+            </button>
+            <button type="button" onClick={cycleGlobalResource} aria-label={copy.network}>
+              <Package size={14} strokeWidth={1.7} /><span>{globalResource}</span>
+            </button>
           </div>
 
-          {activeWorkflow ? (
-            <div className="atlas-progress-block">
-              <div className="atlas-progress-copy"><span>{activeWorkflowCopy?.name ?? activeWorkflow.name}</span><span>{completedTasks} / {world.tasks.length}</span></div>
-              <div className="atlas-progress"><i style={{ width: `${Math.round(progress * 100)}%` }} /></div>
-            </div>
-          ) : null}
+          <p className="asympta-access-safety"><ShieldCheck size={13} strokeWidth={1.8} />{copy.safetyNote}</p>
         </div>
       </section>
 

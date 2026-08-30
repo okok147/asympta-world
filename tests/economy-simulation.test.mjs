@@ -15,6 +15,7 @@ const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8")
 const jobMode = await readFile(new URL("../components/asympta-job-mode.tsx", import.meta.url), "utf8");
 const workflowEconomy = await readFile(new URL("../components/asympta-workflow-economy.tsx", import.meta.url), "utf8");
 const ultraCalm = await readFile(new URL("../components/asympta-ultra-calm.tsx", import.meta.url), "utf8");
+const requestCards = await readFile(new URL("../app/asympta-request-cards.css", import.meta.url), "utf8");
 
 test("Dinner costs reflect ingredients, kitchen work and delivery rather than one flat fee", () => {
   const ingredients = workflowTaskCostPlan({ id: "dn-supplier", title: "Verify ingredient supply", agentSide: "supplier" });
@@ -67,8 +68,8 @@ test("Job Mode models gross income, expenses and positive expected net value", (
   assert.ok(projected.breakdown.compute > 0);
 });
 
-test("real-time economics reuse calm UI without cross-root React portals", () => {
-  assert.match(page, /AsymptaWorkflowEconomy/);
+test("economic math remains available while cost telemetry is removed from the primary request card", () => {
+  assert.doesNotMatch(page, /AsymptaWorkflowEconomy/);
   assert.match(page, /AsymptaUltraCalm/);
   assert.match(workflowEconomy, /REFRESH_MS = 350/);
   assert.match(workflowEconomy, /workflowTaskAccruedEconomy/);
@@ -85,4 +86,6 @@ test("real-time economics reuse calm UI without cross-root React portals", () =>
   assert.match(ultraCalm, /Human-decision surfaces/);
   assert.match(ultraCalm, /data-asympta-workflow-cost/);
   assert.match(ultraCalm, /data-asympta-task-cost/);
+  assert.match(requestCards, /The only right-hand card follows the user's current request/);
+  assert.match(requestCards, /\.asympta-request-card__permission/);
 });

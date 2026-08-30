@@ -12,7 +12,7 @@ A living coordination world where specialised agents expose safe WebMCP tools, e
 
 ## Short description
 
-Asympta World is a living multi-stakeholder map built around WebMCP. A person chooses a real-world intent such as a custom order, dinner coordination, stock launch or service recovery. Specialised agents visibly move between customer, business, supplier, operations, finance, logistics, quality, support and market roles while the same deterministic state is exposed to browser agents through eight imperative WebMCP tools. Browser agents can observe the city, discover workflows, inspect agents, follow work and request actions, but workflow starts and consequential simulated actions stop at an explicit human approval boundary.
+Asympta World is a living multi-stakeholder map built around WebMCP. A person chooses a real-world intent such as a custom order, current research, dinner coordination or service recovery. Specialised agents visibly move between roles while the same deterministic state is exposed through thirteen imperative WebMCP tools. Browser agents can read request and world state, submit a request for visible human review, inspect agents and request simulated actions, but consequential work stops at an explicit human approval boundary.
 
 ## Why WebMCP materially improves the product
 
@@ -33,16 +33,21 @@ The mounted challenge page directly calls `document.modelContext.registerTool(..
 ### Core living-world tools
 
 1. `asympta_observe_living_city` — read foreground workflow state and currently visible synthetic city actors.
-2. `asympta_list_workflows` — enumerate the four available workflow definitions.
-3. `asympta_follow_agent` — focus the local map camera on a known foreground agent.
-4. `asympta_request_workflow` — request a workflow start and queue a visible human approval.
-5. `asympta_request_external_action` — request a simulated consequential action and queue a visible human approval.
+2. `asympta_observe_global_supply_network` — read the bounded global simulation.
+3. `asympta_list_workflows` — enumerate available workflow definitions.
+4. `asympta_follow_agent` — change the local camera selection; correctly marked as a local write.
+5. `asympta_request_workflow` — request a workflow start and queue visible human approval.
+6. `asympta_request_external_action` — request a simulated consequential action and queue visible human approval.
 
 ### Discovery and verification tools
 
-6. `asympta_describe_capabilities` — return the WebMCP manifest, simulation disclosure, safety rules, workflows and stakeholder catalog.
-7. `asympta_inspect_agent` — inspect one foreground stakeholder and its tasks without returning map coordinates.
-8. `asympta_get_pending_approval` — read the pending human approval without gaining authority to resolve it.
+7. `asympta_describe_capabilities` — return the manifest, disclosure and safety rules.
+8. `asympta_inspect_agent` — inspect one foreground stakeholder without returning map coordinates.
+9. `asympta_get_pending_approval` — read pending approval without authority to resolve it.
+10. `asympta_submit_request` — create a bounded request that waits for the person to review and send.
+11. `asympta_read_request` — read only the exact request ID returned by submit.
+12. `asympta_send_agent_message` — write a bounded structured message.
+13. `asympta_list_agent_messages` — read bounded structured messages.
 
 No registered WebMCP tool can approve or decline an approval. This is deliberate: the browser agent can prepare and request consequential work, but final consent stays in the visible human UI.
 
@@ -83,7 +88,7 @@ No login or credentials are required.
 ### Fast human + browser-agent path
 
 1. Open the live product.
-2. Open Asympta's coordination menu and the WebMCP inspector to see the human-facing tool/state view.
+2. Open Asympta's top-left access card to see the human-facing READ and WRITE REQUEST permissions.
 3. In a WebMCP-capable browser, ask: `Describe what I can do in Asympta World.`
 4. Ask: `Inspect agent-supplier and summarize what it is doing.`
 5. Ask: `Request the custom-order workflow, but do not approve anything for me.`
@@ -97,7 +102,7 @@ No login or credentials are required.
 1. Enable `chrome://flags/#enable-webmcp-testing` and relaunch Chrome.
 2. Open the live product.
 3. Use the browser's Model Context/WebMCP inspection surface.
-4. Confirm all eight tool names in this document are registered.
+4. Confirm all thirteen tool names in this document are registered.
 5. Execute the three discovery/read tools and at least one core read tool.
 6. Request `custom-order`; confirm a visible human approval is created.
 7. Verify there is no WebMCP tool for approve/decline.
@@ -115,14 +120,14 @@ npm run test:rendered
 npm run export:pages
 ```
 
-`tests/webmcp-contract.test.mjs` checks the exact eight-tool contract, Chrome `getTools()` schema shape, direct imperative API source use, abort lifecycle, safety invariant and documentation consistency.
+`tests/webmcp-contract.test.mjs` checks the exact thirteen-tool contract, Chrome `getTools()` schema shape, direct imperative API source use, abort lifecycle, access hints, safety invariants and documentation consistency.
 
 ## Suggested demo video — 2:30 to 2:50
 
 | Time | Picture | Narration goal |
 | --- | --- | --- |
 | 0:00–0:15 | Living map with stakeholder agents | “The human sees a world, not a hidden automation transcript.” |
-| 0:15–0:35 | Open workflow menu and WebMCP inspector | Explain that the same state is available to people and browser agents. |
+| 0:15–0:35 | Open the WebMCP access card | Explain the visible READ and WRITE REQUEST boundary. |
 | 0:35–0:58 | Browser agent calls `asympta_describe_capabilities` and `asympta_inspect_agent` | Show actual native tool discovery and structured output. |
 | 0:58–1:20 | Browser agent requests `custom-order` | Show the visible WebMCP approval card and state clearly that the agent cannot approve it. |
 | 1:20–1:50 | Human approves; agents move through customer/business/supplier/finance/ops | Show visible multi-stakeholder coordination and information exchange. |
@@ -136,7 +141,7 @@ Record the deployed build. Make native WebMCP discovery and at least one success
 
 ### WebMCP leverage
 
-- Eight actually registered, purpose-specific imperative tools.
+- Thirteen actually registered, purpose-specific imperative tools.
 - Direct `document.modelContext.registerTool(...)` integration in mounted source.
 - Structured JSON Schemas with bounded workflow, agent and action identifiers.
 - Browser-registry audit through `getTools()` when available.
@@ -168,7 +173,7 @@ Record the deployed build. Make native WebMCP discovery and at least one success
 - [ ] Recheck entrant/team eligibility against the current official rules.
 - [ ] Confirm the live URL is public and accessible without login.
 - [ ] Test the deployed URL in ChatGPT's WebMCP-capable in-app browser or WebMCP-enabled Chrome.
-- [ ] Confirm all eight native tools register on the deployed origin.
+- [ ] Confirm all thirteen native tools register on the deployed origin.
 - [ ] Execute at least one read tool and one request tool on the deployed origin.
 - [ ] Confirm the request creates the visible human approval boundary.
 - [ ] Confirm there is no agent-accessible approval/decline tool.
@@ -180,4 +185,4 @@ Record the deployed build. Make native WebMCP discovery and at least one success
 
 ## What is newly strengthened for challenge verification
 
-The challenge build now keeps an explicit WebMCP contract manifest, three agent-discovery/verification tools, an in-page native registry audit, automated source/schema/safety tests, documentation that matches the mounted tool names, and a submission flow that demonstrates the human approval boundary directly. These additions sit on top of the existing deterministic living-city simulation and five core WebMCP tools rather than replacing them with a separate mock implementation.
+The challenge build now keeps an explicit thirteen-tool WebMCP contract, request-scoped READ/WRITE tools, an in-page registry audit, automated schema/access/safety tests, and a visible human approval boundary. These additions share the deterministic living-world state rather than using a separate mock endpoint.

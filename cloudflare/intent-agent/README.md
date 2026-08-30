@@ -37,7 +37,13 @@ The single global Durable Object deliberately favours an exact low-volume demo b
 
 The default model is `minimax/minimax-m3:free`; `OPENROUTER_MODEL` is a non-secret Worker variable and may override it. Every response reports the actual configured model in provenance.
 
-The first model call only classifies the goal. The model is instructed to return one schema-shaped JSON object, then the Worker validates every field, allowed key, enum, length, and cross-field safety invariant locally before using it. This avoids trusting provider-specific structured-output support. Weather reads Open-Meteo. Research may make at most one required `openrouter:web_search` server-tool call and returns sources from OpenRouter URL annotations. An action is only a proposal with `requiresConfirmation: true`; this Worker has no side-effect connector and never executes it.
+The first model call only classifies the goal. The model is instructed to return one schema-shaped JSON object, then the Worker validates every field, allowed key, enum, length, and cross-field safety invariant locally before using it. This avoids trusting provider-specific structured-output support.
+
+Weather reads Open-Meteo. Research runs two independent agents in parallel. Each agent may make exactly one bounded `openrouter:web_search` server-tool call and cannot see the other agent's report. A third model call receives both bounded reports, has no tools, and must compare consensus, material conflicts, missing evidence, and uncertainty before returning the final plain-text answer. These research and synthesis calls do not request provider-specific strict response schemas.
+
+Only formal `url_citation` annotations from the two search calls can become returned sources; model-authored URLs are never promoted. If OpenRouter returns no valid URL annotations, the request still succeeds with `sources: []`, `verification.status: "not_verified"`, and an explicit note that the two-agent cross-check has no verifiable source links. When valid annotations exist, they are normalized, merged, deduplicated, capped at four, and the result remains `partially_verified` until a person opens the originals. One research request therefore uses four model calls in total: classification, two bounded searches, and one no-tool cross-check. OpenRouter currently lists Parallel search at USD 0.005 per search, so this configuration has a USD 0.01 search surcharge per research request before any model-token cost; the 500-request daily guard therefore caps the search-only worst case at USD 5 per UTC day. Keep the exact global request budget and a provider-side spending cap aligned with current [OpenRouter web-search pricing](https://openrouter.ai/docs/guides/features/server-tools/web-search).
+
+An action is only a proposal with `requiresConfirmation: true`; this Worker has no side-effect connector and never executes it.
 
 ## Local validation
 

@@ -10,6 +10,7 @@ const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8")
 const css = await readFile(new URL("../app/asympta-restoration.css", import.meta.url), "utf8");
 const fpsCss = await readFile(new URL("../app/asympta-live-60hz.css", import.meta.url), "utf8");
 const animalCss = await readFile(new URL("../app/asympta-animal-art.css", import.meta.url), "utf8");
+const requestCss = await readFile(new URL("../app/asympta-request-cards.css", import.meta.url), "utf8");
 
 test("the product now boots the 60Hz culled paper living-city renderer", () => {
   assert.match(page, /AsymptaWorldLive60Hz/);
@@ -60,19 +61,17 @@ test("dialogue above and status below are restored without React frame rendering
   assert.match(app, /AMBIENT_DIALOGUE_LIMIT = 4/);
 });
 
-test("WebMCP inspector shows callable JSON, permission mode and live agent state", () => {
-  assert.match(app, /WEBMCP_CATALOG/);
-  assert.match(app, /PermissionMode = "READ" \| "WRITE"/);
+test("top-left WebMCP entry exposes clear read and write-request actions without raw JSON", () => {
+  assert.match(app, /asympta-access-actions/);
+  assert.match(app, /WEBMCP · READ/);
+  assert.match(app, /WEBMCP · WRITE/);
   assert.match(app, /asympta_observe_living_city/);
   assert.match(app, /asympta_request_external_action/);
-  assert.match(app, /JSON\.stringify\(currentCall, null, 2\)/);
-  assert.match(app, /JSON\.stringify\(liveWebMcpState, null, 2\)/);
   assert.match(app, /pendingApproval/);
-  assert.match(app, /visibleAmbientAgents/);
-  assert.match(app, /navigator\.clipboard/);
-  assert.match(fpsCss, /\.atlas-webmcp-inspector/);
-  assert.match(fpsCss, /\.atlas-permission--read/);
-  assert.match(fpsCss, /\.atlas-permission--write/);
+  assert.match(app, /visibleAmbientCount/);
+  assert.doesNotMatch(app, /JSON\.stringify\(currentCall, null, 2\)|navigator\.clipboard/);
+  assert.match(requestCss, /\.asympta-access-stamp\.is-write/);
+  assert.match(requestCss, /\.asympta-access-readout/);
 });
 
 test("WebMCP writes remain explicit human-gated simulation requests", () => {

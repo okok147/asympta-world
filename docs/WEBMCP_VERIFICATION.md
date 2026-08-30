@@ -15,16 +15,24 @@ document.modelContext.registerTool(...)
 Core tools remain:
 
 - `asympta_observe_living_city`
+- `asympta_observe_global_supply_network`
 - `asympta_list_workflows`
 - `asympta_follow_agent`
 - `asympta_request_workflow`
 - `asympta_request_external_action`
 
-Auxiliary read tools remain:
+Request tools:
+
+- `asympta_submit_request` — WRITE; creates a request that waits for visible human review.
+- `asympta_read_request` — READ; requires the exact request ID and cannot enumerate other requests.
+
+Auxiliary tools remain:
 
 - `asympta_describe_capabilities`
 - `asympta_inspect_agent`
 - `asympta_get_pending_approval`
+- `asympta_send_agent_message`
+- `asympta_list_agent_messages`
 
 The challenge build intentionally does **not** expose a WebMCP tool that approves/declines consequential actions.
 
@@ -88,7 +96,7 @@ In a browser with the current WebMCP testing implementation enabled:
 8. Approve in the Asympta UI.
 9. Call `asympta_observe_living_city` again and confirm the workflow/runtime changed.
 10. Reach/request a consequential action such as capacity reservation.
-11. Before approval, confirm the resource ledger is unchanged.
+11. Before approval, call `asympta_observe_living_city` and confirm the canonical runtime reservation/order state is unchanged.
 12. Approve in the UI.
 13. Confirm reservation/order state changed in `foreground.runtime` and the visible workflow continued.
 14. Try invalid arguments and verify a structured error/rejection without illegal state mutation.

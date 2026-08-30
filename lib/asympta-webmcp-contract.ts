@@ -12,21 +12,46 @@ export const ASYMPTA_WEBMCP_AUXILIARY_TOOL_NAMES = [
   "asympta_describe_capabilities",
   "asympta_inspect_agent",
   "asympta_get_pending_approval",
+  "asympta_submit_request",
+  "asympta_read_request",
   "asympta_send_agent_message",
   "asympta_list_agent_messages",
+] as const;
+
+export const ASYMPTA_WEBMCP_GLOBAL_TOOL_NAMES = [
+  "asympta_observe_global_supply_network",
 ] as const;
 
 export const ASYMPTA_WEBMCP_TOOL_NAMES = [
   ...ASYMPTA_WEBMCP_CORE_TOOL_NAMES,
   ...ASYMPTA_WEBMCP_AUXILIARY_TOOL_NAMES,
+  ...ASYMPTA_WEBMCP_GLOBAL_TOOL_NAMES,
 ] as const;
 
 export type AsymptaWebMcpToolName = (typeof ASYMPTA_WEBMCP_TOOL_NAMES)[number];
+export type AsymptaWebMcpToolMode = "READ" | "WRITE";
+
+export const ASYMPTA_WEBMCP_TOOL_MODES = {
+  asympta_observe_living_city: "READ",
+  asympta_list_workflows: "READ",
+  asympta_follow_agent: "WRITE",
+  asympta_request_workflow: "WRITE",
+  asympta_request_external_action: "WRITE",
+  asympta_describe_capabilities: "READ",
+  asympta_inspect_agent: "READ",
+  asympta_get_pending_approval: "READ",
+  asympta_submit_request: "WRITE",
+  asympta_read_request: "READ",
+  asympta_send_agent_message: "WRITE",
+  asympta_list_agent_messages: "READ",
+  asympta_observe_global_supply_network: "READ",
+} as const satisfies Record<AsymptaWebMcpToolName, AsymptaWebMcpToolMode>;
 
 export type BrowserWebMcpToolDescriptor = {
   name?: unknown;
   description?: unknown;
   inputSchema?: unknown;
+  annotations?: unknown;
 };
 
 function parseInputSchema(value: unknown): Record<string, unknown> | null {
@@ -72,7 +97,7 @@ export const ASYMPTA_WEBMCP_MANIFEST = {
     role: agent.role,
     organisation: agent.organisation,
   })),
-  tools: ASYMPTA_WEBMCP_TOOL_NAMES.map((name) => ({ name })),
+  tools: ASYMPTA_WEBMCP_TOOL_NAMES.map((name) => ({ name, mode: ASYMPTA_WEBMCP_TOOL_MODES[name] })),
 } as const;
 
 export function validateAsymptaWebMcpTools(tools: readonly BrowserWebMcpToolDescriptor[]) {
@@ -84,19 +109,36 @@ export function validateAsymptaWebMcpTools(tools: readonly BrowserWebMcpToolDesc
 
   const missing = ASYMPTA_WEBMCP_TOOL_NAMES.filter((name) => !counts.has(name));
   const duplicateNames = ASYMPTA_WEBMCP_TOOL_NAMES.filter((name) => (counts.get(name) ?? 0) > 1);
+  const expectedNames = new Set<string>(ASYMPTA_WEBMCP_TOOL_NAMES);
+  const unexpected = [...new Set(names.filter((name) => !expectedNames.has(name)))];
   const invalidSchemas = ASYMPTA_WEBMCP_TOOL_NAMES.filter((name) => {
     const descriptor = tools.find((tool) => tool.name === name);
     if (!descriptor) return false;
     const schema = parseInputSchema(descriptor.inputSchema);
     return !schema || schema.type !== "object";
   });
+  const invalidAccessHints = ASYMPTA_WEBMCP_TOOL_NAMES.filter((name) => {
+    const descriptor = tools.find((tool) => tool.name === name);
+    if (!descriptor) return false;
+    const annotations = descriptor.annotations && typeof descriptor.annotations === "object" && !Array.isArray(descriptor.annotations)
+      ? descriptor.annotations as Record<string, unknown>
+      : null;
+    if (!annotations || typeof annotations.readOnlyHint !== "boolean") return true;
+    return annotations.readOnlyHint !== (ASYMPTA_WEBMCP_TOOL_MODES[name] === "READ");
+  });
 
   return {
-    ok: missing.length === 0 && duplicateNames.length === 0 && invalidSchemas.length === 0,
+    ok: missing.length === 0
+      && duplicateNames.length === 0
+      && unexpected.length === 0
+      && invalidSchemas.length === 0
+      && invalidAccessHints.length === 0,
     expectedCount: ASYMPTA_WEBMCP_TOOL_NAMES.length,
     discoveredExpectedCount: ASYMPTA_WEBMCP_TOOL_NAMES.length - missing.length,
     missing,
     duplicateNames,
+    unexpected,
     invalidSchemas,
+    invalidAccessHints,
   };
 }

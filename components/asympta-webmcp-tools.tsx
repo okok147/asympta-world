@@ -16,6 +16,10 @@ import {
   validateAsymptaWebMcpTools,
   type BrowserWebMcpToolDescriptor,
 } from "@/lib/asympta-webmcp-contract";
+import {
+  readBrowserWebMcpRequest,
+  submitBrowserWebMcpRequest,
+} from "@/lib/asympta-webmcp-request-state";
 
 type WebMcpTool = {
   name: string;
@@ -108,7 +112,7 @@ export function AsymptaWebMcpTools() {
     }
 
     const agentIds = ATLAS_AGENTS.map((agent) => agent.id);
-    const readOnly = { readOnlyHint: true, untrustedContentHint: false };
+    const readOnlyUntrusted = { readOnlyHint: true, untrustedContentHint: true };
     const mutating = { readOnlyHint: false, untrustedContentHint: true };
     const participantKinds: MessageParticipantKind[] = ["human", "agent", "business", "organization", "system"];
     const messageKinds: StructuredMessageKind[] = ["request", "offer", "question", "answer", "update", "confirmation", "warning", "handoff", "plain"];
@@ -118,9 +122,8 @@ export function AsymptaWebMcpTools() {
         title: "Describe Asympta World capabilities",
         description: "Describe the WebMCP tool surface, workflows, agents, communication bridge, simulation disclosure and human-approval safety boundary.",
         inputSchema: { type: "object", properties: {}, additionalProperties: false },
-        annotations: readOnly,
+        annotations: readOnlyUntrusted,
         execute: async () => {
-          syncVisibleWorkflowMessages();
           const foreground = readForegroundSnapshot();
           return JSON.stringify({
             ok: true,
@@ -147,11 +150,10 @@ export function AsymptaWebMcpTools() {
           required: ["agentId"],
           additionalProperties: false,
         },
-        annotations: readOnly,
+        annotations: readOnlyUntrusted,
         execute: async (input) => {
           const agentId = String(input.agentId ?? "");
           if (!agentIds.includes(agentId)) return JSON.stringify({ ok: false, error: "Unknown agent." });
-          syncVisibleWorkflowMessages();
           const foreground = readForegroundSnapshot();
           if (!foreground) return JSON.stringify({ ok: false, error: "Living world state is not mounted." });
           const agent = recordArray(foreground.agents).find((item) => item.id === agentId);
@@ -168,12 +170,70 @@ export function AsymptaWebMcpTools() {
         title: "Get pending human approval",
         description: "Read the current human approval request, if any. This tool cannot approve or decline it.",
         inputSchema: { type: "object", properties: {}, additionalProperties: false },
-        annotations: readOnly,
+        annotations: readOnlyUntrusted,
         execute: async () => {
           const foreground = readForegroundSnapshot();
           if (!foreground) return JSON.stringify({ ok: false, error: "Living world state is not mounted." });
           const pending = recordArray(foreground.pendingApprovals)[0] ?? null;
           return JSON.stringify({ ok: true, pendingApproval: pending });
+        },
+      },
+      {
+        name: "asympta_submit_request",
+        title: "Submit an Asympta request for review",
+        description: "Create a bounded natural-language request for the person to review. This tool does not run the request, call an external service or approve a consequential action.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            intent: {
+              type: "string",
+              minLength: 1,
+              maxLength: 600,
+              description: "The plain-language intention. Never include passwords, API keys or other credentials.",
+            },
+          },
+          required: ["intent"],
+          additionalProperties: false,
+        },
+        annotations: mutating,
+        execute: async (input) => {
+          try {
+            const request = submitBrowserWebMcpRequest(input.intent);
+            return JSON.stringify({
+              ok: true,
+              requestId: request.requestId,
+              status: request.status,
+              source: request.source,
+              pendingHumanReview: true,
+              note: "The request is waiting for the person to review and send it. No external action has run.",
+            });
+          } catch (error) {
+            return JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) });
+          }
+        },
+      },
+      {
+        name: "asympta_read_request",
+        title: "Read one Asympta request",
+        description: "Read the bounded status of one WebMCP request by its request ID. It does not list or expose other requests.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            requestId: {
+              type: "string",
+              pattern: "^request-[a-z0-9-]{8,100}$",
+              description: "The exact requestId returned by asympta_submit_request.",
+            },
+          },
+          required: ["requestId"],
+          additionalProperties: false,
+        },
+        annotations: readOnlyUntrusted,
+        execute: async (input) => {
+          const request = readBrowserWebMcpRequest(input.requestId);
+          return request
+            ? JSON.stringify({ ok: true, request })
+            : JSON.stringify({ ok: false, error: "Request not found." });
         },
       },
       {
@@ -247,9 +307,8 @@ export function AsymptaWebMcpTools() {
           },
           additionalProperties: false,
         },
-        annotations: readOnly,
+        annotations: readOnlyUntrusted,
         execute: async (input) => {
-          syncVisibleWorkflowMessages();
           const messages = listBrowserStructuredMessages({
             participantId: typeof input.participantId === "string" ? input.participantId : undefined,
             threadId: typeof input.threadId === "string" ? input.threadId : undefined,

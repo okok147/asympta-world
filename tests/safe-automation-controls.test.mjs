@@ -19,9 +19,15 @@ const celebrationCss = await readFile(new URL("../app/asympta-task-celebration.c
 const progressMath = await readFile(new URL("../lib/atlas-display-progress.ts", import.meta.url), "utf8");
 const automationCss = await readFile(new URL("../app/asympta-schedule-automation.css", import.meta.url), "utf8");
 const progressCss = await readFile(new URL("../app/asympta-estimated-progress.css", import.meta.url), "utf8");
+const worldApp = await readFile(new URL("../components/asympta-world-live-60hz.tsx", import.meta.url), "utf8");
+const safeSchedule = await readFile(new URL("../components/asympta-safe-schedule.tsx", import.meta.url), "utf8");
+const requestCardsCss = await readFile(new URL("../app/asympta-request-cards.css", import.meta.url), "utf8");
+const requestState = await readFile(new URL("../lib/asympta-current-request.ts", import.meta.url), "utf8");
 
-test("auto explore and auto approve live inside the schedule card without high-frequency work", () => {
-  assert.match(page, /AsymptaScheduleAutomationControls/);
+test("nonessential automation controls are removed from the primary request surface", () => {
+  assert.doesNotMatch(page, /AsymptaScheduleAutomationControls/);
+  assert.doesNotMatch(page, /AsymptaSimulationSpeed/);
+  assert.doesNotMatch(page, /AsymptaScheduleTotalTime/);
   assert.match(automation, /createPortal/);
   assert.match(automation, /\.atlas-safe-schedule/);
   assert.match(automation, /CONTROL_REFRESH_MS = 700/);
@@ -32,6 +38,10 @@ test("auto explore and auto approve live inside the schedule card without high-f
   assert.match(automation, /foreground\.phase !== "completed"/);
   assert.match(automation, /api\.startWorkflow\(nextWorkflow\(foreground\.workflow\)\)/);
   assert.match(automationCss, /atlas-safe-automation/);
+  assert.match(safeSchedule, /subscribeAsymptaCurrentRequest/);
+  assert.match(safeSchedule, /Current request/);
+  assert.match(safeSchedule, /WRITE · REQUEST/);
+  assert.match(requestState, /ASYMPTA_CURRENT_REQUEST_EVENT/);
   assert.doesNotMatch(automation, /requestAnimationFrame|MutationObserver|advanceAtlasWorld|JSON\.parse\(JSON\.stringify/);
 });
 
@@ -50,8 +60,8 @@ test("workflow tiles remain native cross-browser buttons while also enabling pro
   assert.doesNotMatch(processFollow, /startWorkflow|advanceAtlasWorld|requestAnimationFrame|MutationObserver|JSON\.parse\(JSON\.stringify/);
 });
 
-test("schedule and main menu stay mutually exclusive while mobile docking and agent auto-collapse remain", () => {
-  assert.match(page, /AsymptaCardCollapse/);
+test("the current-request card owns its expansion and remains compact on short landscape screens", () => {
+  assert.doesNotMatch(page, /AsymptaCardCollapse/);
   assert.match(cardCollapse, /AGENT_AUTO_COLLAPSE_MS = 5_500/);
   assert.match(cardCollapse, /MOBILE_MAX_WIDTH = 700/);
   assert.match(cardCollapse, /let scheduleExpanded = false/);
@@ -71,11 +81,18 @@ test("schedule and main menu stay mutually exclusive while mobile docking and ag
   assert.match(collapseCss, /atlas-safe-schedule\.is-collapsed \.atlas-safe-schedule__tasks/);
   assert.match(collapseCss, /atlas-safe-schedule\.is-collapsed \.atlas-safe-automation/);
   assert.match(collapseCss, /atlas-agent-card\.is-collapsed \.atlas-agent-status/);
+  assert.match(safeSchedule, /const \[expanded, setExpanded\] = useState\(false\)/);
+  assert.match(safeSchedule, /onClick=\{\(\) => setExpanded/);
+  assert.match(requestCardsCss, /max-height: 420px/);
+  assert.match(requestCardsCss, /min-width: 521px/);
+  assert.match(requestCardsCss, /\.asympta-request-card\.is-collapsed \.asympta-request-card__summary/);
+  assert.match(requestCardsCss, /body:has\(\.asympta-access-card\.is-open\) \.asympta-request-card/);
+  assert.match(requestCardsCss, /top: max\(269px/);
   assert.doesNotMatch(cardCollapse, /requestAnimationFrame|MutationObserver|advanceAtlasWorld|JSON\.parse\(JSON\.stringify/);
 });
 
-test("top-left resource ledger projects canonical world state instead of inventing task deltas", () => {
-  assert.match(page, /AsymptaResourceLedger/);
+test("top-left card replaces the resource ledger with bounded WebMCP read and write-request actions", () => {
+  assert.doesNotMatch(page, /AsymptaResourceLedger/);
   assert.match(layout, /asympta-resource-ledger\.css/);
   assert.match(resourceLedger, /REFRESH_MS = 500/);
   assert.match(resourceLedger, /"budget" \| "materials" \| "inventory" \| "capacity" \| "compute" \| "delivery" \| "trust"/);
@@ -91,6 +108,11 @@ test("top-left resource ledger projects canonical world state instead of inventi
   assert.match(resourceLedger, /機台/);
   assert.match(resourceCss, /atlas-resource-ledger/);
   assert.match(resourceCss, /data-resource="compute"/);
+  assert.match(worldApp, /asympta-access-actions/);
+  assert.match(worldApp, /WEBMCP · READ/);
+  assert.match(worldApp, /WEBMCP · WRITE/);
+  assert.match(worldApp, /Consequential actions still require your approval|涉及實際影響的行動仍需要你批准/);
+  assert.match(requestCardsCss, /\.asympta-global-console[\s\S]*display: none !important/);
   assert.doesNotMatch(resourceLedger, /resourceDeltaForTask|taskFraction|SIDE_COMPUTE/);
   assert.doesNotMatch(resourceLedger, /requestAnimationFrame|MutationObserver|advanceAtlasWorld|startAtlas|resolveAtlas|JSON\.parse\(JSON\.stringify/);
 });
