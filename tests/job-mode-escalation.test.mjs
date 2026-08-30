@@ -19,6 +19,7 @@ import {
 const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
 const jobComponent = await readFile(new URL("../components/asympta-job-mode.tsx", import.meta.url), "utf8");
 const guardComponent = await readFile(new URL("../components/asympta-escalation-guard.tsx", import.meta.url), "utf8");
+const escalationPolicy = await readFile(new URL("../lib/asympta-escalation-policy.ts", import.meta.url), "utf8");
 
 test("Job Mode ranks work from user skills, reward and difficulty", () => {
   const profile = {
@@ -58,7 +59,7 @@ test("Job Mode leaves only necessary execution to the human and closes the deal 
   assert.equal(humanStages[0].id, "human");
 });
 
-test("stalled Dinner workflow escalates to a safe replay instead of remaining stuck", () => {
+test("stalled Dinner workflow stays in the same world for higher-agent recovery", () => {
   const snapshot = {
     phase: "running",
     workflow: "Dinner Coordination",
@@ -67,30 +68,22 @@ test("stalled Dinner workflow escalates to a safe replay instead of remaining st
     pendingApprovals: [],
   };
   assert.deepEqual(decideWorkflowEscalation(snapshot, CORE_STALL_ESCALATION_MS - 1, false), { kind: "none" });
-  assert.deepEqual(decideWorkflowEscalation(snapshot, CORE_STALL_ESCALATION_MS + 1, false), {
-    kind: "restart-workflow",
-    workflowId: "dinner-network",
-    code: "safe-replay",
-  });
+  assert.deepEqual(decideWorkflowEscalation(snapshot, CORE_STALL_ESCALATION_MS + 1, false), { kind: "none" });
 });
 
-test("declined or otherwise blocked workflow with no pending approval is recovered by a fresh safe attempt", () => {
+test("blocked workflow is preserved instead of recovered by a fresh attempt", () => {
   const blocked = {
     phase: "blocked",
     workflow: "Dinner Coordination",
     tasks: [
-      { id: "dn-authorize", status: "blocked", progress: 0 },
-      { id: "dn-prepare", status: "queued", progress: 0 },
+      { id: "dn-dispatch", status: "blocked", progress: 0 },
+      { id: "dn-deliver", status: "queued", progress: 0 },
     ],
-    agents: [{ id: "agent-finance", status: "waiting", lon: 139.7666, lat: 35.6868, taskId: "dn-authorize" }],
+    agents: [{ id: "agent-logistics", status: "waiting", lon: 139.7568, lat: 35.6556, taskId: "dn-dispatch" }],
     pendingApprovals: [],
   };
   assert.deepEqual(decideWorkflowEscalation(blocked, BLOCKED_RECOVERY_MS - 1, false), { kind: "none" });
-  assert.deepEqual(decideWorkflowEscalation(blocked, BLOCKED_RECOVERY_MS + 1, false), {
-    kind: "restart-workflow",
-    workflowId: "dinner-network",
-    code: "safe-replay",
-  });
+  assert.deepEqual(decideWorkflowEscalation(blocked, BLOCKED_RECOVERY_MS + 1, false), { kind: "none" });
 });
 
 test("senior agent recovers missed Auto Approve but never overrides WebMCP or explicit human authority", () => {
@@ -134,7 +127,7 @@ test("progress signature observes both task progress and agent movement", () => 
   assert.notEqual(foregroundProgressSignature(base), foregroundProgressSignature(worked));
 });
 
-test("Job Mode and escalation guard are mounted as first-class Asympta World product layers", () => {
+test("Job Mode and escalation guard never auto restart a stalled workflow", () => {
   assert.match(page, /AsymptaJobMode/);
   assert.match(page, /AsymptaEscalationGuard/);
   assert.match(jobComponent, /PROFILE_KEY = "asympta-world\.job-profile\.v1"/);
@@ -144,6 +137,8 @@ test("Job Mode and escalation guard are mounted as first-class Asympta World pro
   assert.match(jobComponent, /animalSvgMarkup/);
   assert.match(jobComponent, /buildJobStages/);
   assert.match(guardComponent, /decideWorkflowEscalation/);
-  assert.match(guardComponent, /api\.startWorkflow\(decision\.workflowId\)/);
   assert.match(guardComponent, /api\.approve\(decision\.approvalId, true\)/);
+  assert.doesNotMatch(guardComponent, /api\.startWorkflow/);
+  assert.doesNotMatch(escalationPolicy, /restart-workflow/);
+  assert.doesNotMatch(escalationPolicy, /safe-replay/);
 });
