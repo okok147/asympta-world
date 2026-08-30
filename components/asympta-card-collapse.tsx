@@ -52,7 +52,6 @@ export function AsymptaCardCollapse() {
     let lastTaskKey = "";
     let lastAgentInteractionAt = performance.now();
     let lastScheduleInteractionAt = performance.now();
-    let lastMenuInteractionAt = performance.now();
 
     const positionMobileSchedule = () => {
       const schedule = document.querySelector<HTMLElement>(".atlas-safe-schedule");
@@ -103,8 +102,8 @@ export function AsymptaCardCollapse() {
         header.setAttribute("aria-expanded", expanded ? "true" : "false");
       }
 
-      // One major information surface at a time on every viewport. If Schedule expands,
-      // close the coordination menu first instead of allowing two dashboards to overlap.
+      // One major information surface at a time. Expanding Schedule from an explicit
+      // user action may close the menu, but the menu never closes merely because time passed.
       if (expanded && menuIsOpen()) {
         window.setTimeout(() => {
           setMenuOpen(false);
@@ -148,7 +147,6 @@ export function AsymptaCardCollapse() {
 
       const now = performance.now();
       if (scheduleExpanded && now - lastScheduleInteractionAt >= PANEL_AUTO_COLLAPSE_MS) applySchedule(false);
-      if (menuIsOpen() && now - lastMenuInteractionAt >= PANEL_AUTO_COLLAPSE_MS) setMenuOpen(false);
 
       // Coordination menu owns the detailed-information slot while it is open.
       if (menuIsOpen() && scheduleExpanded) applySchedule(false);
@@ -184,7 +182,6 @@ export function AsymptaCardCollapse() {
       if (!target) return;
 
       if (target.closest(".atlas-safe-schedule")) lastScheduleInteractionAt = performance.now();
-      if (target.closest(".atlas-console")) lastMenuInteractionAt = performance.now();
 
       if (target.closest(".atlas-safe-schedule__header")) {
         applySchedule(!scheduleExpanded);
@@ -193,7 +190,6 @@ export function AsymptaCardCollapse() {
 
       const menuToggle = target.closest(".atlas-menu-identity, .atlas-menu-bar > .atlas-quick-icon:last-child");
       if (menuToggle) {
-        lastMenuInteractionAt = performance.now();
         window.setTimeout(() => {
           if (menuIsOpen()) applySchedule(false);
           positionMobileSchedule();
@@ -219,7 +215,6 @@ export function AsymptaCardCollapse() {
       if (!target) return;
       const now = performance.now();
       if (target.closest(".atlas-safe-schedule")) lastScheduleInteractionAt = now;
-      if (target.closest(".atlas-console")) lastMenuInteractionAt = now;
       if (target.closest(".atlas-agent-card") || target.closest(".animal-map-marker--foreground")) {
         lastAgentInteractionAt = now;
       }
@@ -228,9 +223,7 @@ export function AsymptaCardCollapse() {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target instanceof Element ? event.target : null;
       if (!target) return;
-      const now = performance.now();
-      if (target.closest(".atlas-safe-schedule")) lastScheduleInteractionAt = now;
-      if (target.closest(".atlas-console")) lastMenuInteractionAt = now;
+      if (target.closest(".atlas-safe-schedule")) lastScheduleInteractionAt = performance.now();
       if (event.key !== "Enter" && event.key !== " ") return;
       if (target.closest(".atlas-safe-schedule__header")) {
         event.preventDefault();
