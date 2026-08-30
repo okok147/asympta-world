@@ -81,7 +81,7 @@ test("real-time economics reuse calm UI without cross-root React portals", () =>
   assert.match(jobMode, /Gross|gross/);
   assert.match(jobMode, /Cost|cost/);
   assert.match(jobMode, /Net|net/);
-  assert.match(ultraCalm, /rgba\(248,246,239,\.16\)/);
+  assert.match(ultraCalm, /rgba\(248,246,239,\.88\)/);
   assert.match(ultraCalm, /Human-decision surfaces/);
   assert.match(ultraCalm, /data-asympta-workflow-cost/);
   assert.match(ultraCalm, /data-asympta-task-cost/);
