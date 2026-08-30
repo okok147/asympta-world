@@ -30,7 +30,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat .automation/citypatch/part-* > /tmp/apply-city-cloud.py.gz.b64
+          cat \
+            .automation/citypatch/part-00 \
+            .automation/citypatch/part-01 \
+            .automation/citypatch/part-02 \
+            .automation/citypatch/part-03a \
+            .automation/citypatch/part-03b0 \
+            .automation/citypatch/part-03b1 \
+            .automation/citypatch/part-03b2 \
+            .automation/citypatch/part-03c \
+            .automation/citypatch/part-04 \
+            .automation/citypatch/part-05 \
+            > /tmp/apply-city-cloud.py.gz.b64
           echo "68cd1fb99fd0b419eb33c9d9170e6a4169b0673c541f03d56793ad0b426c50d1  /tmp/apply-city-cloud.py.gz.b64" | sha256sum -c -
           base64 --decode /tmp/apply-city-cloud.py.gz.b64 > /tmp/apply-city-cloud.py.gz
           echo "64d83bcce861b70b655b41ac61ea350dde8c8f6cad0023f0cc834d178b1fbfbd  /tmp/apply-city-cloud.py.gz" | sha256sum -c -
