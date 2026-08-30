@@ -48,12 +48,16 @@ test("workflow tiles remain native cross-browser buttons while also enabling pro
   assert.doesNotMatch(processFollow, /startWorkflow|advanceAtlasWorld|requestAnimationFrame|MutationObserver|JSON\.parse\(JSON\.stringify/);
 });
 
-test("mobile schedule and main menu are mutually adaptive while agent card auto-collapses", () => {
+test("schedule and main menu stay mutually exclusive while mobile docking and agent auto-collapse remain", () => {
   assert.match(page, /AsymptaCardCollapse/);
   assert.match(cardCollapse, /AGENT_AUTO_COLLAPSE_MS = 5_500/);
   assert.match(cardCollapse, /MOBILE_MAX_WIDTH = 700/);
-  assert.match(cardCollapse, /applySchedule\(!isMobile\(\)\)/);
-  assert.match(cardCollapse, /if \(isMobile\(\) && expanded && menuIsOpen\(\)\)/);
+  assert.match(cardCollapse, /let scheduleExpanded = false/);
+  assert.match(cardCollapse, /applySchedule\(false\)/);
+  assert.doesNotMatch(cardCollapse, /applySchedule\(!isMobile\(\)\)/);
+  assert.match(cardCollapse, /if \(expanded && menuIsOpen\(\)\)/);
+  assert.match(cardCollapse, /if \(menuIsOpen\(\) && scheduleExpanded\) applySchedule\(false\)/);
+  assert.match(cardCollapse, /if \(menuIsOpen\(\)\) applySchedule\(false\)/);
   assert.match(cardCollapse, /setMenuOpen\(false\)/);
   assert.match(cardCollapse, /asymptaMobileDock = "below-menu"/);
   assert.match(cardCollapse, /asymptaMobileDock = "bottom"/);
