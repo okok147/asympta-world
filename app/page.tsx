@@ -13,6 +13,7 @@ import { AsymptaResourceLedger } from "@/components/asympta-resource-ledger";
 import { AsymptaSafeSchedule } from "@/components/asympta-safe-schedule";
 import { AsymptaScheduleAutomationControls } from "@/components/asympta-schedule-automation-controls";
 import { AsymptaScheduleTotalTime } from "@/components/asympta-schedule-total-time";
+import { AsymptaSimulationSpeed } from "@/components/asympta-simulation-speed";
 import { AsymptaTaskCelebration } from "@/components/asympta-task-celebration";
 import { AsymptaUltraCalm } from "@/components/asympta-ultra-calm";
 import { AsymptaUserPreferences } from "@/components/asympta-user-preferences";
@@ -36,6 +37,7 @@ export default function HomePage() {
       <AsymptaWorkflowEconomy />
       <AsymptaScheduleTotalTime />
       <AsymptaScheduleAutomationControls />
+      <AsymptaSimulationSpeed />
       <AsymptaResourceLedger />
       <AsymptaEstimatedProgress />
       <AsymptaProcessCameraFollow />
