@@ -10,7 +10,8 @@ const estimatedProgress = await readFile(new URL("../components/asympta-estimate
 const processFollow = await readFile(new URL("../components/asympta-process-camera-follow.tsx", import.meta.url), "utf8");
 const cardCollapse = await readFile(new URL("../components/asympta-card-collapse.tsx", import.meta.url), "utf8");
 const resourceLedger = await readFile(new URL("../components/asympta-resource-ledger.tsx", import.meta.url), "utf8");
-const workflowGuide = await readFile(new URL("../components/asympta-workflow-guide.tsx", import.meta.url), "utf8");
+const intentComposer = await readFile(new URL("../components/asympta-intent-composer.tsx", import.meta.url), "utf8");
+const intentCss = await readFile(new URL("../app/asympta-intent.css", import.meta.url), "utf8");
 const collapseCss = await readFile(new URL("../app/asympta-card-collapse.css", import.meta.url), "utf8");
 const resourceCss = await readFile(new URL("../app/asympta-resource-ledger.css", import.meta.url), "utf8");
 const celebration = await readFile(new URL("../components/asympta-task-celebration.tsx", import.meta.url), "utf8");
@@ -94,14 +95,16 @@ test("top-left resource ledger projects canonical world state instead of inventi
   assert.doesNotMatch(resourceLedger, /requestAnimationFrame|MutationObserver|advanceAtlasWorld|startAtlas|resolveAtlas|JSON\.parse\(JSON\.stringify/);
 });
 
-test("default menu opens with a localized workflow-selection hint", () => {
-  assert.match(page, /AsymptaWorkflowGuide/);
-  assert.match(workflowGuide, /\.atlas-console/);
-  assert.match(workflowGuide, /\.atlas-menu-identity/);
-  assert.match(workflowGuide, /identity\.click\(\)/);
-  assert.match(workflowGuide, /點選任一流程開始/);
-  assert.match(workflowGuide, /ワークフローを選ぶと開始/);
-  assert.match(collapseCss, /atlas-workflow-guide/);
+test("default product opens with a localized intention composer rather than a preset workflow guide", () => {
+  assert.match(page, /AsymptaIntentComposer/);
+  assert.doesNotMatch(page, /AsymptaWorkflowGuide/);
+  assert.match(intentComposer, /Tell Asympta what you want to happen/);
+  assert.match(intentComposer, /告訴 Asympta 你想發生甚麼/);
+  assert.match(intentComposer, /Asympta に、実現してほしいこと/);
+  assert.match(intentComposer, /runAsymptaIntent/);
+  assert.match(intentCss, /\.atlas-menu-panel \.atlas-workflows/);
+  assert.match(intentCss, /\.atlas-menu-panel \.atlas-webmcp-inspector/);
+  assert.match(intentCss, /\.atlas-menu-panel \.atlas-progress-block/);
 });
 
 test("map starts two zoom levels closer and favicon refresh bypasses the browser HTTP cache", () => {
