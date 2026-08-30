@@ -15,6 +15,7 @@ import "./asympta-task-celebration.css";
 import "./asympta-card-collapse.css";
 import "./asympta-calm-ui.css";
 import "./asympta-global-world.css";
+import "./asympta-intent.css";
 
 const faviconPath = process.env.ASYMPTA_PAGES_BUILD === "1"
   ? "/asympta-world/favicon-asympta-cat-20260829.svg"
@@ -25,7 +26,7 @@ const faviconDataUrl = `data:image/svg+xml,${encodeURIComponent(`${faviconInline
 
 export const metadata: Metadata = {
   title: "Asympta World",
-  description: "A calm, map-first world-scale coordination model.",
+  description: "Express an intention. Humans, agents and tools coordinate around it.",
   applicationName: "Asympta World",
   icons: {
     icon: [{ url: faviconPath, type: "image/svg+xml" }],
