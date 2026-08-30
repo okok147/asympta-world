@@ -6,6 +6,7 @@ const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8")
 const layout = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
 const calmCss = await readFile(new URL("../app/asympta-calm-ui.css", import.meta.url), "utf8");
 const calmDefaults = await readFile(new URL("../components/asympta-calm-defaults.tsx", import.meta.url), "utf8");
+const cardCollapse = await readFile(new URL("../components/asympta-card-collapse.tsx", import.meta.url), "utf8");
 const workflowGuide = await readFile(new URL("../components/asympta-workflow-guide.tsx", import.meta.url), "utf8");
 const jobMode = await readFile(new URL("../components/asympta-job-mode.tsx", import.meta.url), "utf8");
 const preferences = await readFile(new URL("../lib/asympta-user-preferences.ts", import.meta.url), "utf8");
@@ -15,7 +16,16 @@ test("the map stays the primary surface instead of opening dashboards by default
   assert.match(layout, /asympta-calm-ui\.css/);
   assert.match(calmDefaults, /header\.click\(\)/);
   assert.match(calmDefaults, /asymptaExpanded === "true"/);
+  assert.match(cardCollapse, /let scheduleExpanded = false/);
+  assert.match(cardCollapse, /applySchedule\(false\)/);
+  assert.doesNotMatch(cardCollapse, /applySchedule\(!isMobile\(\)\)/);
   assert.doesNotMatch(workflowGuide, /if \(consoleCard\.classList\.contains\("is-collapsed"\)\)/);
+});
+
+test("only one detailed information surface can own the map at a time", () => {
+  assert.match(cardCollapse, /if \(expanded && menuIsOpen\(\)\)/);
+  assert.match(cardCollapse, /if \(menuIsOpen\(\) && scheduleExpanded\) applySchedule\(false\)/);
+  assert.match(cardCollapse, /if \(menuIsOpen\(\)\) applySchedule\(false\)/);
 });
 
 test("default visual hierarchy hides duplicate telemetry and ambient chatter", () => {
