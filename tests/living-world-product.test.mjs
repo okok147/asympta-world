@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const app = await readFile(new URL("../components/asympta-world-live-60hz.tsx", import.meta.url), "utf8");
+const intentView = await readFile(new URL("../components/asympta-intent-world-view.tsx", import.meta.url), "utf8");
 const animalArt = await readFile(new URL("../components/asympta-animal-art.tsx", import.meta.url), "utf8");
 const engine = await readFile(new URL("../lib/atlas-simulation.ts", import.meta.url), "utf8");
 const demo = await readFile(new URL("../lib/atlas-demo.ts", import.meta.url), "utf8");
@@ -11,18 +12,19 @@ const css = await readFile(new URL("../app/asympta-restoration.css", import.meta
 const fpsCss = await readFile(new URL("../app/asympta-live-60hz.css", import.meta.url), "utf8");
 const animalCss = await readFile(new URL("../app/asympta-animal-art.css", import.meta.url), "utf8");
 
-test("the product now boots the 60Hz culled paper living-city renderer", () => {
-  assert.match(page, /AsymptaWorldLive60Hz/);
-  assert.match(app, /data-map-app="true"/);
-  assert.match(app, /data-map-style="paper-illustrated-animal-living-city-demo"/);
+test("the product boots the intention-first validated animal world", () => {
+  assert.match(page, /AsymptaIntentWorld/);
+  assert.doesNotMatch(page, /AsymptaWorldLive60Hz/);
+  assert.match(intentView, /data-map-app="true"/);
+  assert.match(intentView, /data-map-style="paper-illustrated-animal-intention-world"/);
+  assert.match(intentView, /data-render-mode="validated-state-machine-raf-60hz"/);
+  assert.match(intentView, /AnimalPortrait/);
+  assert.doesNotMatch(intentView, /🐱|🐰|🐹|🐶|🦊|🐻|🐯|🐼|🐮|🦝|🐨|🐵|🦉|🐧|🐦/u);
   assert.match(app, /data-render-mode="raf-60hz-viewport-culling"/);
   assert.match(app, /createAtlasDemoWorld/);
-  assert.match(app, /animalSvgMarkup/);
-  assert.match(app, /AnimalPortrait/);
-  assert.doesNotMatch(app, /🐱|🐰|🐹|🐶|🦊|🐻|🐯|🐼|🐮|🦝|🐨|🐵|🦉|🐧|🐦/u);
 });
 
-test("visual positions are updated every requestAnimationFrame while expensive work stays throttled", () => {
+test("legacy visual positions update every requestAnimationFrame while expensive work stays throttled", () => {
   assert.match(app, /requestAnimationFrame\(animate\)/);
   assert.match(app, /updateForegroundVisual60Hz\(worldRef\.current, elapsed\)/);
   assert.match(app, /updateAmbientVisual60Hz\(visualNow\)/);
@@ -34,7 +36,7 @@ test("visual positions are updated every requestAnimationFrame while expensive w
   assert.match(app, /setCenter\(\[visual\.lon, visual\.lat\]\)/);
 });
 
-test("ambient city uses viewport culling and mounts only a small nearby set", () => {
+test("legacy ambient city uses viewport culling and mounts only a small nearby set", () => {
   assert.match(app, /MAX_AMBIENT_MOBILE = 8/);
   assert.match(app, /MAX_AMBIENT_DESKTOP = 12/);
   assert.match(app, /expandedBounds/);
@@ -47,7 +49,7 @@ test("ambient city uses viewport culling and mounts only a small nearby set", ()
   assert.match(demo, /Array\.from\(\{ length: CITY_LIFE_COUNT \}/);
 });
 
-test("dialogue above and status below are restored without React frame rendering", () => {
+test("legacy dialogue and status stay outside React frame rendering", () => {
   assert.match(app, /animal-map-marker__dialogue/);
   assert.match(app, /animal-map-marker__status-text/);
   assert.match(app, /foregroundDialogue/);
@@ -60,7 +62,7 @@ test("dialogue above and status below are restored without React frame rendering
   assert.match(app, /AMBIENT_DIALOGUE_LIMIT = 4/);
 });
 
-test("WebMCP inspector shows callable JSON, permission mode and live agent state", () => {
+test("legacy WebMCP inspector shows callable JSON, permission mode and live agent state", () => {
   assert.match(app, /WEBMCP_CATALOG/);
   assert.match(app, /PermissionMode = "READ" \| "WRITE"/);
   assert.match(app, /asympta_observe_living_city/);
@@ -75,7 +77,7 @@ test("WebMCP inspector shows callable JSON, permission mode and live agent state
   assert.match(fpsCss, /\.atlas-permission--write/);
 });
 
-test("WebMCP writes remain explicit human-gated simulation requests", () => {
+test("legacy WebMCP writes remain explicit human-gated simulation requests", () => {
   assert.match(app, /document\.modelContext/);
   assert.match(app, /registerTool\(tool, \{ signal: controller\.signal \}\)/);
   assert.match(app, /queuedForHumanApproval/);
@@ -86,7 +88,7 @@ test("WebMCP writes remain explicit human-gated simulation requests", () => {
   assert.match(demo, /Background users and businesses are synthetic demonstration actors/);
 });
 
-test("collapsible menu, camera follow and language control remain calm and clear", () => {
+test("legacy menu, camera follow and language control remain reusable", () => {
   assert.match(app, /menuOpen/);
   assert.match(app, /atlas-menu-bar/);
   assert.match(app, /atlas-menu-panel/);
@@ -100,7 +102,7 @@ test("collapsible menu, camera follow and language control remain calm and clear
   assert.match(fpsCss, /max-height:\s*min\(68vh, 610px\)/);
 });
 
-test("native MapLibre pinch zoom remains first-class", () => {
+test("legacy native MapLibre pinch zoom remains first-class", () => {
   assert.match(app, /maplibre-gl@5/);
   assert.match(app, /touchZoomRotate\.enable\(\)/);
   assert.match(app, /touchZoomRotate\.disableRotation\(\)/);
