@@ -67,7 +67,7 @@ function cooperationText(event: RuntimeHistoryEvent) {
 }
 
 function cooperationPair(world: canonical.AtlasWorldState, event: RuntimeHistoryEvent) {
-  let fromAgentId = visibleAgentId(world, event.actorId);
+  const fromAgentId = visibleAgentId(world, event.actorId);
   let toAgentId = visibleAgentId(world, event.targetId);
 
   if (!toAgentId) toAgentId = visibleAgentId(world, FALLBACK_TARGET[event.type]);
