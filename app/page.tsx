@@ -5,6 +5,7 @@ import { AsymptaCardCollapse } from "@/components/asympta-card-collapse";
 import { AsymptaEscalationGuard } from "@/components/asympta-escalation-guard";
 import { AsymptaEstimatedProgress } from "@/components/asympta-estimated-progress";
 import { AsymptaGlobalLocale } from "@/components/asympta-global-locale";
+import { AsymptaGlobalWorld } from "@/components/asympta-global-world";
 import { AsymptaJobMode } from "@/components/asympta-job-mode";
 import { AsymptaPaperMapTone } from "@/components/asympta-paper-map-tone";
 import { AsymptaProcessCameraFollow } from "@/components/asympta-process-camera-follow";
@@ -24,6 +25,7 @@ export default function HomePage() {
   return (
     <>
       <AsymptaWorldLive60Hz />
+      <AsymptaGlobalWorld />
       <AsymptaUserPreferences />
       <AsymptaEscalationGuard />
       <AsymptaJobMode />
