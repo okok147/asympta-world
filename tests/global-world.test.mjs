@@ -83,9 +83,11 @@ test("global corridors use curved bounded polylines and workflow intent selects 
   assert.equal(globalMissionForWorkflow("Custom Order Network"), "material");
 });
 
-test("world-scale rendering reuses the one map, avoids cross-root portals and throttles expensive work", () => {
-  assert.match(page, /AsymptaGlobalWorld/);
-  assert.match(layout, /asympta-global-world\.css/);
+test("legacy world-scale renderer remains bounded but is not mounted in the intention-first product", () => {
+  assert.match(page, /AsymptaIntentWorld/);
+  assert.doesNotMatch(page, /AsymptaGlobalWorld/);
+  assert.doesNotMatch(layout, /asympta-global-world\.css/);
+  assert.match(layout, /asympta-intent-world\.css/);
   assert.match(component, /__ASYMPTA_MAP__/);
   assert.match(component, /requestAnimationFrame/);
   assert.match(component, /GLOBAL_SIMULATION_STEP_MS/);

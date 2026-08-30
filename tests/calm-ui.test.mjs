@@ -12,9 +12,12 @@ const jobMode = await readFile(new URL("../components/asympta-job-mode.tsx", imp
 const ultraCalm = await readFile(new URL("../components/asympta-ultra-calm.tsx", import.meta.url), "utf8");
 const preferences = await readFile(new URL("../lib/asympta-user-preferences.ts", import.meta.url), "utf8");
 
-test("the map stays the primary surface instead of opening dashboards by default", () => {
-  assert.match(page, /AsymptaCalmDefaults/);
-  assert.match(layout, /asympta-calm-ui\.css/);
+test("the intention-first world is the only mounted product surface", () => {
+  assert.match(page, /AsymptaIntentWorld/);
+  assert.doesNotMatch(page, /AsymptaCalmDefaults|AsymptaWorkflowGuide|AsymptaJobMode/);
+  assert.match(layout, /asympta-intent-world\.css/);
+  assert.match(layout, /asympta-intent-console\.css/);
+  assert.match(layout, /asympta-intent-runtime\.css/);
   assert.match(calmDefaults, /header\.click\(\)/);
   assert.match(calmDefaults, /asymptaExpanded === "true"/);
   assert.match(cardCollapse, /let scheduleExpanded = false/);
@@ -23,7 +26,7 @@ test("the map stays the primary surface instead of opening dashboards by default
   assert.doesNotMatch(workflowGuide, /if \(consoleCard\.classList\.contains\("is-collapsed"\)\)/);
 });
 
-test("top menu and schedule canvases stay readable near ninety percent opacity", () => {
+test("legacy top menu and schedule canvases remain readable when reused", () => {
   assert.match(ultraCalm, /atlas-console[\s\S]*rgba\(248,246,239,\.88\)/);
   assert.match(ultraCalm, /atlas-safe-schedule[\s\S]*rgba\(248,246,239,\.88\)/);
   assert.match(ultraCalm, /atlas-console\.is-collapsed[\s\S]*\.84/);
@@ -32,13 +35,13 @@ test("top menu and schedule canvases stay readable near ninety percent opacity",
   assert.doesNotMatch(ultraCalm, /atlas-safe-schedule \{[\s\S]{0,120}rgba\(248,246,239,\.28\)/);
 });
 
-test("only one detailed information surface can own the map at a time", () => {
+test("only one legacy detailed information surface can own the map at a time", () => {
   assert.match(cardCollapse, /if \(expanded && menuIsOpen\(\)\)/);
   assert.match(cardCollapse, /if \(menuIsOpen\(\) && scheduleExpanded\) applySchedule\(false\)/);
   assert.match(cardCollapse, /if \(menuIsOpen\(\)\) applySchedule\(false\)/);
 });
 
-test("default visual hierarchy hides duplicate telemetry and ambient chatter", () => {
+test("legacy calm hierarchy hides duplicate telemetry and ambient chatter", () => {
   assert.match(calmCss, /atlas-status-stack > \.atlas-tool-state \{ display: none; \}/);
   assert.match(calmCss, /atlas-resource-ledger \{ display: none; \}/);
   assert.match(calmCss, /:has\(\.atlas-webmcp-inspector\) \.atlas-resource-ledger/);
@@ -48,13 +51,13 @@ test("default visual hierarchy hides duplicate telemetry and ambient chatter", (
   assert.match(calmCss, /map-zoom \{ display: none !important; \}/);
 });
 
-test("workflow picker remains compact even with automatic Job Mode", () => {
+test("legacy workflow picker remains compact when the compatibility module is reused", () => {
   assert.match(calmCss, /grid-template-columns: repeat\(5, minmax\(0, 1fr\)\)/);
   assert.match(calmCss, /atlas-workflow > span:last-child \{ display: none; \}/);
   assert.match(calmCss, /asympta-job-mode__tile > span:last-child/);
 });
 
-test("Job Mode is automatic by default, persistent, and can be switched off", () => {
+test("legacy Job Mode preference remains persistent without being mounted by the new entry point", () => {
   assert.match(preferences, /autoJobMode: boolean/);
   assert.match(preferences, /autoJobMode: true/);
   assert.match(jobMode, /AUTO_POLL_MS = 700/);

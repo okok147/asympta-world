@@ -8,18 +8,17 @@ const activity = await readFile(new URL("../components/asympta-block-activity.ts
 const paperTone = await readFile(new URL("../components/asympta-paper-map-tone.tsx", import.meta.url), "utf8");
 const renderer = await readFile(new URL("../components/asympta-world-live-60hz.tsx", import.meta.url), "utf8");
 
-test("camera follow survives zoom while real drag still unlocks", () => {
+test("legacy camera input hooks remain available without being mounted by the intention world", () => {
+  assert.match(page, /AsymptaIntentWorld/);
+  assert.doesNotMatch(page, /AsymptaWorldLive60Hz/);
+  assert.match(layout, /asympta-intent-world\.css/);
   assert.match(renderer, /map\.on\("dragstart", stopFollow\)/);
   assert.match(renderer, /map\.on\("zoomstart", stopFollow\)/);
-  assert.match(layout, /type === "zoomstart"/);
-  assert.match(layout, /return this/);
-  assert.match(layout, /type === "dragstart"/);
-  assert.match(layout, /touches\.length > 1/);
-  assert.match(layout, /__ASYMPTA_MAP__/);
+  assert.match(renderer, /__ASYMPTA_MAP__/);
 });
 
-test("all visible active agents can tint a larger bounded block without high-frequency work", () => {
-  assert.match(page, /AsymptaBlockActivity/);
+test("legacy active-block tinting remains bounded and is not mounted in the preset-free entry point", () => {
+  assert.doesNotMatch(page, /AsymptaBlockActivity/);
   assert.match(activity, /ACTIVITY_REFRESH_MS = 900/);
   assert.match(activity, /QUERY_RADIUS_PX = 11/);
   assert.match(activity, /MAX_ACTIVE_AGENTS = 24/);
@@ -39,8 +38,8 @@ test("all visible active agents can tint a larger bounded block without high-fre
   assert.doesNotMatch(activity, /requestAnimationFrame|MutationObserver|setState|advanceAtlasWorld/);
 });
 
-test("paper map keeps only major network lines and Asympta routes", () => {
-  assert.match(page, /AsymptaPaperMapTone/);
+test("legacy paper-map module keeps only major network lines when reused", () => {
+  assert.doesNotMatch(page, /AsymptaPaperMapTone/);
   assert.match(paperTone, /#EEEDE6/);
   assert.match(paperTone, /#DDE3E0/);
   assert.match(paperTone, /#DDD8CC/);
