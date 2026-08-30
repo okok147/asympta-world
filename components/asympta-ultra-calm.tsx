@@ -2,28 +2,28 @@ export function AsymptaUltraCalm() {
   return (
     <style>{`
       :root {
-        --panel: rgba(248,246,239,.30);
-        --panel-strong: rgba(249,247,241,.52);
-        --line: rgba(67,63,56,.045);
-        --line-strong: rgba(67,63,56,.075);
+        --panel: rgba(248,246,239,.88);
+        --panel-strong: rgba(249,247,241,.90);
+        --line: rgba(67,63,56,.055);
+        --line-strong: rgba(67,63,56,.085);
         --shadow: none;
       }
 
-      /* Keep content readable while the container itself almost disappears. */
+      /* Keep the two primary top canvases readable at roughly 88% opacity. */
       .atlas-console {
-        background: rgba(248,246,239,.30) !important;
-        border-color: rgba(67,63,56,.045) !important;
+        background: rgba(248,246,239,.88) !important;
+        border-color: rgba(67,63,56,.055) !important;
         box-shadow: none !important;
       }
-      .atlas-console.is-collapsed { background: rgba(248,246,239,.16) !important; }
+      .atlas-console.is-collapsed { background: rgba(248,246,239,.84) !important; }
       .atlas-menu-panel { background: transparent !important; }
 
       .atlas-safe-schedule {
-        background: rgba(248,246,239,.28) !important;
-        border-color: rgba(67,63,56,.04) !important;
+        background: rgba(248,246,239,.88) !important;
+        border-color: rgba(67,63,56,.055) !important;
         box-shadow: none !important;
       }
-      .atlas-safe-schedule.is-collapsed { background: rgba(248,246,239,.15) !important; }
+      .atlas-safe-schedule.is-collapsed { background: rgba(248,246,239,.84) !important; }
 
       .atlas-agent-card {
         background: rgba(248,246,239,.30) !important;
@@ -52,27 +52,27 @@ export function AsymptaUltraCalm() {
       .atlas-workflow.is-active,
       .atlas-quick-icon.is-active,
       .atlas-tool-actions button.is-active {
-        background: rgba(255,255,255,.14) !important;
+        background: rgba(255,255,255,.28) !important;
       }
 
       .animal-map-marker__dialogue {
-        background: rgba(249,247,241,.72) !important;
-        border-color: rgba(67,63,56,.055) !important;
+        background: rgba(249,247,241,.82) !important;
+        border-color: rgba(67,63,56,.065) !important;
       }
 
       .map-control--locate {
-        background: rgba(249,247,241,.22) !important;
-        border-color: rgba(67,63,56,.035) !important;
+        background: rgba(249,247,241,.42) !important;
+        border-color: rgba(67,63,56,.045) !important;
         box-shadow: none !important;
       }
 
-      /* Human-decision surfaces are deliberately excluded from ultra-transparency. */
+      /* Human-decision surfaces are deliberately excluded from transparency. */
       .atlas-approval {
         background: rgba(249,247,241,.94) !important;
         border-color: rgba(67,63,56,.10) !important;
       }
       .asympta-escalation-notice {
-        background: rgba(249,247,241,.76) !important;
+        background: rgba(249,247,241,.82) !important;
         box-shadow: none !important;
       }
 
@@ -98,7 +98,10 @@ export function AsymptaUltraCalm() {
         .atlas-console:hover,
         .atlas-console:focus-within,
         .atlas-safe-schedule:hover,
-        .atlas-safe-schedule:focus-within,
+        .atlas-safe-schedule:focus-within {
+          background: rgba(248,246,239,.94) !important;
+          border-color: rgba(67,63,56,.075) !important;
+        }
         .atlas-agent-card:hover,
         .atlas-agent-card:focus-within {
           background: rgba(248,246,239,.52) !important;
@@ -107,9 +110,10 @@ export function AsymptaUltraCalm() {
       }
 
       @media (max-width:700px) {
-        .atlas-console { background: rgba(248,246,239,.25) !important; }
+        .atlas-console,
+        .atlas-safe-schedule { background: rgba(248,246,239,.88) !important; }
         .atlas-console.is-collapsed,
-        .atlas-safe-schedule.is-collapsed,
+        .atlas-safe-schedule.is-collapsed { background: rgba(248,246,239,.84) !important; }
         .atlas-agent-card.is-collapsed { background: rgba(248,246,239,.13) !important; }
         .atlas-safe-schedule__summary[data-asympta-workflow-cost]::after {
           max-width: 92px;
