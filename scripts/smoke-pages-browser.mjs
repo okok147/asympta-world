@@ -178,28 +178,51 @@ async function run() {
     ]);
     await new Promise((resolve) => setTimeout(resolve, 4_500));
 
-    const result = await command("Runtime.evaluate", {
-      expression: `JSON.stringify((() => {
-        const visible = (selector) => [...document.querySelectorAll(selector)].filter((node) => {
-          const rect = node.getBoundingClientRect();
-          const style = getComputedStyle(node);
-          return !node.hidden && style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity || 1) > 0 && rect.width > 0 && rect.height > 0 && rect.right >= 0 && rect.bottom >= 0 && rect.left <= innerWidth && rect.top <= innerHeight;
-        }).length;
-        return {
-          mapApp: Boolean(document.querySelector('.map-app')),
-          schedule: Boolean(document.querySelector('.atlas-safe-schedule')),
-          foregroundAnimals: document.querySelectorAll('.animal-map-marker--foreground').length,
-          ambientAnimals: document.querySelectorAll('.animal-map-marker--ambient').length,
-          visibleForegroundAnimals: visible('.animal-map-marker--foreground'),
-          visibleAmbientAnimals: visible('.animal-map-marker--ambient'),
-          scale: document.documentElement.dataset.asymptaScale ?? null,
-          bodyText: document.body?.innerText?.slice(0, 1000) ?? '',
-          readyState: document.readyState
-        };
-      })())`,
-      returnByValue: true,
-    });
-    const state = JSON.parse(result?.result?.value ?? "{}");
+    const capture = async () => {
+      const result = await command("Runtime.evaluate", {
+        expression: `JSON.stringify((() => {
+          const visible = (selector) => [...document.querySelectorAll(selector)].filter((node) => {
+            const rect = node.getBoundingClientRect();
+            const style = getComputedStyle(node);
+            return !node.hidden && style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity || 1) > 0 && rect.width > 0 && rect.height > 0 && rect.right >= 0 && rect.bottom >= 0 && rect.left <= innerWidth && rect.top <= innerHeight;
+          }).length;
+          const alpha = (selector) => {
+            const node = document.querySelector(selector);
+            if (!node) return 0;
+            const color = getComputedStyle(node).backgroundColor;
+            const match = color.match(/rgba?\\([^)]*?(?:,|\\s\\/)\\s*([0-9.]+)\\s*\\)$/);
+            return match ? Number(match[1]) : 1;
+          };
+          const snapshot = window.__ASYMPTA_DEMO__?.snapshot?.()?.foreground ?? null;
+          const signature = snapshot ? JSON.stringify({
+            phase: snapshot.phase,
+            tasks: (snapshot.tasks ?? []).map((task) => [task.id, task.status, Number(task.progress ?? 0).toFixed(3)]),
+            agents: (snapshot.agents ?? []).map((agent) => [agent.id, agent.status, Number(agent.lon ?? 0).toFixed(5), Number(agent.lat ?? 0).toFixed(5), agent.taskId ?? ''])
+          }) : '';
+          return {
+            mapApp: Boolean(document.querySelector('.map-app')),
+            schedule: Boolean(document.querySelector('.atlas-safe-schedule')),
+            foregroundAnimals: document.querySelectorAll('.animal-map-marker--foreground').length,
+            ambientAnimals: document.querySelectorAll('.animal-map-marker--ambient').length,
+            visibleForegroundAnimals: visible('.animal-map-marker--foreground'),
+            visibleAmbientAnimals: visible('.animal-map-marker--ambient'),
+            menuBackgroundAlpha: alpha('.atlas-console'),
+            scheduleBackgroundAlpha: alpha('.atlas-safe-schedule'),
+            scale: document.documentElement.dataset.asymptaScale ?? null,
+            phase: snapshot?.phase ?? null,
+            signature,
+            bodyText: document.body?.innerText?.slice(0, 1000) ?? '',
+            readyState: document.readyState
+          };
+        })())`,
+        returnByValue: true,
+      });
+      return JSON.parse(result?.result?.value ?? "{}");
+    };
+
+    const before = await capture();
+    await new Promise((resolve) => setTimeout(resolve, 1_800));
+    const state = await capture();
 
     socket.close();
 
@@ -209,6 +232,12 @@ async function run() {
     if (state.scale !== "city" || state.foregroundAnimals < 1 || state.visibleForegroundAnimals < 1 || state.ambientAnimals < 1 || state.visibleAmbientAnimals < 1) {
       throw new Error(`Cute-agent visibility smoke failed: ${JSON.stringify(state)}`);
     }
+    if (state.menuBackgroundAlpha < 0.8 || state.scheduleBackgroundAlpha < 0.8) {
+      throw new Error(`Primary canvas opacity smoke failed: ${JSON.stringify({ menuBackgroundAlpha: state.menuBackgroundAlpha, scheduleBackgroundAlpha: state.scheduleBackgroundAlpha })}`);
+    }
+    if (before.phase === "running" && state.phase === "running" && before.signature === state.signature) {
+      throw new Error(`Living-world browser stall detected: ${state.signature}`);
+    }
     if (exceptions.length) {
       throw new Error(`Browser runtime exception(s):\n${exceptions.join("\n---\n")}`);
     }
@@ -216,7 +245,7 @@ async function run() {
       throw new Error(`Browser console error(s):\n${consoleErrors.join("\n")}`);
     }
 
-    console.log(`Browser hydration smoke passed: city scale with ${state.visibleForegroundAnimals} visible foreground and ${state.visibleAmbientAnimals} visible ambient cute agents.`);
+    console.log(`Browser smoke passed: city scale, live world progression, ${state.visibleForegroundAnimals} foreground + ${state.visibleAmbientAnimals} ambient cute agents, primary panels alpha ${state.menuBackgroundAlpha.toFixed(2)}/${state.scheduleBackgroundAlpha.toFixed(2)}.`);
   } finally {
     chrome.kill("SIGTERM");
     server.close();
