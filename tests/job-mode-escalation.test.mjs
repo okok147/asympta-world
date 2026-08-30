@@ -4,6 +4,7 @@ import test from "node:test";
 
 import {
   APPROVAL_ESCALATION_MS,
+  BLOCKED_RECOVERY_MS,
   CORE_STALL_ESCALATION_MS,
   decideWorkflowEscalation,
   foregroundProgressSignature,
@@ -67,6 +68,25 @@ test("stalled Dinner workflow escalates to a safe replay instead of remaining st
   };
   assert.deepEqual(decideWorkflowEscalation(snapshot, CORE_STALL_ESCALATION_MS - 1, false), { kind: "none" });
   assert.deepEqual(decideWorkflowEscalation(snapshot, CORE_STALL_ESCALATION_MS + 1, false), {
+    kind: "restart-workflow",
+    workflowId: "dinner-network",
+    code: "safe-replay",
+  });
+});
+
+test("declined or otherwise blocked workflow with no pending approval is recovered by a fresh safe attempt", () => {
+  const blocked = {
+    phase: "blocked",
+    workflow: "Dinner Coordination",
+    tasks: [
+      { id: "dn-authorize", status: "blocked", progress: 0 },
+      { id: "dn-prepare", status: "queued", progress: 0 },
+    ],
+    agents: [{ id: "agent-finance", status: "waiting", lon: 139.7666, lat: 35.6868, taskId: "dn-authorize" }],
+    pendingApprovals: [],
+  };
+  assert.deepEqual(decideWorkflowEscalation(blocked, BLOCKED_RECOVERY_MS - 1, false), { kind: "none" });
+  assert.deepEqual(decideWorkflowEscalation(blocked, BLOCKED_RECOVERY_MS + 1, false), {
     kind: "restart-workflow",
     workflowId: "dinner-network",
     code: "safe-replay",
