@@ -127,9 +127,9 @@ test("progress signature observes both task progress and agent movement", () => 
   assert.notEqual(foregroundProgressSignature(base), foregroundProgressSignature(worked));
 });
 
-test("Job Mode and escalation guard never auto restart a stalled workflow", () => {
-  assert.match(page, /AsymptaJobMode/);
-  assert.match(page, /AsymptaEscalationGuard/);
+test("legacy Job Mode and escalation guard remain safe but are not mounted by the intention world", () => {
+  assert.match(page, /AsymptaIntentWorld/);
+  assert.doesNotMatch(page, /AsymptaJobMode|AsymptaEscalationGuard/);
   assert.match(jobComponent, /PROFILE_KEY = "asympta-world\.job-profile\.v1"/);
   assert.match(jobComponent, /BALANCE_KEY = "asympta-world\.job-balance\.v1"/);
   assert.match(jobComponent, /targetEarned/);
