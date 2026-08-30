@@ -8,7 +8,10 @@ import {
 
 export * from "./atlas-canonical-world.ts";
 
+export type SimulationSpeed = 1 | 2 | 3 | 4 | 5;
+
 type AnimalCooperationWorld = canonical.AtlasWorldState & {
+  simulationSpeed?: number;
   cooperationProjection?: {
     eventIds: string[];
   };
@@ -74,8 +77,24 @@ const COOPERATION_COPY: Record<string, string> = {
 
 const ESCALATION_WORK_MS = 2_600;
 const DEMO_STUCK_TASK_ID = "sr-supplier";
-const DEMO_ESCALATION_TASK_ID = `escalation-${DEMO_STUCK_TASK_ID}`;
 const ALTERNATE_SUPPLIER = "supplier-alternate";
+const MAX_ADVANCE_CHUNK_MS = 140;
+
+function normalizedSimulationSpeed(value: number | undefined): SimulationSpeed {
+  const rounded = Math.round(Number.isFinite(value) ? Number(value) : 1);
+  return Math.max(1, Math.min(5, rounded)) as SimulationSpeed;
+}
+
+export function atlasSimulationSpeed(current: canonical.AtlasWorldState) {
+  return normalizedSimulationSpeed((current as AnimalCooperationWorld).simulationSpeed);
+}
+
+export function setAtlasSimulationSpeed(current: canonical.AtlasWorldState, speed: number) {
+  const world = JSON.parse(JSON.stringify(current)) as AnimalCooperationWorld;
+  world.simulationSpeed = normalizedSimulationSpeed(speed);
+  canonical.persistAtlasWorld(world);
+  return world;
+}
 
 function visibleAgentId(world: canonical.AtlasWorldState, entityId: string | undefined) {
   if (!entityId) return null;
@@ -248,6 +267,32 @@ function alternateSupplierCanCover(world: canonical.AtlasWorldState) {
   return inventoryAvailable >= quantity && capacityAvailable >= quantity;
 }
 
+function reserveAlternateSupply(world: canonical.AtlasWorldState, actorId: string, reason: string) {
+  if (!alternateSupplierCanCover(world)) return false;
+  const order = world.runtime.orders.at(-1);
+  if (!order) return false;
+  const priorStatus = order.status;
+  const priorPaymentAmount = order.paymentAmount;
+  const intent = createRuntimeIntent(world.runtime, actorId, "reserve_capacity", {
+    targetId: ALTERNATE_SUPPLIER,
+    resourceId: order.resourceId,
+    quantity: order.quantity,
+    priority: 1,
+    reason,
+  });
+  const executed = executeRuntimeIntent(world.runtime, intent);
+  world.runtime = executed.world;
+  if (!executed.result.ok) return false;
+
+  const updatedOrder = world.runtime.orders.at(-1);
+  if (updatedOrder && priorStatus === "paid") {
+    updatedOrder.status = "paid";
+    updatedOrder.paymentAmount = priorPaymentAmount;
+    updatedOrder.updatedAt = world.runtime.clock.now;
+  }
+  return true;
+}
+
 function resolveDemoSupplierEscalation(world: canonical.AtlasWorldState, blockedTask: canonical.AtlasTaskState, request: RuntimeHistoryEvent) {
   if (!alternateSupplierCanCover(world)) return false;
   const order = world.runtime.orders.at(-1);
@@ -267,18 +312,45 @@ function resolveDemoSupplierEscalation(world: canonical.AtlasWorldState, blocked
 }
 
 function resolveCapacityEscalation(world: canonical.AtlasWorldState, blockedTask: canonical.AtlasTaskState) {
-  if (blockedTask.actionType !== "reserve_capacity" || !alternateSupplierCanCover(world)) return false;
-  const order = world.runtime.orders.at(-1);
-  const intent = createRuntimeIntent(world.runtime, blockedTask.agentId, "reserve_capacity", {
-    targetId: ALTERNATE_SUPPLIER,
-    resourceId: order?.resourceId ?? "material-unit",
-    quantity: order?.quantity ?? 1,
+  if (blockedTask.actionType !== "reserve_capacity") return false;
+  return reserveAlternateSupply(world, blockedTask.agentId, `Higher-agent escalation for ${blockedTask.id}`);
+}
+
+function resolveShipmentEscalation(world: canonical.AtlasWorldState, blockedTask: canonical.AtlasTaskState, resolverId: string, request: RuntimeHistoryEvent) {
+  if (blockedTask.actionType !== "release_shipment" || blockedTask.approvalStatus !== "approved") return false;
+  let order = world.runtime.orders.at(-1);
+  if (!order || order.status !== "paid") return false;
+
+  if (!order.reservationId) {
+    const reserved = reserveAlternateSupply(world, resolverId, `Higher-agent prerequisite repair for ${blockedTask.id}`);
+    if (!reserved) return false;
+    order = world.runtime.orders.at(-1);
+  }
+  if (!order || order.status !== "paid" || !order.reservationId) return false;
+
+  const shipment = createRuntimeIntent(world.runtime, blockedTask.agentId, "release_shipment", {
+    targetId: order.buyerId,
+    resourceId: order.resourceId,
+    quantity: order.quantity,
     priority: 1,
-    reason: `Higher-agent escalation for ${blockedTask.id}`,
+    reason: `Resume already-approved shipment after higher-agent prerequisite repair for ${blockedTask.id}`,
   });
-  const executed = executeRuntimeIntent(world.runtime, intent);
+  const executed = executeRuntimeIntent(world.runtime, shipment);
   world.runtime = executed.world;
-  return executed.result.ok;
+  if (!executed.result.ok) return false;
+
+  blockedTask.runtimeIntentId = executed.result.intent.id;
+  world.runtime = publishRuntimeInformation(world.runtime, {
+    subject: `task:${blockedTask.id}:shipment-recovery`,
+    value: "The higher agent repaired the missing supplier reservation and resumed the already-approved shipment without restarting the workflow.",
+    sourceId: resolverId,
+    recipientIds: [blockedTask.agentId, "agent-business", "agent-customer"],
+    confidence: 1,
+    freshnessMs: 45_000,
+    visibility: "participants",
+    causalEventId: request.id,
+  });
+  return true;
 }
 
 function resumeBlockedTask(world: canonical.AtlasWorldState, blockedTask: canonical.AtlasTaskState) {
@@ -306,7 +378,8 @@ function resolveCompletedEscalations(world: canonical.AtlasWorldState) {
     const resolverId = escalationTask.agentId;
     const solved = blockedTaskId === DEMO_STUCK_TASK_ID
       ? resolveDemoSupplierEscalation(world, blockedTask, request)
-      : resolveCapacityEscalation(world, blockedTask);
+      : resolveCapacityEscalation(world, blockedTask)
+        || resolveShipmentEscalation(world, blockedTask, resolverId, request);
 
     if (solved) {
       resumeBlockedTask(world, blockedTask);
@@ -371,7 +444,7 @@ function escalateOperationalBlocks(world: canonical.AtlasWorldState) {
 }
 
 function applyStuckEscalation(current: canonical.AtlasWorldState) {
-  const world = JSON.parse(JSON.stringify(current)) as canonical.AtlasWorldState;
+  const world = JSON.parse(JSON.stringify(current)) as AnimalCooperationWorld;
   injectDemonstrationStuck(world);
   escalateOperationalBlocks(world);
   resolveCompletedEscalations(world);
@@ -408,14 +481,29 @@ export function advanceAtlasWorld(
   current: Parameters<typeof canonical.advanceAtlasWorld>[0],
   deltaMs: number,
 ) {
-  return projectWorldCooperationToAnimals(applyStuckEscalation(canonical.advanceAtlasWorld(current, deltaMs)));
+  const speed = atlasSimulationSpeed(current as canonical.AtlasWorldState);
+  let world = JSON.parse(JSON.stringify(current)) as AnimalCooperationWorld;
+  world.simulationSpeed = speed;
+  let remaining = Math.max(0, Number.isFinite(deltaMs) ? deltaMs : 0) * speed;
+
+  while (remaining > 0) {
+    const step = Math.min(MAX_ADVANCE_CHUNK_MS, remaining);
+    world = applyStuckEscalation(canonical.advanceAtlasWorld(world, step)) as AnimalCooperationWorld;
+    world.simulationSpeed = speed;
+    remaining -= step;
+  }
+
+  return projectWorldCooperationToAnimals(world);
 }
 
 export function startAtlasWorkflow(
   current: Parameters<typeof canonical.startAtlasWorkflow>[0],
   workflowId: Parameters<typeof canonical.startAtlasWorkflow>[1],
 ) {
-  return projectWorldCooperationToAnimals(canonical.startAtlasWorkflow(current, workflowId));
+  const speed = atlasSimulationSpeed(current as canonical.AtlasWorldState);
+  const next = canonical.startAtlasWorkflow(current, workflowId) as AnimalCooperationWorld;
+  next.simulationSpeed = speed;
+  return projectWorldCooperationToAnimals(next);
 }
 
 export function resolveAtlasApproval(
@@ -423,5 +511,15 @@ export function resolveAtlasApproval(
   approvalId: string,
   approved: boolean,
 ) {
-  return projectWorldCooperationToAnimals(applyStuckEscalation(canonical.resolveAtlasApproval(current, approvalId, approved)));
+  const speed = atlasSimulationSpeed(current as canonical.AtlasWorldState);
+  const next = applyStuckEscalation(canonical.resolveAtlasApproval(current, approvalId, approved)) as AnimalCooperationWorld;
+  next.simulationSpeed = speed;
+  return projectWorldCooperationToAnimals(next);
+}
+
+export function atlasSnapshot(current: Parameters<typeof canonical.atlasSnapshot>[0]) {
+  return {
+    ...canonical.atlasSnapshot(current),
+    simulationSpeed: atlasSimulationSpeed(current as canonical.AtlasWorldState),
+  };
 }
