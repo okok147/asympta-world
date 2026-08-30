@@ -1,11 +1,11 @@
-import { buildDeterministicIntentPlan } from "@/lib/intent-world/fallback";
-import { describePlannerCapabilities, PLANNER_RESPONSE_JSON_SCHEMA } from "@/lib/intent-world/schema";
-import { normalizeUserIntent, validatePlannerResult } from "@/lib/intent-world/validation";
+import { buildDeterministicIntentPlan } from "../../../../lib/intent-world/fallback.ts";
+import { describePlannerCapabilities, PLANNER_RESPONSE_JSON_SCHEMA } from "../../../../lib/intent-world/schema.ts";
+import { normalizeUserIntent, validatePlannerResult } from "../../../../lib/intent-world/validation.ts";
 import type {
   IntentConversationMessage,
   IntentPlannerResponse,
   PlannerResult,
-} from "@/lib/intent-world/types";
+} from "../../../../lib/intent-world/types.ts";
 
 export const dynamic = "force-dynamic";
 
