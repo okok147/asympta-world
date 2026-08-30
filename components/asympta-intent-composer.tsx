@@ -94,10 +94,6 @@ function humanStatus(locale: Locale, status?: AsymptaActivityStatus) {
   return status ? copy[status] : copy.idle;
 }
 
-function isConnected(config: AsymptaProtocolConfig) {
-  return config.a2a.length + config.mcp.length > 0;
-}
-
 function showAgentMoment(event: AsymptaActivityEvent, locale: Locale) {
   if (!event.actorId) return;
   const selector = `.animal-map-marker--foreground[data-agent-id="${CSS.escape(event.actorId)}"]`;
@@ -130,18 +126,15 @@ export function AsymptaIntentComposer() {
   const [locale, setLocale] = useState<Locale>("en");
   const [text, setText] = useState("");
   const [running, setRunning] = useState(false);
-  const [connected, setConnected] = useState(false);
   const [activity, setActivity] = useState<AsymptaActivity | null>(null);
   const configRef = useRef<AsymptaProtocolConfig>({ mcp: [], a2a: [] });
   const activityRef = useRef<AsymptaActivity | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    const config = readBrowserProtocolConfig();
-    configRef.current = config;
-    setConnected(isConnected(config));
+    configRef.current = readBrowserProtocolConfig();
     const syncLocale = () => setLocale(localeFromDocument());
-    syncLocale();
+    queueMicrotask(syncLocale);
     const observer = new MutationObserver(syncLocale);
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ["lang"] });
     return () => observer.disconnect();
@@ -182,7 +175,6 @@ export function AsymptaIntentComposer() {
       configure: (next, options = {}) => {
         const config = options.persist ? storeBrowserProtocolConfig(next) : next;
         configRef.current = config;
-        setConnected(isConnected(config));
         return config;
       },
       runIntent,
@@ -222,7 +214,7 @@ export function AsymptaIntentComposer() {
       <div className="asympta-intent-presence" aria-live="polite">
         <AnimalPortrait id="agent-user" side="user" className="asympta-intent-avatar" />
         <span>{humanStatus(locale, status)}</span>
-        {status === "completed" ? <Check size={13} strokeWidth={2} /> : running ? <LoaderCircle size={13} className="asympta-intent-spinner" /> : <i className={connected ? "is-connected" : ""} />}
+        {status === "completed" ? <Check size={13} strokeWidth={2} /> : running ? <LoaderCircle size={13} className="asympta-intent-spinner" /> : <i />}
       </div>
       <form className="asympta-intent-composer" onSubmit={submit}>
         <textarea
