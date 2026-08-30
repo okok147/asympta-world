@@ -67,12 +67,14 @@ test("Job Mode models gross income, expenses and positive expected net value", (
   assert.ok(projected.breakdown.compute > 0);
 });
 
-test("real-time economics are first-class but reuse the calm existing UI", () => {
+test("real-time economics reuse calm UI without cross-root React portals", () => {
   assert.match(page, /AsymptaWorkflowEconomy/);
   assert.match(page, /AsymptaUltraCalm/);
   assert.match(workflowEconomy, /REFRESH_MS = 350/);
   assert.match(workflowEconomy, /workflowTaskAccruedEconomy/);
-  assert.match(workflowEconomy, /burnPerMinute/);
+  assert.match(workflowEconomy, /dataset\.asymptaWorkflowCost/);
+  assert.match(workflowEconomy, /dataset\.asymptaTaskCost/);
+  assert.doesNotMatch(workflowEconomy, /createPortal/);
   assert.match(jobMode, /spent: number/);
   assert.match(jobMode, /const expenseDelta = Math\.max\(0, targetExpense - current\.spent\)/);
   assert.match(jobMode, /balanceRef\.current \+= delta/);
@@ -81,5 +83,6 @@ test("real-time economics are first-class but reuse the calm existing UI", () =>
   assert.match(jobMode, /Net|net/);
   assert.match(ultraCalm, /rgba\(248,246,239,\.16\)/);
   assert.match(ultraCalm, /Human-decision surfaces/);
-  assert.match(ultraCalm, /asympta-workflow-cost/);
+  assert.match(ultraCalm, /data-asympta-workflow-cost/);
+  assert.match(ultraCalm, /data-asympta-task-cost/);
 });
