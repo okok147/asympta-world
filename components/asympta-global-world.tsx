@@ -481,9 +481,12 @@ export function AsymptaGlobalWorld() {
   useEffect(() => {
     const saved = readScale();
     scaleRef.current = saved;
-    setScaleState(saved);
     document.documentElement.dataset.asymptaScale = saved;
-    return () => { delete document.documentElement.dataset.asymptaScale; };
+    const hydration = window.setTimeout(() => setScaleState(saved), 0);
+    return () => {
+      window.clearTimeout(hydration);
+      delete document.documentElement.dataset.asymptaScale;
+    };
   }, []);
 
   useEffect(() => {
