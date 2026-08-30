@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useEffect, useRef } from "react";
 
 import {
   dominantEconomyCost,
@@ -16,23 +15,14 @@ type AgentSnapshot = { id: string; side: string };
 type Foreground = { workflow?: string | null; tasks?: TaskSnapshot[]; agents?: AgentSnapshot[] };
 type Snapshot = { foreground?: Foreground };
 type DemoApi = { snapshot: () => unknown };
-type RowEconomy = { accrued: number; projected: number };
-type Projection = {
-  accrued: number;
-  projected: number;
-  burnPerMinute: number;
-  dominant: string;
-  dominantCost: number;
-  rows: RowEconomy[];
-};
 
 const REFRESH_MS = 350;
 const TRAVEL_COST_WINDOW_MS = 6_000;
 const ACTIVE = new Set(["moving", "working", "waiting_approval", "blocked"]);
-const COPY: Record<Locale, { cost: string; perMinute: string; dominant: string }> = {
-  en: { cost: "cost", perMinute: "/min", dominant: "main cost" },
-  "zh-Hant": { cost: "成本", perMinute: "/分鐘", dominant: "主要成本" },
-  ja: { cost: "費用", perMinute: "/分", dominant: "主な費用" },
+const COPY: Record<Locale, { cost: string; perMinute: string; dominant: string; projected: string }> = {
+  en: { cost: "cost", perMinute: "/min", dominant: "main cost", projected: "projected" },
+  "zh-Hant": { cost: "成本", perMinute: "/分鐘", dominant: "主要成本", projected: "預計" },
+  ja: { cost: "費用", perMinute: "/分", dominant: "主な費用", projected: "予測" },
 };
 const CATEGORY: Record<Locale, Record<string, string>> = {
   en: { agent: "agent time", compute: "compute", travel: "travel", materials: "materials", logistics: "logistics", platform: "fees", holding: "reservation", rework: "rework" },
@@ -55,31 +45,45 @@ function money(value: number) {
   return `¥${Math.max(0, Math.round(value)).toLocaleString("en-US")}`;
 }
 
+function clearNodeEconomy(node: HTMLElement | null, attribute: string) {
+  if (!node) return;
+  node.removeAttribute(attribute);
+  if (node.dataset.asymptaEconomyTitle === "true") {
+    node.removeAttribute("title");
+    delete node.dataset.asymptaEconomyTitle;
+  }
+}
+
 export function AsymptaWorkflowEconomy() {
-  const [summaryTarget, setSummaryTarget] = useState<HTMLElement | null>(null);
-  const [rowTargets, setRowTargets] = useState<HTMLElement[]>([]);
-  const [projection, setProjection] = useState<Projection | null>(null);
-  const [language, setLanguage] = useState<Locale>("en");
   const movingSinceRef = useRef(new Map<string, number>());
   const previousRef = useRef({ workflow: "", cost: 0, at: 0, burn: 0 });
 
   useEffect(() => {
-    let fingerprint = "";
+    let previousRows: HTMLElement[] = [];
+    let previousSummary: HTMLElement | null = null;
+
+    const clearPrevious = () => {
+      clearNodeEconomy(previousSummary, "data-asympta-workflow-cost");
+      previousRows.forEach((row) => clearNodeEconomy(row, "data-asympta-task-cost"));
+      previousRows = [];
+      previousSummary = null;
+    };
 
     const sync = () => {
       if (document.hidden) return;
       const summary = document.querySelector<HTMLElement>(".atlas-safe-schedule__summary");
       const rows = Array.from(document.querySelectorAll<HTMLElement>(".atlas-safe-task__progress"));
-      setSummaryTarget((current) => current === summary ? current : summary);
-      setRowTargets((current) => current.length === rows.length && current.every((item, index) => item === rows[index]) ? current : rows);
-      const nextLanguage = locale();
-      setLanguage((current) => current === nextLanguage ? current : nextLanguage);
 
       let snapshot: Snapshot | undefined;
       try { snapshot = demoApi()?.snapshot() as Snapshot | undefined; } catch { return; }
       const foreground = snapshot?.foreground;
-      if (!foreground?.tasks?.length) return;
+      if (!summary || !foreground?.tasks?.length) {
+        clearPrevious();
+        return;
+      }
 
+      const language = locale();
+      const copy = COPY[language];
       const now = performance.now();
       const agents = new Map((foreground.agents ?? []).map((agent) => [agent.id, agent.side]));
       const economicTasks: WorkflowCostTask[] = foreground.tasks.map((task) => {
@@ -111,56 +115,48 @@ export function AsymptaWorkflowEconomy() {
       }
       previousRef.current = { workflow, cost: total.accrued, at: now, burn };
 
+      const [dominant, dominantCost] = dominantEconomyCost(total.breakdown);
+      const summaryText = `${money(total.accrued)} ${copy.cost}${burn > 0 ? ` · ${money(burn)}${copy.perMinute}` : ""}`;
+      summary.dataset.asymptaWorkflowCost = summaryText;
+      summary.title = `${copy.dominant}: ${CATEGORY[language][dominant] ?? dominant} ${money(dominantCost)} · ${copy.projected} ${money(total.projected)}`;
+      summary.dataset.asymptaEconomyTitle = "true";
+
       const unfinished = economicTasks.filter((task) => task.status !== "done");
       const active = unfinished.filter((task) => ACTIVE.has(task.status));
       const queued = unfinished.filter((task) => task.status === "queued");
       const visible = [...active, ...queued].slice(0, 6);
-      const rowEconomy = visible.map((task) => {
+
+      rows.forEach((row, index) => {
+        const task = visible[index];
+        if (!task) {
+          clearNodeEconomy(row, "data-asympta-task-cost");
+          return;
+        }
         const economy = workflowTaskAccruedEconomy(task);
-        return { accrued: economy.accrued, projected: economy.projected };
+        if (economy.accrued <= 0) {
+          clearNodeEconomy(row, "data-asympta-task-cost");
+          return;
+        }
+        row.dataset.asymptaTaskCost = money(economy.accrued);
+        row.title = `${money(economy.accrued)} / ${money(economy.projected)}`;
+        row.dataset.asymptaEconomyTitle = "true";
       });
-      const [dominant, dominantCost] = dominantEconomyCost(total.breakdown);
-      const next: Projection = {
-        accrued: total.accrued,
-        projected: total.projected,
-        burnPerMinute: Math.round(burn),
-        dominant,
-        dominantCost,
-        rows: rowEconomy,
-      };
-      const nextFingerprint = JSON.stringify(next);
-      if (nextFingerprint !== fingerprint) {
-        fingerprint = nextFingerprint;
-        setProjection(next);
+
+      for (const oldRow of previousRows) {
+        if (!rows.includes(oldRow)) clearNodeEconomy(oldRow, "data-asympta-task-cost");
       }
+      if (previousSummary && previousSummary !== summary) clearNodeEconomy(previousSummary, "data-asympta-workflow-cost");
+      previousRows = rows;
+      previousSummary = summary;
     };
 
     sync();
     const timer = window.setInterval(sync, REFRESH_MS);
-    return () => window.clearInterval(timer);
+    return () => {
+      window.clearInterval(timer);
+      clearPrevious();
+    };
   }, []);
 
-  if (!projection) return null;
-  const copy = COPY[language];
-  const summary = summaryTarget ? createPortal(
-    <span
-      className="asympta-workflow-cost"
-      title={`${copy.dominant}: ${CATEGORY[language][projection.dominant] ?? projection.dominant} ${money(projection.dominantCost)} · projected ${money(projection.projected)}`}
-    >
-      <strong>{money(projection.accrued)}</strong> {copy.cost}
-      {projection.burnPerMinute > 0 ? <small> · {money(projection.burnPerMinute)}{copy.perMinute}</small> : null}
-    </span>,
-    summaryTarget,
-  ) : null;
-
-  const rows = rowTargets.slice(0, projection.rows.length).map((target, index) => {
-    const economy = projection.rows[index];
-    if (!economy || economy.accrued <= 0) return null;
-    return createPortal(
-      <small className="asympta-task-cost" key={`cost-${index}`} title={`${money(economy.accrued)} / ${money(economy.projected)}`}> · {money(economy.accrued)}</small>,
-      target,
-    );
-  });
-
-  return <>{summary}{rows}</>;
+  return null;
 }
