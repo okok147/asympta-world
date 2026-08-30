@@ -1,5 +1,10 @@
 import * as canonical from "./atlas-canonical-world.ts";
-import type { RuntimeHistoryEvent } from "./agentic-world-runtime.ts";
+import {
+  createRuntimeIntent,
+  executeRuntimeIntent,
+  publishRuntimeInformation,
+  type RuntimeHistoryEvent,
+} from "./agentic-world-runtime.ts";
 
 export * from "./atlas-canonical-world.ts";
 
@@ -22,6 +27,9 @@ const COOPERATION_EVENT_TYPES = new Set([
   "customer_update",
   "autonomous_status_need",
   "commitment_violated",
+  "escalation_requested",
+  "escalation_resolved",
+  "escalation_unresolved",
 ]);
 
 const RUNTIME_ENTITY_TO_AGENT: Record<string, string> = {
@@ -59,7 +67,15 @@ const COOPERATION_COPY: Record<string, string> = {
   customer_update: "Here’s the latest update so you know what’s happening.",
   autonomous_status_need: "The customer needs an update — I’m taking care of it.",
   commitment_violated: "A commitment slipped — recovery coordination is starting.",
+  escalation_requested: "I’m stuck on this path — escalating it instead of restarting.",
+  escalation_resolved: "I found a workable higher-level path — continue from where you stopped.",
+  escalation_unresolved: "I checked the higher-level options, but this still needs another capability or a person.",
 };
+
+const ESCALATION_WORK_MS = 2_600;
+const DEMO_STUCK_TASK_ID = "sr-supplier";
+const DEMO_ESCALATION_TASK_ID = `escalation-${DEMO_STUCK_TASK_ID}`;
+const ALTERNATE_SUPPLIER = "supplier-alternate";
 
 function visibleAgentId(world: canonical.AtlasWorldState, entityId: string | undefined) {
   if (!entityId) return null;
@@ -84,10 +100,288 @@ function cooperationPair(world: canonical.AtlasWorldState, event: RuntimeHistory
   return { fromAgentId, toAgentId };
 }
 
+function nextEscalationRuntimeId(world: canonical.AtlasWorldState, prefix: string) {
+  world.runtime.revision += 1;
+  return `${prefix}-${world.runtime.seed.toString(36)}-${world.runtime.revision.toString(36)}`;
+}
+
+function appendEscalationHistory(
+  world: canonical.AtlasWorldState,
+  type: "escalation_requested" | "escalation_resolved" | "escalation_unresolved",
+  title: string,
+  detail: string,
+  actorId: string,
+  targetId: string,
+  taskId: string,
+  causeIds: string[] = [],
+) {
+  const event: RuntimeHistoryEvent = {
+    id: nextEscalationRuntimeId(world, "cause"),
+    type,
+    title,
+    detail,
+    createdAt: world.now,
+    actorId,
+    targetId,
+    intentId: `task:${taskId}`,
+    causeIds,
+    visibility: "participants",
+  };
+  world.runtime.history.push(event);
+  if (world.runtime.history.length > 360) world.runtime.history.splice(0, world.runtime.history.length - 360);
+  return event;
+}
+
+function pushEscalationWorldEvent(
+  world: canonical.AtlasWorldState,
+  title: string,
+  detail: string,
+  agentId: string,
+  taskId: string,
+) {
+  world.revision += 1;
+  world.events = [
+    {
+      id: `escalation-event-${world.revision.toString(36)}-${Math.floor(world.now).toString(36)}`,
+      title,
+      detail,
+      createdAt: world.now,
+      agentId,
+      taskId,
+    },
+    ...world.events,
+  ].slice(0, 120);
+}
+
+function escalationResolver(agentId: string) {
+  if (["agent-supplier", "agent-finance", "agent-support", "agent-customer", "agent-market"].includes(agentId)) {
+    return { agentId: "agent-business", locationId: "otemachi" };
+  }
+  return { agentId: "agent-operations", locationId: "shinagawa" };
+}
+
+function hasEscalationRequest(world: canonical.AtlasWorldState, taskId: string) {
+  return world.runtime.history.some((event) => event.type === "escalation_requested" && event.intentId === `task:${taskId}`);
+}
+
+function escalationRequest(world: canonical.AtlasWorldState, taskId: string) {
+  return [...world.runtime.history].reverse().find((event) => event.type === "escalation_requested" && event.intentId === `task:${taskId}`);
+}
+
+function hasEscalationResolution(world: canonical.AtlasWorldState, taskId: string) {
+  return world.runtime.history.some((event) => ["escalation_resolved", "escalation_unresolved"].includes(event.type) && event.intentId === `task:${taskId}`);
+}
+
+function createEscalationTask(world: canonical.AtlasWorldState, blockedTask: canonical.AtlasTaskState) {
+  if (blockedTask.id.startsWith("escalation-") || hasEscalationRequest(world, blockedTask.id)) return;
+  if (blockedTask.approvalStatus === "declined") return;
+
+  const resolver = escalationResolver(blockedTask.agentId);
+  const higherAgent = world.agents.find((agent) => agent.id === resolver.agentId);
+  const stuckAgent = world.agents.find((agent) => agent.id === blockedTask.agentId);
+  const destination = canonical.ATLAS_LOCATIONS[resolver.locationId]?.point;
+  if (!higherAgent || !stuckAgent || !destination) return;
+
+  const escalationTaskId = `escalation-${blockedTask.id}`;
+  world.tasks.push({
+    id: escalationTaskId,
+    title: `Escalate: ${blockedTask.title}`,
+    detail: `Higher-level coordination is resolving the blocked path without resetting the workflow. ${blockedTask.blockingReason ?? ""}`.trim(),
+    agentId: resolver.agentId,
+    locationId: resolver.locationId,
+    dependsOn: [],
+    workMs: ESCALATION_WORK_MS,
+    status: "moving",
+    progress: 0,
+    startedAt: world.now,
+  });
+  higherAgent.status = "moving";
+  higherAgent.taskId = escalationTaskId;
+  higherAgent.target = { ...destination };
+  stuckAgent.status = "waiting";
+  stuckAgent.taskId = blockedTask.id;
+  world.phase = "running";
+  world.revision += 1;
+
+  appendEscalationHistory(
+    world,
+    "escalation_requested",
+    "Stuck task escalated",
+    `${blockedTask.title} is blocked in place. ${resolver.agentId} is taking a higher-level resolution task; no workflow, money or completed work was reset.`,
+    blockedTask.agentId,
+    resolver.agentId,
+    blockedTask.id,
+  );
+  pushEscalationWorldEvent(
+    world,
+    "Higher agent escalation",
+    `${blockedTask.title} is stuck. ${higherAgent.name} is resolving it without restarting the world.`,
+    resolver.agentId,
+    escalationTaskId,
+  );
+  canonical.persistAtlasWorld(world);
+}
+
+function injectDemonstrationStuck(world: canonical.AtlasWorldState) {
+  if (world.workflowId !== "service-recovery") return;
+  const task = world.tasks.find((candidate) => candidate.id === DEMO_STUCK_TASK_ID);
+  if (!task || task.status !== "working" || task.progress < 0.42 || hasEscalationRequest(world, task.id)) return;
+
+  task.status = "blocked";
+  task.blockingReason = "The ordinary replacement-supplier path cannot meet the promised recovery window; a higher coordinator must choose the alternate route.";
+  const agent = world.agents.find((candidate) => candidate.id === task.agentId);
+  if (agent) {
+    agent.status = "waiting";
+    agent.taskId = task.id;
+  }
+  world.revision += 1;
+  createEscalationTask(world, task);
+}
+
+function alternateSupplierCanCover(world: canonical.AtlasWorldState) {
+  const order = world.runtime.orders.at(-1);
+  const quantity = Math.max(1, order?.quantity ?? 1);
+  const stock = world.runtime.inventories.find((item) => item.ownerId === ALTERNATE_SUPPLIER && item.resourceId === (order?.resourceId ?? "material-unit"));
+  const capacity = world.runtime.capacities.find((item) => item.ownerId === ALTERNATE_SUPPLIER && item.capacityId === "fulfilment");
+  const inventoryAvailable = stock ? Math.max(0, stock.onHand - stock.reserved) : 0;
+  const capacityAvailable = capacity ? Math.max(0, capacity.total - capacity.reserved) : 0;
+  return inventoryAvailable >= quantity && capacityAvailable >= quantity;
+}
+
+function resolveDemoSupplierEscalation(world: canonical.AtlasWorldState, blockedTask: canonical.AtlasTaskState, request: RuntimeHistoryEvent) {
+  if (!alternateSupplierCanCover(world)) return false;
+  const order = world.runtime.orders.at(-1);
+  if (order) order.supplierId = ALTERNATE_SUPPLIER;
+
+  world.runtime = publishRuntimeInformation(world.runtime, {
+    subject: "recovery-escalation",
+    value: "Higher-level coordinator selected the existing alternate supplier route; the original recovery task can continue from its blocked point.",
+    sourceId: "agent-business",
+    recipientIds: [blockedTask.agentId, "agent-operations"],
+    confidence: 0.98,
+    freshnessMs: 45_000,
+    visibility: "participants",
+    causalEventId: request.id,
+  });
+  return true;
+}
+
+function resolveCapacityEscalation(world: canonical.AtlasWorldState, blockedTask: canonical.AtlasTaskState) {
+  if (blockedTask.actionType !== "reserve_capacity" || !alternateSupplierCanCover(world)) return false;
+  const order = world.runtime.orders.at(-1);
+  const intent = createRuntimeIntent(world.runtime, blockedTask.agentId, "reserve_capacity", {
+    targetId: ALTERNATE_SUPPLIER,
+    resourceId: order?.resourceId ?? "material-unit",
+    quantity: order?.quantity ?? 1,
+    priority: 1,
+    reason: `Higher-agent escalation for ${blockedTask.id}`,
+  });
+  const executed = executeRuntimeIntent(world.runtime, intent);
+  world.runtime = executed.world;
+  return executed.result.ok;
+}
+
+function resumeBlockedTask(world: canonical.AtlasWorldState, blockedTask: canonical.AtlasTaskState) {
+  const stuckAgent = world.agents.find((agent) => agent.id === blockedTask.agentId);
+  const preservedProgress = Math.max(0, Math.min(0.99, blockedTask.progress));
+  blockedTask.status = "working";
+  blockedTask.workStartedAt = world.now - preservedProgress * Math.max(1, blockedTask.workMs);
+  delete blockedTask.blockingReason;
+  if (stuckAgent) {
+    stuckAgent.status = "working";
+    stuckAgent.taskId = blockedTask.id;
+  }
+  world.phase = "running";
+}
+
+function resolveCompletedEscalations(world: canonical.AtlasWorldState) {
+  const completed = world.tasks.filter((task) => task.id.startsWith("escalation-") && task.status === "done");
+  for (const escalationTask of completed) {
+    const blockedTaskId = escalationTask.id.slice("escalation-".length);
+    const blockedTask = world.tasks.find((task) => task.id === blockedTaskId && task.status === "blocked");
+    if (!blockedTask || hasEscalationResolution(world, blockedTaskId)) continue;
+    const request = escalationRequest(world, blockedTaskId);
+    if (!request) continue;
+
+    const resolverId = escalationTask.agentId;
+    const solved = blockedTaskId === DEMO_STUCK_TASK_ID
+      ? resolveDemoSupplierEscalation(world, blockedTask, request)
+      : resolveCapacityEscalation(world, blockedTask);
+
+    if (solved) {
+      resumeBlockedTask(world, blockedTask);
+      const resolved = appendEscalationHistory(
+        world,
+        "escalation_resolved",
+        "Higher agent resolved the stuck path",
+        `${resolverId} selected a workable alternative. ${blockedTask.title} resumes at ${Math.round(blockedTask.progress * 100)}% instead of restarting.`,
+        resolverId,
+        blockedTask.agentId,
+        blockedTask.id,
+        [request.id],
+      );
+      pushEscalationWorldEvent(
+        world,
+        "Escalation resolved",
+        `${blockedTask.title} continues from its previous progress; the world and fund ledger were preserved.`,
+        resolverId,
+        blockedTask.id,
+      );
+      world.runtime = publishRuntimeInformation(world.runtime, {
+        subject: `task:${blockedTask.id}:escalation-resolved`,
+        value: "Higher-agent escalation resolved the blockage; continue the original task without reset.",
+        sourceId: resolverId,
+        recipientIds: [blockedTask.agentId],
+        confidence: 1,
+        freshnessMs: 35_000,
+        visibility: "participants",
+        causalEventId: resolved.id,
+      });
+      canonical.persistAtlasWorld(world);
+      continue;
+    }
+
+    escalationTask.status = "blocked";
+    escalationTask.blockingReason = "Higher agent could not find a safe executable alternative with current resources and permissions.";
+    const resolver = world.agents.find((agent) => agent.id === resolverId);
+    if (resolver) resolver.status = "waiting";
+    world.phase = "blocked";
+    appendEscalationHistory(
+      world,
+      "escalation_unresolved",
+      "Escalation needs another capability",
+      `${resolverId} inspected the stuck state but no safe alternative is currently executable. The world remains preserved and blocked rather than resetting.`,
+      resolverId,
+      blockedTask.agentId,
+      blockedTask.id,
+      [request.id],
+    );
+    canonical.persistAtlasWorld(world);
+  }
+}
+
+function escalateOperationalBlocks(world: canonical.AtlasWorldState) {
+  const blocked = world.tasks.find((task) =>
+    task.status === "blocked"
+    && !task.id.startsWith("escalation-")
+    && task.approvalStatus !== "declined"
+    && Boolean(task.blockingReason),
+  );
+  if (blocked) createEscalationTask(world, blocked);
+}
+
+function applyStuckEscalation(current: canonical.AtlasWorldState) {
+  const world = JSON.parse(JSON.stringify(current)) as canonical.AtlasWorldState;
+  injectDemonstrationStuck(world);
+  escalateOperationalBlocks(world);
+  resolveCompletedEscalations(world);
+  return world;
+}
+
 export function projectWorldCooperationToAnimals(current: canonical.AtlasWorldState) {
   const world = JSON.parse(JSON.stringify(current)) as AnimalCooperationWorld;
   const projected = new Set(world.cooperationProjection?.eventIds ?? []);
-  const recent = world.runtime.history.slice(-24);
+  const recent = world.runtime.history.slice(-32);
 
   for (const event of recent) {
     if (!COOPERATION_EVENT_TYPES.has(event.type) || projected.has(event.id)) continue;
@@ -105,7 +399,7 @@ export function projectWorldCooperationToAnimals(current: canonical.AtlasWorldSt
     projected.add(event.id);
   }
 
-  world.cooperationProjection = { eventIds: [...projected].slice(-96) };
+  world.cooperationProjection = { eventIds: [...projected].slice(-128) };
   if (world.messages.length > 24) world.messages.splice(0, world.messages.length - 24);
   return world;
 }
@@ -114,7 +408,7 @@ export function advanceAtlasWorld(
   current: Parameters<typeof canonical.advanceAtlasWorld>[0],
   deltaMs: number,
 ) {
-  return projectWorldCooperationToAnimals(canonical.advanceAtlasWorld(current, deltaMs));
+  return projectWorldCooperationToAnimals(applyStuckEscalation(canonical.advanceAtlasWorld(current, deltaMs)));
 }
 
 export function startAtlasWorkflow(
@@ -129,5 +423,5 @@ export function resolveAtlasApproval(
   approvalId: string,
   approved: boolean,
 ) {
-  return projectWorldCooperationToAnimals(canonical.resolveAtlasApproval(current, approvalId, approved));
+  return projectWorldCooperationToAnimals(applyStuckEscalation(canonical.resolveAtlasApproval(current, approvalId, approved)));
 }
