@@ -76,21 +76,23 @@ export function AsymptaUltraCalm() {
         box-shadow: none !important;
       }
 
-      /* Real-time economics reuse existing rows instead of creating another dashboard. */
-      .asympta-workflow-cost {
+      /* Real-time economics decorate existing React-owned nodes with data attributes.
+         Pseudo-elements avoid cross-root DOM ownership and cannot break hydration. */
+      .atlas-safe-schedule__summary[data-asympta-workflow-cost]::after {
+        content: attr(data-asympta-workflow-cost);
         min-width: 0;
-        display: inline-flex;
-        align-items: baseline;
-        gap: 2px;
         margin-left: auto;
         color: var(--ink-faint);
         font-size: 6.2px;
         font-variant-numeric: tabular-nums;
         white-space: nowrap;
       }
-      .asympta-workflow-cost strong { color: var(--ink-soft); font-size: 6.6px; font-weight: 700; }
-      .asympta-workflow-cost small { color: var(--ink-faint); font-size: 5.8px; }
-      .asympta-task-cost { color: #8a746f; font: inherit; font-variant-numeric: tabular-nums; }
+      .atlas-safe-task__progress[data-asympta-task-cost]::after {
+        content: " · " attr(data-asympta-task-cost);
+        color: #8a746f;
+        font: inherit;
+        font-variant-numeric: tabular-nums;
+      }
 
       @media (hover:hover) and (pointer:fine) {
         .atlas-console:hover,
@@ -109,7 +111,11 @@ export function AsymptaUltraCalm() {
         .atlas-console.is-collapsed,
         .atlas-safe-schedule.is-collapsed,
         .atlas-agent-card.is-collapsed { background: rgba(248,246,239,.13) !important; }
-        .asympta-workflow-cost small { display: none; }
+        .atlas-safe-schedule__summary[data-asympta-workflow-cost]::after {
+          max-width: 92px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
       }
     `}</style>
   );
