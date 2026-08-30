@@ -1,95 +1,180 @@
 # Asympta World
 
-> Humans live. Agents coordinate the world around them.
+> **Express an intention. Let the world coordinate around it.**
 
 [Live world](https://okok147.github.io/asympta-world/) · [Public source](https://github.com/okok147/asympta-world) · [WebMCP challenge kit](docs/WEBMCP_CHALLENGE_SUBMISSION.md)
 
-Asympta World is a living coordination map built for the WebMCP Challenge. A human chooses an intent and specialised stakeholder agents visibly coordinate the customer, business, supplier, operations, finance, logistics, support, quality and market sides around that intent.
+Asympta World is an experimental shared environment for humans, agents, businesses and tools. The human-facing interface is deliberately simple: a person says what they want to happen in ordinary language. Asympta keeps that intention as the durable activity root, discovers independent capabilities, communicates over real protocols, executes what can safely be executed, and records evidence before treating an outcome as complete.
 
-The current challenge build contains four end-to-end simulated workflows: Custom Order, Dinner, Launch Stock and Service Recovery. Agent movement, task dependencies, information exchange, approval state, the map and WebMCP tools all read the same deterministic state engine.
+The long-term product test is intentionally human rather than technical:
 
-## The participation bridge
+> A non-technical 90-year-old person should be able to say, “I want some food,” without learning agents, APIs, MCP, A2A, workflows or model configuration. The infrastructure should learn how to understand her.
 
-Most agent products assume the participant already understands agents, tools, schemas, APIs or automation. Asympta World should remove that requirement.
+## What changed
 
-The product principle is:
+The main product path is no longer a preset-workflow picker.
 
-> **Natural language for people. Structured semantics for agents. One shared economic world.**
+```text
+Human language
+    ↓
+Asympta Activity IR
+    ↓
+capability discovery
+    ↓
+┌───────────────┬───────────────┐
+│ real A2A      │ real MCP      │
+│ agent work    │ tool work     │
+└───────────────┴───────────────┘
+    ↓
+activity events + evidence
+    ↓
+verification
+    ↓
+verified outcome
+```
 
-A person, elderly user, small merchant or non-technical organisation should be able to enter the agent economy with an ordinary sentence such as:
+The existing paper map, multilingual product language and illustrated animal agents remain the visible world. Protocol/debug surfaces and preset workflow tiles are not the primary consumer experience. When protocol work happens, the relevant existing agent becomes the visual focus and reports progress in human language such as “Finding who can help…” or “Checking that it really happened…”.
 
-> I need dinner around 7pm. I do not know which service to use.
+## Asympta is currently an internal semantic layer, not a replacement for MCP or A2A
 
-They do not need to know an agent ID, workflow name, JSON schema or tool call. The structured communication bridge defaults that message to the personal intent agent and preserves the original human-readable body. Technical participants can optionally add message kind, subject, intent, action, entities and structured data without replacing the human language.
+The early architecture deliberately does **not** assume the outside world already speaks a future Asympta Protocol.
 
-`lib/agent-message-state.ts` is the persistent communication ledger. It mirrors workflow communication into structured message records and keeps:
+`lib/asympta-activity.ts` defines the current experimental intermediate representation, `asympta-ir/0.1`. It preserves:
 
-- human-readable `body`
-- sender and recipient participant types
-- thread and reply relationships
-- message kind and subject
-- optional machine-readable semantics
-- source, delivery state and world context
+- the original human intention;
+- the principal who owns that intention;
+- activity status;
+- protocol-backed events;
+- protocol evidence;
+- the final verified or failed outcome.
 
-This is deliberately a bridge between non-technical society and technical/agent systems rather than a requirement that every participant learn agent infrastructure.
+`lib/asympta-protocol-runtime.ts` is the Activity Kernel. It understands **why** protocol calls are being made and whether their combined results support the original human intention.
 
-## AI-ready, not AI-dependent
+The important separation is:
 
-The demo deliberately runs with **zero AI API dependency**. The deterministic Atlas engine remains the source of truth, so the deployed challenge build continues to work without an API key, model availability or inference latency.
+> **Protocols execute locally. Asympta maintains global meaning.**
 
-At the same time, `lib/agent-runtime/` now provides the future AI boundary: agent profiles, bounded context building, per-agent decision schemas, untrusted-output validation, a deterministic fallback provider and a vendor-neutral AI provider adapter. A future model can be inserted above the engine without rewriting the map, workflows, WebMCP tools or approval system.
+The stable primitives discovered through real use can later be extracted into a public Asympta Protocol. They are not frozen prematurely.
 
-Core invariant:
+## Real MCP
 
-> **Model proposes. Runtime validates. Engine executes. Human approves consequences.**
+`lib/protocols/mcp-client.ts` implements the current stateless MCP request model used by this experiment. It performs actual HTTP JSON-RPC requests for:
 
-The boundary is not intended to exclude capable agents or non-technical people. It is the translation and safety layer that lets different participants join the same world without needing the same technical knowledge.
+- `tools/list`
+- `tools/call`
 
-See [`docs/AI_AGENT_RUNTIME.md`](docs/AI_AGENT_RUNTIME.md) and run `npm run test:agent-runtime`.
+The runtime sends protocol/client metadata, discovers the remote tool surface and calls the selected remote tool rather than fabricating a tool result inside the simulation.
 
-## WebMCP is part of the product
+The argument builder is intentionally conservative. A low-risk semantic field such as a single `query` can receive the human intention directly. Required consequential fields such as payment amounts are **not guessed**; the activity moves to `waiting_input` instead.
 
-The deployed page uses the imperative WebMCP API directly through `document.modelContext.registerTool(...)`. The WebMCP surface is schema-bounded and inspectable, while the human-facing communication model remains plain-language first.
+## Real A2A
 
-### Core living-world tools
+`lib/protocols/a2a-client.ts` performs actual A2A discovery and messaging:
 
-- `asympta_observe_living_city` — read the current workflow, foreground agents and nearby synthetic city activity.
-- `asympta_list_workflows` — list the available coordination workflows.
-- `asympta_follow_agent` — move the local map camera to a foreground agent.
-- `asympta_request_workflow` — request a workflow start; it queues a human approval instead of starting silently.
-- `asympta_request_external_action` — request a simulated consequential action such as capacity reservation, payment authorisation or shipment release; it queues a human approval.
+- public Agent Card discovery through `/.well-known/agent-card.json`;
+- interface selection from the Agent Card;
+- v1-style `SendMessage` and `GetTask` JSON-RPC operations;
+- compatibility fallback for older `message/send` and `tasks/get` peers.
 
-### Communication bridge tools
+The Asympta runtime can delegate the human intention to an independent A2A agent, follow a returned task until a terminal state, stop when additional human input is required, and use the terminal task state as outcome evidence.
 
-- `asympta_send_agent_message` — send a human-readable message with optional structured semantics. Only `body` is required; omitted routing defaults to `human → agent-user`.
-- `asympta_list_agent_messages` — read the persistent structured communication ledger, optionally filtered by participant or thread.
+## The living world is the interface, not a dashboard
 
-Sending a message does not grant permission for consequential actions. Communication can be low-friction while payments, shipment release and other consequential state transitions continue to use the visible approval boundary.
+The project intentionally keeps the existing visual language:
 
-### Agent discovery and verification tools
+- calm paper map;
+- cute illustrated stakeholder agents;
+- English, Traditional Chinese and Japanese UI;
+- visible communication and movement;
+- human checkpoints for information or consequential decisions;
+- camera focus on the participant currently handling the activity.
 
-- `asympta_describe_capabilities` — return the live WebMCP manifest, safety boundary, participation bridge, workflow catalog and stakeholder agents.
-- `asympta_inspect_agent` — inspect one stakeholder, its current tasks and recent structured messages without returning map coordinates.
-- `asympta_get_pending_approval` — read the current human approval request. It cannot approve or decline it.
+Ordinary users should not need to see protocol names, JSON calls, tool schemas or workflow IDs. The main surface is the natural-language intention composer.
 
-There is deliberately **no WebMCP approval/decline tool**. WebMCP can request consequential work, but the human must resolve the approval in the visible Asympta UI. The page also audits the native tool registry through `getTools()` when the browser exposes it and records the result in `document.documentElement.dataset.webmcpQualification` plus `window.__ASYMPTA_WEBMCP_AUDIT__` for inspection.
+The deterministic Atlas city still exists as a visual/demo world and as regression infrastructure. It is **not** presented as proof that an external MCP server or A2A agent performed an action. Protocol-backed work and simulated ambient city life remain distinguishable in the implementation.
 
-## Camera/process follow
+## Connecting real protocol peers
 
-When process camera lock is active, Asympta follows the agent currently executing the active workflow task. Starting from a workflow tile or selecting a task in the Schedule enables process lock. When one task finishes and the next active task moves to another stakeholder, the camera automatically switches to that agent and re-arms the real 60Hz follow loop. A manual map drag still releases the process lock immediately.
+No remote service is silently invented. If no real A2A or MCP peer is configured, the intent runtime says that no connected service is available instead of fabricating success.
 
-## Why this is WebMCP-specific
+For development, browser-test peers can be supplied with repeated URL parameters:
 
-Without WebMCP, an external agent would have to infer map controls and scrape visual state. With WebMCP, the browser agent receives explicit workflow IDs, agent IDs, JSON Schemas, descriptions and safety semantics while the person continues to see the same world change on screen. The tool calls are not a second hidden backend: consequential requests enter the same event state used by the visible agents, while structured messages use the shared persistent communication ledger.
+```text
+?a2a=https://agent.example.com&mcp=https://tools.example.com/mcp
+```
 
-## Human approval and simulation boundary
+Or configure the runtime bridge from trusted development code:
 
-- All supplier, commerce, payment, shipment and customer-update actions in the challenge build are simulated.
-- WebMCP-requested workflow starts and consequential external actions stop at a visible human approval boundary.
-- Plain communication does not require a technical user to understand the approval architecture.
-- No WebMCP tool can resolve that approval boundary.
-- The map uses a synthetic Tokyo demonstration world. The WebMCP surface does not request device geolocation.
-- `asympta_inspect_agent` intentionally removes synthetic longitude/latitude from its response; `asympta_observe_living_city` can expose the synthetic map state needed to observe the demo world.
+```js
+window.__ASYMPTA_PROTOCOLS__.configure({
+  a2a: [{ url: "https://agent.example.com" }],
+  mcp: [{ url: "https://tools.example.com/mcp" }],
+})
+```
+
+Then the normal UI remains only:
+
+```text
+Tell Asympta what you want to happen…
+```
+
+The bridge also exposes `runIntent()` and `lastActivity()` for integration tests. URL-based configuration persists only endpoint URLs/names when explicitly requested. Credentials should stay in an appropriate runtime/deployment secret boundary and must not be committed or stored as ordinary browser preferences.
+
+Because the GitHub Pages build is static, a browser calling a remote MCP/A2A service directly requires that remote service to permit the relevant browser origin and provide an appropriate authentication path. A production deployment can place the same protocol clients behind a trusted server/gateway without changing the Activity Kernel semantics.
+
+## WebMCP remains part of the challenge build
+
+The deployed page still uses `document.modelContext.registerTool(...)` to expose a browser-agent interface for the WebMCP Challenge. This is separate from the new outbound MCP client:
+
+- **WebMCP surface:** lets a browser agent inspect or communicate with Asympta World.
+- **Outbound MCP client:** lets Asympta call an independent MCP service while pursuing a human intention.
+- **A2A client:** lets Asympta communicate with an independent autonomous agent.
+
+The existing WebMCP qualification tools remain available to compatible browser agents and automated tests, but their technical inspector UI is intentionally not the normal human experience.
+
+Consequential simulated WebMCP actions still preserve the explicit approval boundary. There is deliberately no browser-agent tool that silently approves a pending consequential action for the person.
+
+## Product architecture
+
+```text
+┌──────────────────────────────────────┐
+│ Human                                │
+│ “I want this to happen.”             │
+└──────────────────┬───────────────────┘
+                   ↓
+┌──────────────────────────────────────┐
+│ Asympta Activity Kernel              │
+│ intent · principal · state · events  │
+│ evidence · outcome                   │
+└───────────┬──────────────────┬───────┘
+            │                  │
+            ↓                  ↓
+      A2A adapter          MCP adapter
+            │                  │
+            ↓                  ↓
+   independent agent     independent tool
+            │                  │
+            └─────────┬────────┘
+                      ↓
+                 real response
+                      ↓
+                 verification
+                      ↓
+┌──────────────────────────────────────┐
+│ Living map / cute agents             │
+│ human language · progress · approval │
+└──────────────────────────────────────┘
+```
+
+Core product invariant:
+
+> **A model or agent may propose and coordinate. External protocols must actually execute their own work. Asympta records the evidence. The human retains authority over consequential decisions.**
+
+## AI/model boundary
+
+The repo still contains `lib/agent-runtime/`, which provides bounded agent context, decision schemas, untrusted-output validation and a vendor-neutral provider interface. The protocol architecture is deliberately model-independent: a stronger model can improve intent interpretation and routing without becoming the source of truth for whether an MCP tool or A2A task actually executed.
+
+No model is allowed to turn the sentence “I called the tool” into evidence that the tool was called.
 
 ## Run locally
 
@@ -100,7 +185,7 @@ npm ci
 npm run dev
 ```
 
-## Verify the implementation
+## Verify
 
 ```bash
 npm run lint
@@ -113,33 +198,25 @@ npm run test:rendered
 npm run export:pages
 ```
 
-`tests/agent-runtime.test.mjs` proves that every visible agent has a future AI profile, context stays bounded and coordinate-free, the demo requires no AI provider, an AI provider can be injected without changing Atlas, overpowered model output fails closed, and generated schemas expose only each agent's allowed capabilities.
+`tests/asympta-protocol-runtime.test.mjs` verifies that:
 
-`tests/agent-message-bridge.test.mjs` proves that plain language alone enters structured communication state, technical semantics remain optional, workflow communication is mirrored without duplicate polling, persistence works, and process camera lock switches across task handoffs.
+- the raw human intention remains the durable activity root;
+- MCP uses the stateless protocol request path rather than a fake session;
+- an MCP tool is invoked through a real `tools/call` request;
+- an A2A peer is discovered through its Agent Card;
+- A2A work is sent through `SendMessage` and verified through task state;
+- the runtime can route a natural-language intention into either real protocol adapter;
+- consequential required MCP arguments are not invented;
+- the consumer surface is intent-first and hides preset/debug dashboard chrome.
 
-`tests/webmcp-contract.test.mjs` verifies the ten expected tool names, JSON-Schema discovery shape, direct `document.modelContext.registerTool(...)` source integration, abort lifecycle, approval-safety invariant and documentation/source agreement. GitHub Pages runs the validation chain before every deployment from `main`.
+Existing engine, WebMCP, living-world, safety, economy, rendering and browser-hydration regression tests remain in the deployment chain. GitHub Pages only deploys after that validation chain succeeds.
 
-## Verify WebMCP in a real browser
+## The experiment
 
-### ChatGPT in-app browser
+The current question is not “Can we design a complete Asympta Protocol on paper?”
 
-Open the live site and ask the browser agent:
+It is:
 
-> Send the message "I need dinner around 7pm and I do not know which service to use." without specifying an agent ID. Then list my Asympta messages. After that, inspect `agent-supplier` and request the `custom-order` workflow, but do not approve anything for me.
+> **What is the smallest shared language required for independent humans, agents and tools to turn an intention into verified action?**
 
-Expected behavior: the first message is accepted as a structured `human → agent-user` request without requiring technical routing knowledge. The browser can read it back from the message ledger. It can then discover the Asympta tools, inspect supplier state and create a visible human approval request for the consequential workflow. Approval remains a human UI action.
-
-### WebMCP-enabled Chrome
-
-1. Enable `chrome://flags/#enable-webmcp-testing` and relaunch Chrome.
-2. Open the live site.
-3. Inspect the Model Context/WebMCP tool registry.
-4. Confirm all ten tool names above are present.
-5. Call `asympta_send_agent_message` with only a `body` and confirm it defaults to the personal intent agent.
-6. Call `asympta_list_agent_messages` and confirm the same human body is preserved alongside structured fields.
-7. Execute the other read tools, request a workflow, and confirm the site enters the visible human approval state.
-8. Confirm a browser agent cannot discover any tool that approves or declines the pending request.
-
-## Challenge assets
-
-The repository is public and licensed under MIT. The current submission/testing notes are in [`docs/WEBMCP_CHALLENGE_SUBMISSION.md`](docs/WEBMCP_CHALLENGE_SUBMISSION.md). The live site is deployed by [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml).
+Asympta World is now the laboratory for discovering that answer through real protocol interactions rather than assuming it in advance.
