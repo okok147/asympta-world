@@ -1,4 +1,4 @@
-import { AsymptaAdaptiveInteraction } from "@/components/asympta-adaptive-interaction";
+import { AsymptaAdaptiveOptionForm } from "@/components/asympta-adaptive-option-form";
 import { AsymptaAgentCardLocale } from "@/components/asympta-agent-card-locale";
 import { AsymptaBlockActivity } from "@/components/asympta-block-activity";
 import { AsymptaCalmDefaults } from "@/components/asympta-calm-defaults";
@@ -33,7 +33,7 @@ export default function HomePage() {
       <AsymptaGlobalWorld />
       <AsymptaMarketplaceIntentRouter />
       <AsymptaIntentComposer />
-      <AsymptaAdaptiveInteraction />
+      <AsymptaAdaptiveOptionForm />
       <AsymptaUniversalBenchmarkBridge />
       <AsymptaUnsafeProposalRecovery />
       <AsymptaMarketplaceIntentBridge />

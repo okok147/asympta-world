@@ -8,6 +8,10 @@ import {
   normalizeAdaptiveMissingFields,
   planAdaptiveMissingFields,
 } from "../lib/asympta-adaptive-interaction.ts";
+import {
+  createAdaptiveOptionPrimitiveSchema,
+  fieldsUsingChoicePrimitives,
+} from "../lib/asympta-option-primitives.ts";
 
 test("adaptive schema turns a TV screen-size gap into immediate useful choices", () => {
   const schema = createAdaptiveInteractionSchema({
@@ -25,8 +29,47 @@ test("adaptive schema turns a TV screen-size gap into immediate useful choices",
   assert.equal(schema.provenance.factPolicy, "unknown_until_user_confirmation");
 });
 
+test("TV purchase gaps automatically become concrete option groups instead of a prose checklist", () => {
+  const schema = createAdaptiveOptionPrimitiveSchema({
+    intent: "使用者想購買一台電視機",
+    missingFields: ["預算、尺寸、品牌偏好、配送地點"],
+    locale: "zh-Hant",
+    interactionId: "tv-options-1",
+    now: "2026-08-31T09:00:00.000Z",
+  });
+
+  assert.deepEqual(schema.fields.map((field) => field.key), [
+    "預算",
+    "尺寸",
+    "品牌偏好",
+    "delivery_destination",
+  ]);
+  assert.equal(schema.fields.length, 4);
+  assert.ok(schema.fields.every((field) => field.control === "single_choice"));
+
+  const [budget, size, brand, delivery] = schema.fields;
+  assert.ok(budget.options.some((candidate) => candidate.label.includes("性價比")));
+  assert.ok(size.options.some((candidate) => candidate.label === "55″"));
+  assert.ok(brand.options.some((candidate) => candidate.label === "Sony"));
+  assert.ok(brand.options.some((candidate) => candidate.label === "Samsung"));
+  assert.equal(delivery.prompt, "希望送到哪裏？");
+  assert.ok(delivery.options.some((candidate) => candidate.value === "saved_delivery_address"));
+  assert.ok(delivery.options.some((candidate) => candidate.value === "current_location"));
+});
+
+test("English delivery location is not mistaken for where to shop", () => {
+  const schema = createAdaptiveOptionPrimitiveSchema({
+    intent: "Buy a TV",
+    missingFields: ["delivery location"],
+    locale: "en",
+  });
+  assert.equal(schema.nextField?.key, "delivery_destination");
+  assert.equal(schema.nextField?.prompt, "Where should it be delivered?");
+  assert.equal(schema.nextField?.control, "single_choice");
+});
+
 test("concert ticket gaps collapse into one high-information show choice", () => {
-  const schema = createAdaptiveInteractionSchema({
+  const schema = createAdaptiveOptionPrimitiveSchema({
     intent: "使用者希望購買一張演唱會門票，預算彈性可接受高階",
     missingFields: ["演出、日期、地點、數量"],
     locale: "zh-Hant",
@@ -64,8 +107,79 @@ test("non-concert ticket requests are not forced into artist choices", () => {
   assert.deepEqual(fields.map((field) => field.normalized), ["match", "date", "venue"]);
 });
 
-test("unseen missing fields safely fall back to a generic text control instead of requiring new UI code", () => {
-  const schema = createAdaptiveInteractionSchema({
+test("common real-life missing details compile into reusable choice primitives", () => {
+  const scenarios = [
+    {
+      name: "grocery delivery",
+      intent: "Order groceries for dinner",
+      missing: ["dietary preference", "delivery address", "payment method"],
+      expected: ["dietary_preference", "delivery_destination", "payment_method"],
+    },
+    {
+      name: "restaurant meal",
+      intent: "Order dinner for two",
+      missing: ["dietary restrictions", "budget", "delivery location"],
+      expected: ["dietary_preference", "budget", "delivery_destination"],
+    },
+    {
+      name: "hotel booking",
+      intent: "Book a hotel room",
+      missing: ["room type", "budget"],
+      expected: ["room_preference", "budget"],
+    },
+    {
+      name: "flight booking",
+      intent: "Book a flight",
+      missing: ["travel class", "budget"],
+      expected: ["transport_class", "budget"],
+    },
+    {
+      name: "cinema seat",
+      intent: "Book a movie ticket",
+      missing: ["seat preference"],
+      expected: ["seat_preference"],
+    },
+    {
+      name: "concert seat strategy",
+      intent: "Buy concert tickets for Coldplay",
+      missing: ["seat preference", "budget"],
+      expected: ["seat_preference", "budget"],
+    },
+    {
+      name: "parcel delivery",
+      intent: "Send this parcel to my family",
+      missing: ["shipping address", "payment method"],
+      expected: ["delivery_destination", "payment_method"],
+    },
+    {
+      name: "Japanese delivery",
+      intent: "テレビを買いたい",
+      missing: ["配送先", "ブランド"],
+      expected: ["delivery_destination", "ブランド"],
+      locale: "ja",
+    },
+    {
+      name: "Traditional Chinese grocery",
+      intent: "幫我買晚餐材料",
+      missing: ["飲食要求", "配送地址", "付款方式"],
+      expected: ["dietary_preference", "delivery_destination", "payment_method"],
+      locale: "zh-Hant",
+    },
+  ];
+
+  for (const scenario of scenarios) {
+    const schema = createAdaptiveOptionPrimitiveSchema({
+      intent: scenario.intent,
+      missingFields: scenario.missing,
+      locale: scenario.locale ?? "en",
+    });
+    assert.deepEqual(schema.fields.map((field) => field.key), scenario.expected, scenario.name);
+    assert.equal(fieldsUsingChoicePrimitives(schema).length, schema.fields.length, scenario.name);
+  }
+});
+
+test("option primitive keeps unknown facts as text rather than inventing choices", () => {
+  const schema = createAdaptiveOptionPrimitiveSchema({
     intent: "Arrange a new kind of neighbourhood service",
     missingFields: ["locker compatibility protocol"],
     locale: "zh-Hant",
