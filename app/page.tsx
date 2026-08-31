@@ -15,6 +15,7 @@ import { AsymptaPaperMapTone } from "@/components/asympta-paper-map-tone";
 import { AsymptaProcessCameraFollow } from "@/components/asympta-process-camera-follow";
 import { AsymptaSafeSchedule } from "@/components/asympta-safe-schedule";
 import { AsymptaTaskCelebration } from "@/components/asympta-task-celebration";
+import { AsymptaTopPanelManager } from "@/components/asympta-top-panel-manager";
 import { AsymptaUltraCalm } from "@/components/asympta-ultra-calm";
 import { AsymptaUserPreferences } from "@/components/asympta-user-preferences";
 import { AsymptaWebMcpTools } from "@/components/asympta-webmcp-tools";
@@ -37,6 +38,7 @@ export default function HomePage() {
       <AsymptaPaperMapTone />
       <AsymptaBlockActivity />
       <AsymptaSafeSchedule />
+      <AsymptaTopPanelManager />
       <AsymptaEstimatedProgress />
       <AsymptaProcessCameraFollow />
       <AsymptaTaskCelebration />
