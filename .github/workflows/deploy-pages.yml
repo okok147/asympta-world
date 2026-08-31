@@ -56,6 +56,9 @@ jobs:
       - name: Validate browser hydration
         run: node scripts/smoke-pages-browser.mjs
 
+      - name: Validate 100 real-life cases and stress mutations in browser
+        run: node scripts/verify-universal-browser.mjs
+
       - name: Configure Pages
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/configure-pages@v6
