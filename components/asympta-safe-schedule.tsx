@@ -15,19 +15,24 @@ type Locale = "en" | "zh-Hant" | "ja";
 const COPY: Record<Locale, {
   title: string;
   waiting: string;
+  marketplaceWaiting: string;
   sourceHuman: string;
   sourceWebMcp: string;
+  sourceMarketplace: string;
   actor: string;
   destination: string;
   sources: (count: number) => string;
   noLinks: string;
   statuses: Record<AsymptaCurrentRequestStatus, string>;
+  marketplaceStatuses: Record<AsymptaCurrentRequestStatus, string>;
 }> = {
   en: {
     title: "Current request",
     waiting: "A consequential action still needs your approval.",
+    marketplaceWaiting: "The simulated payment is ready. No real order or charge will be made.",
     sourceHuman: "Public agent",
     sourceWebMcp: "WebMCP request",
+    sourceMarketplace: "Simulated marketplace",
     actor: "Agent",
     destination: "Destination",
     sources: (count) => `${count} source link${count === 1 ? "" : "s"}`,
@@ -41,12 +46,23 @@ const COPY: Record<Locale, {
       awaiting_confirmation: "Awaiting approval",
       failed: "Could not complete",
     },
+    marketplaceStatuses: {
+      interpreting: "Applying preferences",
+      gathering: "Marketplace agents working",
+      returning: "Bringing the item back",
+      completed: "Delivered in the simulated world",
+      waiting_input: "Choose missing preferences",
+      awaiting_confirmation: "Simulated payment approval",
+      failed: "Marketplace workflow stopped",
+    },
   },
   "zh-Hant": {
     title: "目前請求",
     waiting: "涉及實際影響的行動仍需要你批准。",
+    marketplaceWaiting: "模擬付款已準備好；不會建立真實訂單或扣款。",
     sourceHuman: "公開代理",
     sourceWebMcp: "WebMCP 請求",
+    sourceMarketplace: "模擬市場",
     actor: "代理",
     destination: "目的地",
     sources: (count) => `${count} 個來源連結`,
@@ -60,12 +76,23 @@ const COPY: Record<Locale, {
       awaiting_confirmation: "等待你批准",
       failed: "未能完成",
     },
+    marketplaceStatuses: {
+      interpreting: "正在套用偏好",
+      gathering: "市場代理執行中",
+      returning: "正在把物品帶回來",
+      completed: "已在模擬世界完成交付",
+      waiting_input: "選擇尚欠偏好",
+      awaiting_confirmation: "批准模擬付款",
+      failed: "市場流程已停止",
+    },
   },
   ja: {
     title: "現在のリクエスト",
     waiting: "影響を伴う操作には、引き続きあなたの承認が必要です。",
+    marketplaceWaiting: "シミュレーション支払いの準備ができました。実際の注文や請求は行いません。",
     sourceHuman: "公開エージェント",
     sourceWebMcp: "WebMCP リクエスト",
+    sourceMarketplace: "シミュレーション市場",
     actor: "エージェント",
     destination: "行き先",
     sources: (count) => `${count} 件の情報源リンク`,
@@ -78,6 +105,15 @@ const COPY: Record<Locale, {
       waiting_input: "入力待ち",
       awaiting_confirmation: "承認待ち",
       failed: "完了できませんでした",
+    },
+    marketplaceStatuses: {
+      interpreting: "設定を適用中",
+      gathering: "市場エージェントが実行中",
+      returning: "商品を運搬中",
+      completed: "シミュレーション世界で配達完了",
+      waiting_input: "不足している設定を選択",
+      awaiting_confirmation: "シミュレーション支払いを承認",
+      failed: "市場ワークフロー停止",
     },
   },
 };
@@ -115,9 +151,22 @@ export function AsymptaSafeSchedule() {
   if (!request) return null;
 
   const copy = COPY[locale];
+  const marketplace = request.kind === "marketplace";
   const needsDecision = request.status === "awaiting_confirmation";
   const verifiedLinks = request.sourceCount > 0;
-  const permission = request.permission === "WRITE_REQUEST" ? "WRITE · REQUEST" : "READ";
+  const permission = marketplace
+    ? "SIMULATION"
+    : request.permission === "WRITE_REQUEST"
+      ? "WRITE · REQUEST"
+      : "READ";
+  const statusLabel = marketplace
+    ? copy.marketplaceStatuses[request.status]
+    : copy.statuses[request.status];
+  const sourceLabel = marketplace
+    ? copy.sourceMarketplace
+    : request.source === "webmcp"
+      ? copy.sourceWebMcp
+      : copy.sourceHuman;
 
   return (
     <aside
@@ -125,6 +174,7 @@ export function AsymptaSafeSchedule() {
       aria-label={copy.title}
       data-request-status={request.status}
       data-request-source={request.source}
+      data-request-kind={request.kind ?? "unknown"}
     >
       <button
         type="button"
@@ -143,11 +193,9 @@ export function AsymptaSafeSchedule() {
       <div className="atlas-safe-schedule__summary asympta-request-card__summary" aria-live="polite">
         <span className={`asympta-request-card__status is-${request.status}`}>
           {request.status === "completed" ? <CircleCheck size={12} aria-hidden="true" /> : needsDecision ? <ShieldAlert size={12} aria-hidden="true" /> : <i />}
-          <strong>{copy.statuses[request.status]}</strong>
+          <strong>{statusLabel}</strong>
         </span>
-        <span className="asympta-request-card__source">
-          {request.source === "webmcp" ? copy.sourceWebMcp : copy.sourceHuman}
-        </span>
+        <span className="asympta-request-card__source">{sourceLabel}</span>
       </div>
 
       {expanded ? (
@@ -162,7 +210,7 @@ export function AsymptaSafeSchedule() {
               {verifiedLinks ? copy.sources(request.sourceCount) : copy.noLinks}
             </p>
           ) : null}
-          {needsDecision ? <p className="asympta-request-card__decision"><ShieldAlert size={13} aria-hidden="true" />{copy.waiting}</p> : null}
+          {needsDecision ? <p className="asympta-request-card__decision"><ShieldAlert size={13} aria-hidden="true" />{marketplace ? copy.marketplaceWaiting : copy.waiting}</p> : null}
           {request.events.length > 1 ? (
             <ol className="asympta-request-card__events">
               {request.events.slice(-3).map((event, index) => <li key={`${request.requestId}-${index}-${event}`}>{event}</li>)}
