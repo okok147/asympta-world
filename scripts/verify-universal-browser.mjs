@@ -210,7 +210,7 @@ async function run() {
       document.documentElement.lang = 'zh-Hant';
       await new Promise((resolve) => setTimeout(resolve, 180));
       const emit = (intent, status, data) => window.dispatchEvent(new CustomEvent('asympta:activity', { detail: {
-        activity: { id: 'universal-ui-probe', intent, status },
+        activity: { id: 'universal-ui-probe', intent: { raw: intent, locale: 'zh-Hant' }, status },
         event: { status, summary: status, data }
       } }));
       const intent = '使用者想購買一台電視機 — browser option probe';
