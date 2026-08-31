@@ -63,17 +63,58 @@ test("a saved profile lets a concrete apple request build and execute immediatel
   assert.match(workflow.summary, /Buy two apples/);
 });
 
-test("common grocery nouns are recognized in English, Traditional Chinese and Japanese", () => {
+test("Buy me a cola starts immediately with saved defaults instead of asking for location, budget, or quantity", () => {
+  const profile = marketplaceProfilePreset("everyday", 0);
+  const result = compileAsymptaContext("Buy me a cola", {
+    requestId: "request-cola",
+    conversationId: "conversation-cola",
+    locale: "en",
+    now: 0,
+    profile,
+  });
+
+  assert.equal(result.supported, true, result.issues.join(" "));
+  assert.ok(result.envelope);
+  assert.deepEqual(result.profileRequirements.missing, []);
+  assert.equal(result.envelope.rawMessage.text, "Buy me a cola");
+  assert.equal(fact(result.envelope.goals[0], "requested_item")?.value, "cola");
+  assert.equal(fact(result.envelope.goals[0], "requested_item")?.status, "explicit");
+  assert.equal(fact(result.envelope.goals[0], "quantity")?.value, 1);
+  assert.equal(fact(result.envelope.goals[0], "quantity")?.status, "explicit");
+  assert.equal(fact(result.envelope.goals[0], "max_budget"), undefined);
+  assert.equal(result.envelope.sharedFacts.find((candidate) => candidate.key === "user_handoff_location")?.value, "personal_agent_home");
+
+  const protocol = buildMarketplaceTaskProtocol(result.envelope);
+  assert.equal(protocol.readiness.status, "ready");
+  assert.equal(protocol.readiness.nextQuestion, null);
+
+  const workflow = buildMarketplaceWorkflow(result.envelope);
+  assert.equal(workflow.shortName, "Marketplace");
+  assert.match(workflow.summary, /Buy me a cola/);
+});
+
+test("common grocery and convenience-store nouns are recognized across languages", () => {
   const examples = [
     ["Buy milk", "milk"],
+    ["Buy me a cola", "cola"],
     ["幫我買兩個蘋果", "apple"],
+    ["幫我買一罐可樂", "cola"],
     ["牛乳を買いたい", "milk"],
+    ["コーラを買いたい", "cola"],
   ];
 
   for (const [intent, expectedItem] of examples) {
     const result = compileAsymptaContext(intent, { now: 0 });
     assert.equal(result.supported, true, `${intent}: ${result.issues.join(" ")}`);
     assert.equal(fact(result.envelope.goals[0], "requested_item")?.value, expectedItem);
+  }
+});
+
+test("simple consumable fallback does not claim finance or company requests", () => {
+  for (const intent of ["Buy Coca-Cola shares", "Buy Coca-Cola stock", "Research the Coca-Cola company"]) {
+    const result = compileAsymptaContext(intent, { now: 0 });
+    assert.equal(result.supported, false, intent);
+    assert.equal(result.envelope, null);
   }
 });
 
