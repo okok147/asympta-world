@@ -1,0 +1,10 @@
+.router {
+  display: none;
+}
+
+:global(html[data-asympta-intent-owner="marketplace"] .asympta-intent-result),
+:global(html[data-asympta-intent-owner="marketplace"] .asympta-information-journey),
+:global(html[data-asympta-intent-owner="marketplace"] .asympta-intent-error),
+:global(html[data-asympta-intent-owner="marketplace"] .asympta-intent-presence) {
+  display: none !important;
+}
