@@ -48,8 +48,18 @@ function normalizePreferences(value: unknown): AsymptaUserPreferences {
   const candidate = value as Partial<AsymptaUserPreferences>;
   const storedMarketplace = normalizeMarketplaceProfile(candidate.marketplaceProfile);
   let contextProfile = normalizeAsymptaUserContextProfile(candidate.contextProfile);
-  if (storedMarketplace) contextProfile = mergeMarketplaceProfileIntoUserContext(contextProfile, storedMarketplace);
-  const marketplaceProfile = storedMarketplace ?? marketplaceProfileFromUserContext(contextProfile);
+  const contextMarketplace = marketplaceProfileFromUserContext(contextProfile);
+
+  // `asympta.user-context.v1` is the durable source of truth. The older
+  // marketplace object is imported only when a legacy record has no matching
+  // context facts yet, so later app-wide profile edits cannot be overwritten.
+  if (!contextMarketplace && storedMarketplace) {
+    contextProfile = mergeMarketplaceProfileIntoUserContext(contextProfile, storedMarketplace);
+  }
+  const marketplaceProfile = contextMarketplace
+    ?? storedMarketplace
+    ?? marketplaceProfileFromUserContext(contextProfile);
+
   return {
     locale: isLocale(candidate.locale) ? candidate.locale : DEFAULT_ASYMPTA_USER_PREFERENCES.locale,
     autoExplore: typeof candidate.autoExplore === "boolean" ? candidate.autoExplore : DEFAULT_ASYMPTA_USER_PREFERENCES.autoExplore,
@@ -130,7 +140,7 @@ export function rememberAsymptaUserContextFact(
 
 export function readAsymptaMarketplaceProfile() {
   const preferences = readAsymptaUserPreferences();
-  return preferences.marketplaceProfile ?? marketplaceProfileFromUserContext(preferences.contextProfile);
+  return marketplaceProfileFromUserContext(preferences.contextProfile) ?? preferences.marketplaceProfile;
 }
 
 export function writeAsymptaMarketplaceProfile(profile: AsymptaMarketplaceProfile | null) {
