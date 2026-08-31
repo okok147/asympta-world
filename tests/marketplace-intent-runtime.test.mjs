@@ -7,6 +7,7 @@ import {
   compileAsymptaContext,
   createMarketplaceExecution,
   marketplaceInventoryInvariant,
+  marketplaceProfilePreset,
   marketplaceTaskIds,
   syncMarketplaceExecution,
   upsertMarketplaceWorkflow,
@@ -15,16 +16,21 @@ import {
 import { startAtlasDemoWorkflow } from "../lib/atlas-demo.ts";
 import { ATLAS_LOCATIONS, advanceAtlasWorld, createAtlasWorld } from "../lib/atlas-simulation.ts";
 
-function compile(intent, requestId = "request-test") {
+function compile(intent, requestId = "request-test", profile = null) {
   const result = compileAsymptaContext(intent, {
     requestId,
     conversationId: "conversation-test",
     locale: "en",
     now: 0,
+    profile,
   });
   assert.equal(result.supported, true, result.issues.join(" "));
   assert.ok(result.envelope);
   return result.envelope;
+}
+
+function compileReady(intent, requestId = "request-ready") {
+  return compile(intent, requestId, marketplaceProfilePreset("everyday", 0));
 }
 
 function snapshot(states, phase = "running") {
@@ -60,7 +66,7 @@ test("vague food language compiles into evidence-backed context without inventin
 });
 
 test("compiler handles Cantonese quantities and separates food from clothing goals", () => {
-  const envelope = compile("幫我買兩份嘢食，同埋一件新衫", "request-multi");
+  const envelope = compileReady("幫我買兩份嘢食，同埋一件新衫", "request-multi");
   assert.deepEqual(envelope.goals.map((goal) => goal.domain), ["food", "clothing"]);
   assert.equal(envelope.goals[0].facts.find((fact) => fact.key === "quantity")?.value, 2);
   assert.equal(envelope.goals[1].facts.find((fact) => fact.key === "quantity")?.value, 1);
@@ -77,7 +83,7 @@ test("compiler handles Cantonese quantities and separates food from clothing goa
 });
 
 test("marketplace workflow makes the personal agent enter a market, pause for approval, collect goods and return home", () => {
-  const envelope = compile("Buy one meal", "request-route");
+  const envelope = compileReady("Buy one meal", "request-route");
   const workflow = buildMarketplaceWorkflow(envelope);
   const ids = marketplaceTaskIds(envelope.goals[0], 0);
 
@@ -99,7 +105,7 @@ test("marketplace workflow makes the personal agent enter a market, pause for ap
 });
 
 test("marketplace execution begins at the personal agent home before the actual market journey", () => {
-  const envelope = compile("Buy one meal", "request-home-start");
+  const envelope = compileReady("Buy one meal", "request-home-start");
   upsertMarketplaceWorkflow(envelope);
   let world = startAtlasDemoWorkflow(createAtlasWorld(1_000), "marketplace-intent");
   const user = world.agents.find((agent) => agent.id === "agent-user");

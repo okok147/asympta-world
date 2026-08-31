@@ -2,6 +2,18 @@ import {
   normalizeMarketplaceProfile,
   type AsymptaMarketplaceProfile,
 } from "./asympta-marketplace-profile.ts";
+import {
+  marketplaceProfileFromUserContext,
+  mergeMarketplaceProfileIntoUserContext,
+  removeMarketplaceFactsFromUserContext,
+} from "./asympta-marketplace-user-context.ts";
+import {
+  emptyAsymptaUserContextProfile,
+  normalizeAsymptaUserContextProfile,
+  upsertAsymptaUserContextFact,
+  type AsymptaUserContextProfile,
+  type UpsertAsymptaUserContextFactInput,
+} from "./asympta-user-context-profile.ts";
 
 export type AsymptaLocale = "en" | "zh-Hant" | "ja";
 
@@ -10,6 +22,7 @@ export type AsymptaUserPreferences = {
   autoExplore: boolean;
   autoJobMode: boolean;
   marketplaceProfile: AsymptaMarketplaceProfile | null;
+  contextProfile: AsymptaUserContextProfile;
 };
 
 export const ASYMPTA_USER_PREFERENCES_KEY = "asympta-world.user-preferences.v1";
@@ -20,6 +33,7 @@ export const DEFAULT_ASYMPTA_USER_PREFERENCES: AsymptaUserPreferences = {
   autoExplore: true,
   autoJobMode: true,
   marketplaceProfile: null,
+  contextProfile: emptyAsymptaUserContextProfile(0),
 };
 
 function isLocale(value: unknown): value is AsymptaLocale {
@@ -27,13 +41,31 @@ function isLocale(value: unknown): value is AsymptaLocale {
 }
 
 function normalizePreferences(value: unknown): AsymptaUserPreferences {
-  if (!value || typeof value !== "object") return { ...DEFAULT_ASYMPTA_USER_PREFERENCES };
+  if (!value || typeof value !== "object") return {
+    ...DEFAULT_ASYMPTA_USER_PREFERENCES,
+    contextProfile: normalizeAsymptaUserContextProfile(DEFAULT_ASYMPTA_USER_PREFERENCES.contextProfile),
+  };
   const candidate = value as Partial<AsymptaUserPreferences>;
+  const storedMarketplace = normalizeMarketplaceProfile(candidate.marketplaceProfile);
+  let contextProfile = normalizeAsymptaUserContextProfile(candidate.contextProfile);
+  const contextMarketplace = marketplaceProfileFromUserContext(contextProfile);
+
+  // `asympta.user-context.v1` is the durable source of truth. The older
+  // marketplace object is imported only when a legacy record has no matching
+  // context facts yet, so later app-wide profile edits cannot be overwritten.
+  if (!contextMarketplace && storedMarketplace) {
+    contextProfile = mergeMarketplaceProfileIntoUserContext(contextProfile, storedMarketplace);
+  }
+  const marketplaceProfile = contextMarketplace
+    ?? storedMarketplace
+    ?? marketplaceProfileFromUserContext(contextProfile);
+
   return {
     locale: isLocale(candidate.locale) ? candidate.locale : DEFAULT_ASYMPTA_USER_PREFERENCES.locale,
     autoExplore: typeof candidate.autoExplore === "boolean" ? candidate.autoExplore : DEFAULT_ASYMPTA_USER_PREFERENCES.autoExplore,
     autoJobMode: typeof candidate.autoJobMode === "boolean" ? candidate.autoJobMode : DEFAULT_ASYMPTA_USER_PREFERENCES.autoJobMode,
-    marketplaceProfile: normalizeMarketplaceProfile(candidate.marketplaceProfile),
+    marketplaceProfile,
+    contextProfile,
   };
 }
 
@@ -58,13 +90,13 @@ export function hasStoredAsymptaUserPreferences() {
 
 export function readAsymptaUserPreferences(): AsymptaUserPreferences {
   const storage = browserStorage();
-  if (!storage) return { ...DEFAULT_ASYMPTA_USER_PREFERENCES };
+  if (!storage) return normalizePreferences(DEFAULT_ASYMPTA_USER_PREFERENCES);
   try {
     const raw = storage.getItem(ASYMPTA_USER_PREFERENCES_KEY);
-    if (!raw) return { ...DEFAULT_ASYMPTA_USER_PREFERENCES };
+    if (!raw) return normalizePreferences(DEFAULT_ASYMPTA_USER_PREFERENCES);
     return normalizePreferences(JSON.parse(raw));
   } catch {
-    return { ...DEFAULT_ASYMPTA_USER_PREFERENCES };
+    return normalizePreferences(DEFAULT_ASYMPTA_USER_PREFERENCES);
   }
 }
 
@@ -89,16 +121,41 @@ export function writeAsymptaUserPreferences(
   return next;
 }
 
+export function readAsymptaUserContextProfile() {
+  return readAsymptaUserPreferences().contextProfile;
+}
+
+export function writeAsymptaUserContextProfile(profile: AsymptaUserContextProfile) {
+  return writeAsymptaUserPreferences({ contextProfile: normalizeAsymptaUserContextProfile(profile) }).contextProfile;
+}
+
+export function rememberAsymptaUserContextFact(
+  input: UpsertAsymptaUserContextFactInput,
+  now: number | string | Date = Date.now(),
+) {
+  const preferences = readAsymptaUserPreferences();
+  const contextProfile = upsertAsymptaUserContextFact(preferences.contextProfile, input, now);
+  return writeAsymptaUserPreferences({ contextProfile }).contextProfile;
+}
+
 export function readAsymptaMarketplaceProfile() {
-  return readAsymptaUserPreferences().marketplaceProfile;
+  const preferences = readAsymptaUserPreferences();
+  return marketplaceProfileFromUserContext(preferences.contextProfile) ?? preferences.marketplaceProfile;
 }
 
 export function writeAsymptaMarketplaceProfile(profile: AsymptaMarketplaceProfile | null) {
-  return writeAsymptaUserPreferences({ marketplaceProfile: normalizeMarketplaceProfile(profile) }).marketplaceProfile;
+  const preferences = readAsymptaUserPreferences();
+  const marketplaceProfile = normalizeMarketplaceProfile(profile);
+  const contextProfile = marketplaceProfile
+    ? mergeMarketplaceProfileIntoUserContext(preferences.contextProfile, marketplaceProfile)
+    : removeMarketplaceFactsFromUserContext(preferences.contextProfile);
+  return writeAsymptaUserPreferences({ marketplaceProfile, contextProfile }).marketplaceProfile;
 }
 
 export function clearAsymptaMarketplaceProfile() {
-  return writeAsymptaUserPreferences({ marketplaceProfile: null }).marketplaceProfile;
+  const preferences = readAsymptaUserPreferences();
+  const contextProfile = removeMarketplaceFactsFromUserContext(preferences.contextProfile);
+  return writeAsymptaUserPreferences({ marketplaceProfile: null, contextProfile }).marketplaceProfile;
 }
 
 export function subscribeAsymptaUserPreferences(
