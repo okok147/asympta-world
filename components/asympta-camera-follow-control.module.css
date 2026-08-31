@@ -1,0 +1,51 @@
+.control {
+  position: relative;
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.control.is-active,
+:global(.asympta-camera-follow-toggle.is-active) {
+  border-color: rgba(75, 127, 166, 0.18);
+  background: rgba(75, 127, 166, 0.09);
+  color: #426d8d;
+}
+
+.control:disabled {
+  opacity: 0.38;
+}
+
+.status {
+  position: absolute;
+  right: 7px;
+  bottom: 7px;
+  width: 5px;
+  height: 5px;
+  border: 1px solid rgba(249, 246, 237, 0.96);
+  border-radius: 50%;
+  background: rgba(108, 104, 96, 0.36);
+  pointer-events: none;
+}
+
+.control.is-active .status,
+:global(.asympta-camera-follow-toggle.is-active) .status {
+  background: #5f8a72;
+  box-shadow: 0 0 0 2px rgba(95, 138, 114, 0.1);
+}
+
+:global(.atlas-menu-bar) {
+  grid-template-columns: minmax(0, 1fr) 40px 40px 40px;
+}
+
+@media (max-width: 640px) {
+  :global(.atlas-menu-bar) {
+    grid-template-columns: minmax(0, 1fr) 38px 38px 38px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .control,
+  .status {
+    transition: none !important;
+  }
+}

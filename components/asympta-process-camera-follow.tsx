@@ -2,6 +2,12 @@
 
 import { useEffect } from "react";
 
+import {
+  ASYMPTA_CAMERA_FOLLOW_COMMAND_EVENT,
+  publishAsymptaCameraFollowState,
+  type AsymptaCameraFollowCommand,
+} from "@/lib/asympta-camera-follow";
+
 type TaskSnapshot = {
   id?: string;
   agentId: string;
@@ -20,6 +26,7 @@ type DemoSnapshot = {
 type FollowMap = {
   on(event: string, handler: (event?: unknown) => void): unknown;
   off?(event: string, handler: (event?: unknown) => void): unknown;
+  fire?(event: string, data?: Record<string, unknown>): unknown;
 };
 
 const FOLLOW_REFRESH_MS = 450;
@@ -55,7 +62,19 @@ function cameraFollowIsActive() {
 
 function disableVisibleCameraFollow() {
   const toggle = document.querySelector<HTMLButtonElement>(".atlas-follow.is-active");
-  toggle?.click();
+  if (toggle) {
+    toggle.click();
+    return;
+  }
+
+  // The selected-agent card is hidden during approval sheets. Firing the same
+  // map event used by a real drag turns off the underlying camera state without
+  // moving the map or waiting for that card to reappear.
+  try {
+    bridge().__ASYMPTA_MAP__?.fire?.("dragstart", {
+      originalEvent: { type: "asympta-camera-follow-off" },
+    });
+  } catch {}
 }
 
 export function AsymptaProcessCameraFollow() {
@@ -65,9 +84,24 @@ export function AsymptaProcessCameraFollow() {
     let followedAgentId: string | null = null;
     let followedTaskKey: string | null = null;
     let activeMap: FollowMap | null = null;
+    let lastPublishedState = "";
+
+    const publishState = () => {
+      const following = processLock && !manualFollowLock;
+      document.documentElement.dataset.asymptaCameraFollow = following ? "on" : "off";
+      const signature = `${following}:${manualFollowLock}:${followedAgentId ?? ""}`;
+      if (signature === lastPublishedState) return;
+      lastPublishedState = signature;
+      publishAsymptaCameraFollowState({
+        following,
+        manualLock: manualFollowLock,
+        activeAgentId: followedAgentId,
+      });
+    };
 
     const syncManualDataset = () => {
       document.documentElement.dataset.asymptaCameraFollowManualLock = manualFollowLock ? "on" : "off";
+      publishState();
     };
 
     const disableProcessLock = (manual = false) => {
@@ -82,6 +116,7 @@ export function AsymptaProcessCameraFollow() {
     const enableProcessLock = () => {
       processLock = true;
       document.documentElement.dataset.asymptaProcessCameraLock = "on";
+      publishState();
     };
 
     const clearManualFollowLock = () => {
@@ -105,6 +140,7 @@ export function AsymptaProcessCameraFollow() {
       // camera back on until the user explicitly re-triggers it.
       if (manualFollowLock) {
         if (cameraFollowIsActive()) disableVisibleCameraFollow();
+        publishState();
         return;
       }
 
@@ -131,6 +167,7 @@ export function AsymptaProcessCameraFollow() {
         followedAgentId = nextAgentId;
         followedTaskKey = taskKey;
         clickAgent(nextAgentId);
+        publishState();
       }
     };
 
@@ -167,8 +204,33 @@ export function AsymptaProcessCameraFollow() {
       }, 0);
     };
 
+    const handleFollowCommand = (event: Event) => {
+      const command = (event as CustomEvent<AsymptaCameraFollowCommand>).detail;
+      if (!command || typeof command.enabled !== "boolean") return;
+
+      if (!command.enabled) {
+        disableProcessLock(command.source === "user");
+        disableVisibleCameraFollow();
+        return;
+      }
+
+      // A new workflow may auto-arm follow only when the user has not explicitly
+      // switched it off. A direct user tap always clears that manual lock.
+      if (command.source === "workflow" && manualFollowLock) {
+        publishState();
+        return;
+      }
+      clearManualFollowLock();
+      enableProcessLock();
+      followedAgentId = null;
+      followedTaskKey = null;
+      followCurrentAgent();
+      window.setTimeout(followCurrentAgent, 0);
+    };
+
     document.addEventListener("click", enableFromWorkflowClick);
     document.addEventListener("click", syncManualFollowToggle);
+    window.addEventListener(ASYMPTA_CAMERA_FOLLOW_COMMAND_EVENT, handleFollowCommand);
 
     const manualMapDrag = () => disableProcessLock(true);
 
@@ -197,11 +259,13 @@ export function AsymptaProcessCameraFollow() {
       window.clearInterval(timer);
       document.removeEventListener("click", enableFromWorkflowClick);
       document.removeEventListener("click", syncManualFollowToggle);
+      window.removeEventListener(ASYMPTA_CAMERA_FOLLOW_COMMAND_EVENT, handleFollowCommand);
       if (activeMap?.off) {
         try { activeMap.off("dragstart", manualMapDrag); } catch {}
       }
       delete document.documentElement.dataset.asymptaProcessCameraLock;
       delete document.documentElement.dataset.asymptaCameraFollowManualLock;
+      delete document.documentElement.dataset.asymptaCameraFollow;
     };
   }, []);
 
