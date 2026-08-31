@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  ATLAS_LOCATIONS,
   ATLAS_WORKFLOWS,
   advanceAtlasWorld,
   createAtlasWorld,
@@ -17,6 +18,12 @@ import {
   resolveAtlasDemoApproval,
   startAtlasDemoWorkflow,
 } from "../lib/atlas-demo.ts";
+import {
+  compileAsymptaContext,
+  marketplaceProfilePreset,
+  marketplaceTaskIds,
+  upsertMarketplaceWorkflow,
+} from "../lib/asympta-marketplace-intent.ts";
 import { estimateWorkflowTiming, estimateWorkflowTotalMs } from "../lib/atlas-workflow-time.ts";
 
 function runUntilSettled(initial, maxSteps = 7000) {
@@ -44,6 +51,23 @@ function runDemoDuration(workflowId, maxSteps = 12000) {
     if (world.phase === "blocked") throw new Error(`${workflowId} unexpectedly blocked during calibration`);
   }
   throw new Error(`${workflowId} did not complete during calibration`);
+}
+
+function pointDistance(left, right) {
+  const scale = Math.cos(((left.lat + right.lat) / 2) * Math.PI / 180);
+  return Math.hypot((left.lon - right.lon) * scale, left.lat - right.lat);
+}
+
+function assertContinuationInvariant(world) {
+  if (["completed", "blocked", "idle"].includes(world.phase)) return;
+  const pendingApproval = world.approvals.some((approval) => approval.status === "pending");
+  const activeTask = world.tasks.some((task) => ["moving", "working"].includes(task.status));
+  if (world.phase === "waiting_approval") {
+    assert.equal(pendingApproval, true, "waiting_approval must always expose a real pending approval");
+    return;
+  }
+  assert.equal(pendingApproval, false, "a pending approval must be the only normal pause state");
+  assert.equal(activeTask, true, "a non-terminal workflow without an approval must keep doing work");
 }
 
 test("new atlas defines several multi-stakeholder workflows", () => {
@@ -78,33 +102,103 @@ test("demo boots with a foreground agent visibly travelling", () => {
   }
 });
 
-test("approving a demo checkpoint produces another visible travel leg", () => {
+test("approving a demo checkpoint resumes work immediately at the checkpoint", () => {
   let world = createAtlasDemoWorld(8_000);
   for (let index = 0; index < 7000; index += 1) {
     world = advanceAtlasWorld(world, 120);
     const approval = world.approvals.find((item) => item.status === "pending");
-    if (approval) {
-      const next = resolveAtlasDemoApproval(world, approval.id, true);
-      const task = approval.taskId ? next.tasks.find((item) => item.id === approval.taskId) : null;
-      const agent = task ? next.agents.find((item) => item.id === task.agentId) : null;
-      assert.ok(agent);
-      assert.equal(agent.status, "moving");
-      assert.notDeepEqual(agent.position, agent.target);
-      return;
-    }
+    if (!approval?.taskId) continue;
+
+    const waitingTask = world.tasks.find((item) => item.id === approval.taskId);
+    const waitingAgent = waitingTask ? world.agents.find((item) => item.id === waitingTask.agentId) : null;
+    assert.ok(waitingTask);
+    assert.ok(waitingAgent);
+    assert.equal(waitingTask.status, "waiting_approval");
+    const checkpointPosition = { ...waitingAgent.position };
+    assert.ok(
+      pointDistance(checkpointPosition, ATLAS_LOCATIONS[waitingTask.locationId].point) <= 0.00034,
+      "the agent must already be at the approval checkpoint",
+    );
+
+    const next = resolveAtlasDemoApproval(world, approval.id, true);
+    const task = next.tasks.find((item) => item.id === approval.taskId);
+    const agent = task ? next.agents.find((item) => item.id === task.agentId) : null;
+    assert.ok(task);
+    assert.ok(agent);
+    assert.equal(task.approvalStatus, "approved");
+    assert.equal(task.status, "working");
+    assert.equal(agent.status, "working");
+    assert.deepEqual(agent.position, checkpointPosition);
+    assert.ok(Number.isFinite(task.workStartedAt));
+    assertContinuationInvariant(next);
+    return;
   }
   assert.fail("demo never reached an approval checkpoint");
 });
 
+test("authorised marketplace payment continues through handoff and delivery", () => {
+  const compilation = compileAsymptaContext("Buy one meal", {
+    requestId: "approval-continuation-marketplace",
+    conversationId: "approval-continuation-marketplace",
+    locale: "en",
+    now: 0,
+    profile: marketplaceProfilePreset("everyday", 0),
+  });
+  assert.equal(compilation.supported, true, compilation.issues.join(" "));
+  assert.ok(compilation.envelope);
+  const envelope = compilation.envelope;
+  upsertMarketplaceWorkflow(envelope);
+  const ids = marketplaceTaskIds(envelope.goals[0], 0);
+  let world = startAtlasDemoWorkflow(createAtlasWorld(0), "marketplace-intent");
+  let paymentApproval = null;
+
+  for (let index = 0; index < 12_000; index += 1) {
+    world = advanceAtlasWorld(world, 120);
+    assertContinuationInvariant(world);
+    paymentApproval = world.approvals.find((approval) => approval.taskId === ids.payment && approval.status === "pending") ?? null;
+    if (paymentApproval) break;
+  }
+
+  assert.ok(paymentApproval, "marketplace never reached the payment checkpoint");
+  const waitingPayment = world.tasks.find((task) => task.id === ids.payment);
+  assert.equal(waitingPayment.status, "waiting_approval");
+
+  world = resolveAtlasDemoApproval(world, paymentApproval.id, true);
+  const resumedPayment = world.tasks.find((task) => task.id === ids.payment);
+  assert.equal(resumedPayment.approvalStatus, "approved");
+  assert.equal(resumedPayment.status, "working");
+  assertContinuationInvariant(world);
+
+  let sawPostPaymentWork = false;
+  for (let index = 0; index < 12_000; index += 1) {
+    world = advanceAtlasWorld(world, 120);
+    assertContinuationInvariant(world);
+    const payment = world.tasks.find((task) => task.id === ids.payment);
+    const downstream = [ids.handoff, ids.returning, ids.deliver, ids.verify]
+      .map((id) => world.tasks.find((task) => task.id === id))
+      .filter(Boolean);
+    if (payment?.status === "done" && downstream.some((task) => task.status !== "queued")) sawPostPaymentWork = true;
+    if (world.phase === "completed") break;
+  }
+
+  assert.equal(sawPostPaymentWork, true, "payment completed but no dependent task continued");
+  assert.equal(world.phase, "completed");
+  assert.equal(world.tasks.find((task) => task.id === ids.handoff)?.status, "done");
+  assert.equal(world.tasks.find((task) => task.id === ids.deliver)?.status, "done");
+  assert.equal(world.tasks.find((task) => task.id === ids.verify)?.status, "done");
+});
+
 test("workflow total-time estimator stays within 10 percent of the real demo engine", () => {
-  for (const workflow of ATLAS_WORKFLOWS) {
+  // Dynamic marketplace workflows have a dedicated end-to-end liveness test above.
+  // This calibration covers the four stable built-in workflow definitions only.
+  for (const workflow of ATLAS_WORKFLOWS.filter((candidate) => candidate.id !== "marketplace-intent")) {
     const actualMs = runDemoDuration(workflow.id);
     const estimatedMs = estimateWorkflowTotalMs(workflow.id);
     const relativeError = Math.abs(estimatedMs - actualMs) / Math.max(1, actualMs);
     const breakdown = estimateWorkflowTiming(workflow.id);
 
     assert.ok(breakdown.approvalCount > 0, `${workflow.id} should include approval checkpoints`);
-    assert.ok(breakdown.approvalTravelMs > 0, `${workflow.id} should include post-approval travel`);
+    assert.equal(breakdown.approvalTravelMs, 0, `${workflow.id} approvals must resume at the existing checkpoint`);
     assert.ok(
       relativeError <= 0.10,
       `${workflow.id} ETA error ${(relativeError * 100).toFixed(1)}%: estimated ${estimatedMs}ms vs actual ${actualMs}ms`,
