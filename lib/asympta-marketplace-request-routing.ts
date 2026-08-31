@@ -17,6 +17,19 @@ export type MarketplaceProfileRequiredDetail = {
   missing: MarketplaceProfileField[];
 };
 
+export type MarketplaceProfilePrompt = {
+  field: MarketplaceProfileField;
+  eyebrow: string;
+  question: string;
+  hint: string;
+};
+
+const PROFILE_FIELD_PRIORITY: MarketplaceProfileField[] = [
+  "foodPreference",
+  "fulfilmentMethod",
+  "paymentMethod",
+];
+
 const COPY: Record<MarketplaceRequestLocale, {
   buyFood: string;
   buyClothing: string;
@@ -30,8 +43,9 @@ const COPY: Record<MarketplaceRequestLocale, {
   start: string;
   profile: string;
   failed: string;
+  nextDetail: string;
+  questions: Record<MarketplaceProfileField, string>;
   statuses: Record<MarketplaceExecution["status"], string>;
-  fields: Record<MarketplaceProfileField, string>;
 }> = {
   en: {
     buyFood: "Buy food",
@@ -44,8 +58,14 @@ const COPY: Record<MarketplaceRequestLocale, {
     simulatedMarket: "Simulated marketplace",
     userHome: "User home",
     start: "Applying saved preferences and starting the simulated marketplace workflow.",
-    profile: "Choose the missing marketplace preferences to continue.",
+    profile: "One necessary detail is still missing.",
     failed: "The simulated marketplace workflow could not start.",
+    nextDetail: "Choose one option. Asympta will save it, recompile the request and continue automatically.",
+    questions: {
+      foodPreference: "What kind of food should the agent choose?",
+      fulfilmentMethod: "Should your personal agent collect it, or should a courier deliver it?",
+      paymentMethod: "Which simulated payment method should this request use?",
+    },
     statuses: {
       routing: "Applying the approved profile to the request.",
       travelling_to_market: "The selected agent is travelling to the simulated marketplace.",
@@ -54,11 +74,6 @@ const COPY: Record<MarketplaceRequestLocale, {
       returning_to_user: "The selected carrier is bringing the item back to the user.",
       completed: "The requested item was delivered into simulated user inventory.",
       blocked: "The simulated marketplace workflow was stopped.",
-    },
-    fields: {
-      foodPreference: "food preference",
-      fulfilmentMethod: "delivery method",
-      paymentMethod: "payment method",
     },
   },
   "zh-Hant": {
@@ -72,8 +87,14 @@ const COPY: Record<MarketplaceRequestLocale, {
     simulatedMarket: "模擬市場",
     userHome: "使用者所在地",
     start: "正在套用已儲存偏好並啟動模擬市場流程。",
-    profile: "選擇尚欠的市場偏好後便會繼續。",
+    profile: "尚欠一項真正需要的資料。",
     failed: "未能啟動模擬市場流程。",
+    nextDetail: "只需選擇一項；Asympta 會儲存答案、重新編譯請求，並自動繼續。",
+    questions: {
+      foodPreference: "今次想讓代理選擇哪一類食物？",
+      fulfilmentMethod: "由你的個人代理自取，還是由速遞代理送貨？",
+      paymentMethod: "今次模擬交易使用哪一種付款方式？",
+    },
     statuses: {
       routing: "正在把已批准偏好套用至請求。",
       travelling_to_market: "指定代理正在前往模擬市場。",
@@ -82,11 +103,6 @@ const COPY: Record<MarketplaceRequestLocale, {
       returning_to_user: "指定配送代理正在把物品帶回使用者。",
       completed: "所需物品已交付至模擬使用者庫存。",
       blocked: "模擬市場流程已停止。",
-    },
-    fields: {
-      foodPreference: "食物偏好",
-      fulfilmentMethod: "配送方式",
-      paymentMethod: "付款方式",
     },
   },
   ja: {
@@ -100,8 +116,14 @@ const COPY: Record<MarketplaceRequestLocale, {
     simulatedMarket: "シミュレーション市場",
     userHome: "ユーザーの場所",
     start: "保存済みの設定を適用して、シミュレーション市場を開始します。",
-    profile: "不足しているマーケット設定を選ぶと続行します。",
+    profile: "実行に必要な情報があと一つあります。",
     failed: "シミュレーション市場を開始できませんでした。",
+    nextDetail: "一つ選ぶと、Asympta が保存・再コンパイルして自動的に続行します。",
+    questions: {
+      foodPreference: "エージェントにどの種類の食事を選ばせますか？",
+      fulfilmentMethod: "個人エージェントが受け取りますか、それとも配達しますか？",
+      paymentMethod: "今回のシミュレーションで使う支払い方法はどれですか？",
+    },
     statuses: {
       routing: "承認済みプロフィールを依頼へ適用しています。",
       travelling_to_market: "選択されたエージェントがシミュレーション市場へ移動中です。",
@@ -111,13 +133,27 @@ const COPY: Record<MarketplaceRequestLocale, {
       completed: "商品をシミュレーション上のユーザー在庫へ届けました。",
       blocked: "シミュレーション市場を停止しました。",
     },
-    fields: {
-      foodPreference: "食事の好み",
-      fulfilmentMethod: "受取方法",
-      paymentMethod: "支払い方法",
-    },
   },
 };
+
+export function nextMarketplaceProfileField(missing: readonly MarketplaceProfileField[]) {
+  return PROFILE_FIELD_PRIORITY.find((field) => missing.includes(field)) ?? null;
+}
+
+export function marketplaceProfilePrompt(
+  missing: readonly MarketplaceProfileField[],
+  locale: MarketplaceRequestLocale,
+): MarketplaceProfilePrompt | null {
+  const field = nextMarketplaceProfileField(missing);
+  if (!field) return null;
+  const copy = COPY[locale];
+  return {
+    field,
+    eyebrow: copy.profile,
+    question: copy.questions[field],
+    hint: copy.nextDetail,
+  };
+}
 
 function requestGoal(envelope: ContextEnvelope, locale: MarketplaceRequestLocale) {
   const copy = COPY[locale];
@@ -185,8 +221,8 @@ export function marketplaceCurrentRequestForProfile(
   locale: MarketplaceRequestLocale,
 ): AsymptaCurrentRequest {
   const copy = COPY[locale];
-  const missing = detail.missing.map((field) => copy.fields[field]).join(" · ");
-  const step = missing ? `${copy.profile} ${missing}` : copy.profile;
+  const prompt = marketplaceProfilePrompt(detail.missing, locale);
+  const step = prompt?.question ?? copy.profile;
   return {
     requestId: detail.requestId,
     source,
@@ -200,7 +236,7 @@ export function marketplaceCurrentRequestForProfile(
     destination: copy.simulatedMarket,
     sourceCount: 0,
     verification: null,
-    events: [step],
+    events: prompt ? [prompt.eyebrow, prompt.question] : [copy.profile],
     updatedAt: new Date().toISOString(),
   };
 }
