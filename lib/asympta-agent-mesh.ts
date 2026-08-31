@@ -1,17 +1,27 @@
+import {
+  taskApprovalCopy,
+  taskIsWriteIntent,
+} from "./asympta-task-policy.ts";
 import type {
   AsymptaAgentPatch,
   AsymptaTaskAssignment,
   AsymptaTaskEvidence,
+  AsymptaTaskOutcome,
   AsymptaTaskPlan,
   AsymptaTaskState,
 } from "./asympta-task-kernel-types.ts";
 
 const TV_PATTERN = /(?:\btv\b|\btelevision\b|smart\s*tv|電視機?|电视机?|テレビ)/iu;
 const EVENT_PATTERN = /(?:concert|show|performance|ticket|演唱會|演唱会|音樂會|音乐会|門票|门票|公演|チケット)/iu;
-const WRITE_PATTERN = /(?:buy|purchase|order|book|reserve|send|submit|publish|delete|cancel|pay|transfer|購買|购买|訂購|订购|預訂|预订|付款|提交|購入|注文|予約|支払)/iu;
 
 function nowIso(value?: string | number | Date) {
   return new Date(value ?? Date.now()).toISOString();
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
 }
 
 function requirementFacts(task: AsymptaTaskState) {
@@ -36,11 +46,16 @@ function specialistAgentId(task: AsymptaTaskState) {
 }
 
 export function taskIsWriteAction(task: AsymptaTaskState) {
-  return WRITE_PATTERN.test(`${task.actionFamily} ${task.rootIntent.raw}`);
+  return taskIsWriteIntent({ actionFamily: task.actionFamily, intent: task.rootIntent.raw });
+}
+
+export function taskHasApprovedApproval(task: AsymptaTaskState) {
+  return task.approvals.some((approval) => approval.status === "approved");
 }
 
 export function initialAgentAssignments(task: AsymptaTaskState, at = nowIso()): AsymptaTaskAssignment[] {
   const scope = task.requirements.map((requirement) => requirement.id);
+  const specialist = specialistAgentId(task);
   return [
     {
       id: `${task.taskId}:assignment:intent-interpreter`,
@@ -53,8 +68,8 @@ export function initialAgentAssignments(task: AsymptaTaskState, at = nowIso()): 
       createdAt: at,
     },
     {
-      id: `${task.taskId}:assignment:${specialistAgentId(task)}`,
-      agentId: specialistAgentId(task),
+      id: `${task.taskId}:assignment:${specialist}`,
+      agentId: specialist,
       role: "specialist",
       capability: TV_PATTERN.test(task.rootIntent.raw)
         ? "commerce.consumer_electronics.plan"
@@ -73,8 +88,9 @@ export function agentIdForCapability(capability: string, task: AsymptaTaskState)
   if (capability === "retail.offer_search") return "retailer-search-agent";
   if (capability === "logistics.delivery_planning") return "logistics-agent";
   if (capability === "events.performance_search") return "performance-search-agent";
+  if (capability === "capability.discover") return "general-capability-agent";
   if (capability === "task.verify") return "independent-verifier";
-  if (capability === "execution.coordinate") return "transaction-coordinator";
+  if (capability === "execution.perform") return "transaction-coordinator";
   if (capability === "domain.plan") return specialistAgentId(task);
   return "general-capability-agent";
 }
@@ -114,13 +130,14 @@ function interpreterPatch(task: AsymptaTaskState, assignment: AsymptaTaskAssignm
         evidence: safeEvidence({
           source: assignment.agentId,
           kind: "interpretation",
-          summary: `Interpreted ${task.rootIntent.raw} into ${task.requirements.length} atomic requirement${task.requirements.length === 1 ? "" : "s"}.`,
+          summary: `Interpreted the original intention into ${task.requirements.length} atomic requirement${task.requirements.length === 1 ? "" : "s"}.`,
           simulated: task.mode !== "live",
           verified: true,
           value: {
             domain: task.domain,
             actionFamily: task.actionFamily,
             resolvedRequirementIds: resolved.map((requirement) => requirement.id),
+            completion: task.completion,
           },
         }, task, "interpretation"),
       },
@@ -132,11 +149,12 @@ function interpreterPatch(task: AsymptaTaskState, assignment: AsymptaTaskAssignm
 function televisionPlan(task: AsymptaTaskState, assignment: AsymptaTaskAssignment): AsymptaAgentPatch {
   const facts = requirementFacts(task);
   const deliveryRequirements = task.requirements
-    .filter((requirement) => ["delivery_location", "fulfilment", "destination"].includes(requirement.key) || /delivery|送貨|送货|配送/u.test(requirement.semantic))
+    .filter((requirement) => ["delivery_location", "fulfilment", "destination"].includes(requirement.key)
+      || /delivery|送貨|送货|配送/u.test(requirement.semantic))
     .map((requirement) => requirement.id);
   const plan = {
     id: `${task.taskId}:plan:television`,
-    summary: "Compare suitable televisions from confirmed requirements, then prepare fulfilment and independent verification.",
+    summary: "Compare suitable televisions from confirmed requirements, prepare fulfilment, execute the approved choice and verify the outcome.",
     steps: [
       {
         id: `${task.taskId}:plan-step:offers`,
@@ -153,8 +171,15 @@ function televisionPlan(task: AsymptaTaskState, assignment: AsymptaTaskAssignmen
         status: "queued",
       },
       {
+        id: `${task.taskId}:plan-step:execute`,
+        title: "Execute after the policy gate",
+        ownerAgentId: "transaction-coordinator",
+        capability: "execution.perform",
+        status: "queued",
+      },
+      {
         id: `${task.taskId}:plan-step:verify`,
-        title: "Verify constraints and completion criteria",
+        title: "Verify the recorded outcome",
         ownerAgentId: "independent-verifier",
         capability: "task.verify",
         status: "queued",
@@ -163,7 +188,7 @@ function televisionPlan(task: AsymptaTaskState, assignment: AsymptaTaskAssignmen
     proposal: {
       category: "television",
       confirmedConstraints: facts,
-      purchasingBoundary: task.mode === "live" ? "approval_required_before_write" : "simulated_only",
+      completion: task.completion,
     },
     createdBy: assignment.agentId,
     createdAt: nowIso(),
@@ -187,7 +212,6 @@ function televisionPlan(task: AsymptaTaskState, assignment: AsymptaTaskAssignmen
     });
   }
   operations.push({ op: "complete_assignment" });
-
   return {
     taskId: task.taskId,
     baseRevision: task.revision,
@@ -198,10 +222,9 @@ function televisionPlan(task: AsymptaTaskState, assignment: AsymptaTaskAssignmen
 }
 
 function eventPlan(task: AsymptaTaskState, assignment: AsymptaTaskAssignment): AsymptaAgentPatch {
-  const facts = requirementFacts(task);
   const plan = {
     id: `${task.taskId}:plan:event`,
-    summary: "Discover matching performances first, then present bounded choices before any purchase step.",
+    summary: "Discover matching performances, execute only after the policy gate, then verify a recorded outcome.",
     steps: [
       {
         id: `${task.taskId}:plan-step:performances`,
@@ -211,8 +234,15 @@ function eventPlan(task: AsymptaTaskState, assignment: AsymptaTaskAssignment): A
         status: "queued",
       },
       {
+        id: `${task.taskId}:plan-step:execute`,
+        title: "Execute after the policy gate",
+        ownerAgentId: "transaction-coordinator",
+        capability: "execution.perform",
+        status: "queued",
+      },
+      {
         id: `${task.taskId}:plan-step:verify`,
-        title: "Verify the selected performance and purchase boundary",
+        title: "Verify the selected performance and recorded outcome",
         ownerAgentId: "independent-verifier",
         capability: "task.verify",
         status: "queued",
@@ -220,13 +250,12 @@ function eventPlan(task: AsymptaTaskState, assignment: AsymptaTaskAssignment): A
     ],
     proposal: {
       category: "event_ticket",
-      confirmedConstraints: facts,
-      purchasingBoundary: task.mode === "live" ? "approval_required_before_write" : "simulated_only",
+      confirmedConstraints: requirementFacts(task),
+      completion: task.completion,
     },
     createdBy: assignment.agentId,
     createdAt: nowIso(),
   } satisfies AsymptaTaskPlan;
-
   return {
     taskId: task.taskId,
     baseRevision: task.revision,
@@ -248,18 +277,25 @@ function eventPlan(task: AsymptaTaskState, assignment: AsymptaTaskAssignment): A
 function generalPlan(task: AsymptaTaskState, assignment: AsymptaTaskAssignment): AsymptaAgentPatch {
   const plan = {
     id: `${task.taskId}:plan:general`,
-    summary: "Use confirmed requirements to discover a compatible capability, coordinate it, then verify completion.",
+    summary: "Discover a compatible capability, coordinate it, execute through the policy gate and verify a recorded outcome.",
     steps: [
       {
-        id: `${task.taskId}:plan-step:coordinate`,
-        title: "Coordinate the best matching capability",
+        id: `${task.taskId}:plan-step:discover`,
+        title: "Discover the best matching capability",
         ownerAgentId: "general-capability-agent",
-        capability: "execution.coordinate",
+        capability: "capability.discover",
+        status: "queued",
+      },
+      {
+        id: `${task.taskId}:plan-step:execute`,
+        title: "Execute after the policy gate",
+        ownerAgentId: "transaction-coordinator",
+        capability: "execution.perform",
         status: "queued",
       },
       {
         id: `${task.taskId}:plan-step:verify`,
-        title: "Verify the result against every requirement",
+        title: "Verify the result against the completion contract",
         ownerAgentId: "independent-verifier",
         capability: "task.verify",
         status: "queued",
@@ -269,11 +305,11 @@ function generalPlan(task: AsymptaTaskState, assignment: AsymptaTaskAssignment):
       domain: task.domain,
       actionFamily: task.actionFamily,
       confirmedConstraints: requirementFacts(task),
+      completion: task.completion,
     },
     createdBy: assignment.agentId,
     createdAt: nowIso(),
   } satisfies AsymptaTaskPlan;
-
   return {
     taskId: task.taskId,
     baseRevision: task.revision,
@@ -283,8 +319,8 @@ function generalPlan(task: AsymptaTaskState, assignment: AsymptaTaskAssignment):
       { op: "add_plan", plan },
       {
         op: "request_delegation",
-        capability: "execution.coordinate",
-        role: "coordinator",
+        capability: "capability.discover",
+        role: "researcher",
         scopeRequirementIds: task.requirements.map((requirement) => requirement.id),
       },
       { op: "complete_assignment" },
@@ -316,7 +352,7 @@ function retailerPatch(task: AsymptaTaskState, assignment: AsymptaTaskAssignment
           kind: "offer_set",
           summary: "Produced a bounded simulated offer set from confirmed television constraints.",
           simulated: true,
-          verified: false,
+          verified: true,
           value: { candidates, constraints: facts },
         }, task, "offers"),
       },
@@ -340,7 +376,7 @@ function logisticsPatch(task: AsymptaTaskState, assignment: AsymptaTaskAssignmen
         evidence: safeEvidence({
           source: assignment.agentId,
           kind: "delivery_plan",
-          summary: "Prepared a simulated fulfilment route without exposing an address or creating a real shipment.",
+          summary: "Prepared a simulated fulfilment route without exposing a private address or creating a real shipment.",
           simulated: true,
           verified: true,
           value: { destination, addressDisclosure: "deferred_until_execution" },
@@ -366,7 +402,7 @@ function performancePatch(task: AsymptaTaskState, assignment: AsymptaTaskAssignm
           kind: "offer_set",
           summary: "Prepared simulated performance choices; no real inventory or ticket availability is claimed.",
           simulated: true,
-          verified: false,
+          verified: true,
           value: { intent: task.rootIntent.raw, confirmedConstraints: requirementFacts(task) },
         }, task, "performances"),
       },
@@ -375,24 +411,182 @@ function performancePatch(task: AsymptaTaskState, assignment: AsymptaTaskAssignm
   };
 }
 
-function coordinatorPatch(task: AsymptaTaskState, assignment: AsymptaTaskAssignment): AsymptaAgentPatch {
+function capabilityDiscoveryPatch(task: AsymptaTaskState, assignment: AsymptaTaskAssignment): AsymptaAgentPatch {
   return {
     taskId: task.taskId,
     baseRevision: task.revision,
     assignmentId: assignment.id,
     agentId: assignment.agentId,
     operations: [
-      { op: "set_phase", phase: "coordinating", summary: "The coordinator is joining specialist outputs into one bounded proposal." },
+      { op: "set_phase", phase: "discovering", summary: "The capability agent is finding a compatible bounded route." },
       {
         op: "add_evidence",
         evidence: safeEvidence({
           source: assignment.agentId,
           kind: "tool_result",
-          summary: "Joined the confirmed facts and delegated outputs into the canonical task state.",
-          simulated: task.mode !== "live",
+          summary: "Discovered a compatible simulated capability route for the requested domain.",
+          simulated: true,
           verified: true,
-          value: { assignmentCount: task.assignments.length, evidenceCount: task.evidence.length },
-        }, task, "coordination"),
+          value: {
+            capability: `${task.domain}.${task.actionFamily}`,
+            connectedExecutor: false,
+            proposalReady: true,
+          },
+        }, task, "capability"),
+      },
+      { op: "complete_assignment" },
+    ],
+  };
+}
+
+function executionPatch(task: AsymptaTaskState, assignment: AsymptaTaskAssignment): AsymptaAgentPatch {
+  const approved = task.approvals.find((approval) => approval.status === "approved");
+  if (task.completion.requiresApproval && !approved) {
+    const copy = taskApprovalCopy({ title: task.title, locale: task.rootIntent.locale });
+    return {
+      taskId: task.taskId,
+      baseRevision: task.revision,
+      assignmentId: assignment.id,
+      agentId: assignment.agentId,
+      operations: [
+        {
+          op: "request_approval",
+          approval: {
+            id: `${task.taskId}:approval:consequential-action`,
+            kind: taskIsWriteAction(task) ? "external_commitment" : "live_write",
+            status: "pending",
+            prompt: copy.prompt,
+            consequence: copy.consequence,
+            requestedAt: nowIso(),
+          },
+        },
+        { op: "complete_assignment" },
+      ],
+    };
+  }
+
+  const receiptId = `${task.taskId}:receipt:${task.assignments.filter((candidate) => candidate.agentId === assignment.agentId).length}`;
+  if (task.mode === "simulated") {
+    const at = nowIso();
+    const outcome = {
+      id: `${task.taskId}:outcome`,
+      kind: task.completion.outcomeKind,
+      status: "completed",
+      simulated: true,
+      provider: "asympta-simulated-world",
+      summary: `Completed the approved ${task.actionFamily} inside the simulated Asympta world.`,
+      ...(approved ? { approvalId: approved.id } : {}),
+      receiptId,
+      value: {
+        rootIntent: task.rootIntent.raw,
+        actionFamily: task.actionFamily,
+        confirmedRequirements: requirementFacts(task),
+        planId: task.plan?.id ?? null,
+      },
+      createdAt: at,
+      updatedAt: at,
+    } satisfies AsymptaTaskOutcome;
+    return {
+      taskId: task.taskId,
+      baseRevision: task.revision,
+      assignmentId: assignment.id,
+      agentId: assignment.agentId,
+      operations: [
+        { op: "set_phase", phase: "executing", summary: "The approved action is being executed inside the simulated world." },
+        {
+          op: "add_evidence",
+          evidence: safeEvidence({
+            source: assignment.agentId,
+            kind: "receipt",
+            summary: outcome.summary,
+            simulated: true,
+            verified: true,
+            value: {
+              receiptId,
+              status: "completed",
+              actionFamily: task.actionFamily,
+              approvalId: approved?.id ?? null,
+            },
+          }, task, "receipt"),
+        },
+        { op: "set_outcome", outcome },
+        { op: "complete_assignment" },
+      ],
+    };
+  }
+
+  const connectedExecution = task.evidence.find((evidence) => {
+    const value = asRecord(evidence.value);
+    return evidence.kind === "tool_result"
+      && evidence.verified
+      && value?.connectedExecutor === true
+      && value.executionCompleted === true;
+  });
+  if (connectedExecution) {
+    const at = nowIso();
+    const outcome = {
+      id: `${task.taskId}:outcome`,
+      kind: "external_action",
+      status: "completed",
+      simulated: false,
+      provider: connectedExecution.source,
+      summary: `The connected executor completed the approved ${task.actionFamily}.`,
+      ...(approved ? { approvalId: approved.id } : {}),
+      receiptId,
+      value: connectedExecution.value,
+      createdAt: at,
+      updatedAt: at,
+    } satisfies AsymptaTaskOutcome;
+    return {
+      taskId: task.taskId,
+      baseRevision: task.revision,
+      assignmentId: assignment.id,
+      agentId: assignment.agentId,
+      operations: [
+        {
+          op: "add_evidence",
+          evidence: safeEvidence({
+            source: connectedExecution.source,
+            kind: "receipt",
+            summary: outcome.summary,
+            simulated: false,
+            verified: true,
+            value: { receiptId, connectedEvidenceId: connectedExecution.id },
+          }, task, "receipt"),
+        },
+        { op: "set_outcome", outcome },
+        { op: "complete_assignment" },
+      ],
+    };
+  }
+
+  const at = nowIso();
+  return {
+    taskId: task.taskId,
+    baseRevision: task.revision,
+    assignmentId: assignment.id,
+    agentId: assignment.agentId,
+    operations: [
+      {
+        op: "set_outcome",
+        outcome: {
+          id: `${task.taskId}:outcome`,
+          kind: "external_action",
+          status: "waiting_external",
+          simulated: false,
+          provider: "capability-router",
+          summary: "Waiting for a compatible connected executor; the task remains active and will retry.",
+          ...(approved ? { approvalId: approved.id } : {}),
+          value: { actionFamily: task.actionFamily, rootIntent: task.rootIntent.raw },
+          createdAt: task.outcome?.createdAt ?? at,
+          updatedAt: at,
+        },
+      },
+      {
+        op: "report_obstacle",
+        code: "connected_executor_unavailable",
+        message: "No compatible connected executor is available yet; keep the task active and retry capability discovery.",
+        retryAfterMs: 3_000,
       },
       { op: "complete_assignment" },
     ],
@@ -410,16 +604,28 @@ function verifierPatch(task: AsymptaTaskState, assignment: AsymptaTaskAssignment
   const delegatedWorkComplete = task.assignments
     .filter((candidate) => candidate.id !== assignment.id)
     .every((candidate) => ["completed", "cancelled"].includes(candidate.status));
+  const approvalSatisfied = !task.completion.requiresApproval || taskHasApprovedApproval(task);
+  const outcomeCompleted = task.outcome?.status === "completed";
+  const receiptPresent = !task.completion.requiresReceipt || Boolean(
+    task.outcome?.receiptId
+      && task.evidence.some((evidence) => evidence.kind === "receipt"
+        && evidence.verified
+        && asRecord(evidence.value)?.receiptId === task.outcome?.receiptId),
+  );
   const criteria = {
     requirementsResolved: unresolved.length === 0,
     humanFactsPreserved,
     assignmentsBounded,
     planPresent,
     delegatedWorkComplete,
+    approvalSatisfied,
+    outcomeCompleted,
+    receiptPresent,
   };
   const verified = Object.values(criteria).every(Boolean);
 
   if (!verified) {
+    const missing = Object.entries(criteria).filter(([, ok]) => !ok).map(([key]) => key);
     return {
       taskId: task.taskId,
       baseRevision: task.revision,
@@ -427,50 +633,27 @@ function verifierPatch(task: AsymptaTaskState, assignment: AsymptaTaskAssignment
       agentId: assignment.agentId,
       operations: [
         {
-          op: "fail",
-          code: "verification_failed",
-          message: `Task verification failed: ${Object.entries(criteria).filter(([, ok]) => !ok).map(([key]) => key).join(", ")}.`,
+          op: "report_obstacle",
+          code: "completion_contract_incomplete",
+          message: `The task remains active because its completion contract still needs: ${missing.join(", ")}.`,
+          retryAfterMs: task.outcome?.status === "waiting_external" ? 3_000 : 0,
         },
+        { op: "complete_assignment" },
       ],
     };
   }
 
-  if (task.mode === "live" && taskIsWriteAction(task)) {
-    const approved = task.approvals.some((approval) => approval.status === "approved");
-    if (!approved) {
-      return {
-        taskId: task.taskId,
-        baseRevision: task.revision,
-        assignmentId: assignment.id,
-        agentId: assignment.agentId,
-        operations: [
-          {
-            op: "request_approval",
-            approval: {
-              id: `${task.taskId}:approval:live-write`,
-              kind: "live_write",
-              status: "pending",
-              prompt: "Approve the connected external action?",
-              consequence: "Approval may create an external commitment. No action has been executed yet.",
-              requestedAt: nowIso(),
-            },
-          },
-          { op: "complete_assignment" },
-        ],
-      };
-    }
-  }
-
   const details = task.mode === "live"
-    ? "All requirements and approval boundaries were verified. A connected executor is still required for a real side effect."
-    : "All required facts, bounded assignments and simulated coordination evidence were verified.";
+    ? "The connected outcome, approval boundary, receipt and every required fact were independently verified."
+    : "The simulated outcome, approval boundary, receipt and every required fact were independently verified.";
+  const resultSummary = task.outcome?.summary ?? `Completed ${task.title}.`;
   return {
     taskId: task.taskId,
     baseRevision: task.revision,
     assignmentId: assignment.id,
     agentId: assignment.agentId,
     operations: [
-      { op: "set_phase", phase: "verifying", summary: "The independent verifier is checking the terminal state." },
+      { op: "set_phase", phase: "verifying", summary: "The independent verifier is checking the recorded outcome." },
       {
         op: "add_evidence",
         evidence: safeEvidence({
@@ -479,19 +662,18 @@ function verifierPatch(task: AsymptaTaskState, assignment: AsymptaTaskAssignment
           summary: details,
           simulated: task.mode !== "live",
           verified: true,
-          value: { criteria },
+          value: { criteria, outcomeId: task.outcome?.id ?? null },
         }, task, "verification"),
       },
       {
         op: "set_result",
         result: {
-          completed: task.mode !== "live",
+          completed: true,
           simulated: task.mode !== "live",
-          summary: task.mode === "live"
-            ? "The task is fully specified and verified, but no real external action was executed."
-            : "The specialist agent mesh completed and verified the task inside the simulated Asympta world.",
+          summary: resultSummary,
           value: {
             plan: task.plan,
+            outcome: task.outcome,
             confirmedRequirements: requirementFacts(task),
             agentIds: task.assignments.map((candidate) => candidate.agentId),
           },
@@ -524,9 +706,10 @@ export function runLogicalAgent(task: AsymptaTaskState, assignment: AsymptaTaskA
       return logisticsPatch(task, assignment);
     case "performance-search-agent":
       return performancePatch(task, assignment);
-    case "transaction-coordinator":
     case "general-capability-agent":
-      return coordinatorPatch(task, assignment);
+      return capabilityDiscoveryPatch(task, assignment);
+    case "transaction-coordinator":
+      return executionPatch(task, assignment);
     case "independent-verifier":
       return verifierPatch(task, assignment);
     default:
@@ -536,7 +719,13 @@ export function runLogicalAgent(task: AsymptaTaskState, assignment: AsymptaTaskA
         assignmentId: assignment.id,
         agentId: assignment.agentId,
         operations: [
-          { op: "fail", code: "unknown_agent", message: `No logical agent is registered for ${assignment.agentId}.` },
+          {
+            op: "report_obstacle",
+            code: "unknown_agent",
+            message: `No logical agent is registered for ${assignment.agentId}; reroute the assignment instead of terminating the task.`,
+            retryAfterMs: 0,
+          },
+          { op: "complete_assignment" },
         ],
       };
   }

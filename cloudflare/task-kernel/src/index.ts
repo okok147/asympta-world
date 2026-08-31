@@ -1,11 +1,13 @@
 import { DurableObject } from "cloudflare:workers";
 
 import {
+  advanceAsymptaTask,
   answerTaskRequirement,
   approveAsymptaTask,
   AsymptaTaskKernelError,
   cancelAsymptaTask,
   createAsymptaTask,
+  migrateAsymptaTaskState,
   nextTaskRequirement,
 } from "../../../lib/asympta-task-kernel.ts";
 import type {
@@ -25,34 +27,20 @@ const TOKEN_HASH_HEADER = "X-Asympta-Task-Token-Hash";
 const STORAGE_KEY = "task-record";
 
 type JsonRecord = Record<string, unknown>;
-type RateLimitBinding = {
-  limit(options: { key: string }): Promise<{ success: boolean }> | { success: boolean };
-};
-type DurableObjectStub = {
-  fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
-};
-type DurableObjectNamespace = {
-  idFromName(name: string): unknown;
-  get(id: unknown): DurableObjectStub;
-};
-
+type RateLimitBinding = { limit(options: { key: string }): Promise<{ success: boolean }> | { success: boolean } };
+type DurableObjectStub = { fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> };
+type DurableObjectNamespace = { idFromName(name: string): unknown; get(id: unknown): DurableObjectStub };
 type TaskKernelEnv = {
   TASKS?: DurableObjectNamespace;
   TASK_RATE_LIMIT?: RateLimitBinding;
   ENVIRONMENT?: string;
 };
-
 type TaskKernelDependencies = {
   randomUUID?: () => string;
   randomBytes?: (length: number) => Uint8Array;
   now?: () => Date;
 };
-
-type StoredTaskRecord = {
-  task: AsymptaTaskState;
-  tokenHash: string;
-};
-
+type StoredTaskRecord = { task: AsymptaTaskState; tokenHash: string };
 type DurableObjectStorage = {
   get<T>(key: string): Promise<T | undefined>;
   put<T>(key: string, value: T): Promise<void>;
@@ -60,11 +48,9 @@ type DurableObjectStorage = {
     get<T>(key: string): Promise<T | undefined>;
     put<T>(key: string, value: T): Promise<void>;
   }) => Promise<T>): Promise<T>;
+  setAlarm?(scheduledTime: number | Date): Promise<void>;
 };
-
-type DurableObjectState = {
-  storage: DurableObjectStorage;
-};
+type DurableObjectState = { storage: DurableObjectStorage };
 
 class TaskKernelHttpError extends Error {
   readonly status: number;
@@ -80,9 +66,7 @@ class TaskKernelHttpError extends Error {
 }
 
 function asRecord(value: unknown): JsonRecord | null {
-  return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? value as JsonRecord
-    : null;
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? value as JsonRecord : null;
 }
 
 function boundedString(value: unknown, min: number, max: number): string | null {
@@ -109,9 +93,7 @@ function allowedOrigin(rawOrigin: string | null, env: TaskKernelEnv): string | f
   if (!rawOrigin || !isDevelopment(env)) return false;
   try {
     const parsed = new URL(rawOrigin);
-    const local = parsed.hostname === "localhost"
-      || parsed.hostname === "127.0.0.1"
-      || parsed.hostname === "[::1]";
+    const local = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1" || parsed.hostname === "[::1]";
     if (!local || parsed.protocol !== "http:" || parsed.origin !== rawOrigin) return false;
     const port = parsed.port === "" ? 80 : Number(parsed.port);
     return Number.isInteger(port) && port >= 1 && port <= 65_535 ? rawOrigin : false;
@@ -143,10 +125,7 @@ function responseHeaders(origin: string | null, revision?: number) {
 }
 
 function jsonResponse(payload: unknown, status: number, origin: string | null, revision?: number) {
-  return new Response(JSON.stringify(payload), {
-    status,
-    headers: responseHeaders(origin, revision),
-  });
+  return new Response(JSON.stringify(payload), { status, headers: responseHeaders(origin, revision) });
 }
 
 function errorResponse(error: TaskKernelHttpError, origin: string | null) {
@@ -165,9 +144,7 @@ async function readBodyWithinLimit(request: Request) {
   if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) {
     throw new TaskKernelHttpError(413, "request_too_large", false, "Request body is too large.");
   }
-  if (!request.body) {
-    throw new TaskKernelHttpError(400, "invalid_request", false, "A JSON request body is required.");
-  }
+  if (!request.body) throw new TaskKernelHttpError(400, "invalid_request", false, "A JSON request body is required.");
   const reader = request.body.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
@@ -224,16 +201,12 @@ function constantTimeEqual(left: string, right: string) {
 function bearerToken(request: Request) {
   const authorization = request.headers.get("Authorization") ?? "";
   const match = /^Bearer\s+([A-Za-z0-9_-]{32,256})$/u.exec(authorization);
-  if (!match) {
-    throw new TaskKernelHttpError(401, "unauthorized", false, "A valid task bearer token is required.");
-  }
+  if (!match) throw new TaskKernelHttpError(401, "unauthorized", false, "A valid task bearer token is required.");
   return match[1];
 }
 
 function validateTaskId(value: string) {
-  if (!TASK_ID_PATTERN.test(value)) {
-    throw new TaskKernelHttpError(404, "task_not_found", false, "Task was not found.");
-  }
+  if (!TASK_ID_PATTERN.test(value)) throw new TaskKernelHttpError(404, "task_not_found", false, "Task was not found.");
   return value;
 }
 
@@ -247,29 +220,27 @@ function validateCreateInput(value: unknown): CreateAsymptaTaskInput {
   const record = asRecord(value);
   const allowed = [
     "activityId", "rootIntent", "locale", "domain", "actionFamily", "mode", "risk",
-    "title", "summary", "missingFields",
+    "confirmationRequired", "title", "summary", "missingFields",
   ] as const;
   if (!record || !hasOnlyKeys(record, allowed)) {
     throw new TaskKernelHttpError(400, "invalid_request", false, "Task fields are invalid.");
   }
   const rootIntent = boundedString(record.rootIntent, 2, 600);
   const locale = boundedString(record.locale, 2, 35);
-  const activityId = record.activityId === undefined || record.activityId === null
-    ? null
-    : boundedString(record.activityId, 1, 128);
+  const activityId = record.activityId === undefined || record.activityId === null ? null : boundedString(record.activityId, 1, 128);
   const domain = record.domain === undefined ? undefined : boundedString(record.domain, 1, 80);
   const actionFamily = record.actionFamily === undefined ? undefined : boundedString(record.actionFamily, 1, 80);
   const title = record.title === undefined ? undefined : boundedString(record.title, 1, 120);
   const summary = record.summary === undefined ? undefined : boundedString(record.summary, 1, 360);
-  const missingFields = validateStringArray(record.missingFields, 16, 120);
+  const missingFields = validateStringArray(record.missingFields, 24, 160);
   const mode = record.mode === undefined || record.mode === "live" || record.mode === "simulated"
-    ? record.mode as CreateAsymptaTaskInput["mode"]
-    : null;
+    ? record.mode as CreateAsymptaTaskInput["mode"] : null;
   const risks = ["none", "low", "medium", "high", "critical"];
   const risk = record.risk === undefined || risks.includes(String(record.risk))
-    ? record.risk as CreateAsymptaTaskInput["risk"]
-    : null;
-  if (!rootIntent || !locale || !missingFields || mode === null || risk === null
+    ? record.risk as CreateAsymptaTaskInput["risk"] : null;
+  const confirmationRequired = record.confirmationRequired === undefined || typeof record.confirmationRequired === "boolean"
+    ? record.confirmationRequired as boolean | undefined : null;
+  if (!rootIntent || !locale || !missingFields || mode === null || risk === null || confirmationRequired === null
     || (record.activityId !== undefined && activityId === null)
     || (record.domain !== undefined && !domain)
     || (record.actionFamily !== undefined && !actionFamily)
@@ -286,6 +257,7 @@ function validateCreateInput(value: unknown): CreateAsymptaTaskInput {
     ...(actionFamily ? { actionFamily } : {}),
     ...(mode ? { mode } : {}),
     ...(risk ? { risk } : {}),
+    ...(confirmationRequired !== undefined ? { confirmationRequired } : {}),
     ...(title ? { title } : {}),
     ...(summary ? { summary } : {}),
   };
@@ -331,14 +303,7 @@ function validateApprovalInput(value: unknown, taskId: string): ApproveTaskComma
   if (!commandId || !approvalId || expectedRevision === null || typeof record.approved !== "boolean") {
     throw new TaskKernelHttpError(400, "invalid_request", false, "Approval fields are missing or outside allowed limits.");
   }
-  return {
-    commandId,
-    taskId,
-    approvalId,
-    expectedRevision,
-    approved: record.approved,
-    actorId: "human",
-  };
+  return { commandId, taskId, approvalId, expectedRevision, approved: record.approved, actorId: "human" };
 }
 
 function validateCancelInput(value: unknown, taskId: string): CancelTaskCommand {
@@ -352,32 +317,30 @@ function validateCancelInput(value: unknown, taskId: string): CancelTaskCommand 
   if (!commandId || expectedRevision === null || (record.reason !== undefined && !reason)) {
     throw new TaskKernelHttpError(400, "invalid_request", false, "Cancellation fields are missing or outside allowed limits.");
   }
-  return {
-    commandId,
-    taskId,
-    expectedRevision,
-    ...(reason ? { reason } : {}),
-    actorId: "human",
-  };
+  return { commandId, taskId, expectedRevision, ...(reason ? { reason } : {}), actorId: "human" };
 }
 
 function kernelError(error: unknown) {
   if (error instanceof TaskKernelHttpError) return error;
   if (error instanceof AsymptaTaskKernelError) {
-    const status = error.code === "task_not_found" ? 404
-      : error.code === "invalid_command" ? 400
-        : 409;
+    const status = error.code === "task_not_found" ? 404 : error.code === "invalid_command" ? 400 : 409;
     return new TaskKernelHttpError(status, error.code, error.code === "revision_conflict", error.message);
   }
   return new TaskKernelHttpError(500, "internal_error", true, "The Task Kernel could not complete this operation.");
 }
 
 function taskPayload(task: AsymptaTaskState) {
-  return {
-    ok: true,
-    task,
-    nextRequirement: nextTaskRequirement(task),
-  };
+  return { ok: true, task, nextRequirement: nextTaskRequirement(task) };
+}
+
+function terminal(task: AsymptaTaskState) {
+  return task.phase === "completed" || task.phase === "cancelled";
+}
+
+function shouldAdvance(task: AsymptaTaskState) {
+  if (terminal(task) || task.phase === "awaiting_human" || task.phase === "awaiting_approval") return false;
+  if (!task.liveness.nextAttemptAt) return true;
+  return new Date(task.liveness.nextAttemptAt).getTime() <= Date.now();
 }
 
 async function enforceRateLimit(env: TaskKernelEnv, request: Request) {
@@ -397,26 +360,14 @@ async function enforceRateLimit(env: TaskKernelEnv, request: Request) {
   }
 }
 
-async function forwardTaskRequest(
-  env: TaskKernelEnv,
-  taskId: string,
-  path: string,
-  request: Request,
-  body?: unknown,
-) {
-  if (!env.TASKS) {
-    throw new TaskKernelHttpError(503, "missing_configuration", true, "Task persistence is unavailable.");
-  }
+async function forwardTaskRequest(env: TaskKernelEnv, taskId: string, path: string, request: Request, body?: unknown) {
+  if (!env.TASKS) throw new TaskKernelHttpError(503, "missing_configuration", true, "Task persistence is unavailable.");
   const token = bearerToken(request);
   const tokenHash = await hashToken(token);
-  const id = env.TASKS.idFromName(taskId);
-  const stub = env.TASKS.get(id);
+  const stub = env.TASKS.get(env.TASKS.idFromName(taskId));
   return stub.fetch(`https://task.internal${path}`, {
     method: request.method,
-    headers: {
-      "Content-Type": "application/json",
-      [TOKEN_HASH_HEADER]: tokenHash,
-    },
+    headers: { "Content-Type": "application/json", [TOKEN_HASH_HEADER]: tokenHash },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 }
@@ -443,9 +394,14 @@ export class TaskCoordinator extends DurableObject<TaskKernelEnv> {
   }
 
   private async readRecord() {
-    const record = await this.storage.get<StoredTaskRecord>(STORAGE_KEY);
-    if (!record) throw new TaskKernelHttpError(404, "task_not_found", false, "Task was not found.");
-    return record;
+    const stored = await this.storage.get<StoredTaskRecord>(STORAGE_KEY);
+    if (!stored) throw new TaskKernelHttpError(404, "task_not_found", false, "Task was not found.");
+    const migrated = migrateAsymptaTaskState(stored.task);
+    if (!migrated) throw new TaskKernelHttpError(500, "invalid_task_state", true, "Stored task state could not be migrated.");
+    if (migrated.version !== stored.task.version || migrated.revision !== stored.task.revision) {
+      return this.writeTask(stored, migrated);
+    }
+    return { ...stored, task: migrated };
   }
 
   private async authenticate(request: Request, record: StoredTaskRecord) {
@@ -455,10 +411,34 @@ export class TaskCoordinator extends DurableObject<TaskKernelEnv> {
     }
   }
 
+  private async schedule(task: AsymptaTaskState) {
+    if (!this.storage.setAlarm || terminal(task) || task.phase === "awaiting_human" || task.phase === "awaiting_approval") return;
+    const at = task.liveness.nextAttemptAt ? new Date(task.liveness.nextAttemptAt).getTime() : Date.now() + 50;
+    await this.storage.setAlarm(Math.max(Date.now() + 10, at));
+  }
+
   private async writeTask(record: StoredTaskRecord, task: AsymptaTaskState) {
     const next = { ...record, task };
     await this.storage.put(STORAGE_KEY, next);
+    await this.schedule(task);
     return next;
+  }
+
+  private async resumeRecord(record: StoredTaskRecord) {
+    if (!shouldAdvance(record.task)) return record;
+    const task = advanceAsymptaTask(record.task);
+    return task.revision === record.task.revision && task.phase === record.task.phase
+      ? record
+      : this.writeTask(record, task);
+  }
+
+  async alarm() {
+    try {
+      const record = await this.readRecord();
+      await this.resumeRecord(record);
+    } catch {
+      // The next authenticated request can recover a transient alarm failure.
+    }
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -469,51 +449,49 @@ export class TaskCoordinator extends DurableObject<TaskKernelEnv> {
         const input = asRecord(await request.json());
         const tokenHash = boundedString(input?.tokenHash, 32, 128);
         const taskInput = asRecord(input?.input);
-        if (!tokenHash || !taskInput) {
-          throw new TaskKernelHttpError(400, "invalid_request", false, "Task initialization is invalid.");
-        }
+        if (!tokenHash || !taskInput) throw new TaskKernelHttpError(400, "invalid_request", false, "Task initialization is invalid.");
         const existing = await this.storage.get<StoredTaskRecord>(STORAGE_KEY);
-        if (existing) {
-          throw new TaskKernelHttpError(409, "task_exists", false, "Task already exists.");
-        }
+        if (existing) throw new TaskKernelHttpError(409, "task_exists", false, "Task already exists.");
         const task = createAsymptaTask(taskInput as unknown as CreateAsymptaTaskInput);
         await this.storage.put(STORAGE_KEY, { task, tokenHash } satisfies StoredTaskRecord);
+        await this.schedule(task);
         return jsonResponse(taskPayload(task), 201, null, task.revision);
       }
 
-      const record = await this.readRecord();
+      let record = await this.readRecord();
       await this.authenticate(request, record);
 
       if (url.pathname === "/task" && request.method === "GET") {
+        record = await this.resumeRecord(record);
         return jsonResponse(taskPayload(record.task), 200, null, record.task.revision);
       }
       if (url.pathname === "/events" && request.method === "GET") {
         const after = Number(url.searchParams.get("afterRevision") ?? 0);
-        const events = record.task.events.filter((event) => !Number.isFinite(after) || event.revision > after);
+        const events = record.task.events.filter((taskEvent) => !Number.isFinite(after) || taskEvent.revision > after);
         return jsonResponse({ ok: true, taskId: record.task.taskId, revision: record.task.revision, events }, 200, null, record.task.revision);
       }
       if (url.pathname === "/answer" && request.method === "POST") {
-        const body = validateAnswerInput(await request.json(), record.task.taskId);
-        const task = answerTaskRequirement(record.task, body);
-        await this.writeTask(record, task);
-        return jsonResponse(taskPayload(task), 200, null, task.revision);
+        const task = answerTaskRequirement(record.task, validateAnswerInput(await request.json(), record.task.taskId));
+        record = await this.writeTask(record, task);
+        return jsonResponse(taskPayload(record.task), 200, null, record.task.revision);
       }
       if (url.pathname === "/approve" && request.method === "POST") {
-        const body = validateApprovalInput(await request.json(), record.task.taskId);
-        const task = approveAsymptaTask(record.task, body);
-        await this.writeTask(record, task);
-        return jsonResponse(taskPayload(task), 200, null, task.revision);
+        const task = approveAsymptaTask(record.task, validateApprovalInput(await request.json(), record.task.taskId));
+        record = await this.writeTask(record, task);
+        return jsonResponse(taskPayload(record.task), 200, null, record.task.revision);
       }
       if (url.pathname === "/cancel" && request.method === "POST") {
-        const body = validateCancelInput(await request.json(), record.task.taskId);
-        const task = cancelAsymptaTask(record.task, body);
-        await this.writeTask(record, task);
-        return jsonResponse(taskPayload(task), 200, null, task.revision);
+        const task = cancelAsymptaTask(record.task, validateCancelInput(await request.json(), record.task.taskId));
+        record = await this.writeTask(record, task);
+        return jsonResponse(taskPayload(record.task), 200, null, record.task.revision);
+      }
+      if (url.pathname === "/resume" && request.method === "POST") {
+        record = await this.resumeRecord(record);
+        return jsonResponse(taskPayload(record.task), 200, null, record.task.revision);
       }
       throw new TaskKernelHttpError(404, "not_found", false, "Endpoint was not found.");
     } catch (error) {
-      const mapped = kernelError(error);
-      return errorResponse(mapped, null);
+      return errorResponse(kernelError(error), null);
     }
   }
 }
@@ -526,16 +504,12 @@ export function createTaskKernelWorker(dependencies: TaskKernelDependencies = {}
   return {
     async fetch(request: Request, env: TaskKernelEnv): Promise<Response> {
       const origin = allowedOrigin(request.headers.get("Origin"), env);
-      if (origin === false) {
-        return errorResponse(new TaskKernelHttpError(403, "invalid_origin", false, "Request origin is not allowed."), null);
-      }
-      if (request.method === "OPTIONS") {
-        return new Response(null, { status: 204, headers: responseHeaders(origin) });
-      }
+      if (origin === false) return errorResponse(new TaskKernelHttpError(403, "invalid_origin", false, "Request origin is not allowed."), null);
+      if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: responseHeaders(origin) });
       try {
         const url = new URL(request.url);
         if (url.pathname === "/health" && request.method === "GET") {
-          return jsonResponse({ ok: true, service: "asympta-task-kernel", version: "asympta.task/0.3" }, 200, origin);
+          return jsonResponse({ ok: true, service: "asympta-task-kernel", version: "asympta.task/0.4" }, 200, origin);
         }
         if (url.pathname === API_PREFIX) {
           if (request.method !== "POST") {
@@ -545,43 +519,27 @@ export function createTaskKernelWorker(dependencies: TaskKernelDependencies = {}
           }
           requireJson(request);
           await enforceRateLimit(env, request);
-          if (!env.TASKS) {
-            throw new TaskKernelHttpError(503, "missing_configuration", true, "Task persistence is unavailable.");
-          }
+          if (!env.TASKS) throw new TaskKernelHttpError(503, "missing_configuration", true, "Task persistence is unavailable.");
           const input = validateCreateInput(await readBodyWithinLimit(request));
           const taskId = `task-${randomUUID().toLowerCase()}`;
           validateTaskId(taskId);
           const accessToken = base64Url(randomBytes(TOKEN_BYTES));
           const tokenHash = await hashToken(accessToken);
-          const id = env.TASKS.idFromName(taskId);
-          const stub = env.TASKS.get(id);
+          const stub = env.TASKS.get(env.TASKS.idFromName(taskId));
           const initialized = await stub.fetch("https://task.internal/internal/initialize", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              input: {
-                ...input,
-                taskId,
-                now: now().toISOString(),
-              },
-              tokenHash,
-            }),
+            body: JSON.stringify({ input: { ...input, taskId, now: now().toISOString() }, tokenHash }),
           });
           const text = await initialized.text();
           let body: JsonRecord | null = null;
-          try {
-            body = asRecord(JSON.parse(text));
-          } catch {
-            body = null;
-          }
-          if (!initialized.ok || !body) {
-            throw new TaskKernelHttpError(502, "task_initialization_failed", true, "Task persistence could not initialize the task.");
-          }
+          try { body = asRecord(JSON.parse(text)); } catch { body = null; }
+          if (!initialized.ok || !body) throw new TaskKernelHttpError(502, "task_initialization_failed", true, "Task persistence could not initialize the task.");
           const task = asRecord(body.task) as unknown as AsymptaTaskState | null;
           return jsonResponse({ ...body, accessToken }, 201, origin, task?.revision);
         }
 
-        const match = /^\/v1\/tasks\/([^/]+)(?:\/(answers|approve|cancel|events))?$/u.exec(url.pathname);
+        const match = /^\/v1\/tasks\/([^/]+)(?:\/(answers|approve|cancel|resume|events))?$/u.exec(url.pathname);
         if (!match) throw new TaskKernelHttpError(404, "not_found", false, "Endpoint was not found.");
         const taskId = validateTaskId(decodeURIComponent(match[1]));
         const action = match[2] ?? "task";
@@ -593,6 +551,10 @@ export function createTaskKernelWorker(dependencies: TaskKernelDependencies = {}
           if (request.method !== "GET") throw new TaskKernelHttpError(405, "method_not_allowed", false, "Only GET is allowed.");
           const after = boundedInteger(Number(url.searchParams.get("afterRevision") ?? 0), 0, Number.MAX_SAFE_INTEGER) ?? 0;
           return readInternalResponse(await forwardTaskRequest(env, taskId, `/events?afterRevision=${after}`, request), origin);
+        }
+        if (action === "resume") {
+          if (request.method !== "POST") throw new TaskKernelHttpError(405, "method_not_allowed", false, "Only POST is allowed.");
+          return readInternalResponse(await forwardTaskRequest(env, taskId, "/resume", request), origin);
         }
         if (request.method !== "POST") throw new TaskKernelHttpError(405, "method_not_allowed", false, "Only POST is allowed.");
         requireJson(request);

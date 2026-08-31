@@ -96,10 +96,20 @@ export type AsymptaTaskApproval = {
   decidedAt?: string;
 };
 
+export type AsymptaTaskEvidenceKind =
+  | "interpretation"
+  | "plan"
+  | "offer_set"
+  | "delivery_plan"
+  | "tool_result"
+  | "verification"
+  | "receipt"
+  | "outcome";
+
 export type AsymptaTaskEvidence = {
   id: string;
   source: string;
-  kind: "interpretation" | "plan" | "offer_set" | "delivery_plan" | "tool_result" | "verification" | "receipt";
+  kind: AsymptaTaskEvidenceKind;
   summary: string;
   simulated: boolean;
   verified: boolean;
@@ -122,6 +132,53 @@ export type AsymptaTaskPlan = {
   proposal: Record<string, unknown>;
   createdBy: string;
   createdAt: string;
+};
+
+export type AsymptaTaskOutcomeKind = "information" | "simulated_action" | "external_action";
+export type AsymptaTaskOutcomeStatus = "waiting_external" | "completed";
+
+export type AsymptaTaskOutcome = {
+  id: string;
+  kind: AsymptaTaskOutcomeKind;
+  status: AsymptaTaskOutcomeStatus;
+  simulated: boolean;
+  provider: string;
+  summary: string;
+  approvalId?: string;
+  receiptId?: string;
+  value?: unknown;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AsymptaTaskCompletionContract = {
+  requiresVerifiedOutcome: true;
+  requiresApproval: boolean;
+  requiresReceipt: boolean;
+  outcomeKind: AsymptaTaskOutcomeKind;
+};
+
+export type AsymptaTaskLivenessState =
+  | "running"
+  | "awaiting_input"
+  | "awaiting_approval"
+  | "waiting_external"
+  | "completed"
+  | "cancelled";
+
+export type AsymptaTaskLiveness = {
+  state: AsymptaTaskLivenessState;
+  continuationCount: number;
+  recoveryCount: number;
+  lastProgressRevision: number;
+  lastProgressAt: string;
+  nextAttemptAt?: string;
+  obstacle?: {
+    code: string;
+    message: string;
+    recoverable: true;
+    at: string;
+  };
 };
 
 export type AsymptaTaskResult = {
@@ -148,6 +205,9 @@ export type AsymptaTaskEventKind =
   | "agent_patch_applied"
   | "approval_requested"
   | "approval_decided"
+  | "outcome_recorded"
+  | "continuation_scheduled"
+  | "task_recovered"
   | "phase_changed"
   | "task_completed"
   | "task_cancelled"
@@ -172,7 +232,7 @@ export type AsymptaTaskLimits = {
 };
 
 export type AsymptaTaskState = {
-  version: "asympta.task/0.3";
+  version: "asympta.task/0.4";
   taskId: string;
   activityId: string | null;
   revision: number;
@@ -194,7 +254,10 @@ export type AsymptaTaskState = {
   events: AsymptaTaskEvent[];
   processedCommandIds: string[];
   limits: AsymptaTaskLimits;
+  completion: AsymptaTaskCompletionContract;
+  liveness: AsymptaTaskLiveness;
   plan: AsymptaTaskPlan | null;
+  outcome: AsymptaTaskOutcome | null;
   result: AsymptaTaskResult | null;
   failure: {
     code: string;
@@ -213,6 +276,7 @@ export type CreateAsymptaTaskInput = {
   actionFamily?: string;
   mode?: AsymptaTaskMode;
   risk?: AsymptaTaskRisk;
+  confirmationRequired?: boolean;
   title?: string;
   summary?: string;
   missingFields: string[];
@@ -282,8 +346,18 @@ export type AsymptaAgentPatchOperation =
       summary: string;
     }
   | {
+      op: "set_outcome";
+      outcome: AsymptaTaskOutcome;
+    }
+  | {
       op: "set_result";
       result: AsymptaTaskResult;
+    }
+  | {
+      op: "report_obstacle";
+      code: string;
+      message: string;
+      retryAfterMs?: number;
     }
   | {
       op: "complete_assignment";
@@ -308,7 +382,9 @@ export type AsymptaTaskKernelUpdateReason =
   | "agent_progress"
   | "approval"
   | "cancelled"
-  | "restored";
+  | "restored"
+  | "migrated"
+  | "resumed";
 
 export type AsymptaTaskKernelEventDetail = {
   reason: AsymptaTaskKernelUpdateReason;
