@@ -239,6 +239,8 @@ async function run() {
             taskId: task.taskId,
             revision: task.revision,
             phase: task.phase,
+            liveness: task.liveness?.state ?? null,
+            outcomeStatus: task.outcome?.status ?? null,
             requirements: task.requirements.map((requirement) => ({
               id: requirement.id,
               key: requirement.key,
@@ -289,10 +291,12 @@ async function run() {
       }, 'Timed out waiting for custom delivery input');
       await clickButton('常用住址');
       await clickButton('繼續');
+      const approval = await waitForField('high_risk_confirmation');
+      await clickButton('確認並繼續');
       const task = await waitFor(() => {
         const candidate = window.__ASYMPTA_TASK_KERNEL__.getTask(budget.taskId);
-        return candidate && ['completed', 'blocked', 'failed', 'cancelled'].includes(candidate.phase) ? candidate : null;
-      }, 'Timed out waiting for terminal Task Kernel state', 4000);
+        return candidate?.phase === 'completed' ? candidate : null;
+      }, 'Timed out waiting for verified completed Task Kernel outcome after confirmation', 7000);
       await waitFor(() => !card(), 'Adaptive card remained visible after task completion');
 
       return JSON.stringify({
@@ -302,11 +306,14 @@ async function run() {
         brand,
         deliveryBeforeCustom,
         delivery,
+        approval,
         completed: {
           cardGone: !card(),
           taskPhase: task.phase,
           taskRevision: task.revision,
           resultCompleted: task.result?.completed ?? null,
+          outcomeStatus: task.outcome?.status ?? null,
+          receiptVerified: task.evidence?.some((evidence) => evidence.kind === 'receipt' && evidence.verified) ?? false,
           rootIntent: task.rootIntent?.raw ?? null,
           assignmentAgents: task.assignments?.map((assignment) => assignment.agentId) ?? [],
           unknownRequirements: task.requirements?.filter((requirement) => requirement.status === 'unknown').length ?? null
@@ -337,16 +344,24 @@ async function run() {
     if (uiProbe.delivery.placeholder !== "輸入送貨地址或地區…") {
       throw new Error(`Custom delivery input was not generated: ${JSON.stringify(uiProbe.delivery)}`);
     }
+    if (uiProbe.approval.field !== "high_risk_confirmation"
+      || !uiProbe.approval.visible
+      || !uiProbe.approval.options.some((label) => label.includes("確認並繼續"))) {
+      throw new Error(`High-risk confirmation was not exposed as the only policy pause: ${JSON.stringify(uiProbe.approval)}`);
+    }
     if (!(uiProbe.budget.revision < uiProbe.screen.revision
       && uiProbe.screen.revision < uiProbe.brand.revision
-      && uiProbe.brand.revision < uiProbe.delivery.revision)) {
+      && uiProbe.brand.revision < uiProbe.delivery.revision
+      && uiProbe.delivery.revision < uiProbe.approval.revision)) {
       throw new Error(`Task revisions did not advance monotonically: ${JSON.stringify(uiProbe)}`);
     }
     if (!uiProbe.completed.cardGone
       || uiProbe.completed.taskPhase !== "completed"
       || uiProbe.completed.resultCompleted !== true
+      || uiProbe.completed.outcomeStatus !== "completed"
+      || uiProbe.completed.receiptVerified !== true
       || uiProbe.completed.unknownRequirements !== 0) {
-      throw new Error(`Typed Task Kernel option chain did not reach a verified terminal result: ${JSON.stringify(uiProbe.completed)}`);
+      throw new Error(`Typed Task Kernel confirmation did not resume to a verified outcome: ${JSON.stringify(uiProbe.completed)}`);
     }
     if (uiProbe.completed.rootIntent !== "使用者想購買一台電視機 — typed Task Kernel browser probe") {
       throw new Error(`The immutable root intent changed during typed answers: ${JSON.stringify(uiProbe.completed)}`);
@@ -356,6 +371,7 @@ async function run() {
       "commerce-electronics-specialist",
       "retailer-search-agent",
       "logistics-agent",
+      "transaction-coordinator",
       "independent-verifier",
     ]) {
       if (!uiProbe.completed.assignmentAgents.includes(expectedAgent)) {
@@ -368,7 +384,7 @@ async function run() {
       throw new Error(`Browser console error(s):\n${consoleErrors.join("\n---\n")}`);
     }
 
-    console.log(`Universal browser benchmark passed: ${report.completed}/${report.total} cases, typed Task Kernel option chain, and bounded agent mesh completed without replay.`);
+    console.log(`Universal browser benchmark passed: ${report.completed}/${report.total} cases, typed Task Kernel option chain, high-risk confirmation, execution receipt and bounded verification completed without replay.`);
     socket.close();
   } finally {
     chrome.kill("SIGTERM");
