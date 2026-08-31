@@ -15,6 +15,12 @@ test("a natural-language TV clarification summary becomes atomic option fields",
     now: "2026-08-31T08:45:00.000Z",
   });
 
+  assert.deepEqual(schema.fields.map((field) => field.key), [
+    "budget",
+    "screen_size",
+    "brand",
+    "delivery_location",
+  ]);
   assert.deepEqual(schema.fields.map((field) => field.control), [
     "single_choice",
     "single_choice",
