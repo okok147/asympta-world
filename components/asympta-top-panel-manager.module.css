@@ -60,7 +60,7 @@
   }
 
   :global(html[data-asympta-top-panels="stacked"] body:has(.asympta-access-card.is-open) .asympta-request-card__details) {
-    display: grid;
+    display: grid !important;
   }
 }
 
