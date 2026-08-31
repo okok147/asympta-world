@@ -42,6 +42,25 @@ test("a natural-language TV clarification summary becomes atomic option fields",
   assert.equal(destination.customPlaceholder, "輸入送貨地址或地區…");
 });
 
+test("broad TV specification language is repaired into concrete next choices", () => {
+  const schema = createAdaptiveInteractionSchema({
+    intent: "Buy a television",
+    missingFields: ["尚需確認其他必要規格以提供合適建議。"],
+    locale: "zh-Hant",
+    interactionId: "tv-broad-gap-1",
+    now: "2026-08-31T09:55:00.000Z",
+  });
+
+  assert.deepEqual(schema.fields.map((field) => field.key), [
+    "screen_size",
+    "brand",
+    "delivery_location",
+  ]);
+  assert.ok(schema.fields.every((field) => field.control === "single_choice"));
+  assert.equal(schema.nextField?.key, "screen_size");
+  assert.ok(schema.nextField?.options.some((candidate) => candidate.label === "55″"));
+});
+
 test("delivery location stays separate from purchase location", () => {
   const schema = createAdaptiveInteractionSchema({
     intent: "Buy a television",
