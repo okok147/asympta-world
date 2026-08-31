@@ -204,6 +204,10 @@ export function AsymptaAdaptiveInteraction() {
   const copy = COPY[locale];
   const ready = answerReady(schema, selected, custom);
   const showDirectCustomInput = field.key === "event_intent";
+  const customInputVisible = field.control === "text"
+    || field.control === "number"
+    || customOpen
+    || showDirectCustomInput;
 
   const submit = (event?: FormEvent) => {
     event?.preventDefault();
@@ -294,6 +298,7 @@ export function AsymptaAdaptiveInteraction() {
                   key={`${field.id}:${String(candidate.value)}`}
                   type="button"
                   className={styles.option}
+                  data-description={candidate.description || undefined}
                   data-selected={Object.is(candidate.value, selected) ? "true" : "false"}
                   aria-pressed={Object.is(candidate.value, selected)}
                   onClick={() => {
@@ -304,7 +309,6 @@ export function AsymptaAdaptiveInteraction() {
                   }}
                 >
                   <span>{candidate.label}</span>
-                  {candidate.description ? <small>{candidate.description}</small> : null}
                 </button>
               ))}
               {field.allowCustom && !showDirectCustomInput ? (
@@ -325,13 +329,17 @@ export function AsymptaAdaptiveInteraction() {
             </div>
           ) : null}
 
-          {field.control === "text" || field.control === "number" || customOpen || showDirectCustomInput ? (
+          {field.control === "text" || field.control === "number" || field.allowCustom || showDirectCustomInput ? (
             <input
               className={styles.input}
               type={field.control === "number" ? "number" : "text"}
               inputMode={field.control === "number" ? "numeric" : "text"}
               min={field.control === "number" ? 1 : undefined}
-              autoFocus={field.control === "text" || field.control === "number" || (customOpen && !showDirectCustomInput)}
+              hidden={!customInputVisible}
+              aria-hidden={!customInputVisible}
+              autoFocus={customInputVisible && (field.control === "text"
+                || field.control === "number"
+                || (customOpen && !showDirectCustomInput))}
               value={custom}
               placeholder={field.customPlaceholder}
               aria-label={field.prompt}
