@@ -1,0 +1,37 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "asympta-task-kernel",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-30",
+  "workers_dev": true,
+  "vars": {
+    "ENVIRONMENT": "production"
+  },
+  "ratelimits": [
+    {
+      "name": "TASK_RATE_LIMIT",
+      "namespace_id": "2026083101",
+      "simple": {
+        "limit": 20,
+        "period": 60
+      }
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "TASKS",
+        "class_name": "TaskCoordinator"
+      }
+    ]
+  },
+  "exports": {
+    "TaskCoordinator": {
+      "type": "durable-object",
+      "storage": "sqlite"
+    }
+  },
+  "observability": {
+    "enabled": false
+  }
+}

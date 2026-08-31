@@ -17,6 +17,7 @@ import { AsymptaPaperMapTone } from "@/components/asympta-paper-map-tone";
 import { AsymptaProcessCameraFollow } from "@/components/asympta-process-camera-follow";
 import { AsymptaSafeSchedule } from "@/components/asympta-safe-schedule";
 import { AsymptaTaskCelebration } from "@/components/asympta-task-celebration";
+import { AsymptaTaskKernelBridge } from "@/components/asympta-task-kernel-bridge";
 import { AsymptaTopPanelManager } from "@/components/asympta-top-panel-manager";
 import { AsymptaUltraCalm } from "@/components/asympta-ultra-calm";
 import { AsymptaUniversalBenchmarkBridge } from "@/components/asympta-universal-benchmark";
@@ -28,6 +29,7 @@ import { AsymptaWorldLive60Hz } from "@/components/asympta-world-live-60hz";
 export default function HomePage() {
   return (
     <>
+      <AsymptaTaskKernelBridge />
       <AsymptaActivityEventContract />
       <AsymptaWorldLive60Hz />
       <AsymptaCameraFollowControl />

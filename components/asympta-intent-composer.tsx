@@ -13,6 +13,7 @@ import {
   type AsymptaActivityStatus,
 } from "@/lib/asympta-activity";
 import { readBrowserProtocolConfig, storeBrowserProtocolConfig } from "@/lib/asympta-browser-protocols";
+import { ASYMPTA_TASK_KERNEL_EVENT } from "@/lib/asympta-browser-task-kernel";
 import {
   beginInformationJourney,
   EMPTY_INFORMATION_JOURNEY,
@@ -37,6 +38,7 @@ import {
   runPublicAgentIntent,
 } from "@/lib/asympta-public-agent-client";
 import type { PublicAgentSuccessResponse } from "@/lib/asympta-public-agent-contract";
+import type { AsymptaTaskKernelEventDetail, AsymptaTaskState } from "@/lib/asympta-task-kernel-types";
 import {
   subscribeBrowserWebMcpRequests,
   updateBrowserWebMcpRequest,
@@ -400,9 +402,7 @@ function PublicAgentResultPanel({ response, locale }: {
       {response.goal.summary && response.goal.summary !== response.goal.title ? (
         <p className="asympta-intent-result__summary">{response.goal.summary}</p>
       ) : null}
-      {response.result?.answer ? (
-        <p className="asympta-intent-result__answer">{response.result.answer}</p>
-      ) : null}
+      {response.result?.answer ? <p className="asympta-intent-result__answer">{response.result.answer}</p> : null}
       {pendingAction ? (
         <div className="asympta-intent-result__action" role="status">
           <strong><ShieldAlert size={14} aria-hidden="true" />{copy.pendingConfirmation}</strong>
@@ -413,28 +413,18 @@ function PublicAgentResultPanel({ response, locale }: {
       ) : null}
       <footer className="asympta-intent-result__meta">
         {response.result?.checkedAt ? (
-          <time dateTime={response.result.checkedAt}>
-            {copy.checked} {formatCheckedAt(response.result.checkedAt, locale)}
-          </time>
+          <time dateTime={response.result.checkedAt}>{copy.checked} {formatCheckedAt(response.result.checkedAt, locale)}</time>
         ) : null}
         {response.provenance.simulated ? <span>{copy.simulated}</span> : null}
         {response.result?.verification ? (
-          <span
-            className="asympta-intent-result__verification"
-            data-verification={response.result.verification.status}
-          >
+          <span className="asympta-intent-result__verification" data-verification={response.result.verification.status}>
             {response.result.verification.details}
           </span>
         ) : null}
         {sources.length ? (
           <nav aria-label={copy.sources}>
             {sources.map((source, index) => (
-              <a
-                key={`${source.url}-${index}`}
-                href={source.url}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
+              <a key={`${source.url}-${index}`} href={source.url} target="_blank" rel="noopener noreferrer">
                 {source.title}<ExternalLink size={10} aria-hidden="true" />
               </a>
             ))}
@@ -450,7 +440,6 @@ function showAgentMoment(event: AsymptaActivityEvent, locale: Locale) {
   const selector = `.animal-map-marker--foreground[data-agent-id="${CSS.escape(event.actorId)}"]`;
   const marker = document.querySelector<HTMLElement>(selector);
   if (!marker) return;
-
   let bubble = marker.querySelector<HTMLElement>(".asympta-protocol-bubble");
   if (!bubble) {
     bubble = document.createElement("span");
@@ -460,17 +449,68 @@ function showAgentMoment(event: AsymptaActivityEvent, locale: Locale) {
   bubble.textContent = humanStatus(locale, event.status);
   marker.classList.add("is-protocol-active");
   marker.dataset.asymptaProtocol = event.protocol;
-
-  if (marker instanceof HTMLButtonElement && event.status !== "completed" && event.status !== "failed") {
-    marker.click();
-  }
-
+  if (marker instanceof HTMLButtonElement && event.status !== "completed" && event.status !== "failed") marker.click();
   const sequence = String(Number(marker.dataset.asymptaProtocolSequence ?? "0") + 1);
   marker.dataset.asymptaProtocolSequence = sequence;
   window.setTimeout(() => {
     if (marker.dataset.asymptaProtocolSequence !== sequence) return;
     marker.classList.remove("is-protocol-active");
   }, 2_600);
+}
+
+function taskActivityStatus(task: AsymptaTaskState): AsymptaActivityStatus {
+  if (task.phase === "completed") return "completed";
+  if (["failed", "blocked", "cancelled"].includes(task.phase)) return "failed";
+  if (["awaiting_human", "awaiting_approval"].includes(task.phase)) return "waiting_input";
+  if (task.phase === "discovering") return "discovering";
+  if (["planning", "coordinating"].includes(task.phase)) return "coordinating";
+  if (task.phase === "verifying") return "verifying";
+  return "executing";
+}
+
+function taskSummary(task: AsymptaTaskState) {
+  const nextRequirement = task.requirements.find((requirement) => requirement.status === "unknown");
+  if (nextRequirement) return nextRequirement.prompt;
+  return task.result?.summary ?? task.failure?.message ?? task.plan?.summary ?? task.summary;
+}
+
+function taskToPublicResult(task: AsymptaTaskState): PublicAgentSuccessResponse {
+  const awaitingApproval = task.phase === "awaiting_approval";
+  const completed = task.phase === "completed" && Boolean(task.result?.completed);
+  const verificationStatus = task.result?.verification.status ?? "not_verified";
+  return {
+    ok: true,
+    activityId: task.activityId ?? task.taskId,
+    goal: {
+      title: task.title,
+      summary: taskSummary(task),
+      kind: "action",
+      status: completed ? "completed" : awaitingApproval ? "awaiting_confirmation" : "needs_clarification",
+      missingFields: task.requirements.filter((requirement) => requirement.status === "unknown").map((requirement) => requirement.raw),
+      requiresConfirmation: awaitingApproval,
+      risk: task.risk === "critical" ? "high" : task.risk,
+    },
+    result: completed && task.result ? {
+      answer: task.result.summary,
+      checkedAt: task.result.completedAt,
+      sources: [],
+      verification: {
+        status: verificationStatus,
+        details: task.result.verification.details,
+      },
+    } : null,
+    action: awaitingApproval ? {
+      description: task.plan?.summary ?? task.summary,
+      consequence: task.approvals.find((approval) => approval.status === "pending")?.consequence
+        ?? "Approval may create an external commitment.",
+    } : null,
+    provenance: {
+      provider: "asympta",
+      model: null,
+      tools: [...new Set(task.assignments.map((assignment) => assignment.agentId))],
+      simulated: task.mode !== "live",
+    },
+  };
 }
 
 export function AsymptaIntentComposer() {
@@ -486,6 +526,7 @@ export function AsymptaIntentComposer() {
   const activityRef = useRef<AsymptaActivity | null>(null);
   const journeyRef = useRef<InformationJourneyState>(EMPTY_INFORMATION_JOURNEY);
   const currentRequestRef = useRef<AsymptaCurrentRequest | null>(null);
+  const projectedTaskRevisionRef = useRef(new Map<string, number>());
   const abortRef = useRef<AbortController | null>(null);
   const turnstileRef = useRef<HTMLDivElement | null>(null);
 
@@ -516,6 +557,91 @@ export function AsymptaIntentComposer() {
     return next;
   }, []);
 
+  useEffect(() => {
+    const onTaskKernel = (event: Event) => {
+      const detail = (event as CustomEvent<AsymptaTaskKernelEventDetail>).detail;
+      const task = detail?.task;
+      const active = activityRef.current;
+      if (!task || !active || task.activityId !== active.id) return;
+      if ((projectedTaskRevisionRef.current.get(task.taskId) ?? 0) >= task.revision) return;
+      projectedTaskRevisionRef.current.set(task.taskId, task.revision);
+
+      const status = taskActivityStatus(task);
+      const summary = taskSummary(task);
+      let next = appendAsymptaEvent(active, {
+        status,
+        protocol: "asympta",
+        actorId: status === "completed" ? "agent-quality" : status === "failed" ? "agent-support" : "agent-user",
+        summary,
+        data: {
+          taskId: task.taskId,
+          taskRevision: task.revision,
+          taskPhase: task.phase,
+          missingFields: task.requirements.filter((requirement) => requirement.status === "unknown").map((requirement) => requirement.raw),
+        },
+      });
+      if (status === "completed" && task.result) {
+        next = {
+          ...next,
+          outcome: {
+            verified: task.result.verification.status === "verified",
+            verification: "task-completed",
+            summary: task.result.summary,
+            value: task,
+          },
+        };
+      }
+      const emitted = next.events.at(-1);
+      if (emitted) publishActivity(next, emitted);
+
+      const currentRequest = currentRequestRef.current;
+      if (currentRequest) {
+        const requestStatus = task.phase === "completed"
+          ? "completed"
+          : task.phase === "awaiting_approval"
+            ? "awaiting_confirmation"
+            : ["failed", "blocked", "cancelled"].includes(task.phase)
+              ? "failed"
+              : "waiting_input";
+        const projected: AsymptaCurrentRequest = {
+          ...currentRequest,
+          goal: task.title,
+          kind: task.phase === "awaiting_human" ? "clarification" : "action",
+          permission: "WRITE_REQUEST",
+          status: requestStatus,
+          actor: task.phase === "completed" ? REQUEST_ACTOR_COPY[locale].verification : REQUEST_ACTOR_COPY[locale].asympta,
+          step: summary,
+          verification: task.result?.verification.status ?? currentRequest.verification,
+          events: [...currentRequest.events, summary].slice(-6),
+          updatedAt: new Date().toISOString(),
+        };
+        currentRequestRef.current = projected;
+        publishAsymptaCurrentRequest(projected);
+      }
+
+      if (task.phase === "completed") {
+        setRequestError(null);
+        setPublicResult(taskToPublicResult(task));
+        updateJourney((current) => current.tripId === task.activityId
+          ? finishInformationJourney(current, task.activityId as string, "delivered")
+          : current);
+      } else if (["failed", "blocked", "cancelled"].includes(task.phase)) {
+        setRequestError({ message: summary, retryable: false });
+        updateJourney((current) => current.tripId === task.activityId
+          ? failInformationJourney(current, task.activityId as string)
+          : current);
+      } else if (task.phase === "awaiting_approval") {
+        setPublicResult(taskToPublicResult(task));
+        updateJourney((current) => current.tripId === task.activityId
+          ? finishInformationJourney(current, task.activityId as string, "waiting")
+          : current);
+      }
+    };
+
+    window.addEventListener(ASYMPTA_TASK_KERNEL_EVENT, onTaskKernel);
+    return () => window.removeEventListener(ASYMPTA_TASK_KERNEL_EVENT, onTaskKernel);
+  }, [locale, publishActivity, updateJourney]);
+
   const runIntent = useCallback(async (intention: string, requestContext: RequestContext = { source: "human" }) => {
     const clean = intention.trim();
     if (!clean) throw new Error("An intention is required.");
@@ -533,13 +659,10 @@ export function AsymptaIntentComposer() {
     let currentRequest: AsymptaCurrentRequest | null = null;
     const publishRequest = (patch: Partial<AsymptaCurrentRequest>, event?: string) => {
       if (!currentRequest) return;
-      const events = event
-        ? [...currentRequest.events, event].filter(Boolean).slice(-6)
-        : currentRequest.events;
       currentRequest = {
         ...currentRequest,
         ...patch,
-        events,
+        events: event ? [...currentRequest.events, event].filter(Boolean).slice(-6) : currentRequest.events,
         updatedAt: new Date().toISOString(),
       };
       currentRequestRef.current = currentRequest;
@@ -552,11 +675,7 @@ export function AsymptaIntentComposer() {
     try {
       const publicConfig = getPublicAgentConfig();
       if (publicConfig) {
-        let next = createAsymptaActivity({
-          intent: clean,
-          locale,
-          principalId: getOrCreatePublicAgentClientId(),
-        });
+        let next = createAsymptaActivity({ intent: clean, locale, principalId: getOrCreatePublicAgentClientId() });
         const tripId = next.id;
         trackedRequestId = trackedRequestId ?? tripId;
         activeTripId = tripId;
@@ -582,19 +701,8 @@ export function AsymptaIntentComposer() {
           updateBrowserWebMcpRequest(requestContext.requestId, { status: "running" });
         }
         updateJourney((current) => beginInformationJourney(current, tripId));
-        const emit = (
-          status: AsymptaActivityStatus,
-          summary: string,
-          actorId: string,
-          data?: Record<string, unknown>,
-        ) => {
-          next = appendAsymptaEvent(next, {
-            status,
-            protocol: "asympta",
-            actorId,
-            summary,
-            data,
-          });
+        const emit = (status: AsymptaActivityStatus, summary: string, actorId: string, data?: Record<string, unknown>) => {
+          next = appendAsymptaEvent(next, { status, protocol: "asympta", actorId, summary, data });
           const emitted = next.events.at(-1);
           if (emitted) publishActivity(next, emitted);
         };
@@ -638,19 +746,15 @@ export function AsymptaIntentComposer() {
           }
 
           if (response.goal.kind === "action") {
-            emit(
-              "coordinating",
-              "Preparing the requested action without carrying it out.",
-              "agent-operations",
-              { publicActivityId: response.activityId, confirmationRequired: true },
-            );
+            emit("coordinating", "Preparing the requested action without carrying it out.", "agent-operations", {
+              publicActivityId: response.activityId,
+              confirmationRequired: true,
+            });
           }
-          emit(
-            "verifying",
-            response.result?.verification.details ?? "Checking the goal and returned evidence.",
-            "agent-quality",
-            { publicActivityId: response.activityId, verification: response.result?.verification.status },
-          );
+          emit("verifying", response.result?.verification.details ?? "Checking the goal and returned evidence.", "agent-quality", {
+            publicActivityId: response.activityId,
+            verification: response.result?.verification.status,
+          });
           const destination = informationDestination(response);
           const sourceCount = (response.result?.sources ?? []).filter((source) => isSafePublicAgentSourceUrl(source.url)).length;
           publishRequest({
@@ -664,10 +768,7 @@ export function AsymptaIntentComposer() {
             sourceCount,
             verification: response.result?.verification.status ?? null,
           }, response.result?.verification.details ?? COPY[locale].verifying);
-          updateJourney((current) => returnInformationJourney(current, tripId, {
-            destination,
-            sourceCount,
-          }));
+          updateJourney((current) => returnInformationJourney(current, tripId, { destination, sourceCount }));
           await waitForJourneyMotion(controller.signal, 680);
           assertCurrentRun();
           setPublicResult(response);
@@ -679,25 +780,35 @@ export function AsymptaIntentComposer() {
               actor: REQUEST_ACTOR_COPY[locale].safety,
               step: response.action?.consequence ?? COPY[locale].pendingConfirmation,
             }, COPY[locale].pendingConfirmation);
-            emit(
-              "waiting_input",
-              "The action is ready for review and has not been executed.",
-              "agent-user",
-              { publicActivityId: response.activityId, consequence: response.action?.consequence },
-            );
+            emit("waiting_input", "The action is ready for review and has not been executed.", "agent-user", {
+              publicActivityId: response.activityId,
+              consequence: response.action?.consequence,
+            });
           } else if (response.goal.status === "needs_clarification") {
             updateJourney((current) => finishInformationJourney(current, tripId, "waiting"));
+            const task = window.__ASYMPTA_TASK_KERNEL__?.createFromClarification({
+              activityId: tripId,
+              rootIntent: clean,
+              locale,
+              title: response.goal.title,
+              summary: response.goal.summary,
+              missingFields: response.goal.missingFields,
+              mode: "simulated",
+              risk: response.goal.risk,
+            }) ?? null;
+            const missingFields = task
+              ? task.requirements.filter((requirement) => requirement.status === "unknown").map((requirement) => requirement.raw)
+              : response.goal.missingFields;
             publishRequest({
               status: "waiting_input",
               actor: REQUEST_ACTOR_COPY[locale].asympta,
               step: response.goal.summary,
             }, response.goal.summary);
-            emit(
-              "waiting_input",
-              response.goal.summary,
-              "agent-user",
-              { publicActivityId: response.activityId, missingFields: response.goal.missingFields },
-            );
+            emit("waiting_input", response.goal.summary, "agent-user", {
+              publicActivityId: response.activityId,
+              missingFields,
+              ...(task ? { taskId: task.taskId, taskRevision: task.revision } : {}),
+            });
           } else {
             next = {
               ...next,
@@ -714,13 +825,11 @@ export function AsymptaIntentComposer() {
               actor: REQUEST_ACTOR_COPY[locale].asympta,
               step: response.result?.answer ?? response.goal.summary,
             }, COPY[locale].completed);
-            emit(
-              "completed",
-              response.result?.answer ?? response.goal.summary,
-              "agent-quality",
-              { publicActivityId: response.activityId },
-            );
+            emit("completed", response.result?.answer ?? response.goal.summary, "agent-quality", {
+              publicActivityId: response.activityId,
+            });
           }
+
           if (requestContext.source === "webmcp" && requestContext.requestId) {
             const requestStatus = response.goal.status === "awaiting_confirmation"
               ? "awaiting_confirmation"
@@ -745,12 +854,9 @@ export function AsymptaIntentComposer() {
             actor: REQUEST_ACTOR_COPY[locale].asympta,
             step: error instanceof Error ? error.message : COPY[locale].failed,
           }, COPY[locale].failed);
-          emit(
-            "failed",
-            error instanceof Error ? error.message : String(error),
-            "agent-support",
-            error instanceof PublicAgentClientError ? { code: error.code, retryable: error.retryable } : undefined,
-          );
+          emit("failed", error instanceof Error ? error.message : String(error), "agent-support", error instanceof PublicAgentClientError
+            ? { code: error.code, retryable: error.retryable }
+            : undefined);
           throw error;
         }
       }
@@ -869,29 +975,18 @@ export function AsymptaIntentComposer() {
         <div className="asympta-intent-error" role="alert">
           <span>{requestError.message}</span>
           {requestError.retryable ? (
-            <button type="button" onClick={() => void submit()} disabled={running || !text.trim()}>
-              {COPY[locale].retry}
-            </button>
+            <button type="button" onClick={() => void submit()} disabled={running || !text.trim()}>{COPY[locale].retry}</button>
           ) : null}
         </div>
       ) : null}
       <InformationJourneyTicket journey={journey} locale={locale} />
       {webMcpDraft ? (
-        <button
-          type="button"
-          className="asympta-webmcp-draft"
-          onClick={reviewWebMcpDraft}
-          disabled={running}
-        >
+        <button type="button" className="asympta-webmcp-draft" onClick={reviewWebMcpDraft} disabled={running}>
           <span><strong>{REQUEST_ACTOR_COPY[locale].webMcpReady}</strong><small>{webMcpDraft.intent}</small></span>
           <b>{REQUEST_ACTOR_COPY[locale].review}</b>
         </button>
       ) : null}
-      <div
-        ref={turnstileRef}
-        className="asympta-intent-turnstile"
-        aria-label={COPY[locale].verification}
-      />
+      <div ref={turnstileRef} className="asympta-intent-turnstile" aria-label={COPY[locale].verification} />
       <div className="asympta-intent-presence" aria-live="polite">
         <AnimalPortrait id="agent-user" side="user" className="asympta-intent-avatar" />
         <span>{humanStatus(locale, status)}</span>

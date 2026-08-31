@@ -7,22 +7,19 @@ import type { FormEvent } from "react";
 import styles from "./asympta-adaptive-interaction.module.css";
 
 import { readAdaptiveActivityIntent } from "@/lib/asympta-adaptive-activity-bridge";
+import { ASYMPTA_TASK_KERNEL_EVENT } from "@/lib/asympta-browser-task-kernel";
 import {
-  createAdaptiveInteractionSchema,
-  mergeAdaptiveClarifications,
   missingFieldsFromAdaptiveActivityData,
   type AdaptiveAnswerValue,
-  type AdaptiveConfirmation,
   type AdaptiveInteractionLocale,
   type AdaptiveInteractionSchema,
 } from "@/lib/asympta-adaptive-interaction";
+import type { AsymptaTaskKernelEventDetail, AsymptaTaskState } from "@/lib/asympta-task-kernel-types";
 
 type ActivityDetail = {
   activity?: { id?: string; intent?: unknown; status?: string };
   event?: { status?: string; summary?: string; data?: unknown };
 };
-
-type ProtocolBridge = { runIntent: (intention: string) => Promise<unknown> };
 
 const COPY: Record<AdaptiveInteractionLocale, {
   eyebrow: string;
@@ -39,7 +36,7 @@ const COPY: Record<AdaptiveInteractionLocale, {
     other: "Something else",
     continue: "Continue",
     continuing: "Continuing…",
-    unavailable: "The agent runtime is not ready yet. Try again in a moment.",
+    unavailable: "The Task Kernel is not ready yet. Try again in a moment.",
     confirmed: "User-confirmed",
   },
   "zh-Hant": {
@@ -48,7 +45,7 @@ const COPY: Record<AdaptiveInteractionLocale, {
     other: "其他",
     continue: "繼續",
     continuing: "正在繼續…",
-    unavailable: "代理執行環境暫時未準備好，請稍後再試。",
+    unavailable: "Task Kernel 暫時未準備好，請稍後再試。",
     confirmed: "由你確認",
   },
   ja: {
@@ -57,7 +54,7 @@ const COPY: Record<AdaptiveInteractionLocale, {
     other: "その他",
     continue: "続ける",
     continuing: "続行中…",
-    unavailable: "エージェント実行環境の準備ができていません。少し待って再試行してください。",
+    unavailable: "Task Kernel の準備ができていません。少し待って再試行してください。",
     confirmed: "ユーザー確認済み",
   },
 };
@@ -69,16 +66,6 @@ function localeFromDocument(): AdaptiveInteractionLocale {
   return "en";
 }
 
-function protocolBridge() {
-  return (window as unknown as { __ASYMPTA_PROTOCOLS__?: ProtocolBridge }).__ASYMPTA_PROTOCOLS__;
-}
-
-function sameTask(baseIntent: string, candidate: string) {
-  const base = baseIntent.trim();
-  const value = candidate.trim();
-  return Boolean(base && value && (value === base || value.startsWith(`${base}\n`) || value.startsWith(`${base}.`)));
-}
-
 function answerReady(schema: AdaptiveInteractionSchema | null, selected: AdaptiveAnswerValue | null, custom: string) {
   const field = schema?.nextField;
   if (!field) return false;
@@ -87,26 +74,35 @@ function answerReady(schema: AdaptiveInteractionSchema | null, selected: Adaptiv
   return selected !== null || custom.trim().length > 0;
 }
 
-function advanceSchema(schema: AdaptiveInteractionSchema): AdaptiveInteractionSchema | null {
-  const remaining = schema.fields.slice(1);
-  if (!remaining.length) return null;
-  return {
-    ...schema,
-    fields: remaining,
-    nextField: remaining[0] ?? null,
-  };
+function dataTaskId(data: unknown) {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return "";
+  const value = Reflect.get(data, "taskId");
+  return typeof value === "string" ? value : "";
+}
+
+function randomCommandId(taskId: string, requirementId: string) {
+  const suffix = typeof globalThis.crypto?.randomUUID === "function"
+    ? globalThis.crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  return `${taskId}:answer:${requirementId}:${suffix}`;
+}
+
+function terminalTask(task: AsymptaTaskState) {
+  return ["completed", "cancelled", "blocked", "failed"].includes(task.phase);
 }
 
 export function AsymptaAdaptiveInteraction() {
   const [locale, setLocale] = useState<AdaptiveInteractionLocale>("en");
   const [schema, setSchema] = useState<AdaptiveInteractionSchema | null>(null);
+  const [taskId, setTaskId] = useState("");
+  const [taskRevision, setTaskRevision] = useState<number | null>(null);
   const [selected, setSelected] = useState<AdaptiveAnswerValue | null>(null);
   const [custom, setCustom] = useState("");
   const [customOpen, setCustomOpen] = useState(false);
   const [continuing, setContinuing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const baseIntentRef = useRef("");
-  const confirmationsRef = useRef<AdaptiveConfirmation[]>([]);
+  const taskIdRef = useRef("");
+  const activityIdRef = useRef("");
 
   useEffect(() => {
     const syncLocale = () => setLocale(localeFromDocument());
@@ -117,63 +113,89 @@ export function AsymptaAdaptiveInteraction() {
   }, []);
 
   useEffect(() => {
+    const showTask = (task: AsymptaTaskState | null) => {
+      const bridge = window.__ASYMPTA_TASK_KERNEL__;
+      if (!task || !bridge || terminalTask(task)) {
+        setSchema(null);
+        setTaskRevision(task?.revision ?? null);
+        return;
+      }
+      const nextSchema = bridge.schema(task.taskId);
+      if (!nextSchema?.nextField) {
+        setSchema(null);
+        setTaskRevision(task.revision);
+        return;
+      }
+      taskIdRef.current = task.taskId;
+      setTaskId(task.taskId);
+      setTaskRevision(task.revision);
+      setSchema(nextSchema);
+      setSelected(null);
+      setCustom("");
+      setCustomOpen(false);
+      setContinuing(false);
+      setError(null);
+    };
+
     const onActivity = (event: Event) => {
       const detail = (event as CustomEvent<ActivityDetail>).detail;
-      const activityIntent = readAdaptiveActivityIntent(detail?.activity);
       const status = detail?.event?.status ?? detail?.activity?.status ?? "";
+      const activityId = detail?.activity?.id ?? "";
 
-      if (status === "interpreting" && baseIntentRef.current && activityIntent && !sameTask(baseIntentRef.current, activityIntent)) {
-        baseIntentRef.current = "";
-        confirmationsRef.current = [];
+      if (status === "interpreting" && activityId && activityIdRef.current && activityId !== activityIdRef.current) {
+        activityIdRef.current = activityId;
+        taskIdRef.current = "";
+        setTaskId("");
         setSchema(null);
-        setSelected(null);
-        setCustom("");
-        setCustomOpen(false);
+        setTaskRevision(null);
         setError(null);
       }
 
       if (status === "waiting_input") {
+        const bridge = window.__ASYMPTA_TASK_KERNEL__;
+        const rootIntent = readAdaptiveActivityIntent(detail?.activity);
         const missingFields = missingFieldsFromAdaptiveActivityData(detail?.event?.data);
-        if (!activityIntent || !missingFields.length) return;
-
-        if (!baseIntentRef.current || !sameTask(baseIntentRef.current, activityIntent)) {
-          baseIntentRef.current = activityIntent;
-          confirmationsRef.current = [];
-        }
-
-        setSchema(createAdaptiveInteractionSchema({
-          intent: baseIntentRef.current,
-          missingFields,
-          locale,
-          interactionId: detail?.activity?.id,
-        }));
-        setSelected(null);
-        setCustom("");
-        setCustomOpen(false);
-        setContinuing(false);
-        setError(null);
+        if (!bridge || !rootIntent || !missingFields.length) return;
+        activityIdRef.current = activityId;
+        const requestedTaskId = dataTaskId(detail?.event?.data);
+        const task = (requestedTaskId ? bridge.getTask(requestedTaskId) : null)
+          ?? (activityId ? bridge.getTaskByActivity(activityId) : null)
+          ?? bridge.createFromClarification({
+            activityId: activityId || null,
+            rootIntent,
+            locale,
+            title: rootIntent,
+            summary: detail?.event?.summary ?? rootIntent,
+            missingFields,
+            mode: "simulated",
+          });
+        showTask(task);
         return;
       }
 
-      if ((status === "completed" || status === "failed" || status === "blocked")
-        && baseIntentRef.current
-        && activityIntent
-        && sameTask(baseIntentRef.current, activityIntent)) {
+      if (["completed", "failed", "blocked"].includes(status)
+        && activityIdRef.current
+        && activityId === activityIdRef.current) {
         setSchema(null);
         setSelected(null);
         setCustom("");
         setCustomOpen(false);
         setContinuing(false);
-        if (status === "completed") {
-          baseIntentRef.current = "";
-          confirmationsRef.current = [];
-          setError(null);
-        }
       }
     };
 
+    const onKernel = (event: Event) => {
+      const detail = (event as CustomEvent<AsymptaTaskKernelEventDetail>).detail;
+      if (!detail?.task?.taskId || detail.task.taskId !== taskIdRef.current) return;
+      showTask(detail.task);
+    };
+
     window.addEventListener("asympta:activity", onActivity);
-    return () => window.removeEventListener("asympta:activity", onActivity);
+    window.addEventListener(ASYMPTA_TASK_KERNEL_EVENT, onKernel);
+    return () => {
+      window.removeEventListener("asympta:activity", onActivity);
+      window.removeEventListener(ASYMPTA_TASK_KERNEL_EVENT, onKernel);
+    };
   }, [locale]);
 
   const field = schema?.nextField ?? null;
@@ -182,10 +204,22 @@ export function AsymptaAdaptiveInteraction() {
   const copy = COPY[locale];
   const ready = answerReady(schema, selected, custom);
   const showDirectCustomInput = field.key === "event_intent";
+  const customInputVisible = field.control === "text"
+    || field.control === "number"
+    || customOpen
+    || showDirectCustomInput;
 
-  const submit = async (event?: FormEvent) => {
+  const submit = (event?: FormEvent) => {
     event?.preventDefault();
     if (!ready || continuing) return;
+
+    const bridge = window.__ASYMPTA_TASK_KERNEL__;
+    const currentTaskId = taskIdRef.current;
+    const task = bridge?.getTask(currentTaskId);
+    if (!bridge || !task) {
+      setError(copy.unavailable);
+      return;
+    }
 
     let value: AdaptiveAnswerValue;
     let label: string;
@@ -203,44 +237,32 @@ export function AsymptaAdaptiveInteraction() {
       label = custom.trim();
     }
 
-    const nextConfirmation: AdaptiveConfirmation = { field: field.sourceField, value, label };
-    const nextConfirmations = [
-      ...confirmationsRef.current.filter((candidate) => candidate.field !== field.sourceField),
-      nextConfirmation,
-    ];
-    confirmationsRef.current = nextConfirmations;
-
-    const nextSchema = advanceSchema(schema);
-    if (nextSchema) {
-      setSchema(nextSchema);
+    setContinuing(true);
+    setError(null);
+    try {
+      const next = bridge.answerRequirement({
+        commandId: randomCommandId(task.taskId, field.id),
+        taskId: task.taskId,
+        requirementId: field.id,
+        expectedRevision: task.revision,
+        value,
+        label,
+        actorId: "human",
+      });
+      setTaskRevision(next.revision);
+      const nextSchema = terminalTask(next) ? null : bridge.schema(next.taskId);
+      setSchema(nextSchema?.nextField ? nextSchema : null);
       setSelected(null);
       setCustom("");
       setCustomOpen(false);
-      setError(null);
-      return;
-    }
-
-    const bridge = protocolBridge();
-    if (!bridge) {
-      setError(copy.unavailable);
-      return;
-    }
-
-    const intention = mergeAdaptiveClarifications({
-      intent: baseIntentRef.current,
-      confirmations: nextConfirmations,
-      locale,
-    });
-
-    setContinuing(true);
-    setError(null);
-    setSchema(null);
-    try {
-      await bridge.runIntent(intention);
-    } catch (runError) {
-      if (runError instanceof DOMException && runError.name === "AbortError") return;
-      setSchema(schema);
-      setError(runError instanceof Error ? runError.message : copy.unavailable);
+    } catch (taskError) {
+      const latest = bridge.getTask(task.taskId);
+      if (latest && !terminalTask(latest)) {
+        const latestSchema = bridge.schema(latest.taskId);
+        setSchema(latestSchema?.nextField ? latestSchema : null);
+        setTaskRevision(latest.revision);
+      }
+      setError(taskError instanceof Error ? taskError.message : copy.unavailable);
     } finally {
       setContinuing(false);
     }
@@ -252,6 +274,8 @@ export function AsymptaAdaptiveInteraction() {
       data-asympta-adaptive-schema={schema.schemaVersion}
       data-field={field.key}
       data-provenance={schema.provenance.mode}
+      data-task-id={taskId}
+      data-task-revision={taskRevision ?? ""}
       aria-label={copy.title}
     >
       <div className={styles.card}>
@@ -274,6 +298,7 @@ export function AsymptaAdaptiveInteraction() {
                   key={`${field.id}:${String(candidate.value)}`}
                   type="button"
                   className={styles.option}
+                  data-description={candidate.description || undefined}
                   data-selected={Object.is(candidate.value, selected) ? "true" : "false"}
                   aria-pressed={Object.is(candidate.value, selected)}
                   onClick={() => {
@@ -284,7 +309,6 @@ export function AsymptaAdaptiveInteraction() {
                   }}
                 >
                   <span>{candidate.label}</span>
-                  {candidate.description ? <small>{candidate.description}</small> : null}
                 </button>
               ))}
               {field.allowCustom && !showDirectCustomInput ? (
@@ -305,18 +329,22 @@ export function AsymptaAdaptiveInteraction() {
             </div>
           ) : null}
 
-          {field.control === "text" || field.control === "number" || customOpen || showDirectCustomInput ? (
+          {field.control === "text" || field.control === "number" || field.allowCustom || showDirectCustomInput ? (
             <input
               className={styles.input}
               type={field.control === "number" ? "number" : "text"}
               inputMode={field.control === "number" ? "numeric" : "text"}
               min={field.control === "number" ? 1 : undefined}
-              autoFocus={field.control === "text" || field.control === "number" || (customOpen && !showDirectCustomInput)}
+              hidden={!customInputVisible}
+              aria-hidden={!customInputVisible}
+              autoFocus={customInputVisible && (field.control === "text"
+                || field.control === "number"
+                || (customOpen && !showDirectCustomInput))}
               value={custom}
               placeholder={field.customPlaceholder}
               aria-label={field.prompt}
-              onChange={(event) => {
-                setCustom(event.target.value);
+              onChange={(inputEvent) => {
+                setCustom(inputEvent.target.value);
                 setSelected(null);
                 setError(null);
               }}
