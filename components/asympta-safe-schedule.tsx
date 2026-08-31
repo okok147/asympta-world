@@ -8,6 +8,7 @@ import {
   type AsymptaCurrentRequest,
   type AsymptaCurrentRequestStatus,
 } from "@/lib/asympta-current-request";
+import { MARKETPLACE_PROFILE_REQUIRED_EVENT } from "@/lib/asympta-marketplace-intent";
 
 type Locale = "en" | "zh-Hant" | "ja";
 
@@ -95,6 +96,7 @@ export function AsymptaSafeSchedule() {
 
   useEffect(() => {
     const syncLocale = () => setLocale(currentLocale());
+    const showMarketplaceProfile = () => setExpanded(true);
     queueMicrotask(syncLocale);
     const observer = new MutationObserver(syncLocale);
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ["lang"] });
@@ -102,9 +104,11 @@ export function AsymptaSafeSchedule() {
       setRequest(next);
       if (["awaiting_confirmation", "waiting_input", "failed"].includes(next.status)) setExpanded(true);
     });
+    window.addEventListener(MARKETPLACE_PROFILE_REQUIRED_EVENT, showMarketplaceProfile);
     return () => {
       observer.disconnect();
       unsubscribe();
+      window.removeEventListener(MARKETPLACE_PROFILE_REQUIRED_EVENT, showMarketplaceProfile);
     };
   }, []);
 

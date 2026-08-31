@@ -1,6 +1,18 @@
 "use client";
 
-import { ArrowRight, Check, Code2, Home, Package, ShieldCheck, Store } from "lucide-react";
+import {
+  ArrowRight,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Code2,
+  Package,
+  ShieldCheck,
+  Store,
+  Truck,
+  Utensils,
+  WalletCards,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -13,19 +25,36 @@ import {
 import {
   MARKETPLACE_CONTEXT_EVENT,
   MARKETPLACE_EXECUTION_EVENT,
+  MARKETPLACE_PROFILE_PRESETS,
+  MARKETPLACE_PROFILE_REQUIRED_EVENT,
   MARKETPLACE_WORKFLOW_ID,
   compactContextEnvelope,
   compileAsymptaContext,
   createMarketplaceExecution,
+  isMarketplaceProfileComplete,
+  marketplaceProfilePreset,
+  patchMarketplaceProfile,
   syncMarketplaceExecution,
   upsertMarketplaceWorkflow,
+  type AsymptaMarketplaceProfile,
   type ContextCompilation,
   type MarketplaceExecution,
+  type MarketplaceFoodPreference,
+  type MarketplaceFulfilmentMethod,
+  type MarketplacePaymentMethod,
+  type MarketplaceProfileField,
+  type MarketplaceProfilePresetId,
   type MarketplaceWorldSnapshot,
 } from "@/lib/asympta-marketplace-intent";
+import {
+  readAsymptaMarketplaceProfile,
+  subscribeAsymptaUserPreferences,
+  writeAsymptaMarketplaceProfile,
+} from "@/lib/asympta-user-preferences";
 import type { WorkflowId } from "@/lib/atlas-simulation";
 
 type Locale = "en" | "zh-Hant" | "ja";
+type PresetId = Exclude<MarketplaceProfilePresetId, "custom">;
 
 type ActivityDetail = {
   activity?: {
@@ -49,6 +78,13 @@ type MarketplaceBridge = {
   compile: (intent: string) => ContextCompilation;
   runIntent: (intent: string) => Promise<MarketplaceExecution | null>;
   snapshot: () => MarketplaceExecution | null;
+  profile: () => AsymptaMarketplaceProfile | null;
+};
+
+type PendingMarketplaceIntent = {
+  intent: string;
+  requestId: string;
+  missing: MarketplaceProfileField[];
 };
 
 declare global {
@@ -57,6 +93,16 @@ declare global {
     __ASYMPTA_MARKETPLACE__?: MarketplaceBridge;
   }
 }
+
+const FOOD_OPTIONS: MarketplaceFoodPreference[] = [
+  "no_preference",
+  "local_cantonese",
+  "japanese",
+  "western_comfort",
+  "vegetarian",
+];
+const FULFILMENT_OPTIONS: MarketplaceFulfilmentMethod[] = ["personal_agent_pickup", "courier_delivery"];
+const PAYMENT_OPTIONS: MarketplacePaymentMethod[] = ["asympta_wallet", "card_on_file", "pay_on_delivery"];
 
 const COPY: Record<Locale, {
   title: string;
@@ -67,27 +113,59 @@ const COPY: Record<Locale, {
   reserved: string;
   carrying: string;
   delivered: string;
+  setupRequired: string;
+  profileReady: string;
+  profileTitle: string;
+  profileIntro: string;
+  presetTitle: string;
+  customTitle: string;
+  food: string;
+  fulfilment: string;
+  payment: string;
+  saveContinue: string;
+  saveProfile: string;
+  editProfile: string;
+  safeProfile: string;
+  currentProfile: string;
   route: [string, string, string, string, string];
   status: Record<MarketplaceExecution["status"], string>;
   packet: Record<string, string>;
+  presets: Record<PresetId, { name: string; detail: string }>;
+  foodOptions: Record<MarketplaceFoodPreference, string>;
+  fulfilmentOptions: Record<MarketplaceFulfilmentMethod, string>;
+  paymentOptions: Record<MarketplacePaymentMethod, string>;
   error: string;
 }> = {
   en: {
-    title: "Context → marketplace",
-    simulated: "Simulated city · real engine state",
+    title: "Marketplace context",
+    simulated: "Simulated city · engine state",
     context: "Asympta context",
     latestPacket: "Latest structured packet",
     market: "market",
     reserved: "reserved",
     carrying: "carrying",
     delivered: "delivered",
+    setupRequired: "Choose your defaults to continue",
+    profileReady: "Saved preferences ready",
+    profileTitle: "Your marketplace profile",
+    profileIntro: "Use one preset, or choose food, fulfilment and payment defaults. Explicit words in a request always override this profile.",
+    presetTitle: "Presets",
+    customTitle: "Choose individually",
+    food: "Food",
+    fulfilment: "Fulfilment",
+    payment: "Payment",
+    saveContinue: "Save and continue",
+    saveProfile: "Save profile",
+    editProfile: "Edit profile",
+    safeProfile: "Only preference aliases are stored. No address or card number is saved, and every simulated payment still requires approval.",
+    currentProfile: "Current profile",
     route: ["Intent", "Market", "Store", "Approval", "Home"],
     status: {
       routing: "Compiling a bounded request…",
-      travelling_to_market: "Personal agent is going to the marketplace…",
+      travelling_to_market: "The selected agent is going to the marketplace…",
       coordinating: "Marketplace agents are exchanging structured packets…",
       awaiting_approval: "Waiting for simulated payment approval.",
-      returning_to_user: "Personal agent is carrying the item home…",
+      returning_to_user: "The selected agent is carrying the item home…",
       completed: "Delivered into user inventory.",
       blocked: "The simulated transaction was stopped.",
     },
@@ -104,24 +182,59 @@ const COPY: Record<Locale, {
       delivery_receipt: "Delivery receipt",
       blocked: "Blocked",
     },
+    presets: {
+      everyday: { name: "Everyday", detail: "Anything suitable · personal agent · Asympta Wallet" },
+      local_delivery: { name: "Local delivery", detail: "Cantonese food · courier · card on file" },
+      plant_friendly: { name: "Plant-friendly", detail: "Vegetarian · courier · Asympta Wallet" },
+    },
+    foodOptions: {
+      no_preference: "Anything suitable",
+      local_cantonese: "Cantonese / local",
+      japanese: "Japanese",
+      western_comfort: "Western comfort",
+      vegetarian: "Vegetarian",
+    },
+    fulfilmentOptions: {
+      personal_agent_pickup: "Personal agent pickup",
+      courier_delivery: "Courier delivery",
+    },
+    paymentOptions: {
+      asympta_wallet: "Asympta Wallet",
+      card_on_file: "Card on file",
+      pay_on_delivery: "Pay on delivery",
+    },
     error: "The marketplace engine could not start.",
   },
   "zh-Hant": {
-    title: "語境 → 模擬市場",
-    simulated: "模擬城市 · 真實引擎狀態",
+    title: "市場語境",
+    simulated: "模擬城市 · 引擎狀態",
     context: "Asympta 語境",
     latestPacket: "最新結構化封包",
     market: "市場",
     reserved: "已預留",
     carrying: "攜帶中",
     delivered: "已交付",
+    setupRequired: "選擇預設偏好後繼續",
+    profileReady: "已儲存偏好",
+    profileTitle: "你的市場偏好",
+    profileIntro: "選擇一個預設，或分別設定食物、配送及付款偏好。每次請求中的明確說法永遠優先。",
+    presetTitle: "預設組合",
+    customTitle: "逐項選擇",
+    food: "食物",
+    fulfilment: "配送",
+    payment: "付款",
+    saveContinue: "儲存並繼續",
+    saveProfile: "儲存偏好",
+    editProfile: "修改偏好",
+    safeProfile: "只會儲存偏好代號，不會儲存地址或卡號；每次模擬付款仍須另外批准。",
+    currentProfile: "目前偏好",
     route: ["意圖", "市場", "商店", "批准", "回家"],
     status: {
       routing: "正在把自然語言編譯成受約束的請求…",
-      travelling_to_market: "個人代理正在前往市場…",
+      travelling_to_market: "指定代理正在前往市場…",
       coordinating: "市場代理正在交換結構化封包…",
       awaiting_approval: "等待批准模擬付款。",
-      returning_to_user: "個人代理正攜帶物品回家…",
+      returning_to_user: "指定代理正攜帶物品回家…",
       completed: "物品已轉入使用者庫存。",
       blocked: "模擬交易已停止。",
     },
@@ -138,24 +251,59 @@ const COPY: Record<Locale, {
       delivery_receipt: "交付收據",
       blocked: "已停止",
     },
+    presets: {
+      everyday: { name: "日常", detail: "合適即可 · 個人代理自取 · Asympta 錢包" },
+      local_delivery: { name: "本地送貨", detail: "港式食物 · 速遞 · 已登記卡" },
+      plant_friendly: { name: "素食友善", detail: "素食 · 速遞 · Asympta 錢包" },
+    },
+    foodOptions: {
+      no_preference: "合適即可",
+      local_cantonese: "港式／粵菜",
+      japanese: "日式",
+      western_comfort: "西式家常",
+      vegetarian: "素食",
+    },
+    fulfilmentOptions: {
+      personal_agent_pickup: "個人代理自取",
+      courier_delivery: "速遞送貨",
+    },
+    paymentOptions: {
+      asympta_wallet: "Asympta 錢包",
+      card_on_file: "已登記卡",
+      pay_on_delivery: "貨到付款",
+    },
     error: "未能啟動市場執行引擎。",
   },
   ja: {
-    title: "文脈 → シミュレーション市場",
-    simulated: "シミュレーション都市 · 実エンジン状態",
+    title: "マーケット文脈",
+    simulated: "シミュレーション都市 · エンジン状態",
     context: "Asympta コンテキスト",
     latestPacket: "最新の構造化パケット",
     market: "市場",
     reserved: "予約済み",
     carrying: "運搬中",
     delivered: "配達済み",
+    setupRequired: "既定の好みを選んで続行",
+    profileReady: "保存済みの好み",
+    profileTitle: "マーケットプロフィール",
+    profileIntro: "プリセットを選ぶか、食事・受取方法・支払い方法を個別に設定します。依頼内の明示的な指定が常に優先されます。",
+    presetTitle: "プリセット",
+    customTitle: "個別に選択",
+    food: "食事",
+    fulfilment: "受取方法",
+    payment: "支払い",
+    saveContinue: "保存して続行",
+    saveProfile: "プロフィールを保存",
+    editProfile: "プロフィールを編集",
+    safeProfile: "保存するのは好みの識別子だけです。住所やカード番号は保存せず、シミュレーション支払いには毎回承認が必要です。",
+    currentProfile: "現在のプロフィール",
     route: ["意図", "市場", "店舗", "承認", "帰宅"],
     status: {
       routing: "自然言語を制約付きリクエストへ変換中…",
-      travelling_to_market: "パーソナルエージェントが市場へ移動中…",
+      travelling_to_market: "選択されたエージェントが市場へ移動中…",
       coordinating: "市場エージェントが構造化パケットを交換中…",
       awaiting_approval: "シミュレーション支払いの承認待ちです。",
-      returning_to_user: "品物を持ってユーザーの元へ戻っています…",
+      returning_to_user: "選択されたエージェントが品物を運搬中…",
       completed: "ユーザー在庫へ引き渡しました。",
       blocked: "シミュレーション取引を停止しました。",
     },
@@ -171,6 +319,27 @@ const COPY: Record<Locale, {
       goods_handoff: "商品引き渡し",
       delivery_receipt: "配達受領",
       blocked: "停止",
+    },
+    presets: {
+      everyday: { name: "日常", detail: "おまかせ · 個人エージェント受取 · Asympta Wallet" },
+      local_delivery: { name: "ローカル配達", detail: "広東料理 · 配達 · 登録カード" },
+      plant_friendly: { name: "植物性", detail: "ベジタリアン · 配達 · Asympta Wallet" },
+    },
+    foodOptions: {
+      no_preference: "おまかせ",
+      local_cantonese: "広東／ローカル",
+      japanese: "日本食",
+      western_comfort: "洋食",
+      vegetarian: "ベジタリアン",
+    },
+    fulfilmentOptions: {
+      personal_agent_pickup: "個人エージェント受取",
+      courier_delivery: "配達",
+    },
+    paymentOptions: {
+      asympta_wallet: "Asympta Wallet",
+      card_on_file: "登録カード",
+      pay_on_delivery: "代引き",
     },
     error: "市場実行エンジンを開始できませんでした。",
   },
@@ -226,33 +395,37 @@ function publishExecution(execution: MarketplaceExecution) {
   }));
 }
 
-function cargoDescription(execution: MarketplaceExecution) {
+function cargoDescription(execution: MarketplaceExecution, agentId: string) {
   return execution.ledger
-    .filter((line) => line.carriedByPersonalAgent > 0)
-    .map((line) => `${line.carriedByPersonalAgent} × ${line.itemLabel}`)
+    .filter((line) => line.carrierAgentId === agentId && line.carrierCargo > 0)
+    .map((line) => `${line.carrierCargo} × ${line.itemLabel}`)
     .join(", ");
 }
 
 function syncCargoMarker(execution: MarketplaceExecution | null) {
-  const marker = document.querySelector<HTMLElement>('.animal-map-marker--foreground[data-agent-id="agent-user"]');
-  if (!marker) return;
-  const cargo = execution ? cargoDescription(execution) : "";
-  let badge = marker.querySelector<HTMLElement>(".asympta-marketplace-cargo");
-  if (!cargo) {
-    badge?.remove();
-    delete marker.dataset.asymptaCargo;
-    return;
+  for (const agentId of ["agent-user", "agent-logistics"] as const) {
+    const marker = document.querySelector<HTMLElement>(`.animal-map-marker--foreground[data-agent-id="${agentId}"]`);
+    if (!marker) continue;
+    const cargo = execution ? cargoDescription(execution, agentId) : "";
+    let badge = marker.querySelector<HTMLElement>(".asympta-marketplace-cargo");
+    if (!cargo) {
+      badge?.remove();
+      delete marker.dataset.asymptaCargo;
+      continue;
+    }
+    if (!badge) {
+      badge = document.createElement("span");
+      badge.className = "asympta-marketplace-cargo";
+      marker.appendChild(badge);
+    }
+    const total = execution?.ledger
+      .filter((line) => line.carrierAgentId === agentId)
+      .reduce((sum, line) => sum + line.carrierCargo, 0) ?? 0;
+    badge.textContent = `×${total}`;
+    badge.title = cargo;
+    badge.setAttribute("aria-label", `Carrying ${cargo}`);
+    marker.dataset.asymptaCargo = cargo;
   }
-  if (!badge) {
-    badge = document.createElement("span");
-    badge.className = "asympta-marketplace-cargo";
-    marker.appendChild(badge);
-  }
-  const total = execution?.ledger.reduce((sum, line) => sum + line.carriedByPersonalAgent, 0) ?? 0;
-  badge.textContent = `×${total}`;
-  badge.title = cargo;
-  badge.setAttribute("aria-label", `Carrying ${cargo}`);
-  marker.dataset.asymptaCargo = cargo;
 }
 
 function workflowStage(execution: MarketplaceExecution, index: number) {
@@ -282,12 +455,39 @@ function workflowStage(execution: MarketplaceExecution, index: number) {
   return index === firstUndone ? "active" : "pending";
 }
 
+function profileSummary(profile: AsymptaMarketplaceProfile, locale: Locale) {
+  const copy = COPY[locale];
+  if (!profile.foodPreference || !profile.fulfilmentMethod || !profile.paymentMethod) return copy.setupRequired;
+  return [
+    copy.foodOptions[profile.foodPreference],
+    copy.fulfilmentOptions[profile.fulfilmentMethod],
+    copy.paymentOptions[profile.paymentMethod],
+  ].join(" · ");
+}
+
+function presetSelected(profile: AsymptaMarketplaceProfile | null, presetId: PresetId) {
+  const preset = MARKETPLACE_PROFILE_PRESETS.find((candidate) => candidate.id === presetId);
+  return Boolean(
+    profile
+    && preset
+    && profile.foodPreference === preset.foodPreference
+    && profile.fulfilmentMethod === preset.fulfilmentMethod
+    && profile.paymentMethod === preset.paymentMethod,
+  );
+}
+
 export function AsymptaMarketplaceIntentBridge() {
   const [locale, setLocale] = useState<Locale>("en");
   const [execution, setExecution] = useState<MarketplaceExecution | null>(null);
   const [host, setHost] = useState<HTMLElement | null>(null);
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
+  const [profile, setProfile] = useState<AsymptaMarketplaceProfile | null>(null);
+  const [draftProfile, setDraftProfile] = useState<AsymptaMarketplaceProfile | null>(null);
+  const [pendingIntent, setPendingIntent] = useState<PendingMarketplaceIntent | null>(null);
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [panelExpanded, setPanelExpanded] = useState(false);
   const executionRef = useRef<MarketplaceExecution | null>(null);
+  const profileRef = useRef<AsymptaMarketplaceProfile | null>(null);
   const seenRequestsRef = useRef(new Set<string>());
   const generationRef = useRef(0);
   const runControllerRef = useRef<AbortController | null>(null);
@@ -301,9 +501,22 @@ export function AsymptaMarketplaceIntentBridge() {
   }, []);
 
   useEffect(() => {
+    const stored = readAsymptaMarketplaceProfile();
+    profileRef.current = stored;
+    setProfile(stored);
+    setDraftProfile(stored);
+    return subscribeAsymptaUserPreferences((preferences) => {
+      profileRef.current = preferences.marketplaceProfile;
+      setProfile(preferences.marketplaceProfile);
+      if (!editingProfile) setDraftProfile(preferences.marketplaceProfile);
+    });
+  }, [editingProfile]);
+
+  useEffect(() => {
     const findHost = () => {
-      const next = document.querySelector<HTMLElement>(".asympta-intent-shell");
-      if (next) setHost(next);
+      const requestCard = document.querySelector<HTMLElement>(".atlas-safe-schedule.asympta-request-card");
+      const next = requestCard ?? document.body;
+      setHost((current) => current === next ? current : next);
     };
     findHost();
     const observer = new MutationObserver(findHost);
@@ -311,22 +524,22 @@ export function AsymptaMarketplaceIntentBridge() {
     return () => observer.disconnect();
   }, []);
 
-  const runIntent = useCallback(async (intent: string, requestId?: string) => {
-    const clean = intent.replace(/\s+/g, " ").trim();
-    const compilation = compileAsymptaContext(clean, {
-      requestId,
-      conversationId: requestId,
-      locale,
-      now: Date.now(),
-    });
-    if (!compilation.supported || !compilation.envelope) return null;
+  useEffect(() => {
+    if (!host?.matches(".atlas-safe-schedule.asympta-request-card")) return;
+    host.dataset.asymptaMarketplaceHost = "true";
+    return () => { delete host.dataset.asymptaMarketplaceHost; };
+  }, [host]);
 
+  const executeCompilation = useCallback(async (compilation: ContextCompilation) => {
+    if (!compilation.supported || !compilation.envelope) return null;
     generationRef.current += 1;
     const generation = generationRef.current;
     runControllerRef.current?.abort();
     const controller = new AbortController();
     runControllerRef.current = controller;
     setRuntimeError(null);
+    setPendingIntent(null);
+    setEditingProfile(false);
 
     upsertMarketplaceWorkflow(compilation.envelope);
     let next = createMarketplaceExecution(compilation.envelope);
@@ -355,13 +568,100 @@ export function AsymptaMarketplaceIntentBridge() {
     }
   }, [locale]);
 
+  const runIntent = useCallback(async (intent: string, requestId?: string) => {
+    const clean = intent.replace(/\s+/g, " ").trim();
+    const currentProfile = readAsymptaMarketplaceProfile();
+    profileRef.current = currentProfile;
+    setProfile(currentProfile);
+    setDraftProfile(currentProfile);
+    const compilation = compileAsymptaContext(clean, {
+      requestId,
+      conversationId: requestId,
+      locale,
+      now: Date.now(),
+      profile: currentProfile,
+    });
+    if (!compilation.supported || !compilation.envelope) return null;
+
+    if (compilation.profileRequirements.missing.length) {
+      generationRef.current += 1;
+      runControllerRef.current?.abort();
+      runControllerRef.current = null;
+      executionRef.current = null;
+      setExecution(null);
+      syncCargoMarker(null);
+      const pending = {
+        intent: clean,
+        requestId: compilation.envelope.requestId,
+        missing: compilation.profileRequirements.missing,
+      } satisfies PendingMarketplaceIntent;
+      setPendingIntent(pending);
+      setEditingProfile(true);
+      setPanelExpanded(true);
+      setRuntimeError(null);
+      window.dispatchEvent(new CustomEvent(MARKETPLACE_PROFILE_REQUIRED_EVENT, {
+        detail: pending,
+      }));
+      return null;
+    }
+
+    return executeCompilation(compilation);
+  }, [executeCompilation, locale]);
+
+  const resumePendingIntent = useCallback(async (nextProfile: AsymptaMarketplaceProfile) => {
+    const pending = pendingIntent;
+    if (!pending) return null;
+    const compilation = compileAsymptaContext(pending.intent, {
+      requestId: pending.requestId,
+      conversationId: pending.requestId,
+      locale,
+      now: Date.now(),
+      profile: nextProfile,
+    });
+    if (compilation.profileRequirements.missing.length) {
+      setPendingIntent({ ...pending, missing: compilation.profileRequirements.missing });
+      return null;
+    }
+    return executeCompilation(compilation);
+  }, [executeCompilation, locale, pendingIntent]);
+
+  const commitProfile = useCallback(async (nextProfile: AsymptaMarketplaceProfile) => {
+    const saved = writeAsymptaMarketplaceProfile(nextProfile) ?? nextProfile;
+    profileRef.current = saved;
+    setProfile(saved);
+    setDraftProfile(saved);
+    setEditingProfile(false);
+    if (pendingIntent) await resumePendingIntent(saved);
+  }, [pendingIntent, resumePendingIntent]);
+
+  const choosePreset = (presetId: PresetId) => {
+    void commitProfile(marketplaceProfilePreset(presetId));
+  };
+
+  const chooseFood = (foodPreference: MarketplaceFoodPreference) => {
+    setDraftProfile((current) => patchMarketplaceProfile(current, { foodPreference }));
+  };
+
+  const chooseFulfilment = (fulfilmentMethod: MarketplaceFulfilmentMethod) => {
+    setDraftProfile((current) => patchMarketplaceProfile(current, { fulfilmentMethod }));
+  };
+
+  const choosePayment = (paymentMethod: MarketplacePaymentMethod) => {
+    setDraftProfile((current) => patchMarketplaceProfile(current, { paymentMethod }));
+  };
+
   useEffect(() => {
     const maybeRun = (intent: string | undefined, requestId: string | undefined) => {
       const clean = intent?.trim();
       if (!clean) return;
       const key = requestId?.trim() || `intent:${clean.toLocaleLowerCase()}`;
       if (seenRequestsRef.current.has(key)) return;
-      const preview = compileAsymptaContext(clean, { requestId: key, locale, now: 0 });
+      const preview = compileAsymptaContext(clean, {
+        requestId: key,
+        locale,
+        now: 0,
+        profile: readAsymptaMarketplaceProfile(),
+      });
       if (!preview.supported) return;
       seenRequestsRef.current.add(key);
       void runIntent(clean, key);
@@ -384,9 +684,14 @@ export function AsymptaMarketplaceIntentBridge() {
 
   useEffect(() => {
     window.__ASYMPTA_MARKETPLACE__ = {
-      compile: (intent) => compileAsymptaContext(intent, { locale, now: Date.now() }),
+      compile: (intent) => compileAsymptaContext(intent, {
+        locale,
+        now: Date.now(),
+        profile: readAsymptaMarketplaceProfile(),
+      }),
       runIntent: (intent) => runIntent(intent),
       snapshot: () => cloneExecution(executionRef.current),
+      profile: () => profileRef.current,
     };
     return () => {
       if (window.__ASYMPTA_MARKETPLACE__?.runIntent) delete window.__ASYMPTA_MARKETPLACE__;
@@ -428,87 +733,197 @@ export function AsymptaMarketplaceIntentBridge() {
   }, []);
 
   const panel = useMemo(() => {
-    if (!execution && !runtimeError) return null;
+    if (!execution && !runtimeError && !pendingIntent && !profile) return null;
     const copy = COPY[locale];
-    if (!execution) {
-      return (
-        <section className={`${styles.trace} asympta-marketplace-trace`} role="alert" data-status="blocked">
-          <strong>{copy.title}</strong>
-          <p>{runtimeError ?? copy.error}</p>
-        </section>
+    const hostMode = host?.matches(".atlas-safe-schedule.asympta-request-card") ? "request-card" : "standalone";
+    const showProfileEditor = editingProfile || Boolean(pendingIntent);
+    const currentSummary = profile ? profileSummary(profile, locale) : copy.setupRequired;
+    const panelStatus = pendingIntent
+      ? copy.setupRequired
+      : execution
+        ? copy.status[execution.status]
+        : copy.profileReady;
+
+    const profileEditor = showProfileEditor ? (
+      <section className="asympta-marketplace-profile" aria-label={copy.profileTitle}>
+        <p>{copy.profileIntro}</p>
+        <div className="asympta-marketplace-profile__group">
+          <strong>{copy.presetTitle}</strong>
+          <div className="asympta-marketplace-profile__presets">
+            {MARKETPLACE_PROFILE_PRESETS.map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                className={presetSelected(draftProfile, preset.id) ? "is-selected" : ""}
+                onClick={() => choosePreset(preset.id)}
+              >
+                <b>{copy.presets[preset.id].name}</b>
+                <small>{copy.presets[preset.id].detail}</small>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="asympta-marketplace-profile__group">
+          <strong>{copy.customTitle}</strong>
+          <fieldset>
+            <legend><Utensils size={12} aria-hidden="true" />{copy.food}</legend>
+            <div className="asympta-marketplace-profile__options">
+              {FOOD_OPTIONS.map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={draftProfile?.foodPreference === value ? "is-selected" : ""}
+                  onClick={() => chooseFood(value)}
+                >{copy.foodOptions[value]}</button>
+              ))}
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend><Truck size={12} aria-hidden="true" />{copy.fulfilment}</legend>
+            <div className="asympta-marketplace-profile__options">
+              {FULFILMENT_OPTIONS.map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={draftProfile?.fulfilmentMethod === value ? "is-selected" : ""}
+                  onClick={() => chooseFulfilment(value)}
+                >{copy.fulfilmentOptions[value]}</button>
+              ))}
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend><WalletCards size={12} aria-hidden="true" />{copy.payment}</legend>
+            <div className="asympta-marketplace-profile__options">
+              {PAYMENT_OPTIONS.map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={draftProfile?.paymentMethod === value ? "is-selected" : ""}
+                  onClick={() => choosePayment(value)}
+                >{copy.paymentOptions[value]}</button>
+              ))}
+            </div>
+          </fieldset>
+        </div>
+
+        <button
+          type="button"
+          className="asympta-marketplace-profile__save"
+          disabled={!isMarketplaceProfileComplete(draftProfile)}
+          onClick={() => { if (draftProfile) void commitProfile(draftProfile); }}
+        >
+          <ShieldCheck size={13} aria-hidden="true" />
+          {pendingIntent ? copy.saveContinue : copy.saveProfile}
+        </button>
+        <small className="asympta-marketplace-profile__safety">{copy.safeProfile}</small>
+      </section>
+    ) : null;
+
+    let executionDetails = null;
+    if (execution) {
+      const latestPacket = execution.packets.at(-1);
+      const activeLine = execution.ledger.find((line) => line.goalId === execution.activeGoalId)
+        ?? execution.ledger.find((line) => line.userInventory < line.quantity)
+        ?? execution.ledger.at(-1);
+      const totalMarket = execution.ledger.reduce((sum, line) => sum + line.marketAvailable, 0);
+      const totalReserved = execution.ledger.reduce((sum, line) => sum + line.marketReserved, 0);
+      const totalCargo = execution.ledger.reduce((sum, line) => sum + line.carrierCargo, 0);
+      const totalDelivered = execution.ledger.reduce((sum, line) => sum + line.userInventory, 0);
+      const context = compactContextEnvelope(execution.envelope);
+
+      executionDetails = (
+        <>
+          <ol className="asympta-marketplace-trace__route" aria-label={copy.status[execution.status]}>
+            {copy.route.map((label, index) => {
+              const stage = workflowStage(execution, index);
+              return (
+                <li key={label} data-stage={stage}>
+                  <span>{stage === "done" ? <Check size={10} aria-hidden="true" /> : index + 1}</span>
+                  <b>{label}</b>
+                  {index < copy.route.length - 1 ? <ArrowRight size={9} aria-hidden="true" /> : null}
+                </li>
+              );
+            })}
+          </ol>
+
+          {activeLine ? (
+            <div className="asympta-marketplace-trace__item">
+              <Package size={14} aria-hidden="true" />
+              <strong>{activeLine.quantity} × {activeLine.itemLabel}</strong>
+              <span>{copy.market} {totalMarket} · {copy.reserved} {totalReserved} · {copy.carrying} {totalCargo} · {copy.delivered} {totalDelivered}</span>
+            </div>
+          ) : null}
+
+          {latestPacket ? (
+            <div className="asympta-marketplace-trace__packet" data-packet-kind={latestPacket.kind}>
+              <span><Code2 size={13} aria-hidden="true" />{copy.latestPacket}</span>
+              <strong>{copy.packet[latestPacket.kind] ?? latestPacket.kind}</strong>
+              <code>{latestPacket.from} → {latestPacket.to}</code>
+            </div>
+          ) : null}
+
+          <details className="asympta-marketplace-trace__context">
+            <summary><ShieldCheck size={13} aria-hidden="true" />{copy.context}</summary>
+            <pre>{JSON.stringify(context, null, 2)}</pre>
+          </details>
+        </>
       );
     }
-
-    const latestPacket = execution.packets.at(-1);
-    const activeLine = execution.ledger.find((line) => line.goalId === execution.activeGoalId)
-      ?? execution.ledger.find((line) => line.userInventory < line.quantity)
-      ?? execution.ledger.at(-1);
-    const totalMarket = execution.ledger.reduce((sum, line) => sum + line.marketAvailable, 0);
-    const totalReserved = execution.ledger.reduce((sum, line) => sum + line.marketReserved, 0);
-    const totalCargo = execution.ledger.reduce((sum, line) => sum + line.carriedByPersonalAgent, 0);
-    const totalDelivered = execution.ledger.reduce((sum, line) => sum + line.userInventory, 0);
-    const context = compactContextEnvelope(execution.envelope);
 
     return (
       <section
         className={`${styles.trace} asympta-marketplace-trace`}
         data-asympta-marketplace="true"
-        data-context-id={execution.envelope.requestId}
-        data-execution-id={execution.executionId}
-        data-status={execution.status}
+        data-host={hostMode}
+        data-context-id={execution?.envelope.requestId ?? pendingIntent?.requestId ?? "profile"}
+        data-execution-id={execution?.executionId ?? "pending-profile"}
+        data-status={pendingIntent ? "profile_required" : execution?.status ?? "profile_ready"}
         data-provenance="simulated"
         aria-label={copy.title}
-        aria-live="polite"
       >
-        <header>
-          <span><Store size={14} aria-hidden="true" /><strong>{copy.title}</strong></span>
-          <small>{copy.simulated}</small>
-        </header>
+        <button
+          type="button"
+          className="asympta-marketplace-trace__toggle"
+          aria-expanded={panelExpanded}
+          onClick={() => setPanelExpanded((value) => !value)}
+        >
+          <span className="asympta-marketplace-trace__heading">
+            <Store size={14} aria-hidden="true" />
+            <span><small>{copy.simulated}</small><strong>{copy.title}</strong></span>
+          </span>
+          <span className="asympta-marketplace-trace__toggle-status">
+            <small>{panelStatus}</small>
+            {panelExpanded ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}
+          </span>
+        </button>
 
-        <div className="asympta-marketplace-trace__status">
-          <span>{copy.status[execution.status]}</span>
-          <b>{Math.round(execution.progress * 100)}%</b>
-        </div>
-
-        <ol className="asympta-marketplace-trace__route" aria-label={copy.status[execution.status]}>
-          {copy.route.map((label, index) => {
-            const stage = workflowStage(execution, index);
-            return (
-              <li key={label} data-stage={stage}>
-                <span>{stage === "done" ? <Check size={10} aria-hidden="true" /> : index + 1}</span>
-                <b>{label}</b>
-                {index < copy.route.length - 1 ? <ArrowRight size={9} aria-hidden="true" /> : null}
-              </li>
-            );
-          })}
-        </ol>
-
-        {activeLine ? (
-          <div className="asympta-marketplace-trace__item">
-            <Package size={14} aria-hidden="true" />
-            <strong>{activeLine.quantity} × {activeLine.itemLabel}</strong>
-            <span>{copy.market} {totalMarket} · {copy.reserved} {totalReserved} · {copy.carrying} {totalCargo} · {copy.delivered} {totalDelivered}</span>
+        {panelExpanded ? (
+          <div className="asympta-marketplace-trace__body">
+            {profile && !showProfileEditor ? (
+              <div className="asympta-marketplace-profile__summary">
+                <span><small>{copy.currentProfile}</small><strong>{currentSummary}</strong></span>
+                <button type="button" onClick={() => { setDraftProfile(profile); setEditingProfile(true); }}>{copy.editProfile}</button>
+              </div>
+            ) : null}
+            {profileEditor}
+            {!showProfileEditor ? executionDetails : null}
+            {runtimeError ? <p className="asympta-marketplace-trace__error">{runtimeError}</p> : null}
           </div>
         ) : null}
-
-        {latestPacket ? (
-          <div className="asympta-marketplace-trace__packet" data-packet-kind={latestPacket.kind}>
-            <span><Code2 size={13} aria-hidden="true" />{copy.latestPacket}</span>
-            <strong>{copy.packet[latestPacket.kind] ?? latestPacket.kind}</strong>
-            <code>{latestPacket.from} → {latestPacket.to}</code>
-          </div>
-        ) : null}
-
-        <details className="asympta-marketplace-trace__context">
-          <summary><ShieldCheck size={13} aria-hidden="true" />{copy.context}</summary>
-          <pre>{JSON.stringify(context, null, 2)}</pre>
-        </details>
-
-        <span className="asympta-marketplace-trace__home" aria-hidden="true"><Home size={12} /></span>
-        {runtimeError ? <p className="asympta-marketplace-trace__error">{runtimeError}</p> : null}
       </section>
     );
-  }, [execution, locale, runtimeError]);
+  }, [
+    draftProfile,
+    editingProfile,
+    execution,
+    host,
+    locale,
+    panelExpanded,
+    pendingIntent,
+    profile,
+    runtimeError,
+  ]);
 
   if (!panel || !host) return null;
   return createPortal(panel, host);
