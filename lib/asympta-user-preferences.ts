@@ -1,9 +1,15 @@
+import {
+  normalizeMarketplaceProfile,
+  type AsymptaMarketplaceProfile,
+} from "./asympta-marketplace-profile.ts";
+
 export type AsymptaLocale = "en" | "zh-Hant" | "ja";
 
 export type AsymptaUserPreferences = {
   locale: AsymptaLocale;
   autoExplore: boolean;
   autoJobMode: boolean;
+  marketplaceProfile: AsymptaMarketplaceProfile | null;
 };
 
 export const ASYMPTA_USER_PREFERENCES_KEY = "asympta-world.user-preferences.v1";
@@ -13,6 +19,7 @@ export const DEFAULT_ASYMPTA_USER_PREFERENCES: AsymptaUserPreferences = {
   locale: "en",
   autoExplore: true,
   autoJobMode: true,
+  marketplaceProfile: null,
 };
 
 function isLocale(value: unknown): value is AsymptaLocale {
@@ -26,6 +33,7 @@ function normalizePreferences(value: unknown): AsymptaUserPreferences {
     locale: isLocale(candidate.locale) ? candidate.locale : DEFAULT_ASYMPTA_USER_PREFERENCES.locale,
     autoExplore: typeof candidate.autoExplore === "boolean" ? candidate.autoExplore : DEFAULT_ASYMPTA_USER_PREFERENCES.autoExplore,
     autoJobMode: typeof candidate.autoJobMode === "boolean" ? candidate.autoJobMode : DEFAULT_ASYMPTA_USER_PREFERENCES.autoJobMode,
+    marketplaceProfile: normalizeMarketplaceProfile(candidate.marketplaceProfile),
   };
 }
 
@@ -79,6 +87,18 @@ export function writeAsymptaUserPreferences(
     );
   }
   return next;
+}
+
+export function readAsymptaMarketplaceProfile() {
+  return readAsymptaUserPreferences().marketplaceProfile;
+}
+
+export function writeAsymptaMarketplaceProfile(profile: AsymptaMarketplaceProfile | null) {
+  return writeAsymptaUserPreferences({ marketplaceProfile: normalizeMarketplaceProfile(profile) }).marketplaceProfile;
+}
+
+export function clearAsymptaMarketplaceProfile() {
+  return writeAsymptaUserPreferences({ marketplaceProfile: null }).marketplaceProfile;
 }
 
 export function subscribeAsymptaUserPreferences(
