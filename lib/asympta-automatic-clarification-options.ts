@@ -233,6 +233,7 @@ function decorateField(
   if (isBudgetField(field)) {
     return {
       ...field,
+      key: "budget",
       prompt: copy.budgetPrompt,
       control: "single_choice",
       options: tvBudgetOptions(locale),
@@ -244,6 +245,7 @@ function decorateField(
   if (isScreenSizeField(field)) {
     return {
       ...field,
+      key: "screen_size",
       prompt: copy.screenPrompt,
       control: "single_choice",
       options: tvScreenOptions(locale),
@@ -254,6 +256,7 @@ function decorateField(
   if (isBrandField(field)) {
     return {
       ...field,
+      key: "brand",
       prompt: copy.brandPrompt,
       control: "single_choice",
       options: tvBrandOptions(locale),
