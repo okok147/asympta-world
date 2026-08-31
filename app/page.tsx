@@ -4,6 +4,7 @@ import { AsymptaAgentCardLocale } from "@/components/asympta-agent-card-locale";
 import { AsymptaBlockActivity } from "@/components/asympta-block-activity";
 import { AsymptaCalmDefaults } from "@/components/asympta-calm-defaults";
 import { AsymptaCameraFollowControl } from "@/components/asympta-camera-follow-control";
+import { AsymptaCompleteLocale } from "@/components/asympta-complete-locale";
 import { AsymptaCuteAgentVisibility } from "@/components/asympta-cute-agent-visibility";
 import { AsymptaEscalationGuard } from "@/components/asympta-escalation-guard";
 import { AsymptaEstimatedProgress } from "@/components/asympta-estimated-progress";
@@ -18,6 +19,7 @@ import { AsymptaProcessCameraFollow } from "@/components/asympta-process-camera-
 import { AsymptaSafeSchedule } from "@/components/asympta-safe-schedule";
 import { AsymptaTaskCelebration } from "@/components/asympta-task-celebration";
 import { AsymptaTaskKernelBridge } from "@/components/asympta-task-kernel-bridge";
+import { AsymptaTaskKernelLocale } from "@/components/asympta-task-kernel-locale";
 import { AsymptaTopPanelManager } from "@/components/asympta-top-panel-manager";
 import { AsymptaUltraCalm } from "@/components/asympta-ultra-calm";
 import { AsymptaUniversalBenchmarkBridge } from "@/components/asympta-universal-benchmark";
@@ -56,6 +58,8 @@ export default function HomePage() {
       <AsymptaUltraCalm />
       <AsymptaAgentCardLocale />
       <AsymptaGlobalLocale />
+      <AsymptaCompleteLocale />
+      <AsymptaTaskKernelLocale />
     </>
   );
 }
