@@ -101,9 +101,35 @@ export function buildMarketplaceWorkflow(envelope: ContextEnvelope): AtlasWorkfl
     const ids = marketplaceTaskIds(spec.goal, spec.index);
     const packetLabel = `${spec.quantity} × ${spec.itemLabel}`;
     const courier = spec.fulfilmentMethod === "courier_delivery";
+    const deferredCourierPayment = courier && spec.paymentMethod === "pay_on_delivery";
     const storeDependencies = courier ? [previousGoalCompletion] : [ids.travel];
-    const travelDependencies = courier ? [ids.payment] : [previousGoalCompletion];
+    const travelDependencies = courier
+      ? deferredCourierPayment ? [ids.quality] : [ids.payment]
+      : [previousGoalCompletion];
     const handoffDependencies = courier ? [ids.travel] : [ids.payment];
+    const paymentDependencies = deferredCourierPayment ? [ids.returning] : [ids.quality];
+    const deliverDependencies = deferredCourierPayment ? [ids.payment] : [ids.returning];
+
+    const paymentTask = task(
+      ids.payment,
+      deferredCourierPayment
+        ? "Authorise simulated pay-on-delivery settlement"
+        : `Authorise simulated payment · ${spec.paymentMethod}`,
+      deferredCourierPayment
+        ? `The courier has reached the user with ${packetLabel}. Confirm the simulated pay-on-delivery settlement before the final handoff; no real charge is created.`
+        : `Commit only the local simulated purchase of ${packetLabel} with ${spec.paymentMethod}; a saved method is context, never a real payment credential.`,
+      "agent-finance",
+      deferredCourierPayment ? "shibuya" : "otemachi",
+      paymentDependencies,
+      750,
+      {
+        requiresApproval: true,
+        approvalLabel: deferredCourierPayment
+          ? `Allow simulated pay-on-delivery settlement for ${packetLabel}`
+          : `Allow simulated ${spec.paymentMethod} payment for ${packetLabel}`,
+        actionType: "authorize_payment",
+      },
+    );
 
     tasks.push(
       ...(!courier ? [task(
@@ -151,24 +177,13 @@ export function buildMarketplaceWorkflow(envelope: ContextEnvelope): AtlasWorkfl
         [ids.offer],
         850,
       ),
-      task(
-        ids.payment,
-        `Authorise simulated payment · ${spec.paymentMethod}`,
-        `Commit only the local simulated purchase of ${packetLabel} with ${spec.paymentMethod}; a saved method is context, never a real payment credential.`,
-        "agent-finance",
-        "otemachi",
-        [ids.quality],
-        750,
-        {
-          requiresApproval: true,
-          approvalLabel: `Allow simulated ${spec.paymentMethod} payment for ${packetLabel}`,
-          actionType: "authorize_payment",
-        },
-      ),
+      ...(!deferredCourierPayment ? [paymentTask] : []),
       ...(courier ? [task(
         ids.travel,
         "Courier agent travels to the marketplace",
-        `After simulated authorisation, the courier agent travels to collect ${packetLabel} under the structured fulfilment instruction.`,
+        deferredCourierPayment
+          ? `The courier travels to collect ${packetLabel}; payment is explicitly deferred until delivery to the user.`
+          : `After simulated authorisation, the courier agent travels to collect ${packetLabel} under the structured fulfilment instruction.`,
         spec.carrierAgentId,
         spec.marketLocationId,
         travelDependencies,
@@ -192,13 +207,14 @@ export function buildMarketplaceWorkflow(envelope: ContextEnvelope): AtlasWorkfl
         [ids.handoff],
         550,
       ),
+      ...(deferredCourierPayment ? [paymentTask] : []),
       task(
         ids.deliver,
         "Transfer the item into user inventory",
         `Commit DELIVERY_RECEIPT and transfer ${packetLabel} from ${spec.carrierAgentId} cargo to user inventory.`,
         spec.carrierAgentId,
         "shibuya",
-        [ids.returning],
+        deliverDependencies,
         700,
       ),
       task(
