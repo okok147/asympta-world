@@ -6,6 +6,7 @@ import type { FormEvent } from "react";
 
 import styles from "./asympta-adaptive-interaction.module.css";
 
+import { readAdaptiveActivityIntent } from "@/lib/asympta-adaptive-activity-bridge";
 import {
   createAdaptiveInteractionSchema,
   mergeAdaptiveClarifications,
@@ -17,7 +18,7 @@ import {
 } from "@/lib/asympta-adaptive-interaction";
 
 type ActivityDetail = {
-  activity?: { id?: string; intent?: string; status?: string };
+  activity?: { id?: string; intent?: unknown; status?: string };
   event?: { status?: string; summary?: string; data?: unknown };
 };
 
@@ -118,7 +119,7 @@ export function AsymptaAdaptiveInteraction() {
   useEffect(() => {
     const onActivity = (event: Event) => {
       const detail = (event as CustomEvent<ActivityDetail>).detail;
-      const activityIntent = detail?.activity?.intent?.trim() ?? "";
+      const activityIntent = readAdaptiveActivityIntent(detail?.activity);
       const status = detail?.event?.status ?? detail?.activity?.status ?? "";
 
       if (status === "interpreting" && baseIntentRef.current && activityIntent && !sameTask(baseIntentRef.current, activityIntent)) {
