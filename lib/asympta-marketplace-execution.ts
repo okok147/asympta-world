@@ -328,8 +328,13 @@ export function syncMarketplaceExecution(current: MarketplaceExecution, snapshot
       transaction.status = "blocked";
       transaction.payment = "declined";
       applyOnce(execution, `${goal.id}:blocked`, () => {
+        if (line.marketReserved >= line.quantity) {
+          line.marketReserved -= line.quantity;
+          line.marketAvailable += line.quantity;
+        }
         addPacket(execution, "blocked", "human", "agent-finance", {
           reason: "simulated_payment_declined",
+          inventoryReleased: true,
         }, goal.id);
       });
     }
