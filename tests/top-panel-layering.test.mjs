@@ -33,6 +33,23 @@ test("narrow top panels stack below one another without geometric overlap", () =
   assert.equal(asymptaRectsOverlap(access, request), false);
 });
 
+test("actual safe-area positions force stacking when edge cards would overlap", () => {
+  const layout = calculateAsymptaTopPanelLayout({
+    viewportWidth: 600,
+    viewportHeight: 720,
+    accessTop: 8,
+    accessWidth: 280,
+    accessHeight: 54,
+    requestWidth: 244,
+    accessRight: 324,
+    requestLeft: 312,
+  });
+
+  // Widths alone could fit inside 600px, but the real notch/safe-area positions overlap.
+  assert.equal(layout.mode, "stacked");
+  assert.ok(layout.requestTop >= 72);
+});
+
 test("short viewports cap expanded access content and preserve a usable request card", () => {
   const layout = calculateAsymptaTopPanelLayout({
     viewportWidth: 390,
@@ -57,6 +74,8 @@ test("wide viewports keep the two top panels split", () => {
     accessWidth: 352,
     accessHeight: 220,
     requestWidth: 326,
+    accessRight: 362,
+    requestLeft: 688,
   });
 
   assert.deepEqual(layout, {
@@ -86,6 +105,8 @@ test("browser manager mounts, measures both cards and promotes pointer or keyboa
   assert.match(manager, /ResizeObserver/);
   assert.match(manager, /MutationObserver/);
   assert.match(manager, /visualViewport/);
+  assert.match(manager, /accessRight: accessRect\.right/);
+  assert.match(manager, /requestLeft: requestRect\.left/);
   assert.match(manager, /document\.addEventListener\("pointerdown", onPointerDown, true\)/);
   assert.match(manager, /document\.addEventListener\("focusin", onFocusIn, true\)/);
   assert.match(manager, /bringToFront\("request"\)/);
