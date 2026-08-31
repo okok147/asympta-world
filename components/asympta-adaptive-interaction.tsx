@@ -43,7 +43,7 @@ const COPY: Record<AdaptiveInteractionLocale, {
   confirmed: string;
 }> = {
   en: {
-    eyebrow: "One useful detail",
+    eyebrow: "Next necessary choice",
     title: "Help Asympta continue",
     other: "Something else",
     continue: "Continue",
@@ -52,7 +52,7 @@ const COPY: Record<AdaptiveInteractionLocale, {
     confirmed: "User-confirmed",
   },
   "zh-Hant": {
-    eyebrow: "只差一項有用資料",
+    eyebrow: "下一個必要選擇",
     title: "讓 Asympta 繼續",
     other: "其他",
     continue: "繼續",
@@ -61,7 +61,7 @@ const COPY: Record<AdaptiveInteractionLocale, {
     confirmed: "由你確認",
   },
   ja: {
-    eyebrow: "あと一つだけ",
+    eyebrow: "次に必要な選択",
     title: "Asympta を続ける",
     other: "その他",
     continue: "続ける",
@@ -180,6 +180,7 @@ export function AsymptaAdaptiveInteraction() {
 
   const copy = COPY[locale];
   const ready = answerReady(schema, selected, custom);
+  const showDirectCustomInput = field.key === "event_intent";
 
   const submit = async (event?: FormEvent) => {
     event?.preventDefault();
@@ -279,7 +280,7 @@ export function AsymptaAdaptiveInteraction() {
                   {candidate.description ? <small>{candidate.description}</small> : null}
                 </button>
               ))}
-              {field.allowCustom ? (
+              {field.allowCustom && !showDirectCustomInput ? (
                 <button
                   type="button"
                   className={styles.option}
@@ -297,13 +298,13 @@ export function AsymptaAdaptiveInteraction() {
             </div>
           ) : null}
 
-          {field.control === "text" || field.control === "number" || customOpen ? (
+          {field.control === "text" || field.control === "number" || customOpen || showDirectCustomInput ? (
             <input
               className={styles.input}
               type={field.control === "number" ? "number" : "text"}
               inputMode={field.control === "number" ? "numeric" : "text"}
               min={field.control === "number" ? 1 : undefined}
-              autoFocus={field.control === "text" || field.control === "number" || customOpen}
+              autoFocus={field.control === "text" || field.control === "number" || (customOpen && !showDirectCustomInput)}
               value={custom}
               placeholder={field.customPlaceholder}
               aria-label={field.prompt}
