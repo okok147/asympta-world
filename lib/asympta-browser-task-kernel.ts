@@ -6,7 +6,7 @@ import {
   createAsymptaTask,
   migrateAsymptaTaskState,
   taskToAdaptiveInteractionSchema,
-} from "./asympta-task-kernel.ts";
+} from "./asympta-managed-task-kernel.ts";
 import type { AdaptiveInteractionSchema } from "./asympta-adaptive-interaction.ts";
 import type {
   AnswerRequirementCommand,
