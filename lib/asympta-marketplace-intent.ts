@@ -4,5 +4,6 @@ export const MARKETPLACE_PROFILE_REQUIRED_EVENT = "asympta:marketplace-profile-r
 
 export * from "./asympta-context-compiler.ts";
 export * from "./asympta-marketplace-profile.ts";
+export * from "./asympta-marketplace-task-protocol.ts";
 export * from "./asympta-marketplace-workflow.ts";
 export * from "./asympta-marketplace-execution.ts";
