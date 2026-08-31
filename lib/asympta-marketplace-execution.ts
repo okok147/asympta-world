@@ -4,6 +4,10 @@ import {
   type ContextEnvelope,
   type MarketplaceDomain,
 } from "./asympta-context-compiler.ts";
+import type {
+  MarketplaceFulfilmentMethod,
+  MarketplacePaymentMethod,
+} from "./asympta-marketplace-profile.ts";
 import {
   MARKETPLACE_WORKFLOW_ID,
   marketplaceRuntimeSpecs,
@@ -42,9 +46,11 @@ export type MarketplaceLedgerLine = {
   itemId: string;
   itemLabel: string;
   quantity: number;
+  carrierAgentId: "agent-user" | "agent-logistics";
   initialMarketStock: number;
   marketAvailable: number;
   marketReserved: number;
+  carrierCargo: number;
   carriedByPersonalAgent: number;
   userInventory: number;
 };
@@ -67,6 +73,9 @@ export type MarketplaceTransaction = {
   status: MarketplaceTransactionStatus;
   payment: "not_requested" | "awaiting_approval" | "authorized" | "declined";
   marketLocationId: string;
+  fulfilmentMethod: MarketplaceFulfilmentMethod;
+  paymentMethod: MarketplacePaymentMethod;
+  carrierAgentId: "agent-user" | "agent-logistics";
 };
 
 export type MarketplaceExecutionStatus =
@@ -105,7 +114,6 @@ export type MarketplaceWorldSnapshot = {
   tasks?: MarketplaceWorldTaskSnapshot[];
   pendingApprovals?: Array<{ id?: string; taskId?: string | null; actionType?: string | null }>;
 };
-
 
 function cloneExecution(execution: MarketplaceExecution): MarketplaceExecution {
   return JSON.parse(JSON.stringify(execution)) as MarketplaceExecution;
@@ -174,6 +182,11 @@ function transactionFor(execution: MarketplaceExecution, goalId: string) {
   return transaction;
 }
 
+function setCarrierCargo(line: MarketplaceLedgerLine, quantity: number) {
+  line.carrierCargo = quantity;
+  line.carriedByPersonalAgent = line.carrierAgentId === "agent-user" ? quantity : 0;
+}
+
 export function createMarketplaceExecution(envelope: ContextEnvelope): MarketplaceExecution {
   const specs = marketplaceRuntimeSpecs(envelope);
   const executionId = `execution-${marketplaceStableHash(`${envelope.requestId}:${envelope.createdAt}`)}`;
@@ -194,9 +207,11 @@ export function createMarketplaceExecution(envelope: ContextEnvelope): Marketpla
         itemId: `${spec.goal.domain}:${marketplaceStableHash(spec.itemLabel)}`,
         itemLabel: spec.itemLabel,
         quantity: spec.quantity,
+        carrierAgentId: spec.carrierAgentId,
         initialMarketStock,
         marketAvailable: initialMarketStock,
         marketReserved: 0,
+        carrierCargo: 0,
         carriedByPersonalAgent: 0,
         userInventory: 0,
       };
@@ -206,6 +221,9 @@ export function createMarketplaceExecution(envelope: ContextEnvelope): Marketpla
       status: "planned",
       payment: "not_requested",
       marketLocationId: spec.marketLocationId,
+      fulfilmentMethod: spec.fulfilmentMethod,
+      paymentMethod: spec.paymentMethod,
+      carrierAgentId: spec.carrierAgentId,
     })),
     packets: [],
     appliedEffects: [],
@@ -215,6 +233,7 @@ export function createMarketplaceExecution(envelope: ContextEnvelope): Marketpla
     envelopeId: envelope.requestId,
     rawMessageRef: envelope.rawMessage.sourceRef,
     goalIds: envelope.goals.map((goal) => goal.id),
+    profileRef: envelope.provenance.profileRef ?? null,
   });
   return execution;
 }
@@ -234,10 +253,12 @@ export function syncMarketplaceExecution(current: MarketplaceExecution, snapshot
       addPacket(execution, "context_envelope", "agent-user", "agent-market", {
         schemaVersion: execution.envelope.schemaVersion,
         contextVersion: execution.envelope.contextVersion,
+        profileRef: execution.envelope.provenance.profileRef ?? null,
         goals: execution.envelope.goals.map((goal) => ({
           id: goal.id,
           domain: goal.domain,
-          known: goal.facts.filter((fact) => fact.status === "explicit").map((fact) => fact.key),
+          explicit: goal.facts.filter((fact) => fact.status === "explicit").map((fact) => fact.key),
+          profile: goal.facts.filter((fact) => fact.status === "profile").map((fact) => fact.key),
           defaults: goal.facts.filter((fact) => fact.status === "defaulted").map((fact) => fact.key),
           unknownFields: goal.unknownFields,
         })),
@@ -263,6 +284,9 @@ export function syncMarketplaceExecution(current: MarketplaceExecution, snapshot
           itemId: line.itemId,
           itemLabel: line.itemLabel,
           quantity: line.quantity,
+          fulfilmentMethod: transaction.fulfilmentMethod,
+          paymentMethod: transaction.paymentMethod,
+          carrierAgentId: transaction.carrierAgentId,
           unknownFields: goal.unknownFields,
         }, goal.id);
       });
@@ -290,6 +314,8 @@ export function syncMarketplaceExecution(current: MarketplaceExecution, snapshot
         addPacket(execution, "offer", "agent-business", "agent-user", {
           itemId: line.itemId,
           quantity: line.quantity,
+          fulfilmentMethod: transaction.fulfilmentMethod,
+          paymentMethod: transaction.paymentMethod,
           paymentRequired: true,
           realWorldSideEffect: false,
         }, goal.id);
@@ -301,6 +327,7 @@ export function syncMarketplaceExecution(current: MarketplaceExecution, snapshot
       applyOnce(execution, `${goal.id}:quality`, () => {
         addPacket(execution, "verification", "agent-quality", "agent-finance", {
           contextEvidenceValid: true,
+          profileProvenanceValid: Boolean(execution.envelope.provenance.profileRef) || goal.facts.every((fact) => fact.status !== "profile"),
           stockInvariantValid: marketplaceInventoryInvariant(execution).valid,
           provenance: "simulated",
         }, goal.id);
@@ -316,6 +343,7 @@ export function syncMarketplaceExecution(current: MarketplaceExecution, snapshot
         transaction.payment = "awaiting_approval";
         addPacket(execution, "approval_request", "agent-finance", "human", {
           action: "authorize_simulated_payment",
+          paymentMethod: transaction.paymentMethod,
           itemId: line.itemId,
           quantity: line.quantity,
           consequence: "Advance simulated state only; no real charge or order.",
@@ -334,6 +362,7 @@ export function syncMarketplaceExecution(current: MarketplaceExecution, snapshot
         }
         addPacket(execution, "blocked", "human", "agent-finance", {
           reason: "simulated_payment_declined",
+          paymentMethod: transaction.paymentMethod,
           inventoryReleased: true,
         }, goal.id);
       });
@@ -346,6 +375,7 @@ export function syncMarketplaceExecution(current: MarketplaceExecution, snapshot
         transaction.payment = "authorized";
         addPacket(execution, "payment_authorized", "human", "agent-finance", {
           simulated: true,
+          paymentMethod: transaction.paymentMethod,
           itemId: line.itemId,
           quantity: line.quantity,
         }, goal.id);
@@ -356,13 +386,14 @@ export function syncMarketplaceExecution(current: MarketplaceExecution, snapshot
       execution.status = "coordinating";
       applyOnce(execution, `${goal.id}:handoff`, () => {
         line.marketReserved -= line.quantity;
-        line.carriedByPersonalAgent += line.quantity;
+        setCarrierCargo(line, line.carrierCargo + line.quantity);
         transaction.status = "goods_collected";
-        addPacket(execution, "goods_handoff", "agent-market", "agent-user", {
+        addPacket(execution, "goods_handoff", "agent-market", transaction.carrierAgentId, {
           itemId: line.itemId,
           quantity: line.quantity,
+          fulfilmentMethod: transaction.fulfilmentMethod,
           fromLedger: "market_reserved",
-          toLedger: "personal_agent_cargo",
+          toLedger: `${transaction.carrierAgentId}_cargo`,
         }, goal.id);
       });
     }
@@ -375,14 +406,15 @@ export function syncMarketplaceExecution(current: MarketplaceExecution, snapshot
 
     if (taskDone(snapshot, ids.deliver)) {
       applyOnce(execution, `${goal.id}:deliver`, () => {
-        line.carriedByPersonalAgent -= line.quantity;
+        setCarrierCargo(line, line.carrierCargo - line.quantity);
         line.userInventory += line.quantity;
         transaction.status = "delivered";
-        addPacket(execution, "delivery_receipt", "agent-user", "human", {
+        addPacket(execution, "delivery_receipt", transaction.carrierAgentId, "human", {
           itemId: line.itemId,
           itemLabel: line.itemLabel,
           quantity: line.quantity,
-          fromLedger: "personal_agent_cargo",
+          fulfilmentMethod: transaction.fulfilmentMethod,
+          fromLedger: `${transaction.carrierAgentId}_cargo`,
           toLedger: "user_inventory",
         }, goal.id);
       });
@@ -413,10 +445,13 @@ export function syncMarketplaceExecution(current: MarketplaceExecution, snapshot
 export function marketplaceInventoryInvariant(execution: MarketplaceExecution) {
   const issues: string[] = [];
   for (const line of execution.ledger) {
-    const values = [line.marketAvailable, line.marketReserved, line.carriedByPersonalAgent, line.userInventory];
+    const values = [line.marketAvailable, line.marketReserved, line.carrierCargo, line.userInventory];
     if (values.some((value) => !Number.isFinite(value) || value < 0)) issues.push(`${line.itemId} contains a negative or invalid quantity.`);
     const total = values.reduce((sum, value) => sum + value, 0);
     if (total !== line.initialMarketStock) issues.push(`${line.itemId} inventory is not conserved: ${total} != ${line.initialMarketStock}.`);
+    if (line.carriedByPersonalAgent !== (line.carrierAgentId === "agent-user" ? line.carrierCargo : 0)) {
+      issues.push(`${line.itemId} personal-agent compatibility cargo is inconsistent.`);
+    }
   }
   return { valid: issues.length === 0, issues };
 }
