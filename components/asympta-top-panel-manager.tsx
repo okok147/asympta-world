@@ -5,12 +5,16 @@ import { useEffect } from "react";
 import styles from "./asympta-top-panel-manager.module.css";
 
 import {
+  ASYMPTA_TOP_PANEL_BOTTOM_RESERVE_PX,
+  ASYMPTA_TOP_PANEL_MIN_REQUEST_HEIGHT_PX,
+  ASYMPTA_TOP_PANEL_REQUEST_CHROME_HEIGHT_PX,
   calculateAsymptaTopPanelLayout,
   type AsymptaTopPanelName,
 } from "@/lib/asympta-top-panel-layout";
 
 const ACCESS_SELECTOR = ".asympta-access-card";
 const REQUEST_SELECTOR = ".asympta-request-card";
+const STANDALONE_MARKET_SELECTOR = '.asympta-marketplace-trace[data-host="standalone"]';
 const PANEL_GAP_PX = 10;
 
 function visibleRect(node: Element | null) {
@@ -38,6 +42,11 @@ function accessOccupiedHeight(access: HTMLElement, accessRect: DOMRect) {
     accessRect.height,
     accessOccupiedBottom(access, accessRect.bottom) - accessRect.top,
   );
+}
+
+function preferredRequestPanel() {
+  return document.querySelector<HTMLElement>(REQUEST_SELECTOR)
+    ?? document.querySelector<HTMLElement>(STANDALONE_MARKET_SELECTOR);
 }
 
 function setProperty(node: HTMLElement, name: string, value: string) {
@@ -113,39 +122,34 @@ export function AsymptaTopPanelManager() {
           "--asympta-top-panel-access-panel-max-height",
           `${model.accessPanelMaxHeight ?? 120}px`,
         );
-        setProperty(request, "--asympta-top-panel-request-top", `${model.requestTop ?? 64}px`);
-        setProperty(
-          request,
-          "--asympta-top-panel-request-max-height",
-          `${model.requestMaxHeight ?? 220}px`,
+
+        // Measure again after the access-panel cap has been applied. This uses the
+        // rendered edge, not an estimated header height, so the lower card can never
+        // start underneath the upper card even when its contents change dynamically.
+        const renderedAccessRect = visibleRect(access) ?? accessRect;
+        const occupiedBottom = accessOccupiedBottom(access, renderedAccessRect.bottom);
+        const modelTop = model.requestTop ?? Math.ceil(occupiedBottom + PANEL_GAP_PX);
+        const requestTop = Math.max(modelTop, Math.ceil(occupiedBottom + PANEL_GAP_PX));
+        const safeRequestHeight = Math.max(
+          ASYMPTA_TOP_PANEL_MIN_REQUEST_HEIGHT_PX,
+          Math.floor(viewportHeight - requestTop - ASYMPTA_TOP_PANEL_BOTTOM_RESERVE_PX),
         );
+        const requestMaxHeight = Math.min(model.requestMaxHeight ?? safeRequestHeight, safeRequestHeight);
+        const requestDetailsMaxHeight = Math.max(
+          44,
+          Math.min(
+            model.requestDetailsMaxHeight ?? safeRequestHeight,
+            requestMaxHeight - ASYMPTA_TOP_PANEL_REQUEST_CHROME_HEIGHT_PX,
+          ),
+        );
+
+        setProperty(request, "--asympta-top-panel-request-top", `${requestTop}px`);
+        setProperty(request, "--asympta-top-panel-request-max-height", `${requestMaxHeight}px`);
         setProperty(
           request,
           "--asympta-top-panel-request-details-max-height",
-          `${model.requestDetailsMaxHeight ?? 140}px`,
+          `${requestDetailsMaxHeight}px`,
         );
-
-        // Cap the scrollable access body, but still include open absolute controls such
-        // as the language menu when determining the first safe pixel for the request.
-        const cappedAccessBottom = accessRect.top + Math.min(
-          accessRect.height,
-          (model.accessPanelMaxHeight ?? accessRect.height) + 50,
-        );
-        const occupiedBottom = accessOccupiedBottom(access, cappedAccessBottom);
-        const requestedTop = Number.parseFloat(
-          request.style.getPropertyValue("--asympta-top-panel-request-top"),
-        );
-        const safeTop = Math.ceil(occupiedBottom + PANEL_GAP_PX);
-        if (Number.isFinite(requestedTop) && requestedTop < safeTop) {
-          setProperty(request, "--asympta-top-panel-request-top", `${safeTop}px`);
-          const safeHeight = Math.max(74, Math.floor(viewportHeight - safeTop - 92));
-          setProperty(request, "--asympta-top-panel-request-max-height", `${safeHeight}px`);
-          setProperty(
-            request,
-            "--asympta-top-panel-request-details-max-height",
-            `${Math.max(44, safeHeight - 76)}px`,
-          );
-        }
       } else {
         clearProperty(access, "--asympta-top-panel-access-panel-max-height");
         clearProperty(request, "--asympta-top-panel-request-top");
@@ -174,7 +178,7 @@ export function AsymptaTopPanelManager() {
 
     const syncNodes = () => {
       const nextAccess = document.querySelector<HTMLElement>(ACCESS_SELECTOR);
-      const nextRequest = document.querySelector<HTMLElement>(REQUEST_SELECTOR);
+      const nextRequest = preferredRequestPanel();
       const nodesChanged = access !== nextAccess || request !== nextRequest;
 
       for (const node of [...observed]) {
@@ -202,7 +206,11 @@ export function AsymptaTopPanelManager() {
       if (nodesChanged) observePanelMutations();
       if (request && request !== previousRequest) {
         previousRequest = request;
-        bringToFront("request");
+        // A real active request may legitimately claim attention. The passive saved-
+        // preferences marketplace card starts behind the access card and only moves
+        // forward when the user actually touches or focuses it.
+        if (request.matches(REQUEST_SELECTOR)) bringToFront("request");
+        else bringToFront(front);
       } else if (!request) {
         previousRequest = null;
       }
