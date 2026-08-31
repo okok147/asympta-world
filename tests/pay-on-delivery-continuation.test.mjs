@@ -75,19 +75,19 @@ test("Buy food with courier pay-on-delivery reaches handoff and return before pa
   for (let index = 0; index < 12_000; index += 1) {
     world = advanceAtlasWorld(world, 120);
     execution = syncMarketplaceExecution(execution, atlasSnapshot(world));
-    const premature = world.approvals.find((approval) => approval.taskId === ids.payment && approval.status === "pending");
-    if (premature) {
-      paymentApproval = premature;
+    const pending = world.approvals.find((approval) => approval.taskId === ids.payment && approval.status === "pending");
+    if (pending) {
+      paymentApproval = pending;
       break;
     }
   }
 
   assert.ok(paymentApproval, "pay-on-delivery never reached its final payment checkpoint");
+  assert.equal(world.phase, "waiting_approval");
   assert.equal(world.tasks.find((task) => task.id === ids.handoff)?.status, "done");
   assert.equal(world.tasks.find((task) => task.id === ids.returning)?.status, "done");
   assert.equal(world.tasks.find((task) => task.id === ids.deliver)?.status, "queued");
   assert.equal(world.tasks.find((task) => task.id === ids.payment)?.status, "waiting_approval");
-  assert.equal(execution.status, "awaiting_approval");
   assert.equal(execution.transactions[0].payment, "awaiting_approval");
   assert.equal(execution.ledger[0].carrierCargo, 1);
   assert.ok(execution.packets.some((packet) => packet.kind === "goods_handoff"));
