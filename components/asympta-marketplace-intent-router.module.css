@@ -8,3 +8,97 @@
 :global(html[data-asympta-intent-owner="marketplace"] .asympta-intent-presence) {
   display: none !important;
 }
+
+:global(html[data-asympta-marketplace-next-field] .asympta-marketplace-profile > p),
+:global(html[data-asympta-marketplace-next-field] .asympta-marketplace-profile > .asympta-marketplace-profile__group:first-of-type),
+:global(html[data-asympta-marketplace-next-field] .asympta-marketplace-profile > .asympta-marketplace-profile__group:nth-of-type(2) > strong),
+:global(html[data-asympta-marketplace-next-field] .asympta-marketplace-profile__save) {
+  display: none !important;
+}
+
+:global(html[data-asympta-marketplace-next-field] .asympta-marketplace-profile > .asympta-marketplace-profile__group:nth-of-type(2)) {
+  display: grid;
+  gap: 8px;
+}
+
+:global(html[data-asympta-marketplace-next-field] .asympta-marketplace-profile > .asympta-marketplace-profile__group:nth-of-type(2) fieldset) {
+  display: none;
+}
+
+:global(html[data-asympta-marketplace-next-field="foodPreference"] .asympta-marketplace-profile > .asympta-marketplace-profile__group:nth-of-type(2) fieldset:nth-of-type(1)),
+:global(html[data-asympta-marketplace-next-field="fulfilmentMethod"] .asympta-marketplace-profile > .asympta-marketplace-profile__group:nth-of-type(2) fieldset:nth-of-type(2)),
+:global(html[data-asympta-marketplace-next-field="paymentMethod"] .asympta-marketplace-profile > .asympta-marketplace-profile__group:nth-of-type(2) fieldset:nth-of-type(3)) {
+  display: block;
+}
+
+:global(.asympta-marketplace-progressive-question) {
+  order: -10;
+  display: grid;
+  gap: 4px;
+  padding: 10px 11px;
+  border: 1px solid rgba(74, 104, 87, 0.14);
+  border-radius: 12px;
+  background:
+    linear-gradient(120deg, rgba(255, 255, 255, 0.3), transparent 54%),
+    rgba(91, 128, 105, 0.08);
+}
+
+:global(.asympta-marketplace-progressive-question small) {
+  color: rgba(61, 86, 73, 0.58);
+  font-size: 7px;
+  font-weight: 780;
+  letter-spacing: 0.075em;
+  text-transform: uppercase;
+}
+
+:global(.asympta-marketplace-progressive-question strong) {
+  color: rgba(44, 52, 46, 0.9);
+  font-size: 10px;
+  font-weight: 720;
+  line-height: 1.35;
+}
+
+:global(.asympta-marketplace-progressive-question span) {
+  color: rgba(63, 65, 58, 0.58);
+  font-size: 8px;
+  line-height: 1.45;
+}
+
+:global(html[data-asympta-marketplace-next-field] .asympta-marketplace-profile__options) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+:global(html[data-asympta-marketplace-next-field] .asympta-marketplace-profile__options > button) {
+  min-height: 38px;
+  padding: 7px 9px;
+  border-radius: 10px;
+  font-size: 8.2px;
+  line-height: 1.25;
+  text-align: left;
+}
+
+:global(html[data-asympta-marketplace-choice-busy="true"] .asympta-marketplace-profile__options) {
+  pointer-events: none;
+  opacity: 0.58;
+}
+
+:global(.asympta-marketplace-profile__options > button[aria-busy="true"]::after) {
+  margin-left: 4px;
+  content: "…";
+}
+
+@media (max-width: 430px) {
+  :global(html[data-asympta-marketplace-next-field] .asympta-marketplace-profile__options) {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :global(.asympta-marketplace-progressive-question),
+  :global(.asympta-marketplace-progressive-question *) {
+    animation: none !important;
+    transition: none !important;
+  }
+}
