@@ -92,7 +92,7 @@ test("the clicked panel receives the front layer deterministically", () => {
   assert.deepEqual(asymptaPanelLayerOrder("request"), { access: 88, request: 96 });
 });
 
-test("browser manager mounts, measures both cards and promotes pointer or keyboard focus", async () => {
+test("browser manager mounts, stacks the passive marketplace card, and promotes pointer or keyboard focus", async () => {
   const [page, manager, css] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/asympta-top-panel-manager.tsx", import.meta.url), "utf8"),
@@ -102,17 +102,29 @@ test("browser manager mounts, measures both cards and promotes pointer or keyboa
   assert.match(page, /AsymptaTopPanelManager/);
   assert.match(manager, /\.asympta-access-card/);
   assert.match(manager, /\.asympta-request-card/);
+  assert.match(manager, /STANDALONE_MARKET_SELECTOR/);
+  assert.match(manager, /asympta-marketplace-trace\[data-host=/);
+  assert.match(manager, /preferredRequestPanel/);
   assert.match(manager, /ResizeObserver/);
   assert.match(manager, /MutationObserver/);
   assert.match(manager, /visualViewport/);
   assert.match(manager, /accessRight: accessRect\.right/);
   assert.match(manager, /requestLeft: requestRect\.left/);
+  assert.match(manager, /renderedAccessRect = visibleRect\(access\) \?\? accessRect/);
+  assert.match(manager, /occupiedBottom \+ PANEL_GAP_PX/);
   assert.match(manager, /document\.addEventListener\("pointerdown", onPointerDown, true\)/);
   assert.match(manager, /document\.addEventListener\("focusin", onFocusIn, true\)/);
   assert.match(manager, /bringToFront\("request"\)/);
   assert.match(manager, /data-asympta-top-panel-manager/);
   assert.doesNotMatch(manager, /setInterval|advanceAtlasWorld|startAtlasWorkflow/);
 
+  // The map shell must not trap the access card in a separate fixed/isolation
+  // stacking context; otherwise a root-level marketplace card wins regardless
+  // of the clicked card's z-index.
+  assert.match(css, /:global\(\.map-app\)/);
+  assert.match(css, /position: absolute !important/);
+  assert.match(css, /isolation: auto !important/);
+  assert.match(css, /data-host="standalone"/);
   assert.match(css, /data-asympta-top-panel-front="access"/);
   assert.match(css, /data-asympta-top-panel-front="request"/);
   assert.match(css, /data-asympta-top-panels="stacked"/);
@@ -120,5 +132,6 @@ test("browser manager mounts, measures both cards and promotes pointer or keyboa
   assert.match(css, /--asympta-top-panel-request-max-height/);
   assert.match(css, /--asympta-top-panel-access-panel-max-height/);
   assert.match(css, /z-index: 96 !important/);
+  assert.match(css, /asympta-marketplace-trace__body/);
   assert.match(css, /display: grid/);
 });
