@@ -1,31 +1,69 @@
 .trace { isolation: isolate; }
 
+:global(.atlas-safe-schedule[data-asympta-marketplace-host="true"]) {
+  width: min(360px, calc(100vw - 24px));
+  max-height: min(86svh, 760px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(76, 70, 61, 0.2) transparent;
+}
+
+:global(.atlas-safe-schedule.is-collapsed .asympta-marketplace-trace) {
+  display: none;
+}
+
 :global(.asympta-marketplace-trace) {
   position: relative;
-  order: -6;
-  width: calc(100% - 22px);
-  max-height: min(42svh, 330px);
-  margin: 0 auto 8px;
-  padding: 12px 14px 10px;
-  overflow: auto;
-  overscroll-behavior: contain;
+  width: 100%;
   color: #403b34;
+  border-top: 1px solid rgba(67, 63, 56, 0.08);
   background:
-    linear-gradient(112deg, rgba(255, 255, 255, 0.28), transparent 42%),
-    rgba(249, 246, 237, 0.96);
-  border: 1px solid rgba(69, 83, 74, 0.12);
-  border-radius: 17px;
-  box-shadow: 0 10px 34px rgba(63, 56, 45, 0.1);
-  backdrop-filter: blur(18px) saturate(0.88);
-  -webkit-backdrop-filter: blur(18px) saturate(0.88);
+    linear-gradient(112deg, rgba(255, 255, 255, 0.18), transparent 42%),
+    rgba(246, 242, 233, 0.66);
   pointer-events: auto;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(76, 70, 61, 0.22) transparent;
   font-family: var(--font-sans, ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif);
 }
 
-:global(.asympta-marketplace-trace) > header,
-:global(.asympta-marketplace-trace) > header > span,
+:global(.asympta-marketplace-trace[data-host="standalone"]) {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  z-index: 82;
+  width: min(360px, calc(100vw - 24px));
+  overflow: hidden;
+  border: 1px solid rgba(69, 83, 74, 0.13);
+  border-radius: 16px;
+  background: rgba(249, 246, 237, 0.97);
+  box-shadow: 0 10px 34px rgba(63, 56, 45, 0.1);
+  backdrop-filter: blur(16px) saturate(0.88);
+  -webkit-backdrop-filter: blur(16px) saturate(0.88);
+}
+
+:global(.asympta-marketplace-trace__toggle) {
+  width: 100%;
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(86px, auto);
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+:global(.asympta-marketplace-trace__toggle:hover),
+:global(.asympta-marketplace-trace__toggle:focus-visible) {
+  background: rgba(255, 255, 255, 0.28);
+  outline: none;
+}
+
+:global(.asympta-marketplace-trace__heading),
+:global(.asympta-marketplace-trace__toggle-status),
+:global(.asympta-marketplace-profile__summary),
 :global(.asympta-marketplace-trace__status),
 :global(.asympta-marketplace-trace__item),
 :global(.asympta-marketplace-trace__packet) > span,
@@ -34,64 +72,269 @@
   align-items: center;
 }
 
-:global(.asympta-marketplace-trace) > header {
-  justify-content: space-between;
-  gap: 12px;
-}
-
-:global(.asympta-marketplace-trace) > header > span {
+:global(.asympta-marketplace-trace__heading) {
   min-width: 0;
-  gap: 7px;
+  gap: 8px;
 }
 
-:global(.asympta-marketplace-trace) > header strong {
+:global(.asympta-marketplace-trace__heading > svg) {
+  flex: 0 0 auto;
+  color: rgba(74, 100, 87, 0.76);
+}
+
+:global(.asympta-marketplace-trace__heading > span) {
+  min-width: 0;
+}
+
+:global(.asympta-marketplace-trace__heading small),
+:global(.asympta-marketplace-trace__heading strong) {
+  display: block;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:global(.asympta-marketplace-trace__heading small) {
+  margin-bottom: 2px;
+  color: rgba(65, 77, 70, 0.5);
+  font-size: 6.8px;
+  font-weight: 760;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+:global(.asympta-marketplace-trace__heading strong) {
   color: #38342e;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 680;
+  line-height: 1.25;
+}
+
+:global(.asympta-marketplace-trace__toggle-status) {
+  min-width: 0;
+  justify-content: flex-end;
+  gap: 6px;
+  color: rgba(63, 69, 62, 0.56);
+}
+
+:global(.asympta-marketplace-trace__toggle-status small) {
+  overflow: hidden;
+  font-size: 7.5px;
+  line-height: 1.2;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:global(.asympta-marketplace-trace__toggle-status svg) {
+  flex: 0 0 auto;
+}
+
+:global(.asympta-marketplace-trace__body) {
+  max-height: min(58svh, 520px);
+  padding: 0 10px 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(76, 70, 61, 0.2) transparent;
+}
+
+:global(.asympta-marketplace-profile__summary) {
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid rgba(67, 63, 56, 0.07);
+}
+
+:global(.asympta-marketplace-profile__summary > span) {
+  min-width: 0;
+}
+
+:global(.asympta-marketplace-profile__summary small),
+:global(.asympta-marketplace-profile__summary strong) {
+  display: block;
+}
+
+:global(.asympta-marketplace-profile__summary small) {
+  color: rgba(67, 61, 52, 0.5);
+  font-size: 7px;
+  font-weight: 760;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+:global(.asympta-marketplace-profile__summary strong) {
+  margin-top: 2px;
+  overflow: hidden;
+  color: rgba(55, 52, 46, 0.82);
+  font-size: 8.5px;
+  font-weight: 620;
   line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-:global(.asympta-marketplace-trace) > header small {
+:global(.asympta-marketplace-profile__summary > button) {
   flex: 0 0 auto;
-  color: rgba(64, 72, 66, 0.52);
-  font-size: 8.5px;
-  font-weight: 620;
-  letter-spacing: 0.035em;
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid rgba(67, 63, 56, 0.1);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.28);
+  color: rgba(58, 62, 56, 0.72);
+  font-size: 7.5px;
+  font-weight: 680;
+  cursor: pointer;
 }
 
-:global(.asympta-marketplace-trace__status) {
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 7px;
-  color: rgba(59, 56, 49, 0.72);
-  font-size: 10.5px;
-  line-height: 1.35;
+:global(.asympta-marketplace-profile) {
+  display: grid;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(67, 63, 56, 0.07);
 }
 
-:global(.asympta-marketplace-trace__status) span {
+:global(.asympta-marketplace-profile > p) {
+  margin: 0;
+  color: rgba(62, 58, 51, 0.66);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+:global(.asympta-marketplace-profile__group) {
+  display: grid;
+  gap: 6px;
+}
+
+:global(.asympta-marketplace-profile__group > strong) {
+  color: rgba(62, 64, 57, 0.56);
+  font-size: 7px;
+  font-weight: 780;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+:global(.asympta-marketplace-profile__presets) {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+
+:global(.asympta-marketplace-profile__presets > button) {
   min-width: 0;
+  min-height: 64px;
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  padding: 7px 6px;
+  border: 1px solid rgba(67, 63, 56, 0.1);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.24);
+  text-align: left;
+  cursor: pointer;
+}
+
+:global(.asympta-marketplace-profile__presets > button:hover),
+:global(.asympta-marketplace-profile__presets > button:focus-visible),
+:global(.asympta-marketplace-profile__presets > button.is-selected) {
+  border-color: rgba(75, 118, 94, 0.32);
+  background: rgba(91, 128, 105, 0.08);
+  outline: none;
+}
+
+:global(.asympta-marketplace-profile__presets b) {
   overflow: hidden;
+  color: rgba(52, 52, 46, 0.86);
+  font-size: 8.5px;
+  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-:global(.asympta-marketplace-trace__status) b {
-  flex: 0 0 auto;
-  min-width: 34px;
-  color: rgba(57, 76, 67, 0.72);
-  font-size: 10px;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
+:global(.asympta-marketplace-profile__presets small) {
+  color: rgba(70, 67, 60, 0.54);
+  font-size: 6.7px;
+  line-height: 1.25;
+}
+
+:global(.asympta-marketplace-profile fieldset) {
+  min-width: 0;
+  margin: 0;
+  padding: 7px;
+  border: 1px solid rgba(67, 63, 56, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+:global(.asympta-marketplace-profile legend) {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 4px;
+  color: rgba(63, 66, 58, 0.64);
+  font-size: 7.5px;
+  font-weight: 700;
+}
+
+:global(.asympta-marketplace-profile__options) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+:global(.asympta-marketplace-profile__options > button) {
+  min-height: 27px;
+  padding: 0 8px;
+  border: 1px solid rgba(67, 63, 56, 0.09);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.24);
+  color: rgba(60, 59, 53, 0.66);
+  font-size: 7.2px;
+  font-weight: 620;
+  cursor: pointer;
+}
+
+:global(.asympta-marketplace-profile__options > button:hover),
+:global(.asympta-marketplace-profile__options > button:focus-visible),
+:global(.asympta-marketplace-profile__options > button.is-selected) {
+  border-color: rgba(75, 118, 94, 0.34);
+  background: rgba(91, 128, 105, 0.1);
+  color: rgba(49, 67, 56, 0.88);
+  outline: none;
+}
+
+:global(.asympta-marketplace-profile__save) {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 1px solid rgba(69, 105, 83, 0.25);
+  border-radius: 10px;
+  background: rgba(84, 119, 96, 0.12);
+  color: rgba(48, 70, 56, 0.9);
+  font-size: 8.5px;
+  font-weight: 720;
+  cursor: pointer;
+}
+
+:global(.asympta-marketplace-profile__save:disabled) {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+:global(.asympta-marketplace-profile__safety) {
+  color: rgba(70, 66, 58, 0.5);
+  font-size: 6.8px;
+  line-height: 1.4;
 }
 
 :global(.asympta-marketplace-trace__route) {
   display: flex;
   align-items: flex-start;
   width: 100%;
-  margin: 10px 0 0;
+  margin: 8px 0 0;
   padding: 0;
   list-style: none;
 }
@@ -103,25 +346,25 @@
   min-width: 0;
   justify-items: center;
   gap: 3px;
-  color: rgba(76, 72, 64, 0.42);
+  color: rgba(76, 72, 64, 0.4);
 }
 
 :global(.asympta-marketplace-trace__route) li > span {
   display: grid;
-  width: 18px;
-  height: 18px;
+  width: 17px;
+  height: 17px;
   place-items: center;
   border: 1px solid rgba(83, 91, 82, 0.14);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.48);
-  font-size: 8px;
+  background: rgba(255, 255, 255, 0.44);
+  font-size: 7.5px;
   font-weight: 700;
 }
 
 :global(.asympta-marketplace-trace__route) li > b {
   width: 100%;
   overflow: hidden;
-  font-size: 8.5px;
+  font-size: 7.3px;
   font-weight: 610;
   line-height: 1.15;
   text-align: center;
@@ -131,9 +374,9 @@
 
 :global(.asympta-marketplace-trace__route) li > svg {
   position: absolute;
-  top: 5px;
+  top: 4px;
   right: -4px;
-  color: rgba(70, 79, 71, 0.24);
+  color: rgba(70, 79, 71, 0.22);
 }
 
 :global(.asympta-marketplace-trace__route) li[data-stage="active"] {
@@ -142,11 +385,11 @@
 
 :global(.asympta-marketplace-trace__route) li[data-stage="active"] > span {
   border-color: rgba(80, 116, 99, 0.34);
-  box-shadow: 0 0 0 4px rgba(83, 122, 101, 0.07);
+  box-shadow: 0 0 0 3px rgba(83, 122, 101, 0.07);
 }
 
 :global(.asympta-marketplace-trace__route) li[data-stage="done"] {
-  color: rgba(63, 96, 76, 0.76);
+  color: rgba(63, 96, 76, 0.75);
 }
 
 :global(.asympta-marketplace-trace__route) li[data-stage="done"] > span {
@@ -158,31 +401,31 @@
 :global(.asympta-marketplace-trace__item) {
   min-width: 0;
   gap: 7px;
-  margin-top: 10px;
-  padding: 8px 9px;
+  margin-top: 9px;
+  padding: 7px 8px;
   border: 1px solid rgba(75, 91, 81, 0.09);
-  border-radius: 11px;
-  background: rgba(246, 242, 231, 0.68);
+  border-radius: 10px;
+  background: rgba(246, 242, 231, 0.72);
 }
 
-:global(.asympta-marketplace-trace__item) > svg {
+:global(.asympta-marketplace-trace__item > svg) {
   flex: 0 0 auto;
   color: rgba(74, 100, 87, 0.75);
 }
 
-:global(.asympta-marketplace-trace__item) > strong {
+:global(.asympta-marketplace-trace__item > strong) {
   flex: 0 1 auto;
   min-width: max-content;
   color: rgba(55, 52, 46, 0.86);
-  font-size: 10px;
+  font-size: 8.5px;
   font-weight: 660;
 }
 
-:global(.asympta-marketplace-trace__item) > span {
+:global(.asympta-marketplace-trace__item > span) {
   min-width: 0;
   overflow: hidden;
-  color: rgba(66, 63, 56, 0.56);
-  font-size: 9px;
+  color: rgba(66, 63, 56, 0.54);
+  font-size: 7px;
   line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -192,18 +435,18 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) max-content;
   align-items: center;
-  gap: 2px 9px;
-  margin-top: 8px;
-  padding: 7px 9px;
+  gap: 2px 8px;
+  margin-top: 7px;
+  padding: 7px 8px;
   border-left: 2px solid rgba(75, 108, 92, 0.45);
-  background: rgba(246, 243, 235, 0.54);
+  background: rgba(246, 243, 235, 0.56);
 }
 
 :global(.asympta-marketplace-trace__packet) > span {
   min-width: 0;
   gap: 6px;
-  color: rgba(65, 65, 57, 0.5);
-  font-size: 8.5px;
+  color: rgba(65, 65, 57, 0.48);
+  font-size: 7px;
   font-weight: 650;
   letter-spacing: 0.035em;
   text-transform: uppercase;
@@ -211,16 +454,16 @@
 
 :global(.asympta-marketplace-trace__packet) > strong {
   color: rgba(53, 55, 48, 0.82);
-  font-size: 9.5px;
+  font-size: 8px;
   font-weight: 680;
 }
 
 :global(.asympta-marketplace-trace__packet) > code {
   grid-column: 1 / -1;
   overflow: hidden;
-  color: rgba(60, 65, 58, 0.64);
+  color: rgba(60, 65, 58, 0.62);
   font-family: ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
-  font-size: 8.5px;
+  font-size: 7px;
   line-height: 1.3;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -234,9 +477,9 @@
 :global(.asympta-marketplace-trace__context) > summary {
   gap: 6px;
   padding-top: 7px;
-  color: rgba(62, 65, 58, 0.58);
+  color: rgba(62, 65, 58, 0.56);
   cursor: pointer;
-  font-size: 9px;
+  font-size: 7.5px;
   font-weight: 650;
   list-style: none;
 }
@@ -246,36 +489,28 @@
 }
 
 :global(.asympta-marketplace-trace__context) > pre {
-  max-height: min(28svh, 210px);
-  margin: 8px 0 0;
-  padding: 10px;
+  max-height: min(26svh, 190px);
+  margin: 7px 0 0;
+  padding: 8px;
   overflow: auto;
-  color: rgba(47, 52, 47, 0.82);
-  background: rgba(238, 235, 226, 0.76);
-  border-radius: 10px;
+  color: rgba(47, 52, 47, 0.8);
+  background: rgba(238, 235, 226, 0.78);
+  border-radius: 9px;
   font-family: ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
-  font-size: 8.5px;
-  line-height: 1.42;
+  font-size: 6.8px;
+  line-height: 1.4;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
-:global(.asympta-marketplace-trace__home) {
-  position: absolute;
-  top: 11px;
-  right: 11px;
-  display: none;
-}
-
-:global(.asympta-marketplace-trace__error),
-:global(.asympta-marketplace-trace) > p {
+:global(.asympta-marketplace-trace__error) {
   margin: 7px 0 0;
   color: #8b594d;
-  font-size: 10px;
+  font-size: 8px;
   line-height: 1.4;
 }
 
-:global(.animal-map-marker--foreground)[data-agent-id="agent-user"] {
+:global(.animal-map-marker--foreground) {
   position: relative;
 }
 
@@ -313,28 +548,27 @@
 }
 
 @media (max-width: 700px) {
-  :global(.asympta-marketplace-trace) {
-    max-height: min(38svh, 292px);
-    padding: 10px 11px 9px;
-    border-radius: 15px;
+  :global(.atlas-safe-schedule[data-asympta-marketplace-host="true"]) {
+    width: min(330px, calc(100vw - 20px));
+    max-height: min(76svh, 630px);
   }
 
-  :global(.asympta-marketplace-trace) > header small {
-    display: none;
+  :global(.asympta-marketplace-trace[data-host="standalone"]) {
+    top: max(76px, calc(env(safe-area-inset-top) + 76px));
+    right: max(10px, env(safe-area-inset-right));
+    width: min(330px, calc(100vw - 20px));
   }
 
-  :global(.asympta-marketplace-trace__item) {
-    display: grid;
-    grid-template-columns: max-content minmax(0, 1fr);
+  :global(.asympta-marketplace-trace__body) {
+    max-height: min(52svh, 430px);
   }
 
-  :global(.asympta-marketplace-trace__item) > span {
-    grid-column: 1 / -1;
-    white-space: normal;
+  :global(.asympta-marketplace-profile__presets) {
+    grid-template-columns: 1fr;
   }
 
-  :global(.asympta-marketplace-trace__route) li > b {
-    font-size: 7.5px;
+  :global(.asympta-marketplace-profile__presets > button) {
+    min-height: 46px;
   }
 }
 
