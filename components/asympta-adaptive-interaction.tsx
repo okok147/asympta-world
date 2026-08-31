@@ -94,6 +94,7 @@ function terminalTask(task: AsymptaTaskState) {
 export function AsymptaAdaptiveInteraction() {
   const [locale, setLocale] = useState<AdaptiveInteractionLocale>("en");
   const [schema, setSchema] = useState<AdaptiveInteractionSchema | null>(null);
+  const [taskId, setTaskId] = useState("");
   const [taskRevision, setTaskRevision] = useState<number | null>(null);
   const [selected, setSelected] = useState<AdaptiveAnswerValue | null>(null);
   const [custom, setCustom] = useState("");
@@ -126,6 +127,7 @@ export function AsymptaAdaptiveInteraction() {
         return;
       }
       taskIdRef.current = task.taskId;
+      setTaskId(task.taskId);
       setTaskRevision(task.revision);
       setSchema(nextSchema);
       setSelected(null);
@@ -143,6 +145,7 @@ export function AsymptaAdaptiveInteraction() {
       if (status === "interpreting" && activityId && activityIdRef.current && activityId !== activityIdRef.current) {
         activityIdRef.current = activityId;
         taskIdRef.current = "";
+        setTaskId("");
         setSchema(null);
         setTaskRevision(null);
         setError(null);
@@ -207,8 +210,8 @@ export function AsymptaAdaptiveInteraction() {
     if (!ready || continuing) return;
 
     const bridge = window.__ASYMPTA_TASK_KERNEL__;
-    const taskId = taskIdRef.current;
-    const task = bridge?.getTask(taskId);
+    const currentTaskId = taskIdRef.current;
+    const task = bridge?.getTask(currentTaskId);
     if (!bridge || !task) {
       setError(copy.unavailable);
       return;
@@ -267,7 +270,7 @@ export function AsymptaAdaptiveInteraction() {
       data-asympta-adaptive-schema={schema.schemaVersion}
       data-field={field.key}
       data-provenance={schema.provenance.mode}
-      data-task-id={taskIdRef.current}
+      data-task-id={taskId}
       data-task-revision={taskRevision ?? ""}
       aria-label={copy.title}
     >
