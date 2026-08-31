@@ -18,6 +18,7 @@ import { AsymptaSafeSchedule } from "@/components/asympta-safe-schedule";
 import { AsymptaTaskCelebration } from "@/components/asympta-task-celebration";
 import { AsymptaTopPanelManager } from "@/components/asympta-top-panel-manager";
 import { AsymptaUltraCalm } from "@/components/asympta-ultra-calm";
+import { AsymptaUniversalBenchmarkBridge } from "@/components/asympta-universal-benchmark";
 import { AsymptaUnsafeProposalRecovery } from "@/components/asympta-unsafe-proposal-recovery";
 import { AsymptaUserPreferences } from "@/components/asympta-user-preferences";
 import { AsymptaWebMcpTools } from "@/components/asympta-webmcp-tools";
@@ -33,6 +34,7 @@ export default function HomePage() {
       <AsymptaMarketplaceIntentRouter />
       <AsymptaIntentComposer />
       <AsymptaAdaptiveOptionForm />
+      <AsymptaUniversalBenchmarkBridge />
       <AsymptaUnsafeProposalRecovery />
       <AsymptaMarketplaceIntentBridge />
       <AsymptaUserPreferences />
