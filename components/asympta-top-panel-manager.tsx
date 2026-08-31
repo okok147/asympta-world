@@ -55,6 +55,7 @@ export function AsymptaTopPanelManager() {
     const resizeObserver = typeof ResizeObserver === "function"
       ? new ResizeObserver(() => scheduleLayout())
       : null;
+    const panelMutationObserver = new MutationObserver(() => scheduleLayout());
 
     const bringToFront = (next: AsymptaTopPanelName) => {
       front = next;
@@ -86,12 +87,13 @@ export function AsymptaTopPanelManager() {
       const viewport = window.visualViewport;
       const viewportWidth = viewport?.width ?? window.innerWidth;
       const viewportHeight = viewport?.height ?? window.innerHeight;
+      const occupiedAccessHeight = accessOccupiedHeight(access, accessRect);
       const model = calculateAsymptaTopPanelLayout({
         viewportWidth,
         viewportHeight,
         accessTop: accessRect.top,
         accessWidth: accessRect.width,
-        accessHeight: accessOccupiedHeight(access, accessRect),
+        accessHeight: occupiedAccessHeight,
         requestWidth: requestRect.width,
       });
 
@@ -117,7 +119,7 @@ export function AsymptaTopPanelManager() {
         // Absolute language and portal controls are measured above. This final guard
         // keeps the request below the actual occupied access-card edge on the same frame.
         const occupiedBottom = accessRect.top + Math.min(
-          accessOccupiedHeight(access, accessRect),
+          occupiedAccessHeight,
           (model.accessPanelMaxHeight ?? accessRect.height) + 50,
         );
         const requestedTop = Number.parseFloat(
@@ -148,9 +150,22 @@ export function AsymptaTopPanelManager() {
       frame = window.requestAnimationFrame(layout);
     }
 
+    const observePanelMutations = () => {
+      panelMutationObserver.disconnect();
+      const options: MutationObserverInit = {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["class", "hidden", "aria-expanded"],
+      };
+      if (access) panelMutationObserver.observe(access, options);
+      if (request) panelMutationObserver.observe(request, options);
+    };
+
     const syncNodes = () => {
       const nextAccess = document.querySelector<HTMLElement>(ACCESS_SELECTOR);
       const nextRequest = document.querySelector<HTMLElement>(REQUEST_SELECTOR);
+      const nodesChanged = access !== nextAccess || request !== nextRequest;
 
       for (const node of [...observed]) {
         if (node === nextAccess || node === nextRequest) continue;
@@ -174,6 +189,7 @@ export function AsymptaTopPanelManager() {
         request.dataset.asymptaTopPanel = "request";
       }
 
+      if (nodesChanged) observePanelMutations();
       if (request && request !== previousRequest) {
         previousRequest = request;
         bringToFront("request");
@@ -201,12 +217,10 @@ export function AsymptaTopPanelManager() {
     };
 
     const onViewportChange = () => scheduleLayout();
-    const mutationObserver = new MutationObserver(() => syncNodes());
-    mutationObserver.observe(document.body, {
+    const treeObserver = new MutationObserver(() => syncNodes());
+    treeObserver.observe(document.body, {
       childList: true,
       subtree: true,
-      attributes: true,
-      attributeFilter: ["class", "hidden", "aria-expanded"],
     });
 
     document.addEventListener("pointerdown", onPointerDown, true);
@@ -221,7 +235,8 @@ export function AsymptaTopPanelManager() {
     return () => {
       if (frame) window.cancelAnimationFrame(frame);
       resizeObserver?.disconnect();
-      mutationObserver.disconnect();
+      panelMutationObserver.disconnect();
+      treeObserver.disconnect();
       document.removeEventListener("pointerdown", onPointerDown, true);
       document.removeEventListener("focusin", onFocusIn, true);
       window.removeEventListener("resize", onViewportChange);
