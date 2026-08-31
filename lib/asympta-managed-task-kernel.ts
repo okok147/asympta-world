@@ -8,7 +8,7 @@ import {
   migrateAsymptaTaskState as migrateCoreAsymptaTaskState,
   nextTaskRequirement,
   taskToAdaptiveInteractionSchema,
-} from "./asympta-task-kernel.ts";
+} from "./asympta-task-kernel-core-impl.ts";
 import {
   compileRequirementContract,
   requirementSemantic,
