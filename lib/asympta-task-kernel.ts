@@ -776,7 +776,7 @@ export function advanceAsymptaTask(task: AsymptaTaskState) {
     }
     if (!dueForRetry(current)) return current;
 
-    let queued = current.assignments.find((assignment) => assignment.status === "queued");
+    const queued = current.assignments.find((assignment) => assignment.status === "queued");
     if (queued) {
       current = startAssignment(current, queued.id);
       const running = current.assignments.find((assignment) => assignment.id === queued?.id);
