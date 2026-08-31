@@ -20,6 +20,7 @@
       }
     ],
     "paths": {
+      "@/lib/asympta-adaptive-interaction": ["./lib/asympta-automatic-clarification-options.ts"],
       "@/lib/atlas-simulation": ["./lib/atlas-animal-cooperation.ts"],
       "@/lib/atlas-demo": ["./lib/atlas-canonical-demo.ts"],
       "@/*": ["./*"]
