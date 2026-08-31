@@ -235,9 +235,14 @@ function requirementResolved(status: AsymptaTaskRequirementStatus) {
 }
 
 export function resolvedRequirementSemantics(requirements: AsymptaTaskRequirement[]) {
-  return new Set(requirements
-    .filter((requirement) => requirementResolved(requirement.status))
-    .map((requirement) => requirementSemantic(`${requirement.key} ${requirement.semantic} ${requirement.raw}`)));
+  const resolved = new Set<string>();
+  for (const requirement of requirements) {
+    if (!requirementResolved(requirement.status)) continue;
+    resolved.add(requirementSemantic(requirement.key));
+    resolved.add(requirementSemantic(requirement.semantic));
+    resolved.add(requirementSemantic(requirement.raw));
+  }
+  return resolved;
 }
 
 export function missingContractSemantics(task: AsymptaTaskState, snapshot: AsymptaRequirementContractSnapshot) {
