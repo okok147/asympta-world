@@ -1,6 +1,19 @@
+import {
+  isMarketplaceFoodPreference,
+  isMarketplaceFulfilmentMethod,
+  isMarketplacePaymentMethod,
+  marketplaceFoodPreferenceItem,
+  marketplaceProfileSourceRef,
+  type AsymptaMarketplaceProfile,
+  type MarketplaceFoodPreference,
+  type MarketplaceFulfilmentMethod,
+  type MarketplacePaymentMethod,
+  type MarketplaceProfileField,
+} from "./asympta-marketplace-profile.ts";
+
 export type MarketplaceDomain = "food" | "clothing";
-export type ContextFactStatus = "explicit" | "defaulted";
-export type ContextFactSource = "user_message" | "system_default";
+export type ContextFactStatus = "explicit" | "profile" | "defaulted";
+export type ContextFactSource = "user_message" | "approved_user_profile" | "system_default";
 
 export type ContextFact = {
   key: string;
@@ -47,21 +60,29 @@ export type ContextEnvelope = {
   provenance: {
     mode: "simulated";
     compiler: "asympta-context-compiler/1";
+    profileRef?: string;
   };
+};
+
+export type ContextProfileRequirements = {
+  required: MarketplaceProfileField[];
+  missing: MarketplaceProfileField[];
+  resolvedFromProfile: MarketplaceProfileField[];
 };
 
 export type ContextCompilation = {
   supported: boolean;
   envelope: ContextEnvelope | null;
   issues: string[];
+  profileRequirements: ContextProfileRequirements;
 };
-
 
 export type CompilerOptions = {
   requestId?: string;
   conversationId?: string;
   locale?: string;
   now?: number | string | Date;
+  profile?: AsymptaMarketplaceProfile | null;
 };
 
 type DomainMatch = {
@@ -70,8 +91,17 @@ type DomainMatch = {
   evidence: string;
 };
 
+type ExtractedValue<T> = {
+  value: T;
+  evidence: string;
+};
 
 const DEFAULT_SOURCE_REF = "system:asympta-marketplace-defaults/v1";
+const EMPTY_PROFILE_REQUIREMENTS: ContextProfileRequirements = {
+  required: [],
+  missing: [],
+  resolvedFromProfile: [],
+};
 
 const MARKETPLACE_ACTION_PATTERNS = [
   /\bbuy\b/i,
@@ -140,10 +170,12 @@ const CLOTHING_PATTERNS = [
 const FOOD_ITEMS: Array<[RegExp, string]> = [
   [/\bpizza\b/i, "pizza"],
   [/\bsushi\b/i, "sushi"],
+  [/\bramen\b/i, "ramen"],
   [/\bburger\b/i, "burger"],
   [/\bnoodles?\b/i, "noodles"],
   [/\brice\b/i, "rice meal"],
   [/壽司/u, "sushi"],
+  [/拉麵/u, "ramen"],
   [/薄餅/u, "pizza"],
   [/漢堡/u, "burger"],
   [/麵/u, "noodles"],
@@ -162,6 +194,35 @@ const CLOTHING_ITEMS: Array<[RegExp, string]> = [
   [/褲/u, "trousers"],
   [/裙/u, "dress"],
   [/工作服/u, "work outfit"],
+];
+
+const FOOD_PREFERENCE_PATTERNS: Array<[RegExp, MarketplaceFoodPreference]> = [
+  [/\b(?:vegetarian|vegan|plant[- ]based)\b/i, "vegetarian"],
+  [/素食|食素|齋/u, "vegetarian"],
+  [/\b(?:japanese|sushi|ramen)\b/i, "japanese"],
+  [/日式|日本菜|日本料理|壽司|拉麵/u, "japanese"],
+  [/\b(?:cantonese|hong kong|dim sum|chinese)\b/i, "local_cantonese"],
+  [/港式|粵菜|中菜|點心/u, "local_cantonese"],
+  [/\b(?:western|pizza|burger|pasta)\b/i, "western_comfort"],
+  [/西餐|薄餅|漢堡|意粉/u, "western_comfort"],
+  [/\b(?:anything|no preference|surprise me)\b/i, "no_preference"],
+  [/無所謂|冇所謂|隨便/u, "no_preference"],
+];
+
+const FULFILMENT_PATTERNS: Array<[RegExp, MarketplaceFulfilmentMethod]> = [
+  [/\b(?:courier|deliver(?:y|ed)?|shipping|ship it)\b/i, "courier_delivery"],
+  [/送貨|配送|外賣|速遞/u, "courier_delivery"],
+  [/\b(?:personal agent|agent pickup|pick it up|pick up|collect|bring it back)\b/i, "personal_agent_pickup"],
+  [/代理.*(?:去買|自取|拎返)|自取|拎返/u, "personal_agent_pickup"],
+];
+
+const PAYMENT_PATTERNS: Array<[RegExp, MarketplacePaymentMethod]> = [
+  [/\b(?:cash on delivery|pay on delivery|cod|cash)\b/i, "pay_on_delivery"],
+  [/貨到付款|到付|現金/u, "pay_on_delivery"],
+  [/\b(?:card on file|credit card|debit card|card)\b/i, "card_on_file"],
+  [/信用卡|扣帳卡|銀行卡/u, "card_on_file"],
+  [/\b(?:asympta wallet|wallet|balance)\b/i, "asympta_wallet"],
+  [/錢包|餘額/u, "asympta_wallet"],
 ];
 
 export function marketplaceStableHash(value: string) {
@@ -188,6 +249,16 @@ function firstPatternMatch(text: string, patterns: RegExp[]) {
   return best;
 }
 
+function firstMappedMatch<T>(text: string, patterns: Array<[RegExp, T]>): ExtractedValue<T> | null {
+  let best: { index: number; evidence: string; value: T } | null = null;
+  for (const [pattern, value] of patterns) {
+    const match = pattern.exec(text);
+    if (!match || (best && match.index >= best.index)) continue;
+    best = { index: match.index, evidence: match[0], value };
+  }
+  return best ? { value: best.value, evidence: best.evidence } : null;
+}
+
 function domainMatches(text: string): DomainMatch[] {
   const matches: DomainMatch[] = [];
   const food = firstPatternMatch(text, FOOD_PATTERNS);
@@ -203,6 +274,17 @@ function explicitFact(key: string, value: ContextFact["value"], requestId: strin
     value,
     status: "explicit",
     source: { type: "user_message", ref: requestId, evidence },
+    confidence: 1,
+    scope: "task",
+  };
+}
+
+function profileFact(key: string, value: ContextFact["value"], profile: AsymptaMarketplaceProfile): ContextFact {
+  return {
+    key,
+    value,
+    status: "profile",
+    source: { type: "approved_user_profile", ref: marketplaceProfileSourceRef(profile) },
     confidence: 1,
     scope: "task",
   };
@@ -262,6 +344,11 @@ function extractBudget(text: string) {
   return null;
 }
 
+function factValue<T extends string>(goal: MarketplaceGoal, key: string): T | null {
+  const fact = goal.facts.find((candidate) => candidate.key === key);
+  return typeof fact?.value === "string" ? fact.value as T : null;
+}
+
 export function marketplaceGoalItem(goal: MarketplaceGoal) {
   const fact = goal.facts.find((candidate) => candidate.key === "requested_item");
   return typeof fact?.value === "string" ? fact.value : goal.domain === "food" ? "ready-to-eat meal" : "everyday clothing set";
@@ -273,28 +360,68 @@ export function marketplaceGoalQuantity(goal: MarketplaceGoal) {
   return Number.isFinite(value) ? Math.max(1, Math.floor(value)) : 1;
 }
 
+export function marketplaceGoalFoodPreference(goal: MarketplaceGoal): MarketplaceFoodPreference | null {
+  const value = factValue<MarketplaceFoodPreference>(goal, "food_preference");
+  return isMarketplaceFoodPreference(value) ? value : null;
+}
+
+export function marketplaceGoalFulfilmentMethod(goal: MarketplaceGoal): MarketplaceFulfilmentMethod {
+  const value = factValue<MarketplaceFulfilmentMethod>(goal, "fulfilment_mode");
+  return isMarketplaceFulfilmentMethod(value) ? value : "personal_agent_pickup";
+}
+
+export function marketplaceGoalPaymentMethod(goal: MarketplaceGoal): MarketplacePaymentMethod {
+  const value = factValue<MarketplacePaymentMethod>(goal, "payment_method");
+  return isMarketplacePaymentMethod(value) ? value : "asympta_wallet";
+}
+
 function goalUnknownFields(domain: MarketplaceDomain, facts: ContextFact[]) {
   const keys = new Set(facts.map((fact) => fact.key));
   const candidates = domain === "food"
-    ? ["dietary_constraints", "cuisine_preference", "max_budget", "desired_time"]
-    : ["size", "style", "occasion", "max_budget"];
+    ? ["dietary_constraints", "max_budget", "desired_time", "food_preference", "fulfilment_mode", "payment_method"]
+    : ["size", "style", "occasion", "max_budget", "fulfilment_mode", "payment_method"];
   return candidates.filter((field) => !keys.has(field));
 }
 
-function buildGoal(match: DomainMatch, text: string, requestId: string, index: number): MarketplaceGoal {
+function buildGoal(
+  match: DomainMatch,
+  text: string,
+  requestId: string,
+  index: number,
+  profile: AsymptaMarketplaceProfile | null,
+): MarketplaceGoal {
   const facts: ContextFact[] = [explicitFact("domain", match.domain, requestId, match.evidence)];
   const item = matchItem(text, match.domain);
   const quantity = extractQuantity(text, match.domain);
   const budget = extractBudget(text);
+  const foodPreference = match.domain === "food" ? firstMappedMatch(text, FOOD_PREFERENCE_PATTERNS) : null;
+  const fulfilment = firstMappedMatch(text, FULFILMENT_PATTERNS);
+  const payment = firstMappedMatch(text, PAYMENT_PATTERNS);
 
-  facts.push(item
-    ? explicitFact("requested_item", item.label, requestId, item.evidence)
-    : defaultFact("requested_item", match.domain === "food" ? "ready-to-eat meal" : "everyday clothing set"));
+  if (item) {
+    facts.push(explicitFact("requested_item", item.label, requestId, item.evidence));
+  } else if (match.domain === "food" && profile?.foodPreference) {
+    facts.push(profileFact("requested_item", marketplaceFoodPreferenceItem(profile.foodPreference), profile));
+  } else {
+    facts.push(defaultFact("requested_item", match.domain === "food" ? "ready-to-eat meal" : "everyday clothing set"));
+  }
+
+  if (match.domain === "food") {
+    if (foodPreference) facts.push(explicitFact("food_preference", foodPreference.value, requestId, foodPreference.evidence));
+    else if (profile?.foodPreference) facts.push(profileFact("food_preference", profile.foodPreference, profile));
+  }
+
   facts.push(quantity
     ? explicitFact("quantity", quantity.value, requestId, quantity.evidence)
     : defaultFact("quantity", 1));
   if (budget) facts.push(explicitFact("max_budget", budget.value, requestId, budget.evidence));
-  facts.push(defaultFact("fulfilment_mode", "personal_agent_market_pickup"));
+
+  if (fulfilment) facts.push(explicitFact("fulfilment_mode", fulfilment.value, requestId, fulfilment.evidence));
+  else if (profile?.fulfilmentMethod) facts.push(profileFact("fulfilment_mode", profile.fulfilmentMethod, profile));
+
+  if (payment) facts.push(explicitFact("payment_method", payment.value, requestId, payment.evidence));
+  else if (profile?.paymentMethod) facts.push(profileFact("payment_method", profile.paymentMethod, profile));
+
   facts.push(defaultFact("market_selection", match.domain === "food" ? "nearby_food_market" : "nearby_clothing_market"));
 
   return {
@@ -309,24 +436,65 @@ function buildGoal(match: DomainMatch, text: string, requestId: string, index: n
       "A marketplace agent receives a typed enquiry packet.",
       "Simulated stock is checked and transferred consistently.",
       "Any simulated payment pauses for explicit human approval.",
-      "The personal agent returns to the user carrying the requested item.",
+      "The selected carrier returns the requested item to the user.",
       "A delivery receipt confirms the item entered user inventory.",
     ],
   };
 }
 
+function profileRequirements(goals: MarketplaceGoal[]): ContextProfileRequirements {
+  const required = new Set<MarketplaceProfileField>();
+  const missing = new Set<MarketplaceProfileField>();
+  const resolvedFromProfile = new Set<MarketplaceProfileField>();
+
+  for (const goal of goals) {
+    const item = goal.facts.find((fact) => fact.key === "requested_item");
+    const foodPreference = goal.facts.find((fact) => fact.key === "food_preference");
+    const fulfilment = goal.facts.find((fact) => fact.key === "fulfilment_mode");
+    const payment = goal.facts.find((fact) => fact.key === "payment_method");
+
+    if (goal.domain === "food" && item?.status === "defaulted") {
+      required.add("foodPreference");
+      if (!foodPreference) missing.add("foodPreference");
+      else if (foodPreference.source.type === "approved_user_profile") resolvedFromProfile.add("foodPreference");
+    }
+
+    required.add("fulfilmentMethod");
+    if (!fulfilment) missing.add("fulfilmentMethod");
+    else if (fulfilment.source.type === "approved_user_profile") resolvedFromProfile.add("fulfilmentMethod");
+
+    required.add("paymentMethod");
+    if (!payment) missing.add("paymentMethod");
+    else if (payment.source.type === "approved_user_profile") resolvedFromProfile.add("paymentMethod");
+  }
+
+  return {
+    required: [...required],
+    missing: [...missing],
+    resolvedFromProfile: [...resolvedFromProfile],
+  };
+}
+
 export function compileAsymptaContext(intention: string, options: CompilerOptions = {}): ContextCompilation {
   const clean = intention.replace(/\s+/g, " ").trim();
-  if (!clean) return { supported: false, envelope: null, issues: ["An intention is required."] };
-  if (clean.length > 600) return { supported: false, envelope: null, issues: ["An intention can contain at most 600 characters."] };
+  if (!clean) return { supported: false, envelope: null, issues: ["An intention is required."], profileRequirements: EMPTY_PROFILE_REQUIREMENTS };
+  if (clean.length > 600) return { supported: false, envelope: null, issues: ["An intention can contain at most 600 characters."], profileRequirements: EMPTY_PROFILE_REQUIREMENTS };
 
   const matches = domainMatches(clean);
-  if (!matches.length) return { supported: false, envelope: null, issues: ["No supported marketplace goal was found."] };
+  if (!matches.length) return { supported: false, envelope: null, issues: ["No supported marketplace goal was found."], profileRequirements: EMPTY_PROFILE_REQUIREMENTS };
   if (!firstPatternMatch(clean, MARKETPLACE_ACTION_PATTERNS)) {
-    return { supported: false, envelope: null, issues: ["The message names a marketplace domain but does not ask to obtain anything."] };
+    return {
+      supported: false,
+      envelope: null,
+      issues: ["The message names a marketplace domain but does not ask to obtain anything."],
+      profileRequirements: EMPTY_PROFILE_REQUIREMENTS,
+    };
   }
 
   const requestId = options.requestId?.trim() || `market-${marketplaceStableHash(clean)}`;
+  const profile = options.profile ?? null;
+  const goals = matches.map((match, index) => buildGoal(match, clean, requestId, index, profile));
+  const requirements = profileRequirements(goals);
   const envelope: ContextEnvelope = {
     schemaVersion: "asympta.context.v1",
     requestId,
@@ -338,10 +506,11 @@ export function compileAsymptaContext(intention: string, options: CompilerOption
       text: clean,
       sourceRef: requestId,
     },
-    goals: matches.map((match, index) => buildGoal(match, clean, requestId, index)),
+    goals,
     sharedFacts: [
       defaultFact("execution_environment", "asympta_simulated_city"),
       defaultFact("user_handoff_location", "personal_agent_home"),
+      ...(profile ? [profileFact("approved_profile", profile.presetId, profile)] : []),
     ],
     permissions: {
       allowed: [
@@ -362,6 +531,7 @@ export function compileAsymptaContext(intention: string, options: CompilerOption
     provenance: {
       mode: "simulated",
       compiler: "asympta-context-compiler/1",
+      ...(profile ? { profileRef: marketplaceProfileSourceRef(profile) } : {}),
     },
   };
 
@@ -370,6 +540,7 @@ export function compileAsymptaContext(intention: string, options: CompilerOption
     supported: validation.valid,
     envelope: validation.valid ? envelope : null,
     issues: validation.issues,
+    profileRequirements: requirements,
   };
 }
 
@@ -391,6 +562,12 @@ export function validateContextEnvelope(envelope: ContextEnvelope) {
         const evidence = fact.source.evidence?.trim().toLocaleLowerCase();
         if (!evidence || !raw.includes(evidence)) issues.push(`${goal.id}:${fact.key} lacks message evidence.`);
       }
+      if (fact.status === "profile" && fact.source.type !== "approved_user_profile") {
+        issues.push(`${goal.id}:${fact.key} has an invalid profile source.`);
+      }
+      if (fact.status === "profile" && !fact.source.ref.startsWith("approved-profile:")) {
+        issues.push(`${goal.id}:${fact.key} lacks an approved profile reference.`);
+      }
       if (fact.status === "defaulted" && fact.source.type !== "system_default") {
         issues.push(`${goal.id}:${fact.key} has an invalid default source.`);
       }
@@ -399,7 +576,6 @@ export function validateContextEnvelope(envelope: ContextEnvelope) {
   }
   return { valid: issues.length === 0, issues };
 }
-
 
 export function compactContextEnvelope(envelope: ContextEnvelope) {
   return {
