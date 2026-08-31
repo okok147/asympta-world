@@ -157,6 +157,7 @@ export function AsymptaMarketplaceIntentRouter() {
   const sourceByRequestRef = useRef(new Map<string, AsymptaCurrentRequestSource>());
   const lastClaimRef = useRef<{ requestId: string; at: number } | null>(null);
   const pendingProfileRef = useRef<MarketplaceProfileRequiredDetail | null>(null);
+  const profilePromptRef = useRef<MarketplaceProfilePrompt | null>(null);
   const profileChoiceInFlightRef = useRef(false);
 
   useEffect(() => {
@@ -175,6 +176,7 @@ export function AsymptaMarketplaceIntentRouter() {
 
     const clearProfileQuestion = () => {
       pendingProfileRef.current = null;
+      profilePromptRef.current = null;
       profileChoiceInFlightRef.current = false;
       setProfilePrompt(null);
       delete document.documentElement.dataset.asymptaMarketplaceNextField;
@@ -269,6 +271,7 @@ export function AsymptaMarketplaceIntentRouter() {
       if (!prompt) return;
       const source = sourceByRequestRef.current.get(detail.requestId) ?? "human";
       pendingProfileRef.current = detail;
+      profilePromptRef.current = prompt;
       profileChoiceInFlightRef.current = false;
       document.documentElement.dataset.asymptaMarketplaceNextField = prompt.field;
       delete document.documentElement.dataset.asymptaMarketplaceChoiceBusy;
@@ -282,7 +285,7 @@ export function AsymptaMarketplaceIntentRouter() {
 
     const onProfileChoice = (event: MouseEvent) => {
       const pending = pendingProfileRef.current;
-      const prompt = profilePrompt;
+      const prompt = profilePromptRef.current;
       if (!pending || !prompt || profileChoiceInFlightRef.current) return;
       const target = event.target instanceof Element ? event.target : null;
       const button = target?.closest<HTMLButtonElement>(".asympta-marketplace-profile__options > button");
@@ -350,7 +353,7 @@ export function AsymptaMarketplaceIntentRouter() {
       window.removeEventListener(MARKETPLACE_PROFILE_REQUIRED_EVENT, onProfileRequired);
       releaseOwnership();
     };
-  }, [profilePrompt]);
+  }, []);
 
   const promptPortal = profilePrompt && profileHost
     ? createPortal(
