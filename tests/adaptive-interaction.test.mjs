@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { readAdaptiveActivityIntent } from "../lib/asympta-adaptive-activity-bridge.ts";
 import {
   createAdaptiveInteractionSchema,
   mergeAdaptiveClarifications,
@@ -8,6 +9,15 @@ import {
   normalizeAdaptiveMissingFields,
   planAdaptiveMissingFields,
 } from "../lib/asympta-adaptive-interaction.ts";
+
+test("adaptive activity listener reads the canonical Asympta IR intent object", () => {
+  assert.equal(readAdaptiveActivityIntent({
+    intent: { raw: "  Buy a television  ", locale: "en" },
+  }), "Buy a television");
+  assert.equal(readAdaptiveActivityIntent({ intent: " Legacy browser probe " }), "Legacy browser probe");
+  assert.equal(readAdaptiveActivityIntent({ intent: { locale: "en" } }), "");
+  assert.equal(readAdaptiveActivityIntent(null), "");
+});
 
 test("adaptive schema turns a TV screen-size gap into immediate useful choices", () => {
   const schema = createAdaptiveInteractionSchema({
