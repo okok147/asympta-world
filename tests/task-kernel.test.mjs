@@ -1,19 +1,41 @@
+import "./task-kernel-core.test.mjs";
+
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
   answerTaskRequirement,
-  applyAsymptaAgentPatch,
   approveAsymptaTask,
-  AsymptaTaskKernelError,
   createAsymptaTask,
   migrateAsymptaTaskState,
   nextTaskRequirement,
   taskToAdaptiveInteractionSchema,
-} from "../lib/asympta-task-kernel.ts";
+} from "../lib/asympta-managed-task-kernel.ts";
+import {
+  compileRequirementContract,
+  requirementSemantic,
+} from "../lib/asympta-requirement-contracts.ts";
 
-function answer(task, requirement, value, label, commandId) {
+function answerValue(requirement) {
+  const semantic = requirementSemantic(requirement.semantic || requirement.key || requirement.raw);
+  const values = {
+    purpose: ["personal_use", "Personal use"],
+    budget: ["flexible_budget", "Flexible budget"],
+    quantity: [1, "1"],
+    acquisition_channel: ["best_available_channel", "Best available channel"],
+    fulfilment: ["delivery", "Delivery"],
+    deadline: ["flexible", "Flexible timing"],
+    screen_size: ["55-inch", "55″"],
+    brand: ["agent_choice", "Let Asympta choose"],
+    delivery_location: ["saved_home", "Usual address"],
+    event_intent: ["personalized_discovery", "Recommend from my preferences"],
+  };
+  return values[semantic] ?? ["agent_choice", "Let Asympta decide"];
+}
+
+function answerOne(task, requirement, commandId) {
+  const [value, label] = answerValue(requirement);
   return answerTaskRequirement(task, {
     commandId,
     taskId: task.taskId,
@@ -22,13 +44,23 @@ function answer(task, requirement, value, label, commandId) {
     value,
     label,
     actorId: "human",
-    now: "2026-08-31T10:30:00.000Z",
   });
 }
 
-function approve(task, commandId = "approve-task") {
+function answerAll(task, prefix) {
+  let current = task;
+  let index = 0;
+  while (nextTaskRequirement(current)) {
+    current = answerOne(current, nextTaskRequirement(current), `${prefix}:${index}`);
+    index += 1;
+    assert.ok(index < 24, "requirement progression must remain bounded");
+  }
+  return current;
+}
+
+function approve(task, commandId) {
   const approval = task.approvals.find((candidate) => candidate.status === "pending");
-  assert.ok(approval, "a pending approval must exist");
+  assert.ok(approval, "a high-impact task must expose a typed pending approval");
   return approveAsymptaTask(task, {
     commandId,
     taskId: task.taskId,
@@ -36,81 +68,55 @@ function approve(task, commandId = "approve-task") {
     expectedRevision: task.revision,
     approved: true,
     actorId: "human",
-    now: "2026-08-31T10:35:00.000Z",
   });
 }
 
-test("Task Kernel repairs broad television language into stable atomic requirements", () => {
-  const task = createAsymptaTask({
-    activityId: "activity-tv-kernel-1",
-    rootIntent: "Buy a television with a premium budget",
-    locale: "zh-Hant",
-    missingFields: ["尚需確認其他必要規格以提供合適建議。"],
-    mode: "simulated",
-    now: "2026-08-31T10:30:00.000Z",
-  });
+test("unknown purchases are expanded by one data contract instead of item-specific code", () => {
+  const cases = [
+    "buy me an airplane",
+    "purchase an industrial robot",
+    "buy a house",
+    "purchase a delivery van",
+    "buy a server rack",
+    "purchase a commercial oven",
+    "buy a laboratory microscope",
+    "purchase a forklift",
+    "buy a solar battery system",
+    "purchase a printing press",
+    "buy a yacht",
+    "purchase a warehouse crane",
+  ];
 
-  assert.equal(task.version, "asympta.task/0.4");
-  assert.equal(task.revision, 1);
-  assert.equal(task.phase, "awaiting_human");
-  assert.equal(task.liveness.state, "awaiting_input");
-  assert.deepEqual(task.requirements.map((requirement) => requirement.key), [
-    "screen_size",
-    "brand",
-    "delivery_location",
-  ]);
-  assert.equal(nextTaskRequirement(task)?.key, "screen_size");
-  assert.equal(task.rootIntent.raw, "Buy a television with a premium budget");
-  assert.equal(task.completion.requiresApproval, true);
-  assert.equal(task.completion.requiresReceipt, true);
+  for (const [index, rootIntent] of cases.entries()) {
+    const task = createAsymptaTask({
+      activityId: `generic-purchase-${index}`,
+      rootIntent,
+      locale: "en",
+      missingFields: [],
+      mode: "simulated",
+      confirmationRequired: true,
+      risk: "high",
+    });
+    const contract = Reflect.get(task, "requirementContract");
+    assert.equal(contract?.id, "commerce.purchase.generic.v1", rootIntent);
+    assert.deepEqual(contract?.requiredSemantics, [
+      "purpose",
+      "budget",
+      "quantity",
+      "acquisition_channel",
+      "fulfilment",
+      "deadline",
+    ]);
+    assert.equal(task.phase, "awaiting_human", rootIntent);
+    assert.equal(task.result, null, rootIntent);
+    assert.equal(task.outcome, null, rootIntent);
+    assert.ok(task.requirements.length >= 6, rootIntent);
+  }
 });
 
-test("typed answerRequirement advances revisions without reinterpreting natural language", () => {
+test("the exact airplane case gathers facts, pauses only for risk confirmation, then executes and verifies", () => {
   let task = createAsymptaTask({
-    activityId: "activity-tv-kernel-2",
-    rootIntent: "Buy a television",
-    locale: "zh-Hant",
-    missingFields: ["screen size", "brand preference", "delivery location"],
-    mode: "simulated",
-    now: "2026-08-31T10:31:00.000Z",
-  });
-  const rootIntent = task.rootIntent.raw;
-
-  task = answer(task, nextTaskRequirement(task), "55-inch", "55″", "answer-size");
-  assert.equal(task.revision, 2);
-  assert.equal(nextTaskRequirement(task)?.key, "brand");
-  assert.equal(task.rootIntent.raw, rootIntent);
-  assert.equal(task.requirements[0].lockedBy, "human");
-
-  task = answer(task, nextTaskRequirement(task), "sony", "Sony", "answer-brand");
-  assert.equal(nextTaskRequirement(task)?.key, "delivery_location");
-
-  task = answer(task, nextTaskRequirement(task), "saved_home", "常用住址", "answer-delivery");
-  assert.equal(task.phase, "awaiting_approval");
-  assert.equal(task.result, null);
-  assert.equal(task.rootIntent.raw, rootIntent);
-
-  task = approve(task, "approve-tv");
-  assert.equal(task.phase, "completed");
-  assert.equal(task.result?.completed, true);
-  assert.equal(task.result?.simulated, true);
-  assert.equal(task.outcome?.status, "completed");
-  assert.equal(task.outcome?.kind, "simulated_action");
-  assert.ok(task.evidence.some((evidence) => evidence.kind === "receipt" && evidence.verified));
-  assert.ok(task.assignments.some((assignment) => assignment.agentId === "intent-interpreter"));
-  assert.ok(task.assignments.some((assignment) => assignment.agentId === "commerce-electronics-specialist"));
-  assert.ok(task.assignments.some((assignment) => assignment.agentId === "retailer-search-agent"));
-  assert.ok(task.assignments.some((assignment) => assignment.agentId === "logistics-agent"));
-  assert.ok(task.assignments.some((assignment) => assignment.agentId === "transaction-coordinator"));
-  assert.ok(task.assignments.some((assignment) => assignment.agentId === "independent-verifier"));
-  assert.ok(task.assignments.length <= task.limits.maxAssignments);
-  assert.ok(task.assignments.every((assignment) => assignment.depth <= task.limits.maxDelegationDepth));
-  assert.ok(task.events.some((event) => event.kind === "task_completed"));
-});
-
-test("a consequential request with no missing fields pauses at confirmation, then resumes to a verified receipt", () => {
-  let task = createAsymptaTask({
-    activityId: "activity-airplane-1",
+    activityId: "airplane-exact-regression",
     rootIntent: "buy me an airplane",
     locale: "en",
     missingFields: [],
@@ -119,160 +125,172 @@ test("a consequential request with no missing fields pauses at confirmation, the
     risk: "high",
   });
 
+  assert.equal(task.phase, "awaiting_human");
+  assert.equal(task.liveness.state, "awaiting_input");
+  assert.equal(task.result, null);
+  task = answerAll(task, "airplane-answer");
+
   assert.equal(task.phase, "awaiting_approval");
+  assert.equal(task.liveness.state, "awaiting_approval");
   assert.equal(task.result, null);
   assert.equal(task.outcome, null);
-  assert.equal(task.completion.requiresApproval, true);
-  assert.equal(task.completion.requiresReceipt, true);
   assert.ok(task.plan);
-  assert.ok(task.approvals.some((approval) => approval.status === "pending"));
 
-  task = approve(task, "approve-airplane");
+  task = approve(task, "airplane-approve");
   assert.equal(task.phase, "completed");
   assert.equal(task.liveness.state, "completed");
   assert.equal(task.outcome?.status, "completed");
-  assert.equal(task.outcome?.simulated, true);
+  assert.equal(task.outcome?.kind, "simulated_action");
   assert.equal(task.result?.verification.status, "verified");
   assert.ok(task.evidence.some((evidence) => evidence.kind === "receipt" && evidence.verified));
+  assert.ok(task.assignments.some((assignment) => assignment.agentId === "transaction-coordinator"));
+  assert.ok(task.assignments.some((assignment) => assignment.agentId === "independent-verifier"));
   assert.doesNotMatch(task.result?.summary ?? "", /specialist agent mesh completed/i);
 });
 
-test("stale revisions are rejected and command ids are idempotent", () => {
-  const initial = createAsymptaTask({
-    rootIntent: "Buy a television",
-    locale: "en",
-    missingFields: ["screen size", "brand preference"],
+test("television contract preserves useful automatic options and the same typed continuation", () => {
+  let task = createAsymptaTask({
+    activityId: "managed-tv-options",
+    rootIntent: "Buy a premium television",
+    locale: "zh-Hant",
+    missingFields: ["尚需確認其他必要規格以提供合適建議。"],
     mode: "simulated",
   });
-  const firstRequirement = nextTaskRequirement(initial);
-  const first = answer(initial, firstRequirement, "55-inch", "55″", "idempotent-answer");
-  const replay = answerTaskRequirement(first, {
-    commandId: "idempotent-answer",
-    taskId: first.taskId,
-    requirementId: firstRequirement.id,
-    expectedRevision: initial.revision,
-    value: "55-inch",
-    label: "55″",
-  });
-  assert.equal(replay.revision, first.revision);
 
-  assert.throws(() => answerTaskRequirement(first, {
-    commandId: "stale-answer",
-    taskId: first.taskId,
-    requirementId: nextTaskRequirement(first).id,
-    expectedRevision: initial.revision,
-    value: "sony",
-    label: "Sony",
-  }), (error) => error instanceof AsymptaTaskKernelError && error.code === "revision_conflict");
-});
+  const contract = Reflect.get(task, "requirementContract");
+  assert.equal(contract?.id, "commerce.consumer-electronics.purchase.v1");
+  assert.equal(nextTaskRequirement(task)?.key, "screen_size");
+  const schema = taskToAdaptiveInteractionSchema(task);
+  assert.ok(schema.nextField?.options.some((option) => option.label === "55″"));
 
-test("agent patches cannot overwrite a human-confirmed fact", () => {
-  let task = createAsymptaTask({
-    rootIntent: "Buy a television",
-    locale: "en",
-    missingFields: ["screen size"],
-    mode: "simulated",
-  });
-  task = answer(task, nextTaskRequirement(task), "55-inch", "55″", "lock-size");
-  const assignment = task.assignments.find((candidate) => candidate.agentId === "commerce-electronics-specialist")
-    ?? task.assignments[0];
-  const size = task.requirements.find((requirement) => requirement.key === "screen_size");
-  const patched = applyAsymptaAgentPatch(task, {
-    taskId: task.taskId,
-    baseRevision: task.revision,
-    assignmentId: assignment.id,
-    agentId: assignment.agentId,
-    operations: [{
-      op: "propose_fact",
-      requirementId: size.id,
-      value: "75-inch",
-      label: "75″",
-      confidence: 0.99,
-      source: "agent_inference",
-    }],
-  });
-
-  const preserved = patched.requirements.find((requirement) => requirement.id === size.id);
-  assert.equal(preserved.value, "55-inch");
-  assert.equal(preserved.displayValue, "55″");
-  assert.equal(preserved.lockedBy, "human");
-  assert.ok(patched.events.some((event) => /Rejected an agent attempt/.test(event.summary)));
-});
-
-test("live writes stay active after approval when an executor is unavailable", () => {
-  let task = createAsymptaTask({
-    rootIntent: "Buy a television",
-    locale: "en",
-    missingFields: ["screen size"],
-    mode: "live",
-  });
-  task = answer(task, nextTaskRequirement(task), "55-inch", "55″", "live-size");
+  task = answerOne(task, nextTaskRequirement(task), "managed-tv-size");
+  assert.equal(nextTaskRequirement(task)?.key, "brand");
+  task = answerOne(task, nextTaskRequirement(task), "managed-tv-brand");
+  assert.equal(nextTaskRequirement(task)?.key, "delivery_location");
+  task = answerOne(task, nextTaskRequirement(task), "managed-tv-delivery");
   assert.equal(task.phase, "awaiting_approval");
-  assert.equal(task.result, null);
-
-  const afterApproval = approve(task, "approve-live");
-  assert.notEqual(afterApproval.phase, "blocked");
-  assert.notEqual(afterApproval.phase, "failed");
-  assert.equal(afterApproval.phase, "coordinating");
-  assert.equal(afterApproval.result, null);
-  assert.equal(afterApproval.outcome?.status, "waiting_external");
-  assert.equal(afterApproval.liveness.state, "waiting_external");
-  assert.equal(afterApproval.liveness.obstacle?.recoverable, true);
-  assert.ok(afterApproval.liveness.nextAttemptAt);
+  task = approve(task, "managed-tv-approve");
+  assert.equal(task.phase, "completed");
+  assert.equal(task.outcome?.status, "completed");
 });
 
-test("legacy false completion is reopened instead of being trusted", () => {
-  const base = createAsymptaTask({
-    rootIntent: "buy me an airplane",
+test("live high-impact actions remain active after approval until a connected outcome exists", () => {
+  let task = createAsymptaTask({
+    activityId: "live-industrial-equipment",
+    rootIntent: "purchase an industrial robot",
     locale: "en",
     missingFields: [],
-    mode: "simulated",
+    mode: "live",
     confirmationRequired: true,
+    risk: "high",
   });
-  const legacy = structuredClone(base);
-  legacy.version = "asympta.task/0.3";
-  legacy.phase = "completed";
-  legacy.result = {
-    completed: true,
-    simulated: true,
-    summary: "The specialist agent mesh completed and verified the task inside the simulated Asympta world.",
-    verification: { status: "verified", criteria: {}, details: "Planning was complete." },
-    completedAt: "2026-08-31T10:00:00.000Z",
+  task = answerAll(task, "live-robot-answer");
+  assert.equal(task.phase, "awaiting_approval");
+  task = approve(task, "live-robot-approve");
+
+  assert.notEqual(task.phase, "blocked");
+  assert.notEqual(task.phase, "failed");
+  assert.equal(task.phase, "coordinating");
+  assert.equal(task.result, null);
+  assert.equal(task.outcome?.status, "waiting_external");
+  assert.equal(task.liveness.state, "waiting_external");
+  assert.equal(task.liveness.obstacle?.recoverable, true);
+  assert.ok(task.liveness.nextAttemptAt);
+});
+
+test("legacy false-completed airplane state is reopened and receives the generic requirement contract", () => {
+  const legacy = {
+    version: "asympta.task/0.3",
+    taskId: "legacy-airplane-task",
+    activityId: "legacy-airplane-activity",
+    revision: 9,
+    rootIntent: { raw: "buy me an airplane", locale: "en" },
+    domain: "commerce",
+    actionFamily: "purchase",
+    mode: "simulated",
+    risk: "high",
+    phase: "completed",
+    title: "buy me an airplane",
+    summary: "buy me an airplane",
+    requirements: [],
+    assignments: [],
+    approvals: [],
+    evidence: [{
+      id: "legacy-planning-evidence",
+      source: "old-verifier",
+      kind: "verification",
+      summary: "Planning was complete.",
+      simulated: true,
+      verified: true,
+      createdAt: "2026-08-31T10:00:00.000Z",
+    }],
+    events: [],
+    processedCommandIds: [],
+    limits: { maxAssignments: 12, maxDelegationDepth: 3, maxParallelAgents: 3, maxAgentSteps: 24 },
+    plan: null,
+    result: {
+      completed: true,
+      simulated: true,
+      summary: "The specialist agent mesh completed and verified the task inside the simulated Asympta world.",
+      verification: { status: "verified", criteria: {}, details: "Planning was complete." },
+      completedAt: "2026-08-31T10:00:00.000Z",
+    },
+    failure: null,
+    createdAt: "2026-08-31T09:59:00.000Z",
+    updatedAt: "2026-08-31T10:00:00.000Z",
   };
-  delete legacy.completion;
-  delete legacy.liveness;
-  delete legacy.outcome;
-  legacy.approvals = [];
-  legacy.evidence = legacy.evidence.filter((evidence) => evidence.kind !== "receipt");
 
   const migrated = migrateAsymptaTaskState(legacy);
   assert.ok(migrated);
   assert.equal(migrated.version, "asympta.task/0.4");
-  assert.notEqual(migrated.phase, "completed");
+  assert.equal(Reflect.get(migrated, "requirementContract")?.id, "commerce.purchase.generic.v1");
+  assert.equal(migrated.phase, "awaiting_human");
   assert.equal(migrated.result, null);
-  assert.equal(migrated.liveness.obstacle?.code, "legacy_false_terminal_reopened");
+  assert.equal(migrated.outcome, null);
+  assert.ok(migrated.requirements.length >= 6);
+  assert.equal(migrated.liveness.obstacle?.recoverable, true);
 });
 
-test("adaptive UI is projected from TaskState requirement ids", () => {
-  const task = createAsymptaTask({
-    rootIntent: "Buy a television",
-    locale: "zh-Hant",
-    missingFields: ["screen size", "brand preference"],
-    mode: "simulated",
+test("contract selection is driven by action family, not a hard-coded airplane branch", async () => {
+  const airplane = compileRequirementContract({
+    rootIntent: "buy me an airplane",
+    actionFamily: "purchase",
+    missingFields: [],
   });
-  const schema = taskToAdaptiveInteractionSchema(task);
-  assert.equal(schema.interactionId, task.taskId);
-  assert.equal(schema.nextField?.id, task.requirements[0].id);
-  assert.equal(schema.nextField?.key, "screen_size");
-  assert.ok(schema.nextField?.options.some((option) => option.label === "55″"));
+  const robot = compileRequirementContract({
+    rootIntent: "purchase an industrial robot",
+    actionFamily: "purchase",
+    missingFields: [],
+  });
+  assert.equal(airplane.snapshot.id, robot.snapshot.id);
+  assert.deepEqual(airplane.snapshot.requiredSemantics, robot.snapshot.requiredSemantics);
+
+  const implementationPaths = [
+    "../lib/asympta-managed-task-kernel.ts",
+    "../lib/asympta-task-kernel.ts",
+    "../lib/asympta-agent-mesh.ts",
+    "../lib/asympta-task-policy.ts",
+    "../lib/asympta-requirement-contracts.ts",
+  ];
+  const implementation = (await Promise.all(implementationPaths.map((path) => readFile(new URL(path, import.meta.url), "utf8")))).join("\n");
+  assert.doesNotMatch(implementation, /airplane|aircraft|aeroplane/i);
 });
 
-test("adaptive component contains no natural-language continuation round trip and uses typed approval", async () => {
+test("browser kernel uses managed contracts, migration and automatic recoverable resume", async () => {
+  const source = await readFile(new URL("../lib/asympta-browser-task-kernel.ts", import.meta.url), "utf8");
+  assert.match(source, /from "\.\/asympta-managed-task-kernel\.ts"/);
+  assert.match(source, /migrateAsymptaTaskState\(candidate\)/);
+  assert.match(source, /scheduleResume\(task/);
+  assert.match(source, /this\.resume\(task\.taskId\)/);
+  assert.doesNotMatch(source, /phase === "blocked"|phase === "failed"/);
+});
+
+test("high-risk UI sends a typed approval command and resumes the same task", async () => {
   const source = await readFile(new URL("../components/asympta-adaptive-interaction.tsx", import.meta.url), "utf8");
-  assert.match(source, /answerRequirement\(\{/);
-  assert.match(source, /expectedRevision: task\.revision/);
   assert.match(source, /bridge\.approve\(\{/);
+  assert.match(source, /approvalId: approval\.id/);
+  assert.match(source, /expectedRevision: task\.revision/);
+  assert.match(source, /Confirm and continue|確認並繼續/);
   assert.doesNotMatch(source, /mergeAdaptiveClarifications/);
   assert.doesNotMatch(source, /runIntent\(intention\)/);
-  assert.doesNotMatch(source, /User-confirmed details:/);
 });
