@@ -3,7 +3,6 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
-  MARKETPLACE_PROFILE_REQUIRED_EVENT,
   compileAsymptaContext,
   createMarketplaceExecution,
   marketplaceProfilePreset,
@@ -113,7 +112,7 @@ test("each profile answer recompiles the same intent and advances to the next mi
   assert.equal(nextMarketplaceProfileField(compilation.profileRequirements.missing), null);
 });
 
-test("browser router claims marketplace forms and progressively saves one visible answer", async () => {
+test("browser router claims marketplace forms, asks one field at a time and finishes local simulation", async () => {
   const [page, router, css, requestState, requestCard] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/asympta-marketplace-intent-router.tsx", import.meta.url), "utf8"),
@@ -135,7 +134,13 @@ test("browser router claims marketplace forms and progressively saves one visibl
   assert.match(router, /patchMarketplaceProfile/);
   assert.match(router, /marketplaceProfilePrompt/);
   assert.match(router, /MARKETPLACE_EXECUTION_EVENT/);
-  assert.match(router, new RegExp(MARKETPLACE_PROFILE_REQUIRED_EVENT.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(router, /MARKETPLACE_PROFILE_REQUIRED_EVENT/);
+  assert.match(router, /autoApproveSimulatedMarketplacePayment/);
+  assert.match(router, /execution\.workflowId !== MARKETPLACE_WORKFLOW_ID/);
+  assert.match(router, /candidate\.source !== "webmcp"/);
+  assert.match(router, /candidate\.actionType === "authorize_payment"/);
+  assert.match(router, /candidate\.taskId\.startsWith\("mp-"\)/);
+  assert.match(router, /demo\.approve\(approval\.id, true\)/);
   assert.doesNotMatch(router, /runPublicAgentIntent|beginInformationJourney|public-web/);
   assert.match(css, /data-asympta-intent-owner="marketplace"/);
   assert.match(css, /data-asympta-marketplace-next-field="foodPreference"/);
