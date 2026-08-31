@@ -9,6 +9,7 @@ import {
   completionReceiptFromWorkflowSnapshot,
   publishAsymptaCompletionReceipt,
   type AsymptaCompletionReceipt,
+  type CompletionWorkflowSnapshot,
 } from "@/lib/asympta-completion-receipt";
 import { subscribeAsymptaCurrentRequest } from "@/lib/asympta-current-request";
 import {
@@ -43,13 +44,13 @@ function activityIntent(value: unknown) {
   return typeof raw === "string" ? raw.trim() : "";
 }
 
-function workflowSnapshot(value: unknown) {
+function workflowSnapshot(value: unknown): CompletionWorkflowSnapshot | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const root = value as Record<string, unknown>;
   const foreground = root.foreground;
-  return foreground && typeof foreground === "object" && !Array.isArray(foreground)
+  return (foreground && typeof foreground === "object" && !Array.isArray(foreground)
     ? foreground
-    : root;
+    : root) as CompletionWorkflowSnapshot;
 }
 
 export function AsymptaCompletionCoordinator() {
@@ -90,12 +91,14 @@ export function AsymptaCompletionCoordinator() {
       if (document.hidden) return;
       const app = window as CompletionWindow;
       try {
-        publishOnce(completionReceiptFromMarketplaceExecution(app.__ASYMPTA_MARKETPLACE__?.snapshot() as MarketplaceExecution));
+        const marketplace = app.__ASYMPTA_MARKETPLACE__?.snapshot() ?? null;
+        if (marketplace) publishOnce(completionReceiptFromMarketplaceExecution(marketplace));
       } catch {
         // A partial bridge snapshot is not completion evidence. Keep polling.
       }
       try {
-        publishOnce(completionReceiptFromWorkflowSnapshot(workflowSnapshot(app.__ASYMPTA_DEMO__?.snapshot()) ?? {}));
+        const world = workflowSnapshot(app.__ASYMPTA_DEMO__?.snapshot());
+        if (world) publishOnce(completionReceiptFromWorkflowSnapshot(world));
       } catch {
         // The world may be remounting. A later canonical snapshot will retry.
       }
