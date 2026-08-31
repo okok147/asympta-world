@@ -7,11 +7,14 @@ import {
   compileAsymptaContext,
   createMarketplaceExecution,
   marketplaceProfilePreset,
+  patchMarketplaceProfile,
 } from "../lib/asympta-marketplace-intent.ts";
 import {
   marketplaceCurrentRequestForProfile,
   marketplaceCurrentRequestForStart,
   marketplaceCurrentRequestFromExecution,
+  marketplaceProfilePrompt,
+  nextMarketplaceProfileField,
 } from "../lib/asympta-marketplace-request-routing.ts";
 
 test("a complete saved profile makes a vague food request executable without public-agent clarification", () => {
@@ -67,21 +70,50 @@ test("marketplace execution owns the current-request status throughout the simul
   assert.match(completed.step, /交付/);
 });
 
-test("waiting input is reserved for genuinely missing profile fields", () => {
+test("an incomplete profile asks only the next necessary question", () => {
+  const missing = ["paymentMethod", "fulfilmentMethod", "foodPreference"];
+  assert.equal(nextMarketplaceProfileField(missing), "foodPreference");
+  const prompt = marketplaceProfilePrompt(missing, "zh-Hant");
+  assert.equal(prompt?.field, "foodPreference");
+  assert.match(prompt?.question ?? "", /哪一類食物/);
+  assert.doesNotMatch(prompt?.question ?? "", /配送|付款/);
+
   const request = marketplaceCurrentRequestForProfile({
     intent: "我想買食物",
     requestId: "request-missing-profile",
-    missing: ["foodPreference", "fulfilmentMethod", "paymentMethod"],
+    missing,
   }, "human", "zh-Hant");
 
   assert.equal(request.kind, "marketplace");
   assert.equal(request.status, "waiting_input");
-  assert.match(request.step, /食物偏好/);
-  assert.match(request.step, /配送方式/);
-  assert.match(request.step, /付款方式/);
+  assert.match(request.step, /哪一類食物/);
+  assert.doesNotMatch(request.step, /配送|付款/);
 });
 
-test("browser router claims marketplace forms before the public information journey", async () => {
+test("each profile answer recompiles the same intent and advances to the next missing field", () => {
+  const intent = "I want to buy some food";
+  let profile = null;
+
+  let compilation = compileAsymptaContext(intent, { requestId: "request-progressive", now: 0, profile });
+  assert.equal(nextMarketplaceProfileField(compilation.profileRequirements.missing), "foodPreference");
+
+  profile = patchMarketplaceProfile(profile, { foodPreference: "japanese" }, 1);
+  compilation = compileAsymptaContext(intent, { requestId: "request-progressive", now: 1, profile });
+  assert.equal(nextMarketplaceProfileField(compilation.profileRequirements.missing), "fulfilmentMethod");
+  assert.deepEqual(compilation.profileRequirements.missing, ["fulfilmentMethod", "paymentMethod"]);
+
+  profile = patchMarketplaceProfile(profile, { fulfilmentMethod: "courier_delivery" }, 2);
+  compilation = compileAsymptaContext(intent, { requestId: "request-progressive", now: 2, profile });
+  assert.equal(nextMarketplaceProfileField(compilation.profileRequirements.missing), "paymentMethod");
+  assert.deepEqual(compilation.profileRequirements.missing, ["paymentMethod"]);
+
+  profile = patchMarketplaceProfile(profile, { paymentMethod: "asympta_wallet" }, 3);
+  compilation = compileAsymptaContext(intent, { requestId: "request-progressive", now: 3, profile });
+  assert.deepEqual(compilation.profileRequirements.missing, []);
+  assert.equal(nextMarketplaceProfileField(compilation.profileRequirements.missing), null);
+});
+
+test("browser router claims marketplace forms and progressively saves one visible answer", async () => {
   const [page, router, css, requestState, requestCard] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/asympta-marketplace-intent-router.tsx", import.meta.url), "utf8"),
@@ -94,14 +126,23 @@ test("browser router claims marketplace forms before the public information jour
   assert.ok(page.indexOf("<AsymptaMarketplaceIntentRouter") < page.indexOf("<AsymptaIntentComposer"));
   assert.match(router, /addEventListener\("submit", onSubmit, true\)/);
   assert.match(router, /addEventListener\("keydown", onKeyDown, true\)/);
+  assert.match(router, /addEventListener\("click", onProfileChoice, true\)/);
   assert.match(router, /stopImmediatePropagation\(\)/);
   assert.match(router, /compileAsymptaContext/);
   assert.match(router, /__ASYMPTA_MARKETPLACE__/);
-  assert.match(router, /runIntent\(intent\)/);
+  assert.match(router, /runIntent\(pending\.intent\)/);
+  assert.match(router, /writeAsymptaMarketplaceProfile/);
+  assert.match(router, /patchMarketplaceProfile/);
+  assert.match(router, /marketplaceProfilePrompt/);
   assert.match(router, /MARKETPLACE_EXECUTION_EVENT/);
   assert.match(router, new RegExp(MARKETPLACE_PROFILE_REQUIRED_EVENT.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.doesNotMatch(router, /runPublicAgentIntent|beginInformationJourney|public-web/);
   assert.match(css, /data-asympta-intent-owner="marketplace"/);
+  assert.match(css, /data-asympta-marketplace-next-field="foodPreference"/);
+  assert.match(css, /fieldset:nth-of-type\(1\)/);
+  assert.match(css, /fieldset:nth-of-type\(2\)/);
+  assert.match(css, /fieldset:nth-of-type\(3\)/);
+  assert.match(css, /asympta-marketplace-progressive-question/);
   assert.match(css, /asympta-information-journey/);
   assert.match(css, /asympta-intent-result/);
   assert.match(requestState, /"marketplace"/);
