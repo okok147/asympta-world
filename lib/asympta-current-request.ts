@@ -16,7 +16,7 @@ export type AsymptaCurrentRequest = {
   source: AsymptaCurrentRequestSource;
   intent: string;
   goal: string | null;
-  kind: "weather" | "research" | "action" | "clarification" | null;
+  kind: "weather" | "research" | "action" | "clarification" | "marketplace" | null;
   permission: AsymptaCurrentRequestPermission;
   status: AsymptaCurrentRequestStatus;
   actor: string;
