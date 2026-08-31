@@ -15,6 +15,7 @@ import {
   buildMarketplaceWorkflow,
   compileAsymptaContext,
   createMarketplaceExecution,
+  marketplaceInventoryInvariant,
   marketplaceProfilePreset,
   marketplaceTaskIds,
   syncMarketplaceExecution,
@@ -112,6 +113,49 @@ test("Buy food with courier pay-on-delivery reaches handoff and return before pa
   assert.equal(execution.ledger[0].userInventory, 1);
   assert.ok(execution.packets.some((packet) => packet.kind === "payment_authorized"));
   assert.ok(execution.packets.some((packet) => packet.kind === "delivery_receipt"));
+});
+
+test("declining COD before the marketplace projection observes handoff never creates negative inventory", () => {
+  const envelope = compileCourierCod("courier-cod-fast-decline");
+  upsertMarketplaceWorkflow(envelope);
+  const ids = marketplaceTaskIds(envelope.goals[0], 0);
+  let world = startAtlasDemoWorkflow(createAtlasWorld(0), "marketplace-intent");
+  let paymentApproval = null;
+
+  // Intentionally do not sync the marketplace projection while the courier is
+  // moving. This reproduces the browser race where the approval card polls a
+  // little faster than the marketplace ledger projection.
+  for (let index = 0; index < 12_000; index += 1) {
+    world = advanceAtlasWorld(world, 120);
+    const pending = world.approvals.find((approval) => approval.taskId === ids.payment && approval.status === "pending");
+    if (pending) {
+      paymentApproval = pending;
+      break;
+    }
+  }
+
+  assert.ok(paymentApproval, "pay-on-delivery never reached approval");
+  assert.equal(world.tasks.find((task) => task.id === ids.handoff)?.status, "done");
+  assert.equal(world.tasks.find((task) => task.id === ids.returning)?.status, "done");
+
+  world = resolveAtlasDemoApproval(world, paymentApproval.id, false);
+  const execution = syncMarketplaceExecution(createMarketplaceExecution(envelope), atlasSnapshot(world));
+  const line = execution.ledger[0];
+  const invariant = marketplaceInventoryInvariant(execution);
+
+  assert.equal(world.phase, "blocked");
+  assert.equal(execution.status, "blocked");
+  assert.equal(execution.transactions[0].payment, "declined");
+  assert.equal(execution.transactions[0].status, "blocked");
+  assert.equal(line.marketReserved, 0);
+  assert.equal(line.carrierCargo, 1);
+  assert.equal(line.userInventory, 0);
+  assert.equal(line.marketAvailable + line.marketReserved + line.carrierCargo + line.userInventory, line.initialMarketStock);
+  assert.equal(invariant.valid, true, invariant.issues.join(" "));
+  assert.equal(
+    execution.packets.findLast((packet) => packet.kind === "blocked")?.payload.inventoryReleased,
+    false,
+  );
 });
 
 test("changing the marketplace profile recovers a blocked attempt instead of leaving the card dead", async () => {
