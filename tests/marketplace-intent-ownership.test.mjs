@@ -16,7 +16,7 @@ import {
 
 test("a complete saved profile makes a vague food request executable without public-agent clarification", () => {
   const profile = marketplaceProfilePreset("local_delivery", 0);
-  const compilation = compileAsymptaContext("買食物", {
+  const compilation = compileAsymptaContext("我想買食物", {
     requestId: "request-owned-marketplace",
     conversationId: "conversation-owned-marketplace",
     locale: "zh-Hant",
@@ -41,7 +41,7 @@ test("a complete saved profile makes a vague food request executable without pub
 
 test("marketplace execution owns the current-request status throughout the simulated workflow", () => {
   const profile = marketplaceProfilePreset("local_delivery", 0);
-  const compilation = compileAsymptaContext("買食物", {
+  const compilation = compileAsymptaContext("我想買食物", {
     requestId: "request-marketplace-state",
     locale: "zh-Hant",
     now: 0,
@@ -69,7 +69,7 @@ test("marketplace execution owns the current-request status throughout the simul
 
 test("waiting input is reserved for genuinely missing profile fields", () => {
   const request = marketplaceCurrentRequestForProfile({
-    intent: "買食物",
+    intent: "我想買食物",
     requestId: "request-missing-profile",
     missing: ["foodPreference", "fulfilmentMethod", "paymentMethod"],
   }, "human", "zh-Hant");
