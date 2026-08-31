@@ -1,4 +1,5 @@
 import {
+  createMarketplaceExecution,
   syncMarketplaceExecution as syncMarketplaceExecutionBase,
   type MarketplaceExecution,
   type MarketplaceWorldSnapshot,
@@ -9,21 +10,22 @@ function cloneSnapshot(snapshot: MarketplaceWorldSnapshot): MarketplaceWorldSnap
   return JSON.parse(JSON.stringify(snapshot)) as MarketplaceWorldSnapshot;
 }
 
+function isInventoryProjectionError(error: unknown) {
+  if (!(error instanceof Error)) return false;
+  return /negative or invalid quantity|inventory is not conserved|cargo is inconsistent/i.test(error.message);
+}
+
 /**
- * The marketplace UI and the canonical world intentionally poll at different
- * cadences. A user can therefore decline a courier pay-on-delivery approval in
- * the small window after the canonical handoff/return has completed but before
- * the marketplace projection has observed that handoff.
+ * A COD decline can race the marketplace projection: the canonical world may
+ * already have completed handoff/return while the slower projection still has
+ * the item reserved at the store. If the blocked payment is projected first,
+ * the old reducer releases that reservation and then subtracts it again for the
+ * already-completed handoff.
  *
- * In that race, the legacy projection used to process the final blocked payment
- * first (releasing the still-projected reservation) and then process the already
- * completed handoff (subtracting the reservation again), producing -1 stock.
- *
- * Stage that missed handoff once with the payment still represented as waiting,
- * then apply the real blocked snapshot. This preserves packet ordering and the
- * inventory invariant without weakening the approval boundary.
+ * Stage the missed handoff with payment still waiting, then apply the real
+ * blocked snapshot. This preserves the causal order and the inventory invariant.
  */
-export function syncMarketplaceExecution(
+function syncBlockedMarketplaceExecution(
   current: MarketplaceExecution,
   snapshot: MarketplaceWorldSnapshot,
 ): MarketplaceExecution {
@@ -53,9 +55,9 @@ export function syncMarketplaceExecution(
   let next = syncMarketplaceExecutionBase(current, stagedSnapshot);
   next = syncMarketplaceExecutionBase(next, snapshot);
 
-  // A blocked COD attempt occurs after the item has left reserved stock. Make
-  // the projection explicit: the payment was declined, the item remains with
-  // the courier, and no market reservation was released a second time.
+  // A declined COD happens after the item left reserved stock. The item remains
+  // with the courier until a future return/recovery flow; do not claim a second
+  // reservation release.
   for (const goalId of stagedGoalIds) {
     const transaction = next.transactions.find((candidate) => candidate.goalId === goalId);
     if (transaction?.payment === "declined") transaction.status = "blocked";
@@ -67,4 +69,24 @@ export function syncMarketplaceExecution(
   }
   next.status = "blocked";
   return next;
+}
+
+/**
+ * The world state is canonical; MarketplaceExecution is only a projection.
+ * Never let a stale projection permanently poison a run. If a browser timing
+ * race makes the incremental projection violate the ledger invariant, rebuild
+ * that projection from the same canonical snapshot and continue. No approval
+ * or world action is invented by this recovery path.
+ */
+export function syncMarketplaceExecution(
+  current: MarketplaceExecution,
+  snapshot: MarketplaceWorldSnapshot,
+): MarketplaceExecution {
+  try {
+    return syncBlockedMarketplaceExecution(current, snapshot);
+  } catch (error) {
+    if (!isInventoryProjectionError(error)) throw error;
+    const rebuilt = createMarketplaceExecution(current.envelope);
+    return syncBlockedMarketplaceExecution(rebuilt, snapshot);
+  }
 }
