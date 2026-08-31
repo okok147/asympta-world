@@ -14,13 +14,14 @@ const eslintConfig = defineConfig([
       "react-hooks/immutability": "off",
     },
   },
-  // Marketplace browser bridges synchronize persisted preferences, request-card portal
-  // hosts and map-owned DOM markers. Those queried browser nodes are external systems,
-  // not mutable React render data, and their subscription snapshots must enter state.
+  // Browser bridges synchronize persisted preferences, request-card portals, map-owned
+  // markers and measured fixed-panel geometry. Those queried DOM nodes are external
+  // systems, not mutable React render data, and subscription snapshots must enter state.
   {
     files: [
       "components/asympta-marketplace-intent-bridge.tsx",
       "components/asympta-marketplace-intent-router.tsx",
+      "components/asympta-top-panel-manager.tsx",
     ],
     rules: {
       "react-hooks/immutability": "off",
