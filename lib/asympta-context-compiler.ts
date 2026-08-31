@@ -96,6 +96,12 @@ type ExtractedValue<T> = {
   evidence: string;
 };
 
+type MatchedItem = {
+  label: string;
+  evidence: string;
+  index: number;
+};
+
 const DEFAULT_SOURCE_REF = "system:asympta-marketplace-defaults/v1";
 const EMPTY_PROFILE_REQUIREMENTS: ContextProfileRequirements = {
   required: [],
@@ -127,6 +133,121 @@ const MARKETPLACE_ACTION_PATTERNS = [
   /食べたい/u,
 ];
 
+const APPLE_ITEM_PATTERN = /\bapples?\b/i;
+const APPLE_NON_FOOD_CONTEXT = /\b(?:apple\s+(?:watch|iphone|ipad|mac(?:book)?|vision(?:\s+pro)?|pencil|tv|device|computer|laptop|phone|stock|shares?|gift\s*cards?|inc\.?|store|care|music|pay)|(?:shares?|stock)\s+(?:in|of)\s+apple)\b/i;
+
+const FOOD_ITEMS: Array<[RegExp, string]> = [
+  [/\bapple\s+juice\b/i, "apple juice"],
+  [/\borange\s+juice\b/i, "orange juice"],
+  [/\bapple\s+pie\b/i, "apple pie"],
+  [APPLE_ITEM_PATTERN, "apple"],
+  [/\bbananas?\b/i, "banana"],
+  [/\boranges?\b/i, "orange"],
+  [/\bpears?\b/i, "pear"],
+  [/\bgrapes?\b/i, "grapes"],
+  [/\bstrawberr(?:y|ies)\b/i, "strawberries"],
+  [/\bwatermelons?\b/i, "watermelon"],
+  [/\bfruits?\b/i, "fruit"],
+  [/\bbread\b/i, "bread"],
+  [/\bmilk\b/i, "milk"],
+  [/\beggs?\b/i, "eggs"],
+  [/\bcheese\b/i, "cheese"],
+  [/\byog(?:h)?urts?\b/i, "yogurt"],
+  [/\bchicken\b/i, "chicken"],
+  [/\bbeef\b/i, "beef"],
+  [/\bpork\b/i, "pork"],
+  [/\bfish\b/i, "fish"],
+  [/\bvegetables?\b/i, "vegetables"],
+  [/\bsalads?\b/i, "salad"],
+  [/\bsandwich(?:es)?\b/i, "sandwich"],
+  [/\bsoups?\b/i, "soup"],
+  [/\bcereals?\b/i, "cereal"],
+  [/\bcoffee\b/i, "coffee"],
+  [/\btea\b/i, "tea"],
+  [/\bjuices?\b/i, "juice"],
+  [/\bwater\b/i, "water"],
+  [/\bsnacks?\b/i, "snack"],
+  [/\bchocolates?\b/i, "chocolate"],
+  [/\b(?:biscuits?|cookies?)\b/i, "biscuits"],
+  [/\bcakes?\b/i, "cake"],
+  [/\bpizza\b/i, "pizza"],
+  [/\bsushi\b/i, "sushi"],
+  [/\bramen\b/i, "ramen"],
+  [/\bburger\b/i, "burger"],
+  [/\bnoodles?\b/i, "noodles"],
+  [/\brice\b/i, "rice meal"],
+  [/蘋果汁|苹果汁/u, "apple juice"],
+  [/橙汁/u, "orange juice"],
+  [/蘋果批|苹果派/u, "apple pie"],
+  [/蘋果|苹果/u, "apple"],
+  [/香蕉/u, "banana"],
+  [/橙(?:仔)?/u, "orange"],
+  [/梨/u, "pear"],
+  [/提子|葡萄/u, "grapes"],
+  [/士多啤梨|草莓/u, "strawberries"],
+  [/西瓜/u, "watermelon"],
+  [/水果/u, "fruit"],
+  [/麵包|面包/u, "bread"],
+  [/牛奶/u, "milk"],
+  [/雞蛋|鸡蛋/u, "eggs"],
+  [/芝士|奶酪/u, "cheese"],
+  [/乳酪|酸奶/u, "yogurt"],
+  [/雞肉|鸡肉/u, "chicken"],
+  [/牛肉/u, "beef"],
+  [/豬肉|猪肉/u, "pork"],
+  [/魚|鱼/u, "fish"],
+  [/蔬菜/u, "vegetables"],
+  [/沙律|沙拉/u, "salad"],
+  [/三文治|三明治/u, "sandwich"],
+  [/湯|汤/u, "soup"],
+  [/麥片|麦片/u, "cereal"],
+  [/咖啡/u, "coffee"],
+  [/果汁/u, "juice"],
+  [/零食/u, "snack"],
+  [/朱古力|巧克力/u, "chocolate"],
+  [/餅乾|饼干/u, "biscuits"],
+  [/蛋糕/u, "cake"],
+  [/壽司/u, "sushi"],
+  [/拉麵/u, "ramen"],
+  [/薄餅/u, "pizza"],
+  [/漢堡/u, "burger"],
+  [/麵/u, "noodles"],
+  [/飯/u, "rice meal"],
+  [/りんごジュース/u, "apple juice"],
+  [/オレンジジュース/u, "orange juice"],
+  [/アップルパイ/u, "apple pie"],
+  [/りんご|リンゴ/u, "apple"],
+  [/バナナ/u, "banana"],
+  [/オレンジ/u, "orange"],
+  [/ぶどう|ブドウ/u, "grapes"],
+  [/いちご|イチゴ/u, "strawberries"],
+  [/すいか|スイカ/u, "watermelon"],
+  [/果物/u, "fruit"],
+  [/パン/u, "bread"],
+  [/牛乳/u, "milk"],
+  [/卵/u, "eggs"],
+  [/チーズ/u, "cheese"],
+  [/ヨーグルト/u, "yogurt"],
+  [/鶏肉/u, "chicken"],
+  [/牛肉/u, "beef"],
+  [/豚肉/u, "pork"],
+  [/魚/u, "fish"],
+  [/野菜/u, "vegetables"],
+  [/サラダ/u, "salad"],
+  [/サンドイッチ/u, "sandwich"],
+  [/スープ/u, "soup"],
+  [/シリアル/u, "cereal"],
+  [/コーヒー/u, "coffee"],
+  [/ジュース/u, "juice"],
+  [/お菓子/u, "snack"],
+  [/チョコレート/u, "chocolate"],
+  [/クッキー/u, "biscuits"],
+  [/ケーキ/u, "cake"],
+  [/寿司/u, "sushi"],
+  [/ラーメン/u, "ramen"],
+  [/ピザ/u, "pizza"],
+];
+
 const FOOD_PATTERNS = [
   /\bfood\b/i,
   /\bmeal(?:s)?\b/i,
@@ -137,12 +258,6 @@ const FOOD_PATTERNS = [
   /\bgrocer(?:y|ies)\b/i,
   /\btakeaway\b/i,
   /\bsomething\s+to\s+eat\b/i,
-  /\bsushi\b/i,
-  /\bramen\b/i,
-  /\bpizza\b/i,
-  /\bburger\b/i,
-  /\bnoodles?\b/i,
-  /\brice\b/i,
   /食物/u,
   /嘢食/u,
   /野食/u,
@@ -151,18 +266,10 @@ const FOOD_PATTERNS = [
   /晚餐/u,
   /午餐/u,
   /早餐/u,
-  /壽司/u,
-  /拉麵/u,
-  /薄餅/u,
-  /漢堡/u,
-  /麵/u,
-  /飯/u,
   /食べ物/u,
   /ご飯/u,
   /夕食/u,
-  /寿司/u,
-  /ラーメン/u,
-  /ピザ/u,
+  ...FOOD_ITEMS.map(([pattern]) => pattern),
 ];
 
 const CLOTHING_PATTERNS = [
@@ -180,21 +287,6 @@ const CLOTHING_PATTERNS = [
   /裙/u,
   /工作服/u,
   /洋服/u,
-];
-
-const FOOD_ITEMS: Array<[RegExp, string]> = [
-  [/\bpizza\b/i, "pizza"],
-  [/\bsushi\b/i, "sushi"],
-  [/\bramen\b/i, "ramen"],
-  [/\bburger\b/i, "burger"],
-  [/\bnoodles?\b/i, "noodles"],
-  [/\brice\b/i, "rice meal"],
-  [/壽司/u, "sushi"],
-  [/拉麵/u, "ramen"],
-  [/薄餅/u, "pizza"],
-  [/漢堡/u, "burger"],
-  [/麵/u, "noodles"],
-  [/飯/u, "rice meal"],
 ];
 
 const CLOTHING_ITEMS: Array<[RegExp, string]> = [
@@ -240,6 +332,30 @@ const PAYMENT_PATTERNS: Array<[RegExp, MarketplacePaymentMethod]> = [
   [/錢包|餘額/u, "asympta_wallet"],
 ];
 
+const LATIN_ITEM_QUANTITIES: Record<string, number> = {
+  a: 1,
+  an: 1,
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+};
+
+const CJK_ITEM_QUANTITIES: Record<string, number> = {
+  一: 1,
+  壹: 1,
+  二: 2,
+  兩: 2,
+  两: 2,
+  貳: 2,
+  三: 3,
+  參: 3,
+  参: 3,
+  四: 4,
+  五: 5,
+};
+
 export function marketplaceStableHash(value: string) {
   let hash = 2166136261;
   for (let index = 0; index < value.length; index += 1) {
@@ -257,6 +373,7 @@ function isoDate(value: CompilerOptions["now"]) {
 function firstPatternMatch(text: string, patterns: RegExp[]) {
   let best: { index: number; evidence: string } | null = null;
   for (const pattern of patterns) {
+    if (pattern === APPLE_ITEM_PATTERN && APPLE_NON_FOOD_CONTEXT.test(text)) continue;
     const match = pattern.exec(text);
     if (!match || (best && match.index >= best.index)) continue;
     best = { index: match.index, evidence: match[0] };
@@ -316,16 +433,50 @@ function defaultFact(key: string, value: ContextFact["value"]): ContextFact {
   };
 }
 
-function matchItem(text: string, domain: MarketplaceDomain) {
+function matchItem(text: string, domain: MarketplaceDomain): MatchedItem | null {
   const candidates = domain === "food" ? FOOD_ITEMS : CLOTHING_ITEMS;
+  let best: MatchedItem | null = null;
   for (const [pattern, label] of candidates) {
+    if (pattern === APPLE_ITEM_PATTERN && APPLE_NON_FOOD_CONTEXT.test(text)) continue;
     const match = pattern.exec(text);
-    if (match) return { label, evidence: match[0] };
+    if (!match || (best && match.index >= best.index)) continue;
+    best = { label, evidence: match[0], index: match.index };
+  }
+  return best;
+}
+
+function quantityBeforeItem(text: string, item: MatchedItem) {
+  const prefix = text.slice(Math.max(0, item.index - 24), item.index);
+  const latin = /(?:^|\s)(a|an|one|two|three|four|five|\d{1,2})\s*$/i.exec(prefix);
+  if (latin) {
+    const token = latin[1].toLowerCase();
+    const value = /^\d+$/.test(token) ? Number(token) : LATIN_ITEM_QUANTITIES[token];
+    if (Number.isFinite(value)) {
+      return {
+        value: Math.max(1, Number(value)),
+        evidence: `${latin[1]} ${item.evidence}`,
+      };
+    }
+  }
+
+  const cjk = /([一二兩两三四五壹貳參参\d]{1,2})\s*(?:個|个|件|份|盒|包|樽|瓶|支)?\s*$/u.exec(prefix);
+  if (cjk) {
+    const token = cjk[1];
+    const value = /^\d+$/.test(token) ? Number(token) : CJK_ITEM_QUANTITIES[token];
+    if (Number.isFinite(value)) {
+      return {
+        value: Math.max(1, Number(value)),
+        evidence: `${cjk[0].trim()}${item.evidence}`,
+      };
+    }
   }
   return null;
 }
 
-function extractQuantity(text: string, domain: MarketplaceDomain) {
+function extractQuantity(text: string, domain: MarketplaceDomain, item: MatchedItem | null) {
+  const itemQuantity = item ? quantityBeforeItem(text, item) : null;
+  if (itemQuantity) return itemQuantity;
+
   const latinUnits = domain === "food"
     ? "meals?|servings?|portions?|orders?"
     : "items?|pieces?|sets?";
@@ -407,7 +558,7 @@ function buildGoal(
 ): MarketplaceGoal {
   const facts: ContextFact[] = [explicitFact("domain", match.domain, requestId, match.evidence)];
   const item = matchItem(text, match.domain);
-  const quantity = extractQuantity(text, match.domain);
+  const quantity = extractQuantity(text, match.domain, item);
   const budget = extractBudget(text);
   const foodPreference = match.domain === "food" ? firstMappedMatch(text, FOOD_PREFERENCE_PATTERNS) : null;
   const fulfilment = firstMappedMatch(text, FULFILMENT_PATTERNS);
