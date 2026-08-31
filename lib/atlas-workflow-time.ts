@@ -55,7 +55,6 @@ export function estimateWorkflowTiming(name?: string | null): WorkflowTimingEsti
   const previous = new Map<string, (typeof workflow.tasks)[number]>();
   let travelMs = 0;
   let workMs = 0;
-  let approvalTravelMs = 0;
   let approvalCount = 0;
 
   for (const task of workflow.tasks) {
@@ -65,16 +64,20 @@ export function estimateWorkflowTiming(name?: string | null): WorkflowTimingEsti
     const destination = ATLAS_LOCATIONS[task.locationId]?.point;
     const origin = !prior && task.dependsOn.length === 0 ? demoOrigin(task.id, task.locationId) : prior ? ATLAS_LOCATIONS[prior.locationId]?.point : agentHome(task.agentId);
     const inbound = travel(origin, destination);
-    const approval = task.requiresApproval ? travel(demoOrigin(`${task.id}-approval`, task.locationId), destination) : 0;
     travelMs += inbound;
-    approvalTravelMs += approval;
     workMs += Math.max(0, task.workMs);
     if (task.requiresApproval) approvalCount += 1;
-    finish.set(task.id, ready + inbound + approval + Math.max(0, task.workMs));
+    finish.set(task.id, ready + inbound + Math.max(0, task.workMs));
     previous.set(task.agentId, task);
   }
 
-  const value = { totalMs: Math.round(Math.max(0, ...finish.values())), travelMs: Math.round(travelMs), workMs: Math.round(workMs), approvalTravelMs: Math.round(approvalTravelMs), approvalCount };
+  const value = {
+    totalMs: Math.round(Math.max(0, ...finish.values())),
+    travelMs: Math.round(travelMs),
+    workMs: Math.round(workMs),
+    approvalTravelMs: 0,
+    approvalCount,
+  };
   CACHE.set(workflow.id, value);
   return value;
 }
@@ -93,15 +96,20 @@ function progress(value: number | undefined) {
 }
 
 /**
- * Recalculates the remaining critical path from live task state. Human decision latency is excluded.
- * `postApprovalTaskIds` lets the UI remember checkpoints it has observed so a visible post-approval
- * travel leg is counted once instead of being mistaken for the inbound leg.
+ * Recalculates the remaining critical path from live task state. Human decision
+ * latency is excluded. Approval resumes work at the checkpoint where the agent
+ * is already waiting, so it never adds a second travel leg.
+ *
+ * `postApprovalTaskIds` remains in the signature for compatibility with older
+ * UI callers; it no longer changes timing because approved tasks do not replay
+ * movement.
  */
 export function estimateWorkflowRemainingTiming(
   name: string | null | undefined,
   snapshot: LiveWorkflowTimingSnapshot,
   postApprovalTaskIds: ReadonlySet<string> = new Set(),
 ): WorkflowRemainingEstimate {
+  void postApprovalTaskIds;
   const workflow = definition(name);
   if (!workflow) return { totalMs: 0, travelMs: 0, workMs: 0, approvalTravelMs: 0, approvalCount: 0, completedTasks: 0, totalTasks: 0 };
 
@@ -110,7 +118,6 @@ export function estimateWorkflowRemainingTiming(
   const previous = new Map<string, (typeof workflow.tasks)[number]>();
   let travelMs = 0;
   let workMs = 0;
-  let approvalTravelMs = 0;
   let completedTasks = 0;
 
   for (const task of workflow.tasks) {
@@ -130,24 +137,21 @@ export function estimateWorkflowRemainingTiming(
     const destination = ATLAS_LOCATIONS[task.locationId]?.point;
     const work = status === "working" ? Math.max(0, task.workMs * (1 - progress(current?.progress))) : Math.max(0, task.workMs);
     let inbound = 0;
-    let approval = 0;
 
     if (status === "moving") {
       inbound = travel(livePoint(snapshot, task.agentId), destination);
-      const alreadyApproved = current?.approvalStatus === "approved" || postApprovalTaskIds.has(task.id);
-      approval = task.requiresApproval && !alreadyApproved ? travel(demoOrigin(`${task.id}-approval`, task.locationId), destination) : 0;
-    } else if (status === "waiting_approval") {
-      approval = task.requiresApproval ? travel(demoOrigin(`${task.id}-approval`, task.locationId), destination) : 0;
-    } else if (status !== "working") {
-      const origin = prior ? ATLAS_LOCATIONS[prior.locationId]?.point : task.dependsOn.length === 0 ? demoOrigin(task.id, task.locationId) : livePoint(snapshot, task.agentId) ?? agentHome(task.agentId);
+    } else if (status !== "working" && status !== "waiting_approval") {
+      const origin = prior
+        ? ATLAS_LOCATIONS[prior.locationId]?.point
+        : task.dependsOn.length === 0
+          ? demoOrigin(task.id, task.locationId)
+          : livePoint(snapshot, task.agentId) ?? agentHome(task.agentId);
       inbound = travel(origin, destination);
-      approval = task.requiresApproval ? travel(demoOrigin(`${task.id}-approval`, task.locationId), destination) : 0;
     }
 
     travelMs += inbound;
-    approvalTravelMs += approval;
     workMs += work;
-    finish.set(task.id, ready + inbound + approval + work);
+    finish.set(task.id, ready + inbound + work);
     previous.set(task.agentId, task);
   }
 
@@ -155,7 +159,7 @@ export function estimateWorkflowRemainingTiming(
     totalMs: Math.round(Math.max(0, ...finish.values())),
     travelMs: Math.round(travelMs),
     workMs: Math.round(workMs),
-    approvalTravelMs: Math.round(approvalTravelMs),
+    approvalTravelMs: 0,
     approvalCount: workflow.tasks.filter((task) => task.requiresApproval).length,
     completedTasks,
     totalTasks: workflow.tasks.length,
