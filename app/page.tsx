@@ -9,6 +9,7 @@ import { AsymptaGlobalWorld } from "@/components/asympta-global-world";
 import { AsymptaIntentComposer } from "@/components/asympta-intent-composer";
 import { AsymptaJobMode } from "@/components/asympta-job-mode";
 import { AsymptaMarketplaceIntentBridge } from "@/components/asympta-marketplace-intent-bridge";
+import { AsymptaMarketplaceIntentRouter } from "@/components/asympta-marketplace-intent-router";
 import { AsymptaPaperMapTone } from "@/components/asympta-paper-map-tone";
 import { AsymptaProcessCameraFollow } from "@/components/asympta-process-camera-follow";
 import { AsymptaSafeSchedule } from "@/components/asympta-safe-schedule";
@@ -24,6 +25,7 @@ export default function HomePage() {
       <AsymptaWorldLive60Hz />
       <AsymptaCuteAgentVisibility />
       <AsymptaGlobalWorld />
+      <AsymptaMarketplaceIntentRouter />
       <AsymptaIntentComposer />
       <AsymptaMarketplaceIntentBridge />
       <AsymptaUserPreferences />
