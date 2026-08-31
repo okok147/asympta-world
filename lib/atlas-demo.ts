@@ -173,7 +173,8 @@ function forceFreshActiveTasksToTravel(world: AtlasWorldState) {
 }
 
 export function startAtlasDemoWorkflow(current: AtlasWorldState, workflowId: WorkflowId) {
-  return forceFreshActiveTasksToTravel(startAtlasWorkflow(current, workflowId));
+  const started = startAtlasWorkflow(current, workflowId);
+  return String(workflowId) === "marketplace-intent" ? started : forceFreshActiveTasksToTravel(started);
 }
 
 export function createAtlasDemoWorld(now = Date.now()) {
