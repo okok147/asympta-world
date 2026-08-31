@@ -30,6 +30,8 @@ type AnswerState = {
   customOpen: boolean;
 };
 
+const EMPTY_ANSWER: AnswerState = { custom: "", customOpen: false };
+
 const COPY: Record<AdaptiveInteractionLocale, {
   eyebrow: string;
   title: string;
@@ -91,7 +93,7 @@ function sameTask(baseIntent: string, candidate: string) {
 
 function emptyAnswers(schema: AdaptiveInteractionSchema | null): Record<string, AnswerState> {
   if (!schema) return {};
-  return Object.fromEntries(schema.fields.map((field) => [field.id, { custom: "", customOpen: false }]));
+  return Object.fromEntries(schema.fields.map((field) => [field.id, { ...EMPTY_ANSWER }]));
 }
 
 function answerReady(field: AdaptiveInteractionField, answer: AnswerState | undefined) {
@@ -199,7 +201,7 @@ export function AsymptaAdaptiveOptionForm() {
   const patchAnswer = (fieldId: string, patch: Partial<AnswerState>) => {
     setAnswers((current) => ({
       ...current,
-      [fieldId]: { custom: "", customOpen: false, ...(current[fieldId] ?? {}), ...patch },
+      [fieldId]: { ...EMPTY_ANSWER, ...(current[fieldId] ?? {}), ...patch },
     }));
     setError(null);
   };
@@ -213,7 +215,7 @@ export function AsymptaAdaptiveOptionForm() {
       return;
     }
 
-    const newConfirmations = schema.fields.map((field) => confirmationFrom(field, answers[field.id]));
+    const newConfirmations = schema.fields.map((field) => confirmationFrom(field, answers[field.id] ?? EMPTY_ANSWER));
     const fieldNames = new Set(newConfirmations.map((confirmation) => confirmation.field));
     const nextConfirmations = [
       ...confirmationsRef.current.filter((candidate) => !fieldNames.has(candidate.field)),
@@ -259,7 +261,7 @@ export function AsymptaAdaptiveOptionForm() {
         <form className={styles.form} onSubmit={submit}>
           <div className={styles.fields}>
             {schema.fields.map((field) => {
-              const answer = answers[field.id] ?? { custom: "", customOpen: false };
+              const answer: AnswerState = answers[field.id] ?? EMPTY_ANSWER;
               const directCustom = field.key === "event_intent";
               return (
                 <section className={styles.field} key={field.id} data-field={field.key}>
