@@ -1,9 +1,10 @@
 import {
+  advanceAsymptaTask,
   answerTaskRequirement,
   approveAsymptaTask,
   cancelAsymptaTask,
   createAsymptaTask,
-  isAsymptaTaskState,
+  migrateAsymptaTaskState,
   taskToAdaptiveInteractionSchema,
 } from "./asympta-task-kernel.ts";
 import type { AdaptiveInteractionSchema } from "./asympta-adaptive-interaction.ts";
@@ -18,7 +19,8 @@ import type {
 } from "./asympta-task-kernel-types.ts";
 
 export const ASYMPTA_TASK_KERNEL_EVENT = "asympta:task-kernel" as const;
-const STORAGE_KEY = "asympta.task-kernel.v1";
+const STORAGE_KEY = "asympta.task-kernel.v2";
+const LEGACY_STORAGE_KEY = "asympta.task-kernel.v1";
 const MAX_PERSISTED_TASKS = 8;
 
 type TaskListener = (detail: AsymptaTaskKernelEventDetail) => void;
@@ -29,7 +31,14 @@ function cloneTask(task: AsymptaTaskState): AsymptaTaskState {
 }
 
 function terminal(task: AsymptaTaskState) {
-  return ["completed", "cancelled", "blocked", "failed"].includes(task.phase);
+  return task.phase === "completed" || task.phase === "cancelled";
+}
+
+function taskChanged(left: AsymptaTaskState, right: AsymptaTaskState) {
+  return left.revision !== right.revision
+    || left.phase !== right.phase
+    || left.liveness.state !== right.liveness.state
+    || left.liveness.nextAttemptAt !== right.liveness.nextAttemptAt;
 }
 
 export type AsymptaTaskKernelBrowserBridge = {
@@ -37,6 +46,7 @@ export type AsymptaTaskKernelBrowserBridge = {
   answerRequirement: (command: AnswerRequirementCommand) => AsymptaTaskState;
   approve: (command: ApproveTaskCommand) => AsymptaTaskState;
   cancel: (command: CancelTaskCommand) => AsymptaTaskState;
+  resume: (taskId: string) => AsymptaTaskState | null;
   getTask: (taskId: string) => AsymptaTaskState | null;
   getTaskByActivity: (activityId: string) => AsymptaTaskState | null;
   activeTask: () => AsymptaTaskState | null;
@@ -53,30 +63,42 @@ export class BrowserAsymptaTaskKernel {
   private readonly tasks = new Map<string, AsymptaTaskState>();
   private readonly activityIndex = new Map<string, string>();
   private readonly listeners = new Set<TaskListener>();
+  private readonly resumeTimers = new Map<string, number>();
   private activeTaskId: string | null = null;
 
   constructor() {
     this.restore();
+    if (typeof window !== "undefined") {
+      queueMicrotask(() => {
+        for (const task of this.tasks.values()) this.scheduleResume(task);
+      });
+    }
   }
 
   private restore() {
     if (typeof window === "undefined") return;
     try {
-      const parsed = JSON.parse(window.sessionStorage.getItem(STORAGE_KEY) ?? "null") as unknown;
+      const raw = window.sessionStorage.getItem(STORAGE_KEY)
+        ?? window.sessionStorage.getItem(LEGACY_STORAGE_KEY)
+        ?? "null";
+      const parsed = JSON.parse(raw) as unknown;
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return;
       const record = parsed as { activeTaskId?: unknown; tasks?: unknown };
       const tasks = Array.isArray(record.tasks) ? record.tasks : [];
       for (const candidate of tasks) {
-        if (!isAsymptaTaskState(candidate)) continue;
-        const task = cloneTask(candidate);
+        const task = migrateAsymptaTaskState(candidate);
+        if (!task) continue;
         this.tasks.set(task.taskId, task);
         if (task.activityId) this.activityIndex.set(task.activityId, task.taskId);
       }
       if (typeof record.activeTaskId === "string" && this.tasks.has(record.activeTaskId)) {
         this.activeTaskId = record.activeTaskId;
       }
+      window.sessionStorage.removeItem(LEGACY_STORAGE_KEY);
+      this.persist();
     } catch {
       window.sessionStorage.removeItem(STORAGE_KEY);
+      window.sessionStorage.removeItem(LEGACY_STORAGE_KEY);
     }
   }
 
@@ -104,14 +126,36 @@ export class BrowserAsymptaTaskKernel {
     }
   }
 
+  private clearResume(taskId: string) {
+    if (typeof window === "undefined") return;
+    const timer = this.resumeTimers.get(taskId);
+    if (timer !== undefined) window.clearTimeout(timer);
+    this.resumeTimers.delete(taskId);
+  }
+
+  private scheduleResume(task: AsymptaTaskState) {
+    if (typeof window === "undefined") return;
+    this.clearResume(task.taskId);
+    if (terminal(task) || task.phase === "awaiting_human" || task.phase === "awaiting_approval") return;
+    const requestedAt = task.liveness.nextAttemptAt
+      ? new Date(task.liveness.nextAttemptAt).getTime()
+      : Date.now();
+    const delay = Math.min(30_000, Math.max(10, requestedAt - Date.now()));
+    const timer = window.setTimeout(() => {
+      this.resumeTimers.delete(task.taskId);
+      this.resume(task.taskId);
+    }, delay);
+    this.resumeTimers.set(task.taskId, timer);
+  }
+
   private commit(reason: AsymptaTaskKernelUpdateReason, task: AsymptaTaskState, previous: AsymptaTaskState | null) {
     const snapshot = cloneTask(task);
     this.tasks.set(snapshot.taskId, snapshot);
     if (snapshot.activityId) this.activityIndex.set(snapshot.activityId, snapshot.taskId);
-    if (!terminal(snapshot)) this.activeTaskId = snapshot.taskId;
-    else if (this.activeTaskId === snapshot.taskId) this.activeTaskId = snapshot.taskId;
+    this.activeTaskId = snapshot.taskId;
     this.persist();
     this.notify(reason, snapshot, previous);
+    this.scheduleResume(snapshot);
     return cloneTask(snapshot);
   }
 
@@ -120,8 +164,9 @@ export class BrowserAsymptaTaskKernel {
     if (activityId) {
       const existingId = this.activityIndex.get(activityId);
       const existing = existingId ? this.tasks.get(existingId) : null;
-      if (existing && existing.rootIntent.raw === input.rootIntent.trim() && !terminal(existing)) {
+      if (existing && existing.rootIntent.raw === input.rootIntent.trim()) {
         this.activeTaskId = existing.taskId;
+        this.scheduleResume(existing);
         return cloneTask(existing);
       }
     }
@@ -151,6 +196,19 @@ export class BrowserAsymptaTaskKernel {
     const next = cancelAsymptaTask(current, command);
     if (next === current) return cloneTask(current);
     return this.commit("cancelled", next, current);
+  }
+
+  resume(taskId: string) {
+    const current = this.tasks.get(taskId);
+    if (!current || terminal(current) || current.phase === "awaiting_human" || current.phase === "awaiting_approval") {
+      return current ? cloneTask(current) : null;
+    }
+    const next = advanceAsymptaTask(current);
+    if (!taskChanged(current, next)) {
+      this.scheduleResume(current);
+      return cloneTask(current);
+    }
+    return this.commit("resumed", next, current);
   }
 
   getTask(taskId: string) {
@@ -183,6 +241,7 @@ export class BrowserAsymptaTaskKernel {
       answerRequirement: (command) => this.answerRequirement(command),
       approve: (command) => this.approve(command),
       cancel: (command) => this.cancel(command),
+      resume: (taskId) => this.resume(taskId),
       getTask: (taskId) => this.getTask(taskId),
       getTaskByActivity: (activityId) => this.getTaskByActivity(activityId),
       activeTask: () => this.activeTask(),
