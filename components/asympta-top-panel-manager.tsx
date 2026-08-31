@@ -95,6 +95,8 @@ export function AsymptaTopPanelManager() {
         accessWidth: accessRect.width,
         accessHeight: occupiedAccessHeight,
         requestWidth: requestRect.width,
+        accessRight: accessRect.right,
+        requestLeft: requestRect.left,
       });
 
       root.dataset.asymptaTopPanels = model.mode;
