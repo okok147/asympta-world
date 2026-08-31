@@ -1,0 +1,219 @@
+.root { isolation: isolate; }
+
+:global(.asympta-marketplace-payment-approval) {
+  position: relative;
+  z-index: 4;
+  display: grid;
+  gap: 8px;
+  margin: 8px 10px 10px;
+  padding: 11px;
+  color: #403b34;
+  border: 1px solid rgba(83, 108, 92, 0.2);
+  border-radius: 13px;
+  background:
+    linear-gradient(120deg, rgba(255, 255, 255, 0.4), transparent 50%),
+    rgba(245, 241, 231, 0.96);
+  box-shadow: 0 8px 26px rgba(62, 57, 47, 0.08);
+  font-family: var(--font-sans, ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif);
+  pointer-events: auto;
+}
+
+:global(.asympta-marketplace-payment-approval[data-host="standalone"]) {
+  position: fixed;
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(92px, calc(env(safe-area-inset-bottom) + 92px));
+  z-index: 94;
+  width: min(340px, calc(100vw - 24px));
+  margin: 0;
+}
+
+:global(.asympta-marketplace-payment-approval > header) {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+:global(.asympta-marketplace-payment-approval__icon) {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  place-items: center;
+  color: rgba(54, 83, 67, 0.86);
+  border: 1px solid rgba(70, 104, 85, 0.18);
+  border-radius: 9px;
+  background: rgba(87, 121, 99, 0.09);
+}
+
+:global(.asympta-marketplace-payment-approval > header > span:last-child) {
+  min-width: 0;
+}
+
+:global(.asympta-marketplace-payment-approval > header small),
+:global(.asympta-marketplace-payment-approval > header strong) {
+  display: block;
+}
+
+:global(.asympta-marketplace-payment-approval > header small) {
+  color: rgba(67, 72, 64, 0.52);
+  font-size: 7px;
+  font-weight: 760;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+:global(.asympta-marketplace-payment-approval > header strong) {
+  margin-top: 1px;
+  color: rgba(48, 51, 45, 0.92);
+  font-size: 15px;
+  font-weight: 720;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+:global(.asympta-marketplace-payment-approval > p) {
+  margin: 0;
+  color: rgba(61, 59, 52, 0.68);
+  font-size: 8.5px;
+  line-height: 1.45;
+}
+
+:global(.asympta-marketplace-payment-approval__item) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 8px;
+  border: 1px solid rgba(74, 79, 70, 0.08);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.25);
+  color: rgba(57, 57, 51, 0.7);
+  font-size: 7.6px;
+}
+
+:global(.asympta-marketplace-payment-approval__item span) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:global(.asympta-marketplace-payment-approval__item b) {
+  flex: 0 0 auto;
+  color: rgba(52, 58, 50, 0.88);
+  font-size: 8.2px;
+  font-variant-numeric: tabular-nums;
+}
+
+:global(.asympta-marketplace-payment-approval__actions) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+}
+
+:global(.asympta-marketplace-payment-approval__actions button) {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 11px;
+  border-radius: 10px;
+  font-size: 8px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+:global(.asympta-marketplace-payment-approval__actions button:first-child) {
+  border: 1px solid rgba(63, 103, 80, 0.28);
+  background: rgba(77, 111, 89, 0.14);
+  color: rgba(43, 70, 54, 0.94);
+}
+
+:global(.asympta-marketplace-payment-approval__actions button:last-child) {
+  border: 1px solid rgba(83, 76, 67, 0.12);
+  background: rgba(255, 255, 255, 0.3);
+  color: rgba(69, 64, 57, 0.66);
+}
+
+:global(.asympta-marketplace-payment-approval__actions button:hover),
+:global(.asympta-marketplace-payment-approval__actions button:focus-visible) {
+  filter: brightness(0.985);
+  outline: 2px solid rgba(74, 111, 91, 0.18);
+  outline-offset: 1px;
+}
+
+:global(.asympta-marketplace-payment-approval__actions button:disabled) {
+  cursor: wait;
+  opacity: 0.56;
+}
+
+:global(.asympta-marketplace-payment-approval__safety) {
+  color: rgba(69, 66, 59, 0.48);
+  font-size: 6.8px;
+  line-height: 1.35;
+}
+
+:global(.asympta-marketplace-payment-approval__error) {
+  color: #8a584e;
+  font-size: 7.4px;
+  line-height: 1.35;
+}
+
+/* The engine's pending approval is authoritative. While this card exists,
+   visually keep Approval active and Home pending even if the older execution
+   projection still reports the courier's completed return leg. */
+:global(.atlas-safe-schedule:has(.asympta-marketplace-payment-approval) .asympta-marketplace-trace__route li:nth-child(4)) {
+  color: rgba(71, 99, 87, 0.9);
+}
+
+:global(.atlas-safe-schedule:has(.asympta-marketplace-payment-approval) .asympta-marketplace-trace__route li:nth-child(4) > span) {
+  color: rgba(71, 99, 87, 0.9);
+  border-color: rgba(80, 116, 99, 0.34);
+  background: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 0 0 3px rgba(83, 122, 101, 0.07);
+}
+
+:global(.atlas-safe-schedule:has(.asympta-marketplace-payment-approval) .asympta-marketplace-trace__route li:nth-child(4) > span svg) {
+  display: none;
+}
+
+:global(.atlas-safe-schedule:has(.asympta-marketplace-payment-approval) .asympta-marketplace-trace__route li:nth-child(4) > span::after) {
+  content: "4";
+}
+
+:global(.atlas-safe-schedule:has(.asympta-marketplace-payment-approval) .asympta-marketplace-trace__route li:nth-child(5)) {
+  color: rgba(76, 72, 64, 0.4);
+}
+
+:global(.atlas-safe-schedule:has(.asympta-marketplace-payment-approval) .asympta-marketplace-trace__route li:nth-child(5) > span) {
+  color: rgba(76, 72, 64, 0.4);
+  border-color: rgba(83, 91, 82, 0.14);
+  background: rgba(255, 255, 255, 0.44);
+  box-shadow: none;
+}
+
+@media (max-width: 700px) {
+  :global(.asympta-marketplace-payment-approval) {
+    margin: 7px 8px 9px;
+  }
+
+  :global(.asympta-marketplace-payment-approval[data-host="standalone"]) {
+    right: max(10px, env(safe-area-inset-right));
+    bottom: max(88px, calc(env(safe-area-inset-bottom) + 88px));
+    width: min(330px, calc(100vw - 20px));
+    margin: 0;
+  }
+
+  :global(.asympta-marketplace-payment-approval__actions) {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :global(.asympta-marketplace-payment-approval) *,
+  :global(.asympta-marketplace-payment-approval) {
+    animation: none !important;
+    transition: none !important;
+  }
+}
