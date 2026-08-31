@@ -8,6 +8,8 @@ export type AsymptaTopPanelLayoutInput = {
   accessWidth: number;
   accessHeight: number;
   requestWidth: number;
+  accessRight?: number;
+  requestLeft?: number;
   edge?: number;
   gap?: number;
   bottomReserve?: number;
@@ -42,10 +44,13 @@ function positive(value: number, fallback: number) {
 }
 
 export function asymptaTopPanelsCanSplit(input: Pick<AsymptaTopPanelLayoutInput,
-  "viewportWidth" | "accessWidth" | "requestWidth" | "edge" | "gap"
+  "viewportWidth" | "accessWidth" | "requestWidth" | "accessRight" | "requestLeft" | "edge" | "gap"
 >) {
   const edge = positive(input.edge ?? ASYMPTA_TOP_PANEL_EDGE_PX, ASYMPTA_TOP_PANEL_EDGE_PX);
   const gap = positive(input.gap ?? ASYMPTA_TOP_PANEL_GAP_PX, ASYMPTA_TOP_PANEL_GAP_PX);
+  if (Number.isFinite(input.accessRight) && Number.isFinite(input.requestLeft)) {
+    return Number(input.accessRight) + gap <= Number(input.requestLeft);
+  }
   const viewportWidth = positive(input.viewportWidth, 0);
   const accessWidth = positive(input.accessWidth, 0);
   const requestWidth = positive(input.requestWidth, 0);
