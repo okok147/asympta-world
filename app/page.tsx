@@ -1,6 +1,7 @@
 import { AsymptaAgentCardLocale } from "@/components/asympta-agent-card-locale";
 import { AsymptaBlockActivity } from "@/components/asympta-block-activity";
 import { AsymptaCalmDefaults } from "@/components/asympta-calm-defaults";
+import { AsymptaCameraFollowControl } from "@/components/asympta-camera-follow-control";
 import { AsymptaCuteAgentVisibility } from "@/components/asympta-cute-agent-visibility";
 import { AsymptaEscalationGuard } from "@/components/asympta-escalation-guard";
 import { AsymptaEstimatedProgress } from "@/components/asympta-estimated-progress";
@@ -23,6 +24,7 @@ export default function HomePage() {
   return (
     <>
       <AsymptaWorldLive60Hz />
+      <AsymptaCameraFollowControl />
       <AsymptaCuteAgentVisibility />
       <AsymptaGlobalWorld />
       <AsymptaMarketplaceIntentRouter />
