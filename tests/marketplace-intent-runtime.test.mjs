@@ -9,8 +9,11 @@ import {
   marketplaceInventoryInvariant,
   marketplaceTaskIds,
   syncMarketplaceExecution,
+  upsertMarketplaceWorkflow,
   validateContextEnvelope,
 } from "../lib/asympta-marketplace-intent.ts";
+import { startAtlasDemoWorkflow } from "../lib/atlas-demo.ts";
+import { ATLAS_LOCATIONS, advanceAtlasWorld, createAtlasWorld } from "../lib/atlas-simulation.ts";
 
 function compile(intent, requestId = "request-test") {
   const result = compileAsymptaContext(intent, {
@@ -56,9 +59,10 @@ test("vague food language compiles into evidence-backed context without inventin
   assert.deepEqual(validateContextEnvelope(envelope), { valid: true, issues: [] });
 });
 
-test("compiler handles Cantonese and separates food from clothing goals", () => {
-  const envelope = compile("幫我買一啲嘢食，同埋一件新衫", "request-multi");
+test("compiler handles Cantonese quantities and separates food from clothing goals", () => {
+  const envelope = compile("幫我買兩份嘢食，同埋一件新衫", "request-multi");
   assert.deepEqual(envelope.goals.map((goal) => goal.domain), ["food", "clothing"]);
+  assert.equal(envelope.goals[0].facts.find((fact) => fact.key === "quantity")?.value, 2);
   assert.equal(envelope.goals[1].facts.find((fact) => fact.key === "quantity")?.value, 1);
 
   const workflow = buildMarketplaceWorkflow(envelope);
@@ -92,6 +96,24 @@ test("marketplace workflow makes the personal agent enter a market, pause for ap
   assert.equal(returning.agentId, "agent-user");
   assert.equal(returning.locationId, "shibuya");
   assert.equal(deliver.locationId, "shibuya");
+});
+
+test("marketplace execution begins at the personal agent home before the actual market journey", () => {
+  const envelope = compile("Buy one meal", "request-home-start");
+  upsertMarketplaceWorkflow(envelope);
+  let world = startAtlasDemoWorkflow(createAtlasWorld(1_000), "marketplace-intent");
+  const user = world.agents.find((agent) => agent.id === "agent-user");
+  const contextTask = world.tasks.find((task) => task.id === "mp-context");
+  assert.deepEqual(user.position, ATLAS_LOCATIONS.shibuya.point);
+  assert.equal(contextTask.status, "working");
+
+  for (let index = 0; index < 9; index += 1) world = advanceAtlasWorld(world, 120);
+  const travelId = marketplaceTaskIds(envelope.goals[0], 0).travel;
+  const travel = world.tasks.find((task) => task.id === travelId);
+  const travellingUser = world.agents.find((agent) => agent.id === "agent-user");
+  assert.equal(travel.status, "moving");
+  assert.equal(travellingUser.status, "moving");
+  assert.deepEqual(travellingUser.target, ATLAS_LOCATIONS.roppongi.point);
 });
 
 test("structured execution conserves inventory from market reservation through cargo and user delivery", () => {
@@ -169,12 +191,48 @@ test("structured execution conserves inventory from market reservation through c
   );
 });
 
+test("declining simulated payment releases reserved inventory and blocks the transaction", () => {
+  const envelope = compile("I want to buy some food", "request-decline");
+  const goal = envelope.goals[0];
+  const ids = marketplaceTaskIds(goal, 0);
+  let execution = createMarketplaceExecution(envelope);
+  const initial = execution.ledger[0].initialMarketStock;
+
+  execution = syncMarketplaceExecution(execution, snapshot({
+    "mp-context": "done",
+    [ids.travel]: "done",
+    [ids.store]: "done",
+    [ids.stock]: "done",
+    [ids.offer]: "done",
+    [ids.quality]: "done",
+    [ids.payment]: "waiting_approval",
+  }, "waiting_approval"));
+  assert.equal(execution.ledger[0].marketReserved, 1);
+
+  execution = syncMarketplaceExecution(execution, snapshot({
+    "mp-context": "done",
+    [ids.travel]: "done",
+    [ids.store]: "done",
+    [ids.stock]: "done",
+    [ids.offer]: "done",
+    [ids.quality]: "done",
+    [ids.payment]: "blocked",
+  }, "blocked"));
+  assert.equal(execution.status, "blocked");
+  assert.equal(execution.transactions[0].payment, "declined");
+  assert.equal(execution.ledger[0].marketReserved, 0);
+  assert.equal(execution.ledger[0].marketAvailable, initial);
+  assert.ok(execution.packets.some((packet) => packet.kind === "blocked"));
+  assert.deepEqual(marketplaceInventoryInvariant(execution), { valid: true, issues: [] });
+});
+
 test("messages that only mention a domain do not silently start a purchase", () => {
   const result = compileAsymptaContext("Tell me about food markets", { now: 0 });
   assert.equal(result.supported, false);
   assert.equal(result.envelope, null);
   assert.match(result.issues.join(" "), /does not ask to obtain/i);
 });
+
 
 test("website input is bridged into the canonical map workflow and exposes inspectable structured state", async () => {
   const [page, bridge, css] = await Promise.all([
