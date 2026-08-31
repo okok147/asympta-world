@@ -14,12 +14,14 @@ const eslintConfig = defineConfig([
       "react-hooks/immutability": "off",
     },
   },
-  // The marketplace bridge synchronizes two browser-owned external systems: the
-  // persisted localStorage profile and a DOM portal host rendered by the request-card
-  // component. Hydrating subscription state and annotating that queried HTMLElement
-  // are intentional bridge effects rather than mutation of React render data.
+  // Marketplace browser bridges synchronize persisted preferences, request-card portal
+  // hosts and map-owned DOM markers. Those queried browser nodes are external systems,
+  // not mutable React render data, and their subscription snapshots must enter state.
   {
-    files: ["components/asympta-marketplace-intent-bridge.tsx"],
+    files: [
+      "components/asympta-marketplace-intent-bridge.tsx",
+      "components/asympta-marketplace-intent-router.tsx",
+    ],
     rules: {
       "react-hooks/immutability": "off",
       "react-hooks/set-state-in-effect": "off",
