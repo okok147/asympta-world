@@ -1,0 +1,72 @@
+.manager {
+  display: none;
+}
+
+:global(.asympta-access-card),
+:global(.asympta-request-card) {
+  isolation: isolate;
+}
+
+:global(html[data-asympta-top-panel-front="access"] .asympta-access-card),
+:global(html[data-asympta-top-panel-front="request"] .asympta-request-card) {
+  z-index: 96 !important;
+  box-shadow:
+    0 14px 34px rgba(66, 58, 46, 0.105),
+    0 2px 5px rgba(66, 58, 46, 0.055) !important;
+}
+
+:global(html[data-asympta-top-panel-front="access"] .asympta-request-card),
+:global(html[data-asympta-top-panel-front="request"] .asympta-access-card) {
+  z-index: 88 !important;
+}
+
+:global(html[data-asympta-top-panels="stacked"] .asympta-request-card),
+:global(html[data-asympta-top-panels="stacked"] .asympta-request-card.is-collapsed),
+:global(html[data-asympta-top-panels="stacked"] .asympta-request-card.is-expanded),
+:global(html[data-asympta-top-panels="stacked"][data-asympta-scale="world"] .asympta-request-card) {
+  top: var(--asympta-top-panel-request-top) !important;
+  max-height: var(--asympta-top-panel-request-max-height) !important;
+}
+
+:global(html[data-asympta-top-panels="stacked"] .asympta-request-card__details) {
+  max-height: var(--asympta-top-panel-request-details-max-height) !important;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+:global(html[data-asympta-top-panels="stacked"] .asympta-access-card.is-open .atlas-menu-panel) {
+  max-height: var(--asympta-top-panel-access-panel-max-height) !important;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+:global(html[data-asympta-top-panels="stacked"] .asympta-access-card .atlas-language-menu.is-open) {
+  max-height: min(150px, 28svh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+:global(.asympta-access-card.is-asympta-front),
+:global(.asympta-request-card.is-asympta-front) {
+  pointer-events: auto !important;
+}
+
+@media (max-width: 520px) {
+  :global(html[data-asympta-top-panels="stacked"] .asympta-request-card),
+  :global(html[data-asympta-top-panels="stacked"] .asympta-request-card.is-collapsed),
+  :global(html[data-asympta-top-panels="stacked"] .asympta-request-card.is-expanded) {
+    right: max(8px, env(safe-area-inset-right));
+    bottom: auto;
+  }
+
+  :global(html[data-asympta-top-panels="stacked"] body:has(.asympta-access-card.is-open) .asympta-request-card__details) {
+    display: grid !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :global(.asympta-access-card),
+  :global(.asympta-request-card) {
+    transition: none !important;
+  }
+}
