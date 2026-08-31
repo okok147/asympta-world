@@ -28,8 +28,8 @@ type ActivityDetail = {
 
 const CELEBRATION_SYNC_MS = 280;
 const CELEBRATION_LIFETIME_MS = 1_150;
-const SCREEN_CELEBRATION_LIFETIME_MS = 1_720;
-const SCREEN_CELEBRATION_COOLDOWN_MS = 1_000;
+const SCREEN_CELEBRATION_LIFETIME_MS = 4_200;
+const SCREEN_CELEBRATION_COOLDOWN_MS = 2_000;
 const PARTICLES = [
   [0, -23],
   [16, -17],
@@ -106,7 +106,7 @@ function celebrateScreen() {
     splash.style.setProperty("--splash-x", `${x}%`);
     splash.style.setProperty("--splash-y", `${y}%`);
     splash.style.setProperty("--splash-size", `${size}vmin`);
-    splash.style.setProperty("--splash-delay", `${index * 52}ms`);
+    splash.style.setProperty("--splash-delay", `${index * 110}ms`);
     splash.dataset.kind = String(kind);
     overlay.appendChild(splash);
   });
@@ -118,7 +118,7 @@ function celebrateScreen() {
     spark.style.setProperty("--spark-y", `${y}%`);
     spark.style.setProperty("--spark-dx", `${dx}px`);
     spark.style.setProperty("--spark-dy", `${dy}px`);
-    spark.style.setProperty("--spark-delay", `${90 + index * 28}ms`);
+    spark.style.setProperty("--spark-delay", `${180 + index * 60}ms`);
     spark.dataset.kind = String(kind);
     overlay.appendChild(spark);
   });
