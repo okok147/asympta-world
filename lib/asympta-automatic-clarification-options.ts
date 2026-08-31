@@ -72,6 +72,7 @@ const FIELD_LIST_MARKER_PATTERN = /(?:需(?:要|先)?(?:釐清|厘清|確認|确
 const FIELD_LIST_SUFFIX_PATTERN = /(?:等)?(?:必要)?(?:資訊|信息|資料|资料|內容|内容|details?|information|fields?)[。.!！．]*$/iu;
 const FIELD_SEPARATOR_PATTERN = /[,，、;；]|\s+(?:and|plus)\s+|(?:以及|與|和|及)|(?:および|及び)/iu;
 const KNOWN_FIELD_PATTERN = /(?:budget|price|screen|size|brand|maker|purchase|store|shop|delivery|shipping|address|location|purpose|use|quantity|count|deadline|timeframe|colour|color|confirm|event|artist|venue|預算|预算|尺寸|大小|品牌|牌子|購買|购买|商店|配送|送貨|送货|收貨|收货|地址|地點|地点|用途|數量|数量|期限|時間|时间|顏色|颜色|確認|确认|演出|歌手|場館|场馆|予算|サイズ|ブランド|購入|配送先|住所|用途|数量|期限|色|確認|公演|会場)/iu;
+const BROAD_SPEC_PATTERN = /(?:other\s+(?:necessary|required)?\s*(?:specifications?|specs?|details?)|remaining\s+(?:necessary|required)?\s*(?:specifications?|specs?|details?)|necessary\s+(?:specifications?|specs?)|其他必要規格|其他規格|其餘必要規格|其余必要规格|必要規格|その他(?:の)?必要(?:な)?仕様|残り(?:の)?必要(?:な)?仕様)/iu;
 
 function normalizedLocale(locale: string | undefined): AdaptiveInteractionLocale {
   const value = (locale ?? "en").toLowerCase();
@@ -111,12 +112,32 @@ export function expandAutomaticClarificationFields(missingFields: string[]) {
       .filter(Boolean);
 
     for (const fragment of fragments) {
-      if (narrative && !KNOWN_FIELD_PATTERN.test(fragment)) continue;
+      if (narrative && !KNOWN_FIELD_PATTERN.test(fragment) && !BROAD_SPEC_PATTERN.test(fragment)) continue;
       expanded.push(fragment);
     }
   }
 
   return expanded.length ? expanded : missingFields;
+}
+
+function repairBroadTvFields(intent: string, fields: string[]) {
+  if (!TV_INTENT_PATTERN.test(intent)) return fields;
+  const repaired: string[] = [];
+  let broadGap = false;
+  for (const field of fields) {
+    if (BROAD_SPEC_PATTERN.test(field)) {
+      broadGap = true;
+      continue;
+    }
+    repaired.push(field);
+  }
+  if (!broadGap) return fields;
+
+  const joined = repaired.join(" ");
+  if (!/(?:screen|display|inch|尺寸|大小|画面|インチ|サイズ)/iu.test(joined)) repaired.push("screen size");
+  if (!/(?:brand|maker|manufacturer|品牌|牌子|メーカー|ブランド)/iu.test(joined)) repaired.push("brand preference");
+  if (!DELIVERY_LOCATION_PATTERN.test(joined)) repaired.push("delivery location");
+  return repaired;
 }
 
 function isBudgetField(field: AdaptiveInteractionField) {
@@ -269,9 +290,11 @@ function decorateField(
 
 export function createAdaptiveInteractionSchema(input: AdaptiveSchemaInput): AdaptiveInteractionSchema {
   const locale = normalizedLocale(input.locale);
+  const expanded = expandAutomaticClarificationFields(input.missingFields);
+  const repaired = repairBroadTvFields(input.intent, expanded);
   const base = createBaseAdaptiveInteractionSchema({
     ...input,
-    missingFields: expandAutomaticClarificationFields(input.missingFields),
+    missingFields: repaired,
   });
   const fields = base.fields.map((field) => decorateField(field, input.intent, locale));
 
