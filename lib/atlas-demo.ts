@@ -186,24 +186,13 @@ export function resolveAtlasDemoApproval(current: AtlasWorldState, approvalId: s
   const resolved = resolveAtlasApproval(current, approvalId, approved);
   if (!approved) return resolved;
 
+  // Starting a requested workflow may create tasks at their destinations, so the
+  // demo can add one initial visible travel leg. A task approval is different:
+  // the agent has already arrived at the checkpoint. Repositioning the agent
+  // after approval used to replay travel, making an authorised payment look
+  // stalled. Preserve the engine's canonical continuation instead: approved
+  // work resumes immediately and dependent tasks start on the next engine tick.
   if (before?.kind === "webmcp-start") return forceFreshActiveTasksToTravel(resolved);
-  if (before?.taskId) {
-    const next = JSON.parse(JSON.stringify(resolved)) as AtlasWorldState;
-    const task = next.tasks.find((candidate) => candidate.id === before.taskId);
-    const agent = task ? next.agents.find((candidate) => candidate.id === task.agentId) : undefined;
-    const destination = task ? ATLAS_LOCATIONS[task.locationId]?.point : undefined;
-    if (task && agent && destination && task.status === "working") {
-      const originId = pickVisibleOrigin(`${task.id}-approval`, task.locationId);
-      agent.position = { ...ATLAS_LOCATIONS[originId].point };
-      agent.target = { ...destination };
-      agent.status = "moving";
-      agent.taskId = task.id;
-      task.status = "moving";
-      task.progress = 0;
-      delete task.workStartedAt;
-    }
-    return next;
-  }
   return resolved;
 }
 
