@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "A human-first living world where natural-language intentions coordinate real MCP tools and A2A agents through a persistent Asympta activity kernel.",
+  "homepage": "https://okok147.github.io/asympta-world/",
   "license": "MIT",
   "repository": {
     "type": "git",
