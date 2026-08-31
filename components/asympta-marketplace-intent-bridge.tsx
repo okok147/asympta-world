@@ -257,24 +257,30 @@ function syncCargoMarker(execution: MarketplaceExecution | null) {
 
 function workflowStage(execution: MarketplaceExecution, index: number) {
   const hasContext = execution.packets.some((packet) => packet.kind === "context_envelope");
-  const hasStore = execution.transactions.some((transaction) => transaction.status !== "planned");
-  const hasApproval = execution.transactions.some((transaction) => ["authorized", "goods_collected", "returning_to_user", "delivered", "completed"].includes(transaction.status));
-  const hasCargo = execution.ledger.some((line) => line.carriedByPersonalAgent > 0 || line.userInventory > 0);
+  const hasMarketArrival = execution.transactions.some((transaction) => transaction.status !== "planned");
+  const hasStoreDecision = execution.transactions.some((transaction) => [
+    "offer_ready",
+    "awaiting_approval",
+    "authorized",
+    "goods_collected",
+    "returning_to_user",
+    "delivered",
+    "completed",
+  ].includes(transaction.status));
+  const hasApproval = execution.transactions.some((transaction) => [
+    "authorized",
+    "goods_collected",
+    "returning_to_user",
+    "delivered",
+    "completed",
+  ].includes(transaction.status));
   const delivered = execution.transactions.every((transaction) => ["delivered", "completed"].includes(transaction.status));
-  const done = [hasContext, hasStore, hasApproval, hasCargo, delivered];
+  const done = [hasContext, hasMarketArrival, hasStoreDecision, hasApproval, delivered];
 
   if (done[index]) return "done";
   const firstUndone = done.findIndex((value) => !value);
   return index === firstUndone ? "active" : "pending";
 }
-
-const defaultCompilation = compileAsymptaContext("I want to buy some food", {
-  requestId: "marketplace-default",
-  conversationId: "marketplace-default",
-  locale: "en",
-  now: 0,
-});
-if (defaultCompilation.envelope) upsertMarketplaceWorkflow(defaultCompilation.envelope);
 
 export function AsymptaMarketplaceIntentBridge() {
   const [locale, setLocale] = useState<Locale>("en");
