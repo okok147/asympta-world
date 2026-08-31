@@ -8,6 +8,7 @@ import {
   approveAsymptaTask,
   AsymptaTaskKernelError,
   createAsymptaTask,
+  migrateAsymptaTaskState,
   nextTaskRequirement,
   taskToAdaptiveInteractionSchema,
 } from "../lib/asympta-task-kernel.ts";
@@ -25,6 +26,20 @@ function answer(task, requirement, value, label, commandId) {
   });
 }
 
+function approve(task, commandId = "approve-task") {
+  const approval = task.approvals.find((candidate) => candidate.status === "pending");
+  assert.ok(approval, "a pending approval must exist");
+  return approveAsymptaTask(task, {
+    commandId,
+    taskId: task.taskId,
+    approvalId: approval.id,
+    expectedRevision: task.revision,
+    approved: true,
+    actorId: "human",
+    now: "2026-08-31T10:35:00.000Z",
+  });
+}
+
 test("Task Kernel repairs broad television language into stable atomic requirements", () => {
   const task = createAsymptaTask({
     activityId: "activity-tv-kernel-1",
@@ -35,9 +50,10 @@ test("Task Kernel repairs broad television language into stable atomic requireme
     now: "2026-08-31T10:30:00.000Z",
   });
 
-  assert.equal(task.version, "asympta.task/0.3");
+  assert.equal(task.version, "asympta.task/0.4");
   assert.equal(task.revision, 1);
   assert.equal(task.phase, "awaiting_human");
+  assert.equal(task.liveness.state, "awaiting_input");
   assert.deepEqual(task.requirements.map((requirement) => requirement.key), [
     "screen_size",
     "brand",
@@ -45,6 +61,8 @@ test("Task Kernel repairs broad television language into stable atomic requireme
   ]);
   assert.equal(nextTaskRequirement(task)?.key, "screen_size");
   assert.equal(task.rootIntent.raw, "Buy a television with a premium budget");
+  assert.equal(task.completion.requiresApproval, true);
+  assert.equal(task.completion.requiresReceipt, true);
 });
 
 test("typed answerRequirement advances revisions without reinterpreting natural language", () => {
@@ -68,18 +86,55 @@ test("typed answerRequirement advances revisions without reinterpreting natural 
   assert.equal(nextTaskRequirement(task)?.key, "delivery_location");
 
   task = answer(task, nextTaskRequirement(task), "saved_home", "常用住址", "answer-delivery");
+  assert.equal(task.phase, "awaiting_approval");
+  assert.equal(task.result, null);
+  assert.equal(task.rootIntent.raw, rootIntent);
+
+  task = approve(task, "approve-tv");
   assert.equal(task.phase, "completed");
   assert.equal(task.result?.completed, true);
   assert.equal(task.result?.simulated, true);
-  assert.equal(task.rootIntent.raw, rootIntent);
+  assert.equal(task.outcome?.status, "completed");
+  assert.equal(task.outcome?.kind, "simulated_action");
+  assert.ok(task.evidence.some((evidence) => evidence.kind === "receipt" && evidence.verified));
   assert.ok(task.assignments.some((assignment) => assignment.agentId === "intent-interpreter"));
   assert.ok(task.assignments.some((assignment) => assignment.agentId === "commerce-electronics-specialist"));
   assert.ok(task.assignments.some((assignment) => assignment.agentId === "retailer-search-agent"));
   assert.ok(task.assignments.some((assignment) => assignment.agentId === "logistics-agent"));
+  assert.ok(task.assignments.some((assignment) => assignment.agentId === "transaction-coordinator"));
   assert.ok(task.assignments.some((assignment) => assignment.agentId === "independent-verifier"));
   assert.ok(task.assignments.length <= task.limits.maxAssignments);
   assert.ok(task.assignments.every((assignment) => assignment.depth <= task.limits.maxDelegationDepth));
   assert.ok(task.events.some((event) => event.kind === "task_completed"));
+});
+
+test("a consequential request with no missing fields pauses at confirmation, then resumes to a verified receipt", () => {
+  let task = createAsymptaTask({
+    activityId: "activity-airplane-1",
+    rootIntent: "buy me an airplane",
+    locale: "en",
+    missingFields: [],
+    mode: "simulated",
+    confirmationRequired: true,
+    risk: "high",
+  });
+
+  assert.equal(task.phase, "awaiting_approval");
+  assert.equal(task.result, null);
+  assert.equal(task.outcome, null);
+  assert.equal(task.completion.requiresApproval, true);
+  assert.equal(task.completion.requiresReceipt, true);
+  assert.ok(task.plan);
+  assert.ok(task.approvals.some((approval) => approval.status === "pending"));
+
+  task = approve(task, "approve-airplane");
+  assert.equal(task.phase, "completed");
+  assert.equal(task.liveness.state, "completed");
+  assert.equal(task.outcome?.status, "completed");
+  assert.equal(task.outcome?.simulated, true);
+  assert.equal(task.result?.verification.status, "verified");
+  assert.ok(task.evidence.some((evidence) => evidence.kind === "receipt" && evidence.verified));
+  assert.doesNotMatch(task.result?.summary ?? "", /specialist agent mesh completed/i);
 });
 
 test("stale revisions are rejected and command ids are idempotent", () => {
@@ -144,7 +199,7 @@ test("agent patches cannot overwrite a human-confirmed fact", () => {
   assert.ok(patched.events.some((event) => /Rejected an agent attempt/.test(event.summary)));
 });
 
-test("live writes stop at approval and do not claim an external side effect", () => {
+test("live writes stay active after approval when an executor is unavailable", () => {
   let task = createAsymptaTask({
     rootIntent: "Buy a television",
     locale: "en",
@@ -154,19 +209,48 @@ test("live writes stop at approval and do not claim an external side effect", ()
   task = answer(task, nextTaskRequirement(task), "55-inch", "55″", "live-size");
   assert.equal(task.phase, "awaiting_approval");
   assert.equal(task.result, null);
-  const approval = task.approvals.find((candidate) => candidate.status === "pending");
-  assert.ok(approval);
 
-  const afterApproval = approveAsymptaTask(task, {
-    commandId: "approve-live",
-    taskId: task.taskId,
-    approvalId: approval.id,
-    expectedRevision: task.revision,
-    approved: true,
+  const afterApproval = approve(task, "approve-live");
+  assert.notEqual(afterApproval.phase, "blocked");
+  assert.notEqual(afterApproval.phase, "failed");
+  assert.equal(afterApproval.phase, "coordinating");
+  assert.equal(afterApproval.result, null);
+  assert.equal(afterApproval.outcome?.status, "waiting_external");
+  assert.equal(afterApproval.liveness.state, "waiting_external");
+  assert.equal(afterApproval.liveness.obstacle?.recoverable, true);
+  assert.ok(afterApproval.liveness.nextAttemptAt);
+});
+
+test("legacy false completion is reopened instead of being trusted", () => {
+  const base = createAsymptaTask({
+    rootIntent: "buy me an airplane",
+    locale: "en",
+    missingFields: [],
+    mode: "simulated",
+    confirmationRequired: true,
   });
-  assert.equal(afterApproval.phase, "blocked");
-  assert.equal(afterApproval.result?.completed, false);
-  assert.equal(afterApproval.failure?.code, "connected_executor_required");
+  const legacy = structuredClone(base);
+  legacy.version = "asympta.task/0.3";
+  legacy.phase = "completed";
+  legacy.result = {
+    completed: true,
+    simulated: true,
+    summary: "The specialist agent mesh completed and verified the task inside the simulated Asympta world.",
+    verification: { status: "verified", criteria: {}, details: "Planning was complete." },
+    completedAt: "2026-08-31T10:00:00.000Z",
+  };
+  delete legacy.completion;
+  delete legacy.liveness;
+  delete legacy.outcome;
+  legacy.approvals = [];
+  legacy.evidence = legacy.evidence.filter((evidence) => evidence.kind !== "receipt");
+
+  const migrated = migrateAsymptaTaskState(legacy);
+  assert.ok(migrated);
+  assert.equal(migrated.version, "asympta.task/0.4");
+  assert.notEqual(migrated.phase, "completed");
+  assert.equal(migrated.result, null);
+  assert.equal(migrated.liveness.obstacle?.code, "legacy_false_terminal_reopened");
 });
 
 test("adaptive UI is projected from TaskState requirement ids", () => {
@@ -183,10 +267,11 @@ test("adaptive UI is projected from TaskState requirement ids", () => {
   assert.ok(schema.nextField?.options.some((option) => option.label === "55″"));
 });
 
-test("adaptive component contains no natural-language continuation round trip", async () => {
+test("adaptive component contains no natural-language continuation round trip and uses typed approval", async () => {
   const source = await readFile(new URL("../components/asympta-adaptive-interaction.tsx", import.meta.url), "utf8");
   assert.match(source, /answerRequirement\(\{/);
   assert.match(source, /expectedRevision: task\.revision/);
+  assert.match(source, /bridge\.approve\(\{/);
   assert.doesNotMatch(source, /mergeAdaptiveClarifications/);
   assert.doesNotMatch(source, /runIntent\(intention\)/);
   assert.doesNotMatch(source, /User-confirmed details:/);
