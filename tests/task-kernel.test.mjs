@@ -11,6 +11,11 @@ import {
   nextTaskRequirement,
   taskToAdaptiveInteractionSchema,
 } from "../lib/asympta-task-kernel.ts";
+import {
+  answerTaskRequirement as answerManagedTaskRequirement,
+  createAsymptaTask as createManagedAsymptaTask,
+  nextTaskRequirement as nextManagedTaskRequirement,
+} from "../lib/asympta-managed-task-kernel.ts";
 
 function answer(task, requirement, value, label, commandId) {
   return answerTaskRequirement(task, {
@@ -22,6 +27,19 @@ function answer(task, requirement, value, label, commandId) {
     label,
     actorId: "human",
     now: "2026-08-31T10:30:00.000Z",
+  });
+}
+
+function answerManaged(task, requirement, value, label, commandId) {
+  return answerManagedTaskRequirement(task, {
+    commandId,
+    taskId: task.taskId,
+    requirementId: requirement.id,
+    expectedRevision: task.revision,
+    value,
+    label,
+    actorId: "human",
+    now: "2026-08-31T11:58:00.000Z",
   });
 }
 
@@ -190,4 +208,110 @@ test("adaptive component contains no natural-language continuation round trip", 
   assert.doesNotMatch(source, /mergeAdaptiveClarifications/);
   assert.doesNotMatch(source, /runIntent\(intention\)/);
   assert.doesNotMatch(source, /User-confirmed details:/);
+});
+
+test("empty upstream fields for an unseen purchase compile a requirement contract instead of auto-completing", () => {
+  const task = createManagedAsymptaTask({
+    activityId: "activity-unseen-purchase-airplane",
+    rootIntent: "buy me an airplane",
+    locale: "zh-Hant",
+    missingFields: [],
+    mode: "simulated",
+    now: "2026-08-31T11:57:00.000Z",
+  });
+
+  assert.equal(task.phase, "awaiting_human");
+  assert.equal(task.result, null);
+  assert.equal(task.assignments.length, 0);
+  assert.deepEqual(task.requirements.map((requirement) => requirement.key), [
+    "purpose",
+    "budget",
+    "quantity",
+    "purchase_location",
+    "fulfilment",
+    "deadline",
+  ]);
+  const contract = Reflect.get(task, "requirementContract");
+  assert.equal(contract?.id, "commerce.purchase.generic.v1");
+  assert.deepEqual(contract?.requiredSemantics, [
+    "purpose",
+    "budget",
+    "quantity",
+    "acquisition_channel",
+    "fulfilment",
+    "deadline",
+  ]);
+  assert.equal(nextManagedTaskRequirement(task)?.key, "purpose");
+});
+
+test("unseen purchase types share the same action-family contract rather than item-specific hard coding", () => {
+  const build = (rootIntent) => createManagedAsymptaTask({
+    rootIntent,
+    locale: "en",
+    missingFields: [],
+    mode: "simulated",
+  });
+  const airplane = build("buy me an airplane");
+  const industrialRobot = build("buy me an industrial robot");
+
+  assert.deepEqual(
+    airplane.requirements.map((requirement) => requirement.key),
+    industrialRobot.requirements.map((requirement) => requirement.key),
+  );
+  assert.equal(Reflect.get(airplane, "requirementContract")?.id, "commerce.purchase.generic.v1");
+  assert.equal(Reflect.get(industrialRobot, "requirementContract")?.id, "commerce.purchase.generic.v1");
+  assert.doesNotMatch(
+    await readFile(new URL("../lib/asympta-requirement-contracts.ts", import.meta.url), "utf8"),
+    /airplane|aircraft|industrial robot/iu,
+  );
+});
+
+test("a generic purchase finishes only as a verified simulated procurement proposal", () => {
+  let task = createManagedAsymptaTask({
+    activityId: "activity-generic-procurement",
+    rootIntent: "buy me an airplane",
+    locale: "en",
+    missingFields: [],
+    mode: "simulated",
+    now: "2026-08-31T11:57:00.000Z",
+  });
+
+  const answers = {
+    purpose: ["personal travel", "Personal travel"],
+    budget: ["compare_first", "Compare first"],
+    quantity: [1, "1"],
+    purchase_location: ["either", "Either is fine"],
+    fulfilment: ["agent_choice", "Let Asympta choose"],
+    deadline: ["flexible", "Flexible"],
+  };
+
+  let index = 0;
+  while (nextManagedTaskRequirement(task)) {
+    const requirement = nextManagedTaskRequirement(task);
+    const [value, label] = answers[requirement.key];
+    task = answerManaged(task, requirement, value, label, `generic-answer-${index}`);
+    index += 1;
+  }
+
+  assert.equal(task.phase, "completed");
+  assert.equal(task.result?.completed, true);
+  assert.equal(task.result?.simulated, true);
+  assert.match(task.result?.summary ?? "", /simulated procurement brief/i);
+  assert.doesNotMatch(task.result?.summary ?? "", /specialist agent mesh completed/i);
+  assert.equal(task.result?.verification.criteria.requirementContractSatisfied, true);
+  assert.equal(task.result?.verification.criteria.substantiveProposalPresent, true);
+  assert.equal(task.result?.verification.criteria.realSideEffectNotClaimed, true);
+  assert.equal(task.plan?.proposal.executionBoundary, "simulated_proposal_only");
+  const proposalEvidence = task.evidence.find((evidence) => evidence.source === "requirement-contract-gate");
+  assert.ok(proposalEvidence);
+  assert.equal(proposalEvidence.simulated, true);
+  assert.equal(proposalEvidence.value.realSideEffectClaimed, false);
+  assert.equal(proposalEvidence.value.realVendorClaimed, false);
+  assert.equal(proposalEvidence.value.realInventoryClaimed, false);
+});
+
+test("the browser Task Kernel is wired to the managed contract gate and migrates old session data", async () => {
+  const source = await readFile(new URL("../lib/asympta-browser-task-kernel.ts", import.meta.url), "utf8");
+  assert.match(source, /from "\.\/asympta-managed-task-kernel\.ts"/);
+  assert.match(source, /asympta\.task-kernel\.v2/);
 });
