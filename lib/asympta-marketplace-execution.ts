@@ -71,7 +71,7 @@ export type MarketplaceTransactionStatus =
 export type MarketplaceTransaction = {
   goalId: string;
   status: MarketplaceTransactionStatus;
-  payment: "not_requested" | "awaiting_approval" | "authorized" | "declined";
+  payment: "not_requested" | "awaiting_approval" | "authorized" | "declined" | "failed";
   marketLocationId: string;
   fulfilmentMethod: MarketplaceFulfilmentMethod;
   paymentMethod: MarketplacePaymentMethod;
@@ -106,6 +106,7 @@ export type MarketplaceExecution = {
 export type MarketplaceWorldTaskSnapshot = {
   id: string;
   status: string;
+  approvalStatus?: string | null;
   progress?: number;
 };
 
@@ -354,16 +355,20 @@ export function syncMarketplaceExecution(current: MarketplaceExecution, snapshot
     if (paymentState === "blocked") {
       execution.status = "blocked";
       transaction.status = "blocked";
-      transaction.payment = "declined";
+      const paymentTask = snapshot.tasks?.find((task) => task.id === ids.payment);
+      const acceptedButFailed = paymentTask?.approvalStatus === "approved";
+      transaction.payment = acceptedButFailed ? "failed" : "declined";
       applyOnce(execution, `${goal.id}:blocked`, () => {
+        const inventoryReleased = line.marketReserved >= line.quantity;
         if (line.marketReserved >= line.quantity) {
           line.marketReserved -= line.quantity;
           line.marketAvailable += line.quantity;
         }
-        addPacket(execution, "blocked", "human", "agent-finance", {
-          reason: "simulated_payment_declined",
+        addPacket(execution, "blocked", acceptedButFailed ? "agent-finance" : "human", "agent-finance", {
+          reason: acceptedButFailed ? "simulated_payment_execution_failed" : "simulated_payment_declined",
+          humanDecision: acceptedButFailed ? "approved" : "declined",
           paymentMethod: transaction.paymentMethod,
-          inventoryReleased: true,
+          inventoryReleased,
         }, goal.id);
       });
     }

@@ -150,7 +150,7 @@ const SIDE_LABELS: Record<StakeholderSide, string> = {
 
 const COPY: Record<Locale, Record<string, string>> = {
   en: {
-    livingCity: "Living city", ready: "Ready", coordinating: "Coordinating", waiting: "Waiting for you", completed: "Completed", blocked: "Blocked",
+    livingCity: "Living city", ready: "Ready", coordinating: "Coordinating", waiting: "Waiting for you", completed: "Completed", blocked: "Needs your choice",
     webmcpReady: "WebMCP ready", webmcpChecking: "Checking WebMCP", webmcpUnavailable: "WebMCP browser API unavailable", demoCity: "Demo city",
     actorsMoving: "actors moving", workflowAgents: "workflow agents moving", webmcpInspector: "WebMCP inspector", cameraFollow: "Camera follow",
     following: "Following", followAgent: "Follow active agent", restart: "Restart", language: "Language", humanCheckpoint: "HUMAN CHECKPOINT",
@@ -160,7 +160,7 @@ const COPY: Record<Locale, Record<string, string>> = {
     access: "Agent access", readState: "Read current state", readDescription: "Request, journey and approval state", writeRequest: "Write a request", writeDescription: "Opens a human-reviewed request", safetyNote: "Consequential actions still require your approval.", mapScope: "Map scope", network: "Network",
   },
   "zh-Hant": {
-    livingCity: "協作城市", ready: "就緒", coordinating: "協作中", waiting: "等候確認", completed: "已完成", blocked: "已暫停",
+    livingCity: "協作城市", ready: "就緒", coordinating: "協作中", waiting: "等候確認", completed: "已完成", blocked: "等待你的選擇",
     webmcpReady: "WebMCP 已就緒", webmcpChecking: "正在檢查 WebMCP", webmcpUnavailable: "此瀏覽器未提供 WebMCP API", demoCity: "示範城市",
     actorsMoving: "個角色移動中", workflowAgents: "個工作流角色移動中", webmcpInspector: "WebMCP 即時檢視", cameraFollow: "鏡頭跟隨",
     following: "正在跟隨", followAgent: "跟隨活動角色", restart: "重新開始", language: "語言", humanCheckpoint: "人工確認",
@@ -170,7 +170,7 @@ const COPY: Record<Locale, Record<string, string>> = {
     access: "代理入口", readState: "讀取目前狀態", readDescription: "請求、旅程與批准狀態", writeRequest: "寫入一個請求", writeDescription: "先交給你審核，再送出請求", safetyNote: "涉及實際影響的行動仍需要你批准。", mapScope: "地圖範圍", network: "網絡",
   },
   ja: {
-    livingCity: "協調都市", ready: "準備完了", coordinating: "連携中", waiting: "確認待ち", completed: "完了", blocked: "停止中",
+    livingCity: "協調都市", ready: "準備完了", coordinating: "連携中", waiting: "確認待ち", completed: "完了", blocked: "選択が必要",
     webmcpReady: "WebMCP 準備完了", webmcpChecking: "WebMCP を確認中", webmcpUnavailable: "このブラウザでは WebMCP API を利用できません", demoCity: "デモ都市",
     actorsMoving: "アクター移動中", workflowAgents: "ワークフローエージェント移動中", webmcpInspector: "WebMCP インスペクタ", cameraFollow: "カメラ追従",
     following: "追従中", followAgent: "活動中のエージェントを追従", restart: "再開", language: "言語", humanCheckpoint: "人による確認",

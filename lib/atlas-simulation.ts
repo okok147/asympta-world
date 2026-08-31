@@ -601,12 +601,14 @@ export function requestWebMcpAction(current: AtlasWorldState, actionType: Extern
 export function atlasSnapshot(world: AtlasWorldState) {
   return {
     phase: world.phase,
+    workflowId: world.workflowId ?? null,
     workflow: world.workflowId ? workflowFor(world.workflowId).name : null,
     tasks: world.tasks.map((taskState) => ({
       id: taskState.id,
       title: taskState.title,
       agentId: taskState.agentId,
       status: taskState.status,
+      approvalStatus: taskState.approvalStatus ?? null,
       progress: Number(taskState.progress.toFixed(3)),
       dependencies: taskState.dependsOn,
       actionType: taskState.actionType ?? null,
@@ -625,6 +627,8 @@ export function atlasSnapshot(world: AtlasWorldState) {
       id: approval.id,
       source: approval.source,
       title: approval.title,
+      detail: approval.detail,
+      consequence: approval.consequence,
       actionType: approval.actionType ?? null,
       taskId: approval.taskId ?? null,
     })),

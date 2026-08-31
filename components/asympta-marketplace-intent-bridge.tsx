@@ -7,6 +7,7 @@ import {
   ChevronUp,
   Code2,
   Package,
+  RotateCcw,
   ShieldCheck,
   Store,
   Truck,
@@ -127,6 +128,10 @@ const COPY: Record<Locale, {
   editProfile: string;
   safeProfile: string;
   currentProfile: string;
+  recoveryTitle: string;
+  recoveryDetail: string;
+  retryRequest: string;
+  changePayment: string;
   route: [string, string, string, string, string];
   status: Record<MarketplaceExecution["status"], string>;
   packet: Record<string, string>;
@@ -159,6 +164,10 @@ const COPY: Record<Locale, {
     editProfile: "Edit profile",
     safeProfile: "Only preference aliases are stored. No address or card number is saved, and every simulated payment still requires approval.",
     currentProfile: "Current profile",
+    recoveryTitle: "Choose how to continue",
+    recoveryDetail: "The simulated payment was declined. Nothing was charged or ordered; retry the same request or select another payment preference.",
+    retryRequest: "Retry request",
+    changePayment: "Change payment",
     route: ["Intent", "Market", "Store", "Approval", "Home"],
     status: {
       routing: "Compiling a bounded request…",
@@ -167,7 +176,7 @@ const COPY: Record<Locale, {
       awaiting_approval: "Waiting for simulated payment approval.",
       returning_to_user: "The selected agent is carrying the item home…",
       completed: "Delivered into user inventory.",
-      blocked: "The simulated transaction was stopped.",
+      blocked: "Your decision is recorded. Choose how to continue.",
     },
     packet: {
       intent: "Intent",
@@ -180,7 +189,7 @@ const COPY: Record<Locale, {
       payment_authorized: "Payment authorised",
       goods_handoff: "Goods handoff",
       delivery_receipt: "Delivery receipt",
-      blocked: "Blocked",
+      blocked: "Decision recorded",
     },
     presets: {
       everyday: { name: "Everyday", detail: "Anything suitable · personal agent · Asympta Wallet" },
@@ -228,6 +237,10 @@ const COPY: Record<Locale, {
     editProfile: "修改偏好",
     safeProfile: "只會儲存偏好代號，不會儲存地址或卡號；每次模擬付款仍須另外批准。",
     currentProfile: "目前偏好",
+    recoveryTitle: "選擇下一步",
+    recoveryDetail: "模擬付款已被拒絕；沒有扣款或建立訂單。你可以重試同一請求，或選擇另一個付款偏好。",
+    retryRequest: "重試請求",
+    changePayment: "更改付款方式",
     route: ["意圖", "市場", "商店", "批准", "回家"],
     status: {
       routing: "正在把自然語言編譯成受約束的請求…",
@@ -236,7 +249,7 @@ const COPY: Record<Locale, {
       awaiting_approval: "等待批准模擬付款。",
       returning_to_user: "指定代理正攜帶物品回家…",
       completed: "物品已轉入使用者庫存。",
-      blocked: "模擬交易已停止。",
+      blocked: "已記錄你的決定；請選擇下一步。",
     },
     packet: {
       intent: "意圖",
@@ -249,7 +262,7 @@ const COPY: Record<Locale, {
       payment_authorized: "付款已批准",
       goods_handoff: "貨物交接",
       delivery_receipt: "交付收據",
-      blocked: "已停止",
+      blocked: "已記錄決定",
     },
     presets: {
       everyday: { name: "日常", detail: "合適即可 · 個人代理自取 · Asympta 錢包" },
@@ -297,6 +310,10 @@ const COPY: Record<Locale, {
     editProfile: "プロフィールを編集",
     safeProfile: "保存するのは好みの識別子だけです。住所やカード番号は保存せず、シミュレーション支払いには毎回承認が必要です。",
     currentProfile: "現在のプロフィール",
+    recoveryTitle: "続行方法を選択",
+    recoveryDetail: "シミュレーション支払いは拒否されました。請求や注文は発生していません。同じ依頼を再試行するか、別の支払い方法を選べます。",
+    retryRequest: "依頼を再試行",
+    changePayment: "支払い方法を変更",
     route: ["意図", "市場", "店舗", "承認", "帰宅"],
     status: {
       routing: "自然言語を制約付きリクエストへ変換中…",
@@ -305,7 +322,7 @@ const COPY: Record<Locale, {
       awaiting_approval: "シミュレーション支払いの承認待ちです。",
       returning_to_user: "選択されたエージェントが品物を運搬中…",
       completed: "ユーザー在庫へ引き渡しました。",
-      blocked: "シミュレーション取引を停止しました。",
+      blocked: "判断を記録しました。続行方法を選んでください。",
     },
     packet: {
       intent: "意図",
@@ -318,7 +335,7 @@ const COPY: Record<Locale, {
       payment_authorized: "支払い承認済み",
       goods_handoff: "商品引き渡し",
       delivery_receipt: "配達受領",
-      blocked: "停止",
+      blocked: "判断を記録",
     },
     presets: {
       everyday: { name: "日常", detail: "おまかせ · 個人エージェント受取 · Asympta Wallet" },
@@ -608,6 +625,20 @@ export function AsymptaMarketplaceIntentBridge() {
     return executeCompilation(compilation);
   }, [executeCompilation, locale]);
 
+  const retryBlockedRequest = useCallback(() => {
+    const current = executionRef.current;
+    if (!current || current.status !== "blocked") return;
+    void runIntent(current.envelope.rawMessage.text, current.envelope.requestId);
+  }, [runIntent]);
+
+  const changeBlockedPayment = useCallback(() => {
+    const current = executionRef.current;
+    if (!current || current.status !== "blocked") return;
+    setDraftProfile(profileRef.current);
+    setEditingProfile(true);
+    setPanelExpanded(true);
+  }, []);
+
   const resumePendingIntent = useCallback(async (nextProfile: AsymptaMarketplaceProfile) => {
     const pending = pendingIntent;
     if (!pending) return null;
@@ -634,9 +665,9 @@ export function AsymptaMarketplaceIntentBridge() {
     if (pendingIntent) await resumePendingIntent(saved);
   }, [pendingIntent, resumePendingIntent]);
 
-  const choosePreset = (presetId: PresetId) => {
+  const choosePreset = useCallback((presetId: PresetId) => {
     void commitProfile(marketplaceProfilePreset(presetId));
-  };
+  }, [commitProfile]);
 
   const chooseFood = (foodPreference: MarketplaceFoodPreference) => {
     setDraftProfile((current) => patchMarketplaceProfile(current, { foodPreference }));
@@ -699,6 +730,10 @@ export function AsymptaMarketplaceIntentBridge() {
   }, [locale, runIntent]);
 
   const executionId = execution?.executionId ?? null;
+
+  useEffect(() => {
+    if (execution?.status === "blocked") setPanelExpanded(true);
+  }, [execution?.status]);
 
   useEffect(() => {
     if (!executionId) return;
@@ -847,6 +882,24 @@ export function AsymptaMarketplaceIntentBridge() {
             })}
           </ol>
 
+          {execution.status === "blocked" ? (
+            <section className="asympta-marketplace-recovery" role="status" aria-live="polite">
+              <span><RotateCcw size={14} aria-hidden="true" /></span>
+              <div>
+                <strong>{copy.recoveryTitle}</strong>
+                <p>{copy.recoveryDetail}</p>
+              </div>
+              <div className="asympta-marketplace-recovery__actions">
+                <button type="button" onClick={retryBlockedRequest}>
+                  <RotateCcw size={12} aria-hidden="true" />{copy.retryRequest}
+                </button>
+                <button type="button" onClick={changeBlockedPayment}>
+                  <WalletCards size={12} aria-hidden="true" />{copy.changePayment}
+                </button>
+              </div>
+            </section>
+          ) : null}
+
           {activeLine ? (
             <div className="asympta-marketplace-trace__item">
               <Package size={14} aria-hidden="true" />
@@ -923,6 +976,10 @@ export function AsymptaMarketplaceIntentBridge() {
     pendingIntent,
     profile,
     runtimeError,
+    retryBlockedRequest,
+    changeBlockedPayment,
+    choosePreset,
+    commitProfile,
   ]);
 
   if (!panel || !host) return null;

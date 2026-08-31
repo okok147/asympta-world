@@ -135,12 +135,8 @@ test("browser router claims marketplace forms, asks one field at a time and fini
   assert.match(router, /marketplaceProfilePrompt/);
   assert.match(router, /MARKETPLACE_EXECUTION_EVENT/);
   assert.match(router, /MARKETPLACE_PROFILE_REQUIRED_EVENT/);
-  assert.match(router, /autoApproveSimulatedMarketplacePayment/);
-  assert.match(router, /execution\.workflowId !== MARKETPLACE_WORKFLOW_ID/);
-  assert.match(router, /candidate\.source !== "webmcp"/);
-  assert.match(router, /candidate\.actionType === "authorize_payment"/);
-  assert.match(router, /candidate\.taskId\.startsWith\("mp-"\)/);
-  assert.match(router, /demo\.approve\(approval\.id, true\)/);
+  assert.doesNotMatch(router, /autoApproveSimulatedMarketplacePayment/);
+  assert.doesNotMatch(router, /demo\.approve\(/);
   assert.doesNotMatch(router, /runPublicAgentIntent|beginInformationJourney|public-web/);
   assert.match(css, /data-asympta-intent-owner="marketplace"/);
   assert.match(css, /data-asympta-marketplace-next-field="foodPreference"/);

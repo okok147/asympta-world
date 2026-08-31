@@ -1,0 +1,130 @@
+.root {
+  display: grid;
+  gap: 8px;
+  margin: 8px;
+  padding: 11px;
+  border: 1px solid rgba(91, 111, 94, 0.22);
+  border-radius: 14px;
+  color: #45423c;
+  background: rgba(249, 247, 241, 0.96);
+  box-shadow: 0 12px 30px rgba(60, 56, 48, 0.1);
+}
+
+.root[data-host="standalone"] {
+  position: fixed;
+  z-index: 98;
+  top: max(78px, calc(env(safe-area-inset-top) + 78px));
+  right: max(12px, env(safe-area-inset-right));
+  width: min(370px, calc(100vw - 24px));
+  margin: 0;
+}
+
+.root header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+}
+
+.root header > span:last-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.root header small {
+  color: rgba(69, 66, 59, 0.5);
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.root header strong {
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.root p {
+  margin: 0;
+  color: rgba(69, 66, 59, 0.72);
+  font-size: 8.5px;
+  line-height: 1.45;
+}
+
+:global(.asympta-workflow-continuation__icon) {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid rgba(83, 122, 101, 0.2);
+  border-radius: 10px;
+  color: #4b715d;
+  background: rgba(108, 145, 123, 0.1);
+}
+
+:global(.asympta-workflow-continuation__actions) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+}
+
+:global(.asympta-workflow-continuation__actions button) {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 10px;
+  border: 1px solid rgba(83, 122, 101, 0.22);
+  border-radius: 10px;
+  color: #426451;
+  background: rgba(108, 145, 123, 0.12);
+  font-size: 8px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+:global(.asympta-workflow-continuation__actions button:last-child) {
+  border-color: rgba(69, 66, 59, 0.12);
+  color: rgba(69, 66, 59, 0.68);
+  background: rgba(255, 255, 255, 0.4);
+}
+
+:global(.asympta-workflow-continuation__actions button:disabled) {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+:global(.asympta-workflow-continuation__safety) {
+  color: rgba(69, 66, 59, 0.48);
+  font-size: 6.8px;
+  line-height: 1.4;
+}
+
+:global(.asympta-workflow-continuation__error) {
+  color: #8a584e;
+  font-size: 7.4px;
+  line-height: 1.35;
+}
+
+@media (max-width: 700px) {
+  .root[data-host="standalone"] {
+    top: auto;
+    right: max(9px, env(safe-area-inset-right));
+    bottom: max(88px, calc(env(safe-area-inset-bottom) + 88px));
+    width: calc(100vw - 18px);
+  }
+
+  :global(.asympta-workflow-continuation__actions) {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root,
+  .root * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

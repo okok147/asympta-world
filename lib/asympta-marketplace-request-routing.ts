@@ -73,7 +73,7 @@ const COPY: Record<MarketplaceRequestLocale, {
       awaiting_approval: "The simulated payment is ready for approval.",
       returning_to_user: "The selected carrier is bringing the item back to the user.",
       completed: "The requested item was delivered into simulated user inventory.",
-      blocked: "The simulated marketplace workflow was stopped.",
+      blocked: "The payment decision was recorded. Choose retry or another payment preference.",
     },
   },
   "zh-Hant": {
@@ -102,7 +102,7 @@ const COPY: Record<MarketplaceRequestLocale, {
       awaiting_approval: "模擬付款已準備好，等待批准。",
       returning_to_user: "指定配送代理正在把物品帶回使用者。",
       completed: "所需物品已交付至模擬使用者庫存。",
-      blocked: "模擬市場流程已停止。",
+      blocked: "已記錄付款決定；請選擇重試或另一個付款偏好。",
     },
   },
   ja: {
@@ -131,7 +131,7 @@ const COPY: Record<MarketplaceRequestLocale, {
       awaiting_approval: "シミュレーション支払いの承認待ちです。",
       returning_to_user: "配送担当が商品をユーザーへ運んでいます。",
       completed: "商品をシミュレーション上のユーザー在庫へ届けました。",
-      blocked: "シミュレーション市場を停止しました。",
+      blocked: "支払いの判断を記録しました。再試行するか別の支払い方法を選んでください。",
     },
   },
 };
@@ -165,7 +165,7 @@ function statusForExecution(status: MarketplaceExecution["status"]): AsymptaCurr
   if (status === "awaiting_approval") return "awaiting_confirmation";
   if (status === "returning_to_user") return "returning";
   if (status === "completed") return "completed";
-  if (status === "blocked") return "failed";
+  if (status === "blocked") return "waiting_input";
   return "gathering";
 }
 

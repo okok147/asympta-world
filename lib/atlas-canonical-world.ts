@@ -72,11 +72,19 @@ function seedFor(value: LegacyOrCanonicalWorld) {
   return Number.isFinite(candidate.seed) ? Number(candidate.seed) : 2_026_0830;
 }
 
+function freshRuntimeForWorkflow(seed: number, workflowId: string | undefined, now: number) {
+  const base = createAgenticWorldRuntime(seed, now);
+  // Marketplace payments are already modelled by the typed marketplace ledger.
+  // Seeding the generic 12-unit custom-order runtime here creates a second,
+  // unrelated charge and can reject a payment the human explicitly accepted.
+  if (!workflowId || workflowId === "marketplace-intent") return base;
+  return prepareRuntimeForWorkflow(base, workflowId, now);
+}
+
 function runtimeFor(value: LegacyOrCanonicalWorld, resetForWorkflow = false) {
   const seed = seedFor(value);
   if (!resetForWorkflow && isCanonical(value)) return clone(value.runtime);
-  const base = createAgenticWorldRuntime(seed, value.now);
-  return value.workflowId ? prepareRuntimeForWorkflow(base, value.workflowId, value.now) : base;
+  return freshRuntimeForWorkflow(seed, value.workflowId, value.now);
 }
 
 export function canonicalizeAtlasWorld(value: LegacyOrCanonicalWorld, resetForWorkflow = false): AtlasWorldState {
@@ -320,7 +328,10 @@ export function resolveAtlasApproval(current: LegacyOrCanonicalWorld, approvalId
 
   let runtimeWorld = before;
   let runtimeResult: RuntimeIntentResult | null = null;
-  if (approved && approval.actionType && approval.agentId) {
+  const marketplacePayment = before.workflowId === ("marketplace-intent" as legacy.WorkflowId)
+    && approval.actionType === "authorize_payment"
+    && approval.taskId?.startsWith("mp-");
+  if (approved && approval.actionType && approval.agentId && !marketplacePayment) {
     const applied = applyApprovedRuntimeAction(before, approval.actionType, approval.agentId, approval.detail);
     runtimeWorld = applied.world;
     runtimeResult = applied.result;
@@ -330,7 +341,7 @@ export function resolveAtlasApproval(current: LegacyOrCanonicalWorld, approvalId
   const after = canonicalizeAtlasWorld(legacyResolved);
   after.seed = before.seed;
   if (approved && approval.kind === "webmcp-start" && approval.workflowId) {
-    after.runtime = prepareRuntimeForWorkflow(createAgenticWorldRuntime(before.seed, after.now), approval.workflowId, after.now);
+    after.runtime = freshRuntimeForWorkflow(before.seed, approval.workflowId, after.now);
     after.runtimeHistoryCursor = 0;
   } else {
     after.runtime = runtimeWorld.runtime;

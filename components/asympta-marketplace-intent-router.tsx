@@ -12,7 +12,6 @@ import {
 import {
   MARKETPLACE_EXECUTION_EVENT,
   MARKETPLACE_PROFILE_REQUIRED_EVENT,
-  MARKETPLACE_WORKFLOW_ID,
   compileAsymptaContext,
   patchMarketplaceProfile,
   type AsymptaMarketplaceProfile,
@@ -42,29 +41,8 @@ type MarketplaceBrowserBridge = {
   runIntent: (intent: string) => Promise<MarketplaceExecution | null>;
 };
 
-type MarketplaceDemoApproval = {
-  id?: string;
-  source?: string;
-  actionType?: string | null;
-  taskId?: string | null;
-};
-
-type MarketplaceDemoState = {
-  pendingApprovals?: MarketplaceDemoApproval[];
-};
-
-type MarketplaceDemoSnapshot = MarketplaceDemoState & {
-  foreground?: MarketplaceDemoState;
-};
-
-type MarketplaceDemoBridge = {
-  snapshot: () => unknown;
-  approve: (approvalId: string, approved: boolean) => unknown;
-};
-
 type MarketplaceWindow = Window & {
   __ASYMPTA_MARKETPLACE__?: MarketplaceBrowserBridge;
-  __ASYMPTA_DEMO__?: MarketplaceDemoBridge;
 };
 
 type ClaimedIntent = {
@@ -172,41 +150,6 @@ function activeFieldsetIndex(field: MarketplaceProfileField) {
   return 2;
 }
 
-function autoApproveSimulatedMarketplacePayment(
-  execution: MarketplaceExecution,
-  resolvedApprovalIds: Set<string>,
-) {
-  if (
-    execution.workflowId !== MARKETPLACE_WORKFLOW_ID
-    || execution.status !== "awaiting_approval"
-    || execution.envelope.provenance.mode !== "simulated"
-  ) return false;
-
-  const demo = marketplaceWindow().__ASYMPTA_DEMO__;
-  if (!demo) return false;
-  const raw = demo.snapshot();
-  if (!raw || typeof raw !== "object") return false;
-  const snapshot = raw as MarketplaceDemoSnapshot;
-  const state = snapshot.foreground ?? snapshot;
-  const approval = state.pendingApprovals?.find((candidate) => (
-    typeof candidate.id === "string"
-    && candidate.source !== "webmcp"
-    && candidate.actionType === "authorize_payment"
-    && typeof candidate.taskId === "string"
-    && candidate.taskId.startsWith("mp-")
-  ));
-  if (!approval?.id || resolvedApprovalIds.has(approval.id)) return false;
-
-  resolvedApprovalIds.add(approval.id);
-  try {
-    demo.approve(approval.id, true);
-    return true;
-  } catch {
-    resolvedApprovalIds.delete(approval.id);
-    return false;
-  }
-}
-
 export function AsymptaMarketplaceIntentRouter() {
   const [profileHost, setProfileHost] = useState<HTMLElement | null>(null);
   const [profilePrompt, setProfilePrompt] = useState<MarketplaceProfilePrompt | null>(null);
@@ -216,7 +159,6 @@ export function AsymptaMarketplaceIntentRouter() {
   const pendingProfileRef = useRef<MarketplaceProfileRequiredDetail | null>(null);
   const profilePromptRef = useRef<MarketplaceProfilePrompt | null>(null);
   const profileChoiceInFlightRef = useRef(false);
-  const autoApprovedPaymentsRef = useRef(new Set<string>());
 
   useEffect(() => {
     const syncProfileHost = () => {
@@ -315,12 +257,8 @@ export function AsymptaMarketplaceIntentRouter() {
       const source = sourceByRequestRef.current.get(execution.envelope.requestId) ?? "human";
       document.documentElement.dataset.asymptaIntentOwner = "marketplace";
       clearProfileQuestion();
-      const autoApproved = autoApproveSimulatedMarketplacePayment(execution, autoApprovedPaymentsRef.current);
-      const visibleExecution: MarketplaceExecution = autoApproved
-        ? { ...execution, status: "coordinating" }
-        : execution;
       publishAsymptaCurrentRequest(marketplaceCurrentRequestFromExecution(
-        visibleExecution,
+        execution,
         source,
         localeFromDocument(),
       ));

@@ -53,11 +53,11 @@ const COPY: Record<Locale, Copy> = {
     carrying: (cargo) => `Carrying ${cargo}`,
     status: {
       idle: "Ready", queued: "Queued", moving: "Moving", working: "Working", sharing: "Sharing", waiting: "Waiting",
-      returning: "Returning", waiting_approval: "Waiting for approval", blocked: "Blocked", done: "Completed",
+      returning: "Returning", waiting_approval: "Waiting for approval", blocked: "Needs your choice", done: "Completed",
       interpreting: "Understanding", discovering: "Discovering", coordinating: "Coordinating", waiting_input: "Waiting for input",
       executing: "Executing", verifying: "Verifying", completed: "Completed", failed: "Failed",
     },
-    phase: { idle: "Ready", running: "Coordinating", waiting_approval: "Waiting for approval", completed: "Completed", blocked: "Blocked" },
+    phase: { idle: "Ready", running: "Coordinating", waiting_approval: "Waiting for approval", completed: "Completed", blocked: "Needs your choice" },
     resources: { food: "Food", material: "Materials", merchandise: "Merchandise", power: "Power", medicine: "Medicine" },
     roles: {
       user: "Personal intent agent", customer: "Customer advocate", business: "Business coordinator", supplier: "Supplier agent",
@@ -83,11 +83,11 @@ const COPY: Record<Locale, Copy> = {
     carrying: (cargo) => `攜帶中：${cargo}`,
     status: {
       idle: "就緒", queued: "排隊中", moving: "移動中", working: "工作中", sharing: "交接中", waiting: "等待中",
-      returning: "返回中", waiting_approval: "等待批准", blocked: "已暫停", done: "已完成",
+      returning: "返回中", waiting_approval: "等待批准", blocked: "等待你的選擇", done: "已完成",
       interpreting: "理解中", discovering: "尋找中", coordinating: "協調中", waiting_input: "等待補充資料",
       executing: "執行中", verifying: "驗證中", completed: "已完成", failed: "未能完成",
     },
-    phase: { idle: "就緒", running: "協調中", waiting_approval: "等待批准", completed: "已完成", blocked: "已暫停" },
+    phase: { idle: "就緒", running: "協調中", waiting_approval: "等待批准", completed: "已完成", blocked: "等待你的選擇" },
     resources: { food: "食品", material: "原材料", merchandise: "商品", power: "電力", medicine: "醫療" },
     roles: {
       user: "個人需求代理", customer: "客戶需求代理", business: "商業協調代理", supplier: "供應代理",
@@ -111,11 +111,11 @@ const COPY: Record<Locale, Copy> = {
     carrying: (cargo) => `運搬中：${cargo}`,
     status: {
       idle: "準備完了", queued: "待機列", moving: "移動中", working: "作業中", sharing: "共有中", waiting: "待機中",
-      returning: "帰還中", waiting_approval: "承認待ち", blocked: "停止中", done: "完了",
+      returning: "帰還中", waiting_approval: "承認待ち", blocked: "選択が必要", done: "完了",
       interpreting: "理解中", discovering: "検索中", coordinating: "連携中", waiting_input: "入力待ち",
       executing: "実行中", verifying: "検証中", completed: "完了", failed: "失敗",
     },
-    phase: { idle: "準備完了", running: "連携中", waiting_approval: "承認待ち", completed: "完了", blocked: "停止中" },
+    phase: { idle: "準備完了", running: "連携中", waiting_approval: "承認待ち", completed: "完了", blocked: "選択が必要" },
     resources: { food: "食品", material: "原材料", merchandise: "商品", power: "電力", medicine: "医療" },
     roles: {
       user: "個人意図エージェント", customer: "顧客担当エージェント", business: "ビジネス調整エージェント", supplier: "サプライヤーエージェント",

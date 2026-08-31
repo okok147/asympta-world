@@ -82,6 +82,38 @@ function preserveSimulationSpeed(previous: AtlasWorldState, next: AtlasWorldStat
   return next;
 }
 
+/**
+ * Repairs worlds persisted by the old double-ledger marketplace bug. In that
+ * version the user could approve payment, then the unrelated generic runtime
+ * rejected a hidden 12-unit charge and marked the approved task as blocked.
+ * A real decline has approvalStatus="declined" and is deliberately untouched.
+ */
+export function repairApprovedMarketplaceCheckpoint(current: AtlasWorldState) {
+  if (current.workflowId !== ("marketplace-intent" as WorkflowId) || current.phase !== "blocked") return current;
+  const blockedTask = current.tasks.find((task) => (
+    task.status === "blocked"
+    && task.actionType === "authorize_payment"
+    && task.approvalStatus === "approved"
+    && task.id.startsWith("mp-")
+  ));
+  if (!blockedTask) return current;
+
+  const next = JSON.parse(JSON.stringify(current)) as AtlasWorldState;
+  const task = next.tasks.find((candidate) => candidate.id === blockedTask.id);
+  const agent = task ? next.agents.find((candidate) => candidate.id === task.agentId) : null;
+  if (!task || !agent) return current;
+  task.status = "working";
+  task.progress = 0;
+  task.workStartedAt = next.now;
+  delete task.blockingReason;
+  agent.status = "working";
+  agent.taskId = task.id;
+  next.phase = "running";
+  next.revision += 1;
+  persistAtlasWorld(next);
+  return next;
+}
+
 export function startAtlasDemoWorkflow(current: AtlasWorldState, workflowId: WorkflowId) {
   const started = startAtlasWorkflow(current, workflowId);
   const next = forceFreshActiveTasksToTravel(preserveSimulationSpeed(current, preserveFundLedger(current, started)));
@@ -93,7 +125,7 @@ export function createAtlasDemoWorld(now = Date.now()) {
   const persisted = loadPersistedAtlasWorld();
   // A blocked world is still the same world. Never silently replace it with a new
   // custom-order workflow; the escalation layer must resolve it in place.
-  if (persisted && persisted.workflowId) return persisted;
+  if (persisted && persisted.workflowId) return repairApprovedMarketplaceCheckpoint(persisted);
   return startAtlasDemoWorkflow(createAtlasWorld(now), "custom-order");
 }
 

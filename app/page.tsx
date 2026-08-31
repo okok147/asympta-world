@@ -14,7 +14,6 @@ import { AsymptaIntentComposer } from "@/components/asympta-intent-composer";
 import { AsymptaJobMode } from "@/components/asympta-job-mode";
 import { AsymptaMarketplaceIntentBridge } from "@/components/asympta-marketplace-intent-bridge";
 import { AsymptaMarketplaceIntentRouter } from "@/components/asympta-marketplace-intent-router";
-import { AsymptaMarketplaceManualPaymentBoundary } from "@/components/asympta-marketplace-manual-payment-boundary";
 import { AsymptaMarketplacePaymentApproval } from "@/components/asympta-marketplace-payment-approval";
 import { AsymptaMarketplaceRecovery } from "@/components/asympta-marketplace-recovery";
 import { AsymptaPaperMapTone } from "@/components/asympta-paper-map-tone";
@@ -29,6 +28,7 @@ import { AsymptaUniversalBenchmarkBridge } from "@/components/asympta-universal-
 import { AsymptaUnsafeProposalRecovery } from "@/components/asympta-unsafe-proposal-recovery";
 import { AsymptaUserPreferences } from "@/components/asympta-user-preferences";
 import { AsymptaWebMcpTools } from "@/components/asympta-webmcp-tools";
+import { AsymptaWorkflowContinuation } from "@/components/asympta-workflow-continuation";
 import { AsymptaWorldLive60Hz } from "@/components/asympta-world-live-60hz";
 
 export default function HomePage() {
@@ -37,10 +37,10 @@ export default function HomePage() {
       <AsymptaTaskKernelBridge />
       <AsymptaActivityEventContract />
       <AsymptaWorldLive60Hz />
+      <AsymptaWorkflowContinuation />
       <AsymptaCameraFollowControl />
       <AsymptaCuteAgentVisibility />
       <AsymptaGlobalWorld />
-      <AsymptaMarketplaceManualPaymentBoundary />
       <AsymptaMarketplaceIntentRouter />
       <AsymptaIntentComposer />
       <AsymptaAdaptiveInteraction />

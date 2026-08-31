@@ -86,9 +86,12 @@ test("schedule and main menu stay user controlled while the agent card may auto 
   assert.doesNotMatch(source, /atlas-approval/);
 });
 
-test("blocked persisted worlds are preserved instead of silently reset", () => {
+test("blocked persisted worlds are preserved except the proven approved-marketplace migration", () => {
   const source = readFileSync(new URL("../lib/atlas-canonical-demo.ts", import.meta.url), "utf8");
-  assert.match(source, /if \(persisted && persisted\.workflowId\) return persisted/);
+  assert.match(source, /if \(persisted && persisted\.workflowId\) return repairApprovedMarketplaceCheckpoint\(persisted\)/);
+  assert.match(source, /task\.approvalStatus === "approved"/);
+  assert.match(source, /current\.workflowId !== \("marketplace-intent" as WorkflowId\)/);
+  assert.match(source, /current\.phase !== "blocked"/);
   assert.doesNotMatch(source, /persisted\.phase !== ["']blocked["']/);
 });
 
