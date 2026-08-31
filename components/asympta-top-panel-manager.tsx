@@ -21,8 +21,8 @@ function visibleRect(node: Element | null) {
   return rect.width > 0 && rect.height > 0 ? rect : null;
 }
 
-function accessOccupiedHeight(access: HTMLElement, accessRect: DOMRect) {
-  let bottom = accessRect.bottom;
+function accessOccupiedBottom(access: HTMLElement, baseBottom: number) {
+  let bottom = baseBottom;
   const floatingChildren = access.querySelectorAll<HTMLElement>(
     ".atlas-language-menu.is-open, [data-asympta-camera-follow-control='true']",
   );
@@ -30,7 +30,14 @@ function accessOccupiedHeight(access: HTMLElement, accessRect: DOMRect) {
     const rect = visibleRect(child);
     if (rect) bottom = Math.max(bottom, rect.bottom);
   }
-  return Math.max(accessRect.height, bottom - accessRect.top);
+  return bottom;
+}
+
+function accessOccupiedHeight(access: HTMLElement, accessRect: DOMRect) {
+  return Math.max(
+    accessRect.height,
+    accessOccupiedBottom(access, accessRect.bottom) - accessRect.top,
+  );
 }
 
 function setProperty(node: HTMLElement, name: string, value: string) {
@@ -118,12 +125,13 @@ export function AsymptaTopPanelManager() {
           `${model.requestDetailsMaxHeight ?? 140}px`,
         );
 
-        // Absolute language and portal controls are measured above. This final guard
-        // keeps the request below the actual occupied access-card edge on the same frame.
-        const occupiedBottom = accessRect.top + Math.min(
-          occupiedAccessHeight,
+        // Cap the scrollable access body, but still include open absolute controls such
+        // as the language menu when determining the first safe pixel for the request.
+        const cappedAccessBottom = accessRect.top + Math.min(
+          accessRect.height,
           (model.accessPanelMaxHeight ?? accessRect.height) + 50,
         );
+        const occupiedBottom = accessOccupiedBottom(access, cappedAccessBottom);
         const requestedTop = Number.parseFloat(
           request.style.getPropertyValue("--asympta-top-panel-request-top"),
         );
