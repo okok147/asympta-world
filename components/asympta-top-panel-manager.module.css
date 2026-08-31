@@ -2,13 +2,25 @@
   display: none;
 }
 
+/* The map shell used to be a fixed isolated stacking context. That trapped the
+   access card below root-level cards regardless of its z-index. Keep the same
+   viewport geometry without creating that parent stacking context, so whichever
+   top panel is promoted can actually paint in front. */
+:global(.map-app) {
+  position: absolute !important;
+  min-height: 100dvh;
+  isolation: auto !important;
+}
+
 :global(.asympta-access-card),
-:global(.asympta-request-card) {
+:global(.asympta-request-card),
+:global(.asympta-marketplace-trace[data-host="standalone"]) {
   isolation: isolate;
 }
 
 :global(html[data-asympta-top-panel-front="access"] .asympta-access-card),
-:global(html[data-asympta-top-panel-front="request"] .asympta-request-card) {
+:global(html[data-asympta-top-panel-front="request"] .asympta-request-card),
+:global(html[data-asympta-top-panel-front="request"] .asympta-marketplace-trace[data-host="standalone"]) {
   z-index: 96 !important;
   box-shadow:
     0 14px 34px rgba(66, 58, 46, 0.105),
@@ -16,6 +28,7 @@
 }
 
 :global(html[data-asympta-top-panel-front="access"] .asympta-request-card),
+:global(html[data-asympta-top-panel-front="access"] .asympta-marketplace-trace[data-host="standalone"]),
 :global(html[data-asympta-top-panel-front="request"] .asympta-access-card) {
   z-index: 88 !important;
 }
@@ -23,12 +36,14 @@
 :global(html[data-asympta-top-panels="stacked"] .asympta-request-card),
 :global(html[data-asympta-top-panels="stacked"] .asympta-request-card.is-collapsed),
 :global(html[data-asympta-top-panels="stacked"] .asympta-request-card.is-expanded),
-:global(html[data-asympta-top-panels="stacked"][data-asympta-scale="world"] .asympta-request-card) {
+:global(html[data-asympta-top-panels="stacked"][data-asympta-scale="world"] .asympta-request-card),
+:global(html[data-asympta-top-panels="stacked"] .asympta-marketplace-trace[data-host="standalone"]) {
   top: var(--asympta-top-panel-request-top) !important;
   max-height: var(--asympta-top-panel-request-max-height) !important;
 }
 
-:global(html[data-asympta-top-panels="stacked"] .asympta-request-card__details) {
+:global(html[data-asympta-top-panels="stacked"] .asympta-request-card__details),
+:global(html[data-asympta-top-panels="stacked"] .asympta-marketplace-trace[data-host="standalone"] .asympta-marketplace-trace__body) {
   max-height: var(--asympta-top-panel-request-details-max-height) !important;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -47,14 +62,16 @@
 }
 
 :global(.asympta-access-card.is-asympta-front),
-:global(.asympta-request-card.is-asympta-front) {
+:global(.asympta-request-card.is-asympta-front),
+:global(.asympta-marketplace-trace[data-host="standalone"].is-asympta-front) {
   pointer-events: auto !important;
 }
 
 @media (max-width: 520px) {
   :global(html[data-asympta-top-panels="stacked"] .asympta-request-card),
   :global(html[data-asympta-top-panels="stacked"] .asympta-request-card.is-collapsed),
-  :global(html[data-asympta-top-panels="stacked"] .asympta-request-card.is-expanded) {
+  :global(html[data-asympta-top-panels="stacked"] .asympta-request-card.is-expanded),
+  :global(html[data-asympta-top-panels="stacked"] .asympta-marketplace-trace[data-host="standalone"]) {
     right: max(8px, env(safe-area-inset-right));
     bottom: auto;
   }
@@ -66,7 +83,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   :global(.asympta-access-card),
-  :global(.asympta-request-card) {
+  :global(.asympta-request-card),
+  :global(.asympta-marketplace-trace[data-host="standalone"]) {
     transition: none !important;
   }
 }
