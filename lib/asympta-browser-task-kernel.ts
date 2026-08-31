@@ -5,7 +5,7 @@ import {
   createAsymptaTask,
   isAsymptaTaskState,
   taskToAdaptiveInteractionSchema,
-} from "./asympta-task-kernel.ts";
+} from "./asympta-managed-task-kernel.ts";
 import type { AdaptiveInteractionSchema } from "./asympta-adaptive-interaction.ts";
 import type {
   AnswerRequirementCommand,
@@ -18,7 +18,7 @@ import type {
 } from "./asympta-task-kernel-types.ts";
 
 export const ASYMPTA_TASK_KERNEL_EVENT = "asympta:task-kernel" as const;
-const STORAGE_KEY = "asympta.task-kernel.v1";
+const STORAGE_KEY = "asympta.task-kernel.v2";
 const MAX_PERSISTED_TASKS = 8;
 
 type TaskListener = (detail: AsymptaTaskKernelEventDetail) => void;
