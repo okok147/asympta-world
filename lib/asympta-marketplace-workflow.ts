@@ -1,4 +1,6 @@
 import {
+  ATLAS_AGENTS,
+  ATLAS_LOCATIONS,
   ATLAS_WORKFLOWS,
   type AtlasTaskBlueprint,
   type AtlasWorkflowDefinition,
@@ -17,6 +19,7 @@ import type {
   MarketplacePaymentMethod,
 } from "./asympta-marketplace-profile.ts";
 import { assertMarketplaceTaskReady } from "./asympta-marketplace-task-protocol.ts";
+import { assertAsymptaWorkflowContract } from "./asympta-workflow-contract.ts";
 
 export const MARKETPLACE_WORKFLOW_ID = "marketplace-intent" as WorkflowId;
 
@@ -231,7 +234,7 @@ export function buildMarketplaceWorkflow(envelope: ContextEnvelope): AtlasWorkfl
   }
 
   const goalNames = specs.map((spec) => spec.goal.domain === "food" ? "food" : "clothing").join(" + ");
-  return {
+  const workflow: AtlasWorkflowDefinition = {
     id: MARKETPLACE_WORKFLOW_ID,
     name: `Intent Marketplace · ${goalNames}`,
     shortName: "Marketplace",
@@ -239,6 +242,11 @@ export function buildMarketplaceWorkflow(envelope: ContextEnvelope): AtlasWorkfl
     outcome: "The selected simulated carrier returned from the marketplace and the canonical ledger recorded delivery into user inventory.",
     tasks,
   };
+
+  return assertAsymptaWorkflowContract(workflow, {
+    agentIds: ATLAS_AGENTS.map((agent) => agent.id),
+    locationIds: Object.keys(ATLAS_LOCATIONS),
+  });
 }
 
 export function upsertMarketplaceWorkflow(envelope: ContextEnvelope) {
