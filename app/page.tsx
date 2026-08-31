@@ -1,3 +1,4 @@
+import { AsymptaActivityEventContract } from "@/components/asympta-activity-event-contract";
 import { AsymptaAdaptiveInteraction } from "@/components/asympta-adaptive-interaction";
 import { AsymptaAgentCardLocale } from "@/components/asympta-agent-card-locale";
 import { AsymptaBlockActivity } from "@/components/asympta-block-activity";
@@ -27,6 +28,7 @@ import { AsymptaWorldLive60Hz } from "@/components/asympta-world-live-60hz";
 export default function HomePage() {
   return (
     <>
+      <AsymptaActivityEventContract />
       <AsymptaWorldLive60Hz />
       <AsymptaCameraFollowControl />
       <AsymptaCuteAgentVisibility />
