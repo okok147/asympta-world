@@ -17,21 +17,11 @@ import {
 } from "@/lib/asympta-adaptive-interaction";
 
 type ActivityDetail = {
-  activity?: {
-    id?: string;
-    intent?: string;
-    status?: string;
-  };
-  event?: {
-    status?: string;
-    summary?: string;
-    data?: unknown;
-  };
+  activity?: { id?: string; intent?: string; status?: string };
+  event?: { status?: string; summary?: string; data?: unknown };
 };
 
-type ProtocolBridge = {
-  runIntent: (intention: string) => Promise<unknown>;
-};
+type ProtocolBridge = { runIntent: (intention: string) => Promise<unknown> };
 
 const COPY: Record<AdaptiveInteractionLocale, {
   eyebrow: string;
@@ -94,6 +84,16 @@ function answerReady(schema: AdaptiveInteractionSchema | null, selected: Adaptiv
   if (field.control === "text") return custom.trim().length > 0;
   if (field.control === "number") return custom.trim().length > 0 && Number.isFinite(Number(custom));
   return selected !== null || custom.trim().length > 0;
+}
+
+function advanceSchema(schema: AdaptiveInteractionSchema): AdaptiveInteractionSchema | null {
+  const remaining = schema.fields.slice(1);
+  if (!remaining.length) return null;
+  return {
+    ...schema,
+    fields: remaining,
+    nextField: remaining[0] ?? null,
+  };
 }
 
 export function AsymptaAdaptiveInteraction() {
@@ -186,12 +186,6 @@ export function AsymptaAdaptiveInteraction() {
     event?.preventDefault();
     if (!ready || continuing) return;
 
-    const bridge = protocolBridge();
-    if (!bridge) {
-      setError(copy.unavailable);
-      return;
-    }
-
     let value: AdaptiveAnswerValue;
     let label: string;
     if (field.control === "text") {
@@ -208,16 +202,28 @@ export function AsymptaAdaptiveInteraction() {
       label = custom.trim();
     }
 
-    const nextConfirmation: AdaptiveConfirmation = {
-      field: field.sourceField,
-      value,
-      label,
-    };
+    const nextConfirmation: AdaptiveConfirmation = { field: field.sourceField, value, label };
     const nextConfirmations = [
       ...confirmationsRef.current.filter((candidate) => candidate.field !== field.sourceField),
       nextConfirmation,
     ];
     confirmationsRef.current = nextConfirmations;
+
+    const nextSchema = advanceSchema(schema);
+    if (nextSchema) {
+      setSchema(nextSchema);
+      setSelected(null);
+      setCustom("");
+      setCustomOpen(false);
+      setError(null);
+      return;
+    }
+
+    const bridge = protocolBridge();
+    if (!bridge) {
+      setError(copy.unavailable);
+      return;
+    }
 
     const intention = mergeAdaptiveClarifications({
       intent: baseIntentRef.current,
