@@ -13,7 +13,7 @@ const mime = {
   ".js": "text/javascript; charset=utf-8",
   ".mjs": "text/javascript; charset=utf-8",
   ".css": "text/css; charset=utf-8",
-  ".json": "application/json; charset=utf-8",
+  ".json": "text/json; charset=utf-8",
   ".svg": "image/svg+xml",
   ".png": "image/png",
   ".jpg": "image/jpeg",
@@ -219,11 +219,6 @@ async function run() {
       const card = () => document.querySelector('[data-asympta-adaptive-schema]');
       const text = (node) => node?.textContent?.replace(/\\s+/g, ' ').trim() ?? '';
       const buttons = () => [...(card()?.querySelectorAll('button') ?? [])];
-      const click = (label) => {
-        const button = buttons().find((node) => text(node) === label);
-        if (!button) throw new Error('Missing adaptive button: ' + label);
-        button.click();
-      };
       const snapshot = () => {
         const node = card();
         return {
@@ -235,34 +230,71 @@ async function run() {
           placeholder: node?.querySelector('input')?.getAttribute('placeholder') ?? null
         };
       };
+      const diagnostic = () => {
+        const state = snapshot();
+        const task = state.taskId ? window.__ASYMPTA_TASK_KERNEL__.getTask(state.taskId) : window.__ASYMPTA_TASK_KERNEL__.activeTask();
+        return {
+          state,
+          task: task ? {
+            taskId: task.taskId,
+            revision: task.revision,
+            phase: task.phase,
+            requirements: task.requirements.map((requirement) => ({
+              id: requirement.id,
+              key: requirement.key,
+              status: requirement.status,
+              displayValue: requirement.displayValue ?? null
+            }))
+          } : null
+        };
+      };
+      const waitFor = async (predicate, description, timeout = 2500) => {
+        const deadline = Date.now() + timeout;
+        while (Date.now() < deadline) {
+          const value = predicate();
+          if (value) return value;
+          await wait(40);
+        }
+        throw new Error(description + ': ' + JSON.stringify(diagnostic()));
+      };
+      const waitForField = (field) => waitFor(() => {
+        const state = snapshot();
+        return state.field === field && state.visible ? state : null;
+      }, 'Timed out waiting for field ' + field);
+      const waitForButton = (label) => waitFor(() => {
+        const button = buttons().find((node) => text(node) === label);
+        return button && !button.disabled ? button : null;
+      }, 'Timed out waiting for adaptive button ' + label);
+      const clickButton = async (label) => {
+        const button = await waitForButton(label);
+        button.click();
+        await wait(80);
+      };
+      const chooseAndContinue = async (label, nextField) => {
+        await clickButton(label);
+        await clickButton('繼續');
+        return waitForField(nextField);
+      };
 
       emit('interpreting');
       emit('waiting_input', { missingFields: ['使用者想購買一台電視機，需先釐清預算、尺寸、品牌偏好與配送地點等資訊。'] });
-      await wait(300);
-      const budget = snapshot();
+      const budget = await waitForField('budget');
+      const screen = await chooseAndContinue('HK$10,000 以上', 'screen_size');
+      const brand = await chooseAndContinue('55″', 'brand');
+      const deliveryBeforeCustom = await chooseAndContinue('Sony', 'delivery_location');
+      await clickButton('其他');
+      const delivery = await waitFor(() => {
+        const state = snapshot();
+        return state.field === 'delivery_location' && state.placeholder === '輸入送貨地址或地區…' ? state : null;
+      }, 'Timed out waiting for custom delivery input');
+      await clickButton('常用住址');
+      await clickButton('繼續');
+      const task = await waitFor(() => {
+        const candidate = window.__ASYMPTA_TASK_KERNEL__.getTask(budget.taskId);
+        return candidate && ['completed', 'blocked', 'failed', 'cancelled'].includes(candidate.phase) ? candidate : null;
+      }, 'Timed out waiting for terminal Task Kernel state', 4000);
+      await waitFor(() => !card(), 'Adaptive card remained visible after task completion');
 
-      click('HK$10,000 以上');
-      click('繼續');
-      await wait(160);
-      const screen = snapshot();
-
-      click('55″');
-      click('繼續');
-      await wait(160);
-      const brand = snapshot();
-
-      click('Sony');
-      click('繼續');
-      await wait(160);
-      const deliveryBeforeCustom = snapshot();
-      click('其他');
-      await wait(80);
-      const delivery = snapshot();
-
-      click('常用住址');
-      click('繼續');
-      await wait(320);
-      const task = window.__ASYMPTA_TASK_KERNEL__.getTask(budget.taskId);
       return JSON.stringify({
         lang: document.documentElement.lang,
         budget,
@@ -272,12 +304,12 @@ async function run() {
         delivery,
         completed: {
           cardGone: !card(),
-          taskPhase: task?.phase ?? null,
-          taskRevision: task?.revision ?? null,
-          resultCompleted: task?.result?.completed ?? null,
-          rootIntent: task?.rootIntent?.raw ?? null,
-          assignmentAgents: task?.assignments?.map((assignment) => assignment.agentId) ?? [],
-          unknownRequirements: task?.requirements?.filter((requirement) => requirement.status === 'unknown').length ?? null
+          taskPhase: task.phase,
+          taskRevision: task.revision,
+          resultCompleted: task.result?.completed ?? null,
+          rootIntent: task.rootIntent?.raw ?? null,
+          assignmentAgents: task.assignments?.map((assignment) => assignment.agentId) ?? [],
+          unknownRequirements: task.requirements?.filter((requirement) => requirement.status === 'unknown').length ?? null
         }
       });
     })()`, true));
