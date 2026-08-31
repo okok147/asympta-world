@@ -11,7 +11,7 @@ import {
   migrateAsymptaTaskState,
   nextTaskRequirement,
   taskToAdaptiveInteractionSchema,
-} from "../lib/asympta-task-kernel.ts";
+} from "../lib/asympta-task-kernel-core-impl.ts";
 
 function answer(task, requirement, value, label, commandId) {
   return answerTaskRequirement(task, {
