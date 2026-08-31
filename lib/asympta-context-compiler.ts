@@ -229,16 +229,23 @@ function matchItem(text: string, domain: MarketplaceDomain) {
 }
 
 function extractQuantity(text: string, domain: MarketplaceDomain) {
-  const units = domain === "food"
-    ? "meals?|servings?|portions?|orders?|份|餐"
-    : "items?|pieces?|sets?|件|套";
-  const numeric = new RegExp(`\\b(\\d{1,2})\\s*(?:${units})\\b`, "iu").exec(text);
-  if (numeric) return { value: Math.max(1, Number(numeric[1])), evidence: numeric[0] };
+  const latinUnits = domain === "food"
+    ? "meals?|servings?|portions?|orders?"
+    : "items?|pieces?|sets?";
+  const cjkUnits = domain === "food" ? "份|餐" : "件|套";
+  const numeric = new RegExp(`(?:\\b(\\d{1,2})\\s*(?:${latinUnits})\\b)|(\\d{1,2})\\s*(?:${cjkUnits})`, "iu").exec(text);
+  if (numeric) {
+    const value = Number(numeric[1] ?? numeric[2]);
+    return { value: Math.max(1, value), evidence: numeric[0] };
+  }
 
   const words: Array<[RegExp, number]> = [
-    [new RegExp(`\\bone\\s+(?:${units})\\b`, "iu"), 1],
-    [new RegExp(`\\btwo\\s+(?:${units})\\b`, "iu"), 2],
-    [new RegExp(`\\bthree\\s+(?:${units})\\b`, "iu"), 3],
+    [new RegExp(`\\bone\\s+(?:${latinUnits})\\b`, "iu"), 1],
+    [new RegExp(`\\btwo\\s+(?:${latinUnits})\\b`, "iu"), 2],
+    [new RegExp(`\\bthree\\s+(?:${latinUnits})\\b`, "iu"), 3],
+    [new RegExp(`(?:一|壹)\\s*(?:${cjkUnits})`, "u"), 1],
+    [new RegExp(`(?:兩|二|貳)\\s*(?:${cjkUnits})`, "u"), 2],
+    [new RegExp(`(?:三|參)\\s*(?:${cjkUnits})`, "u"), 3],
   ];
   for (const [pattern, value] of words) {
     const match = pattern.exec(text);
