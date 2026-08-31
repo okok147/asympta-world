@@ -94,6 +94,7 @@ function terminalTask(task: AsymptaTaskState) {
 export function AsymptaAdaptiveInteraction() {
   const [locale, setLocale] = useState<AdaptiveInteractionLocale>("en");
   const [schema, setSchema] = useState<AdaptiveInteractionSchema | null>(null);
+  const [taskRevision, setTaskRevision] = useState<number | null>(null);
   const [selected, setSelected] = useState<AdaptiveAnswerValue | null>(null);
   const [custom, setCustom] = useState("");
   const [customOpen, setCustomOpen] = useState(false);
@@ -115,14 +116,17 @@ export function AsymptaAdaptiveInteraction() {
       const bridge = window.__ASYMPTA_TASK_KERNEL__;
       if (!task || !bridge || terminalTask(task)) {
         setSchema(null);
+        setTaskRevision(task?.revision ?? null);
         return;
       }
       const nextSchema = bridge.schema(task.taskId);
       if (!nextSchema?.nextField) {
         setSchema(null);
+        setTaskRevision(task.revision);
         return;
       }
       taskIdRef.current = task.taskId;
+      setTaskRevision(task.revision);
       setSchema(nextSchema);
       setSelected(null);
       setCustom("");
@@ -140,6 +144,7 @@ export function AsymptaAdaptiveInteraction() {
         activityIdRef.current = activityId;
         taskIdRef.current = "";
         setSchema(null);
+        setTaskRevision(null);
         setError(null);
       }
 
@@ -237,6 +242,7 @@ export function AsymptaAdaptiveInteraction() {
         label,
         actorId: "human",
       });
+      setTaskRevision(next.revision);
       const nextSchema = terminalTask(next) ? null : bridge.schema(next.taskId);
       setSchema(nextSchema?.nextField ? nextSchema : null);
       setSelected(null);
@@ -247,14 +253,13 @@ export function AsymptaAdaptiveInteraction() {
       if (latest && !terminalTask(latest)) {
         const latestSchema = bridge.schema(latest.taskId);
         setSchema(latestSchema?.nextField ? latestSchema : null);
+        setTaskRevision(latest.revision);
       }
       setError(taskError instanceof Error ? taskError.message : copy.unavailable);
     } finally {
       setContinuing(false);
     }
   };
-
-  const currentTask = window.__ASYMPTA_TASK_KERNEL__?.getTask(taskIdRef.current) ?? null;
 
   return (
     <aside
@@ -263,7 +268,7 @@ export function AsymptaAdaptiveInteraction() {
       data-field={field.key}
       data-provenance={schema.provenance.mode}
       data-task-id={taskIdRef.current}
-      data-task-revision={currentTask?.revision ?? ""}
+      data-task-revision={taskRevision ?? ""}
       aria-label={copy.title}
     >
       <div className={styles.card}>
