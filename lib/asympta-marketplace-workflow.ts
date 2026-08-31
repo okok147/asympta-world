@@ -5,23 +5,32 @@ import {
   type WorkflowId,
 } from "./atlas-simulation.ts";
 import {
+  marketplaceGoalFulfilmentMethod,
   marketplaceGoalItem,
+  marketplaceGoalPaymentMethod,
   marketplaceGoalQuantity,
   type ContextEnvelope,
   type MarketplaceGoal,
 } from "./asympta-context-compiler.ts";
+import type {
+  MarketplaceFulfilmentMethod,
+  MarketplacePaymentMethod,
+} from "./asympta-marketplace-profile.ts";
 
 export const MARKETPLACE_WORKFLOW_ID = "marketplace-intent" as WorkflowId;
 
-type GoalRuntimeSpec = {
+export type GoalRuntimeSpec = {
   goal: MarketplaceGoal;
   index: number;
   prefix: string;
   itemLabel: string;
   quantity: number;
   marketLocationId: string;
+  fulfilmentMethod: MarketplaceFulfilmentMethod;
+  paymentMethod: MarketplacePaymentMethod;
+  carrierAgentId: "agent-user" | "agent-logistics";
+  carrierLabel: "personal agent" | "courier agent";
 };
-
 
 function task(
   id: string,
@@ -37,14 +46,22 @@ function task(
 }
 
 export function marketplaceRuntimeSpecs(envelope: ContextEnvelope): GoalRuntimeSpec[] {
-  return envelope.goals.map((goal, index) => ({
-    goal,
-    index,
-    prefix: `mp-${index + 1}-${goal.domain}`,
-    itemLabel: marketplaceGoalItem(goal),
-    quantity: marketplaceGoalQuantity(goal),
-    marketLocationId: goal.domain === "food" ? "roppongi" : "shinjuku",
-  }));
+  return envelope.goals.map((goal, index) => {
+    const fulfilmentMethod = marketplaceGoalFulfilmentMethod(goal);
+    const carrierAgentId = fulfilmentMethod === "courier_delivery" ? "agent-logistics" : "agent-user";
+    return {
+      goal,
+      index,
+      prefix: `mp-${index + 1}-${goal.domain}`,
+      itemLabel: marketplaceGoalItem(goal),
+      quantity: marketplaceGoalQuantity(goal),
+      marketLocationId: goal.domain === "food" ? "roppongi" : "shinjuku",
+      fulfilmentMethod,
+      paymentMethod: marketplaceGoalPaymentMethod(goal),
+      carrierAgentId,
+      carrierLabel: carrierAgentId === "agent-logistics" ? "courier agent" : "personal agent",
+    };
+  });
 }
 
 export function marketplaceTaskIds(goal: MarketplaceGoal, index: number) {
@@ -69,7 +86,7 @@ export function buildMarketplaceWorkflow(envelope: ContextEnvelope): AtlasWorkfl
     task(
       "mp-context",
       "Compile Asympta Context Envelope",
-      `Validate ${envelope.goals.length} goal(s), preserve evidence and keep unknown fields explicit before routing.`,
+      `Validate ${envelope.goals.length} goal(s), merge approved profile facts, preserve evidence and keep unknown fields explicit before routing.`,
       "agent-user",
       "shibuya",
       [],
@@ -81,23 +98,28 @@ export function buildMarketplaceWorkflow(envelope: ContextEnvelope): AtlasWorkfl
   for (const spec of specs) {
     const ids = marketplaceTaskIds(spec.goal, spec.index);
     const packetLabel = `${spec.quantity} × ${spec.itemLabel}`;
+    const courier = spec.fulfilmentMethod === "courier_delivery";
+    const storeDependencies = courier ? [previousGoalCompletion] : [ids.travel];
+    const travelDependencies = courier ? [ids.payment] : [previousGoalCompletion];
+    const handoffDependencies = courier ? [ids.travel] : [ids.payment];
+
     tasks.push(
-      task(
+      ...(!courier ? [task(
         ids.travel,
-        `Carry ENQUIRY packet to ${spec.goal.domain} marketplace`,
+        `Personal agent carries ENQUIRY packet to ${spec.goal.domain} marketplace`,
         `The personal agent travels with ${spec.goal.id} and asks for ${packetLabel}; unknown fields remain unknown rather than invented.`,
-        "agent-user",
+        spec.carrierAgentId,
         spec.marketLocationId,
-        [previousGoalCompletion],
+        travelDependencies,
         650,
-      ),
+      )] : []),
       task(
         ids.store,
         "Marketplace agent accepts typed enquiry",
-        `Receive asympta.packet.v1 ENQUIRY for ${packetLabel} and bind it to ${envelope.requestId}.`,
+        `Receive asympta.packet.v1 ENQUIRY for ${packetLabel}, using ${spec.fulfilmentMethod} and ${spec.paymentMethod}, then bind it to ${envelope.requestId}.`,
         "agent-market",
         spec.marketLocationId,
-        [ids.travel],
+        storeDependencies,
         900,
       ),
       task(
@@ -112,7 +134,7 @@ export function buildMarketplaceWorkflow(envelope: ContextEnvelope): AtlasWorkfl
       task(
         ids.offer,
         "Store agent returns a bounded offer",
-        `Create an OFFER packet for ${packetLabel} from actual ledger state, not a prerecorded animation.`,
+        `Create an OFFER packet for ${packetLabel}, ${spec.fulfilmentMethod}, and ${spec.paymentMethod} from actual ledger state, not a prerecorded animation.`,
         "agent-business",
         spec.marketLocationId,
         [ids.store, ids.stock],
@@ -120,8 +142,8 @@ export function buildMarketplaceWorkflow(envelope: ContextEnvelope): AtlasWorkfl
       ),
       task(
         ids.quality,
-        "Verification agent checks context and stock",
-        `Verify goal evidence, quantity, simulated provenance and inventory conservation for ${packetLabel}.`,
+        "Verification agent checks context, profile and stock",
+        `Verify message evidence, approved profile provenance, quantity, fulfilment, payment method and inventory conservation for ${packetLabel}.`,
         "agent-quality",
         spec.marketLocationId,
         [ids.offer],
@@ -129,32 +151,41 @@ export function buildMarketplaceWorkflow(envelope: ContextEnvelope): AtlasWorkfl
       ),
       task(
         ids.payment,
-        "Authorise simulated marketplace payment",
-        `Pause before committing the simulated purchase of ${packetLabel}; no real payment or external order is performed.`,
+        `Authorise simulated payment · ${spec.paymentMethod}`,
+        `Pause before committing the simulated purchase of ${packetLabel} with ${spec.paymentMethod}; the stored profile chooses a method but never grants transaction approval.`,
         "agent-finance",
         "otemachi",
         [ids.quality],
         750,
         {
           requiresApproval: true,
-          approvalLabel: `Allow simulated payment for ${packetLabel}`,
+          approvalLabel: `Allow simulated ${spec.paymentMethod} payment for ${packetLabel}`,
           actionType: "authorize_payment",
         },
       ),
+      ...(courier ? [task(
+        ids.travel,
+        "Courier agent travels to the marketplace",
+        `After approval, the courier agent travels to collect ${packetLabel} under the structured fulfilment instruction.`,
+        spec.carrierAgentId,
+        spec.marketLocationId,
+        travelDependencies,
+        650,
+      )] : []),
       task(
         ids.handoff,
-        "Store hands the item to the personal agent",
-        `Commit a GOODS_HANDOFF packet and move ${packetLabel} from reserved stock into the personal agent's cargo.`,
-        "agent-user",
+        `Store hands the item to the ${spec.carrierLabel}`,
+        `Commit a GOODS_HANDOFF packet and move ${packetLabel} from reserved stock into ${spec.carrierAgentId} cargo.`,
+        spec.carrierAgentId,
         spec.marketLocationId,
-        [ids.payment],
+        handoffDependencies,
         800,
       ),
       task(
         ids.returning,
-        "Personal agent carries the item home",
-        `Return to the user with ${packetLabel} held in canonical cargo state.`,
-        "agent-user",
+        `${spec.carrierLabel === "courier agent" ? "Courier" : "Personal"} agent carries the item home`,
+        `Return to the user with ${packetLabel} held in canonical ${spec.carrierAgentId} cargo state.`,
+        spec.carrierAgentId,
         "shibuya",
         [ids.handoff],
         550,
@@ -162,8 +193,8 @@ export function buildMarketplaceWorkflow(envelope: ContextEnvelope): AtlasWorkfl
       task(
         ids.deliver,
         "Transfer the item into user inventory",
-        `Commit DELIVERY_RECEIPT and transfer ${packetLabel} from personal-agent cargo to user inventory.`,
-        "agent-user",
+        `Commit DELIVERY_RECEIPT and transfer ${packetLabel} from ${spec.carrierAgentId} cargo to user inventory.`,
+        spec.carrierAgentId,
         "shibuya",
         [ids.returning],
         700,
@@ -171,7 +202,7 @@ export function buildMarketplaceWorkflow(envelope: ContextEnvelope): AtlasWorkfl
       task(
         ids.verify,
         "Verify delivery and close the goal",
-        `Confirm the request, structured packets, approvals and inventory ledger reconcile for ${spec.goal.id}.`,
+        `Confirm the request, profile provenance, structured packets, approvals and inventory ledger reconcile for ${spec.goal.id}.`,
         "agent-support",
         "shibuya",
         [ids.deliver],
@@ -186,8 +217,8 @@ export function buildMarketplaceWorkflow(envelope: ContextEnvelope): AtlasWorkfl
     id: MARKETPLACE_WORKFLOW_ID,
     name: `Intent Marketplace · ${goalNames}`,
     shortName: "Marketplace",
-    summary: `Compile “${envelope.rawMessage.text}” into a versioned context envelope, coordinate real engine tasks and return simulated goods to the user.`,
-    outcome: "The personal agent returned from the simulated marketplace and the canonical ledger recorded delivery into user inventory.",
+    summary: `Compile “${envelope.rawMessage.text}” into a versioned context envelope, use approved preferences where the message is silent, and coordinate real engine tasks.`,
+    outcome: "The selected simulated carrier returned from the marketplace and the canonical ledger recorded delivery into user inventory.",
     tasks,
   };
 }
