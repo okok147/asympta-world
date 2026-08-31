@@ -16,16 +16,36 @@ test("the core benchmark generates 100 real-life cases across 25 archetypes inst
   assert.equal(cases.every((entry) => entry.mode === "benchmark" && entry.preauthorized === true), true);
 });
 
-test("all 100 core cases and 500 stress mutations complete without human intervention", () => {
-  const report = runUniversalBenchmark({ coreCount: 100, stressCount: 500, seed: 20260831 });
-  assert.equal(report.core.total, 100);
-  assert.equal(report.stress.total, 500);
-  assert.equal(report.completed, 600);
-  assert.equal(report.stuck, 0, JSON.stringify([...report.core.failures, ...report.stress.failures].slice(0, 10), null, 2));
-  assert.equal(report.humanInterventions, 0);
-  assert.equal(report.passed, true);
-  assert.equal(report.domains.length >= 15, true);
-  assert.equal(Object.keys(report.semantics).length >= 20, true);
+test("100 core cases and 5,000 stress mutations across ten seeds complete without human intervention", () => {
+  const seeds = [20260831, 17, 42, 101, 997, 4093, 8191, 65537, 104729, 999983];
+  let total = 0;
+  let completed = 0;
+  let stuck = 0;
+  let interventions = 0;
+  const failures = [];
+
+  seeds.forEach((seed, index) => {
+    const report = runUniversalBenchmark({
+      coreCount: index === 0 ? 100 : 0,
+      stressCount: 500,
+      seed,
+    });
+    total += report.total;
+    completed += report.completed;
+    stuck += report.stuck;
+    interventions += report.humanInterventions;
+    failures.push(...report.core.failures, ...report.stress.failures);
+    assert.equal(report.passed, true, `seed ${seed}: ${JSON.stringify(failures.slice(-10), null, 2)}`);
+    if (index === 0) {
+      assert.equal(report.domains.length >= 15, true);
+      assert.equal(Object.keys(report.semantics).length >= 20, true);
+    }
+  });
+
+  assert.equal(total, 5_100);
+  assert.equal(completed, 5_100);
+  assert.equal(stuck, 0, JSON.stringify(failures.slice(0, 10), null, 2));
+  assert.equal(interventions, 0);
 });
 
 test("stress generation is deterministic and includes unseen fields and reordered requirements", () => {
