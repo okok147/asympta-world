@@ -1,8 +1,12 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 
 import {
+  ASYMPTA_WEBMCP_AUXILIARY_TOOL_NAMES,
+  ASYMPTA_WEBMCP_CORE_TOOL_NAMES,
+  ASYMPTA_WEBMCP_GLOBAL_TOOL_NAMES,
   ASYMPTA_WEBMCP_TOOL_MODES,
   ASYMPTA_WEBMCP_TOOL_NAMES,
   type AsymptaWebMcpToolName,
@@ -24,20 +28,40 @@ const TOOL_COPY: Record<AsymptaWebMcpToolName, string> = {
   asympta_observe_global_supply_network: "Observe global supply network",
 };
 
-const shellStyle: CSSProperties = {
-  position: "fixed",
-  right: "max(14px, env(safe-area-inset-right))",
-  bottom: "max(14px, env(safe-area-inset-bottom))",
-  zIndex: 44,
-  width: "min(330px, calc(100vw - 28px))",
-  border: "1px solid rgba(86, 82, 72, 0.16)",
-  borderRadius: 18,
-  background: "rgba(246, 244, 236, 0.94)",
-  boxShadow: "0 14px 40px rgba(70, 64, 52, 0.14)",
+const GROUPS: Array<{
+  id: string;
+  title: string;
+  description: string;
+  owner: string;
+  tools: readonly AsymptaWebMcpToolName[];
+}> = [
+  {
+    id: "core",
+    title: "Core world tools",
+    description: "Living-city observation, workflow control and consequential action requests.",
+    owner: "AsymptaWorldLive60Hz",
+    tools: ASYMPTA_WEBMCP_CORE_TOOL_NAMES,
+  },
+  {
+    id: "auxiliary",
+    title: "Coordination tools",
+    description: "Capabilities, request state, agent inspection and structured communication.",
+    owner: "AsymptaWebMcpTools",
+    tools: ASYMPTA_WEBMCP_AUXILIARY_TOOL_NAMES,
+  },
+  {
+    id: "global",
+    title: "Global world tools",
+    description: "World-scale supply-network observation.",
+    owner: "AsymptaGlobalWorld",
+    tools: ASYMPTA_WEBMCP_GLOBAL_TOOL_NAMES,
+  },
+];
+
+const rootStyle: CSSProperties = {
+  marginTop: 10,
+  borderTop: "1px solid rgba(86, 82, 72, 0.1)",
   color: "#47443d",
-  backdropFilter: "blur(18px)",
-  WebkitBackdropFilter: "blur(18px)",
-  overflow: "hidden",
   fontFamily: "inherit",
 };
 
@@ -45,9 +69,9 @@ const summaryStyle: CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
-  gap: 12,
-  minHeight: 54,
-  padding: "10px 13px 10px 15px",
+  gap: 10,
+  minHeight: 46,
+  padding: "9px 2px 7px",
   cursor: "pointer",
   listStyle: "none",
   userSelect: "none",
@@ -57,98 +81,134 @@ const countStyle: CSSProperties = {
   flexShrink: 0,
   border: "1px solid rgba(83, 96, 111, 0.15)",
   borderRadius: 999,
-  padding: "5px 8px",
-  background: "rgba(255, 255, 255, 0.54)",
-  fontSize: 10,
-  fontWeight: 700,
-  letterSpacing: "0.05em",
+  padding: "4px 7px",
+  background: "rgba(255, 255, 255, 0.48)",
+  fontSize: 9,
+  fontWeight: 760,
+  letterSpacing: "0.045em",
   color: "#626a72",
-};
-
-const listStyle: CSSProperties = {
-  maxHeight: "46vh",
-  overflowY: "auto",
-  overscrollBehavior: "contain",
-  padding: "0 10px 11px",
-  borderTop: "1px solid rgba(86, 82, 72, 0.1)",
 };
 
 function modeStyle(mode: "READ" | "WRITE"): CSSProperties {
   return {
     flexShrink: 0,
     borderRadius: 999,
-    padding: "4px 7px",
+    padding: "3px 6px",
     background: mode === "READ" ? "rgba(86, 112, 128, 0.09)" : "rgba(145, 105, 76, 0.1)",
     color: mode === "READ" ? "#596d78" : "#80634d",
-    fontSize: 9,
+    fontSize: 8.5,
     fontWeight: 800,
-    letterSpacing: "0.07em",
+    letterSpacing: "0.065em",
   };
 }
 
-function ToolRow({ name }: { name: AsymptaWebMcpToolName }) {
+function ToolNode({ name }: { name: AsymptaWebMcpToolName }) {
   const mode = ASYMPTA_WEBMCP_TOOL_MODES[name];
   return (
-    <li
-      style={{
-        display: "flex",
-        alignItems: "flex-start",
-        gap: 10,
-        padding: "9px 7px",
-        borderBottom: "1px solid rgba(86, 82, 72, 0.075)",
-      }}
-    >
-      <span style={{ minWidth: 0, flex: 1 }}>
-        <strong style={{ display: "block", fontSize: 12, fontWeight: 650, lineHeight: 1.35, color: "#46433d" }}>
-          {TOOL_COPY[name]}
-        </strong>
+    <details style={{ borderTop: "1px solid rgba(86, 82, 72, 0.065)" }}>
+      <summary
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+          padding: "7px 3px",
+          cursor: "pointer",
+          listStyle: "none",
+        }}
+      >
+        <span style={{ minWidth: 0, fontSize: 10.5, lineHeight: 1.35, color: "#504d46" }}>{TOOL_COPY[name]}</span>
+        <span style={modeStyle(mode)}>{mode}</span>
+      </summary>
+      <div style={{ padding: "0 3px 8px 13px" }}>
         <code
           style={{
             display: "block",
-            marginTop: 3,
             overflowWrap: "anywhere",
             fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-            fontSize: 9.5,
-            lineHeight: 1.35,
-            color: "#7b776d",
+            fontSize: 8.8,
+            lineHeight: 1.45,
+            color: "#706c64",
           }}
         >
           {name}
         </code>
-      </span>
-      <span style={modeStyle(mode)}>{mode}</span>
-    </li>
+        <small style={{ display: "block", marginTop: 3, fontSize: 9, lineHeight: 1.4, color: "#858078" }}>
+          document.modelContext.registerTool · {mode === "READ" ? "readOnlyHint: true" : "readOnlyHint: false"}
+        </small>
+      </div>
+    </details>
   );
 }
 
-export function AsymptaWebMcpToolSurface() {
+function ToolGroup({ group }: { group: (typeof GROUPS)[number] }) {
+  return (
+    <details style={{ marginTop: 6, border: "1px solid rgba(86, 82, 72, 0.1)", borderRadius: 10, background: "rgba(255,255,255,0.3)", overflow: "hidden" }}>
+      <summary style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 9px", cursor: "pointer", listStyle: "none" }}>
+        <span style={{ minWidth: 0 }}>
+          <strong style={{ display: "block", fontSize: 10.5, fontWeight: 700, color: "#4d4a43" }}>{group.title}</strong>
+          <small style={{ display: "block", marginTop: 2, fontSize: 8.8, color: "#858078" }}>{group.owner}</small>
+        </span>
+        <span style={countStyle}>{group.tools.length}</span>
+      </summary>
+      <div style={{ padding: "0 8px 7px" }}>
+        <p style={{ margin: "1px 3px 6px", fontSize: 9, lineHeight: 1.4, color: "#777269" }}>{group.description}</p>
+        {group.tools.map((name) => <ToolNode key={name} name={name} />)}
+      </div>
+    </details>
+  );
+}
+
+function WebMcpStructure() {
   const readCount = ASYMPTA_WEBMCP_TOOL_NAMES.filter((name) => ASYMPTA_WEBMCP_TOOL_MODES[name] === "READ").length;
   const writeCount = ASYMPTA_WEBMCP_TOOL_NAMES.length - readCount;
 
   return (
-    <aside aria-label="WebMCP tool surface" style={shellStyle}>
+    <section aria-label="WebMCP tool structure" style={rootStyle}>
       <details>
         <summary style={summaryStyle}>
           <span style={{ minWidth: 0 }}>
-            <strong style={{ display: "block", fontSize: 12.5, fontWeight: 720, letterSpacing: "-0.01em" }}>
-              WebMCP · {ASYMPTA_WEBMCP_TOOL_NAMES.length} tools
+            <strong style={{ display: "block", fontSize: 11.5, fontWeight: 720, letterSpacing: "-0.01em" }}>
+              WebMCP structure · {ASYMPTA_WEBMCP_TOOL_NAMES.length} tools
             </strong>
-            <small style={{ display: "block", marginTop: 2, fontSize: 10.5, color: "#777268" }}>
-              Expand browser-agent capabilities
+            <small style={{ display: "block", marginTop: 2, fontSize: 9.5, color: "#777268" }}>
+              Click to inspect the actual browser-agent surface
             </small>
           </span>
           <span style={countStyle}>{readCount} READ · {writeCount} WRITE</span>
         </summary>
 
-        <div style={listStyle}>
-          <p style={{ margin: "10px 7px 4px", fontSize: 10.5, lineHeight: 1.45, color: "#716d64" }}>
-            All registered WebMCP capabilities remain bounded by Asympta state and human approval for consequential actions.
+        <div style={{ maxHeight: "38vh", overflowY: "auto", overscrollBehavior: "contain", padding: "0 1px 7px" }}>
+          <div style={{ margin: "1px 1px 7px", padding: "8px 9px", borderRadius: 9, background: "rgba(86, 112, 128, 0.055)", fontSize: 9, lineHeight: 1.45, color: "#6f6a62" }}>
+            <strong style={{ display: "block", fontSize: 9.5, color: "#56524b" }}>Browser agent</strong>
+            <span>↓ document.modelContext</span><br />
+            <span>↓ registerTool(...)</span><br />
+            <span>↓ Core · Coordination · Global</span>
+          </div>
+          {GROUPS.map((group) => <ToolGroup key={group.id} group={group} />)}
+          <p style={{ margin: "8px 3px 1px", fontSize: 8.8, lineHeight: 1.4, color: "#858078" }}>
+            Consequential WRITE tools remain bounded by Asympta state and explicit human approval.
           </p>
-          <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
-            {ASYMPTA_WEBMCP_TOOL_NAMES.map((name) => <ToolRow key={name} name={name} />)}
-          </ul>
         </div>
       </details>
-    </aside>
+    </section>
   );
+}
+
+export function AsymptaWebMcpToolSurface() {
+  const [target, setTarget] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const locate = () => {
+      const next = document.querySelector<HTMLElement>(".atlas-menu-panel");
+      setTarget((current) => current === next ? current : next);
+    };
+
+    locate();
+    const observer = new MutationObserver(locate);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, []);
+
+  return target ? createPortal(<WebMcpStructure />, target) : null;
 }
