@@ -269,6 +269,19 @@ async function run() {
 
     await waitFor("window.__ASYMPTA_MARKETPLACE__?.snapshot?.()?.status === 'completed'", 8_000, "marketplace completion state");
     await waitFor("Boolean(document.querySelector('.asympta-screen-celebration__content'))", 8_000, "full-screen completion celebration");
+    await waitFor(`(() => {
+      const overlay = document.querySelector('.asympta-screen-celebration');
+      const content = document.querySelector('.asympta-screen-celebration__content');
+      if (!overlay || !content || content.getBoundingClientRect().width <= 0) return false;
+      const overlayStyle = getComputedStyle(overlay);
+      const contentStyle = getComputedStyle(content);
+      return overlayStyle.display !== 'none'
+        && overlayStyle.visibility !== 'hidden'
+        && contentStyle.display !== 'none'
+        && contentStyle.visibility !== 'hidden'
+        && Number(overlayStyle.opacity || 1) > .2
+        && Number(contentStyle.opacity || 1) > .2;
+    })()`, 4_000, "visible completion celebration entrance");
 
     const state = JSON.parse(await evaluate(`JSON.stringify((() => {
       const worldValue = window.__ASYMPTA_DEMO__?.snapshot?.();
@@ -277,6 +290,7 @@ async function run() {
       const celebration = document.querySelector('.asympta-screen-celebration');
       const content = document.querySelector('.asympta-screen-celebration__content');
       const style = content ? getComputedStyle(content) : null;
+      const overlayStyle = celebration ? getComputedStyle(celebration) : null;
       return {
         worldPhase: world?.phase ?? null,
         workflowId: world?.workflowId ?? null,
@@ -294,7 +308,7 @@ async function run() {
         celebrationVerification: celebration?.dataset?.verification ?? null,
         celebrationTitle: document.querySelector('.asympta-screen-celebration__title')?.textContent?.trim() ?? null,
         celebrationSummary: document.querySelector('.asympta-screen-celebration__summary')?.textContent?.trim() ?? null,
-        celebrationVisible: Boolean(content && style && style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity || 1) > 0 && content.getBoundingClientRect().width > 0),
+        celebrationVisible: Boolean(content && style && overlayStyle && style.display !== 'none' && style.visibility !== 'hidden' && overlayStyle.display !== 'none' && overlayStyle.visibility !== 'hidden' && Number(style.opacity || 1) > .2 && Number(overlayStyle.opacity || 1) > .2 && content.getBoundingClientRect().width > 0),
         requestCardVisible: Boolean(document.querySelector('.asympta-request-card')),
         bodyText: document.body?.innerText ?? ''
       };
