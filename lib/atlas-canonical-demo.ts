@@ -8,6 +8,7 @@ import {
 } from "./atlas-demo.ts";
 import {
   ATLAS_LOCATIONS,
+  clearPersistedAtlasWorld,
   createAtlasWorld,
   loadPersistedAtlasWorld,
   persistAtlasWorld,
@@ -23,6 +24,7 @@ export type { CityLifeActor, CityLifeStatus };
 type DemoWorldWithSpeed = AtlasWorldState & { simulationSpeed?: number };
 
 const LOCATION_IDS = Object.keys(ATLAS_LOCATIONS);
+let resetNextDemoWorldToIdle = false;
 
 function hash(value: string) {
   let result = 0;
@@ -114,6 +116,11 @@ export function repairApprovedMarketplaceCheckpoint(current: AtlasWorldState) {
   return next;
 }
 
+export function prepareAtlasDemoWorkflowReset() {
+  resetNextDemoWorldToIdle = true;
+  clearPersistedAtlasWorld();
+}
+
 export function startAtlasDemoWorkflow(current: AtlasWorldState, workflowId: WorkflowId) {
   const started = startAtlasWorkflow(current, workflowId);
   const next = forceFreshActiveTasksToTravel(preserveSimulationSpeed(current, preserveFundLedger(current, started)));
@@ -122,6 +129,11 @@ export function startAtlasDemoWorkflow(current: AtlasWorldState, workflowId: Wor
 }
 
 export function createAtlasDemoWorld(now = Date.now()) {
+  if (resetNextDemoWorldToIdle) {
+    resetNextDemoWorldToIdle = false;
+    clearPersistedAtlasWorld();
+    return createAtlasWorld(now);
+  }
   const persisted = loadPersistedAtlasWorld();
   // A blocked world is still the same world. Never silently replace it with a new
   // custom-order workflow; the escalation layer must resolve it in place.
