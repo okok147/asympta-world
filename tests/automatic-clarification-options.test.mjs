@@ -82,3 +82,25 @@ test("atomic missing-field arrays remain in the agent's original order", () => {
     ["budget", "screen size", "brand preference", "delivery location"],
   );
 });
+
+test("movie clarification becomes four calm sequential choices", () => {
+  const schema = createAdaptiveInteractionSchema({
+    intent: "Go to watch movie",
+    missingFields: ["想看的電影", "戲院地區", "場次時間", "門票數量"],
+    locale: "zh-Hant",
+    interactionId: "cinema-options-1",
+    now: "2026-09-01T02:50:00.000Z",
+  });
+
+  assert.deepEqual(schema.fields.map((field) => field.key), [
+    "movie_preference",
+    "cinema_area",
+    "showtime",
+    "quantity",
+  ]);
+  assert.equal(schema.nextField?.prompt, "你想看哪一套電影？");
+  assert.ok(schema.nextField?.options.some((candidate) => candidate.value === "personalized_recommendation"));
+  assert.ok(schema.fields[1]?.options.some((candidate) => candidate.value === "nearby"));
+  assert.ok(schema.fields[2]?.options.some((candidate) => candidate.value === "tonight_after_7"));
+  assert.equal(schema.fields[3]?.control, "number");
+});

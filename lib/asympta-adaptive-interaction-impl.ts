@@ -45,6 +45,9 @@ export type AdaptiveConfirmation = {
 
 type FieldKind =
   | "event_intent"
+  | "movie_preference"
+  | "cinema_area"
+  | "showtime"
   | "budget"
   | "screen_size"
   | "size"
@@ -90,6 +93,9 @@ const COPY: Record<AdaptiveInteractionLocale, LocaleCopy> = {
     eventContinueRule: "Search the available performances for this show preference before asking anything else. Treat date, time, venue and city as properties of the returned performance choices; present those choices to the user instead of asking them to type each field. Keep payment and any explicit spending limit unresolved until a purchase is ready.",
     labels: {
       event_intent: "Show preference",
+      movie_preference: "Movie",
+      cinema_area: "Cinema area",
+      showtime: "Showtime",
       budget: "Budget",
       screen_size: "Screen size",
       size: "Size",
@@ -105,6 +111,9 @@ const COPY: Record<AdaptiveInteractionLocale, LocaleCopy> = {
     },
     prompts: {
       event_intent: "Which artist or concert would you like to see?",
+      movie_preference: "Which movie would you like to watch?",
+      cinema_area: "Which cinema area works best for you?",
+      showtime: "When would you like to watch it?",
       budget: "What kind of budget should I work with?",
       screen_size: "What screen size feels right?",
       size: "What size do you need?",
@@ -131,6 +140,9 @@ const COPY: Record<AdaptiveInteractionLocale, LocaleCopy> = {
     eventContinueRule: "請先按這個演出意向搜尋可用場次，再詢問其他資料。日期、時間、場館與城市應視為場次結果的屬性，請把實際場次列成選項讓使用者選擇，不要要求使用者逐項輸入。付款授權及明確消費上限應保持未確認，直至準備購買時才處理。",
     labels: {
       event_intent: "想看的演出",
+      movie_preference: "想看的電影",
+      cinema_area: "戲院地區",
+      showtime: "場次時間",
       budget: "預算",
       screen_size: "螢幕尺寸",
       size: "尺寸",
@@ -146,6 +158,9 @@ const COPY: Record<AdaptiveInteractionLocale, LocaleCopy> = {
     },
     prompts: {
       event_intent: "你想看哪位歌手或哪個演唱會？",
+      movie_preference: "你想看哪一套電影？",
+      cinema_area: "哪個戲院地區最適合你？",
+      showtime: "你想哪個時段觀看？",
       budget: "希望我以哪種預算方向尋找？",
       screen_size: "你比較想要哪個螢幕尺寸？",
       size: "你需要哪個尺寸？",
@@ -172,6 +187,9 @@ const COPY: Record<AdaptiveInteractionLocale, LocaleCopy> = {
     eventContinueRule: "この公演希望に合う利用可能な公演を先に検索してください。日付、時刻、会場、都市は公演候補の属性として扱い、ユーザーに個別入力を求めず、実際の候補から選べるようにしてください。支払い承認と明確な上限金額は購入準備が整うまで未確認のままにしてください。",
     labels: {
       event_intent: "見たい公演",
+      movie_preference: "観たい映画",
+      cinema_area: "映画館のエリア",
+      showtime: "上映時間",
       budget: "予算",
       screen_size: "画面サイズ",
       size: "サイズ",
@@ -187,6 +205,9 @@ const COPY: Record<AdaptiveInteractionLocale, LocaleCopy> = {
     },
     prompts: {
       event_intent: "どのアーティスト、または公演を見たいですか？",
+      movie_preference: "どの映画を観たいですか？",
+      cinema_area: "どの映画館エリアが便利ですか？",
+      showtime: "いつ観たいですか？",
       budget: "どの予算感で探しますか？",
       screen_size: "どの画面サイズがよいですか？",
       size: "どのサイズが必要ですか？",
@@ -204,6 +225,7 @@ const COPY: Record<AdaptiveInteractionLocale, LocaleCopy> = {
 };
 
 const TV_INTENT_PATTERN = /(?:\btv\b|\btelevision\b|smart\s*tv|電視機?|电视机?|テレビ)/iu;
+const CINEMA_INTENT_PATTERN = /(?:\bmovies?\b|\bfilms?\b|\bcinema\b|movie\s*tickets?|電影|电影|戲院|戏院|影院|映画|映画館)/iu;
 const LIVE_EVENT_INTENT_PATTERN = /(?:concert|live\s*(?:show|music)|gig|music\s*festival|演唱會|演唱会|音樂會|音乐会|コンサート|音楽ライブ)/iu;
 const EVENT_IDENTITY_FIELD_PATTERN = /(?:event(?:_?(?:name|intent))?|show|concert|artist|singer|band|act|演出|演唱會|演唱会|音樂會|音乐会|歌手|樂隊|乐队|藝人|艺人|公演名|アーティスト|バンド|ライブ名|コンサート名)/u;
 const EVENT_SCHEDULE_FIELD_PATTERN = /(?:performance|date|time|datetime|schedule|session|performance_?date|venue|location|city|場次|场次|日期|時間|时间|地點|地点|場地|场地|場館|场馆|城市|日時|日付|時刻|会場|場所|開催地)/u;
@@ -287,6 +309,9 @@ function classifyField(field: string, intent: string): FieldKind {
   const television = TV_INTENT_PATTERN.test(intent);
 
   if (normalized === EVENT_INTENT_KEY) return "event_intent";
+  if (/(?:^|_)(?:movie|film)(?:_?(?:preference|title|name))?(?:_|$)|(?:電影|电影|影片|片名|観たい映画|映画名)/u.test(normalized)) return "movie_preference";
+  if (/(?:cinema_?(?:area|location)?|theat(?:er|re)_?(?:area|location)?|戲院地區|戏院地区|影院地區|影院地区|映画館_?(?:の)?エリア)/u.test(normalized)) return "cinema_area";
+  if (/(?:showtime|screening_?(?:time|session)?|session_?time|上映時間|上映时间|場次時間|场次时间|場次|场次|上映時刻)/u.test(normalized)) return "showtime";
   if (/(?:budget|price_range|max_price|spend|預算|预算|価格|予算)/u.test(normalized)) return "budget";
   if (television && /(?:screen_?size|display_?size|inch|尺寸|大小|画面|インチ|size)/u.test(normalized)) return "screen_size";
   if (/(?:brand|maker|manufacturer|品牌|牌子|メーカー|ブランド)/u.test(normalized)) return "brand";
@@ -319,6 +344,78 @@ function option(value: AdaptiveAnswerValue, label: string, description?: string)
 function fieldOptions(kind: FieldKind, locale: AdaptiveInteractionLocale, intent: string): AdaptiveInteractionOption[] {
   const copy = COPY[locale];
   const television = TV_INTENT_PATTERN.test(intent);
+
+  if (kind === "movie_preference" && CINEMA_INTENT_PATTERN.test(intent)) {
+    if (locale === "zh-Hant") {
+      return [
+        option("personalized_recommendation", "按我的喜好推薦", "先找最適合你的模擬電影選項"),
+        option("popular_now", "近期熱門電影", "優先查看近期較熱門的模擬場次"),
+        option("any_available", "不限電影，只看合適場次", "先按地點與時間篩選"),
+      ];
+    }
+    if (locale === "ja") {
+      return [
+        option("personalized_recommendation", "好みに合わせて提案", "希望に合うシミュレーション映画候補を先に探します"),
+        option("popular_now", "最近の人気映画", "最近人気のシミュレーション上映を優先します"),
+        option("any_available", "作品指定なし・時間優先", "場所と時間から先に絞り込みます"),
+      ];
+    }
+    return [
+      option("personalized_recommendation", "Recommend from my preferences", "Find the best-fitting simulated movie choices first"),
+      option("popular_now", "Popular movies now", "Prioritize popular simulated screenings"),
+      option("any_available", "Any movie — match my time", "Filter by cinema area and showtime first"),
+    ];
+  }
+
+  if (kind === "cinema_area" && CINEMA_INTENT_PATTERN.test(intent)) {
+    if (locale === "zh-Hant") {
+      return [
+        option("nearby", "目前位置附近"),
+        option("saved_area", "常用地區"),
+        option("best_match", "讓 Asympta 選最合適地區"),
+      ];
+    }
+    if (locale === "ja") {
+      return [
+        option("nearby", "現在地の近く"),
+        option("saved_area", "いつものエリア"),
+        option("best_match", "Asympta に最適なエリアを任せる"),
+      ];
+    }
+    return [
+      option("nearby", "Near my current location"),
+      option("saved_area", "My usual area"),
+      option("best_match", "Let Asympta choose the best area"),
+    ];
+  }
+
+  if (kind === "showtime" && CINEMA_INTENT_PATTERN.test(intent)) {
+    if (locale === "zh-Hant") {
+      return [
+        option("today_evening", "今天傍晚"),
+        option("tonight_after_7", "今晚 7 點後"),
+        option("tomorrow", "明天"),
+        option("this_weekend", "本週末"),
+        option("flexible", "時間彈性"),
+      ];
+    }
+    if (locale === "ja") {
+      return [
+        option("today_evening", "今日の夕方"),
+        option("tonight_after_7", "今夜19時以降"),
+        option("tomorrow", "明日"),
+        option("this_weekend", "今週末"),
+        option("flexible", "時間は柔軟"),
+      ];
+    }
+    return [
+      option("today_evening", "This evening"),
+      option("tonight_after_7", "Tonight after 7"),
+      option("tomorrow", "Tomorrow"),
+      option("this_weekend", "This weekend"),
+      option("flexible", "Flexible"),
+    ];
+  }
 
   if (kind === "event_intent") {
     if (locale === "zh-Hant") {

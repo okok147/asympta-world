@@ -30,6 +30,9 @@ function answerValue(requirement) {
     brand: ["agent_choice", "Let Asympta choose"],
     delivery_location: ["saved_home", "Usual address"],
     event_intent: ["personalized_discovery", "Recommend from my preferences"],
+    movie_preference: ["personalized_recommendation", "Recommend from my preferences"],
+    cinema_area: ["nearby", "Near my current location"],
+    showtime: ["tonight_after_7", "Tonight after 7"],
   };
   return values[semantic] ?? ["agent_choice", "Let Asympta decide"];
 }
@@ -172,6 +175,39 @@ test("television contract preserves useful automatic options and the same typed 
   task = approve(task, "managed-tv-approve");
   assert.equal(task.phase, "completed");
   assert.equal(task.outcome?.status, "completed");
+});
+
+test("the exact movie case asks atomic choices and completes the same simulated task", () => {
+  let task = createAsymptaTask({
+    activityId: "movie-outing-regression",
+    rootIntent: "Go to watch movie",
+    locale: "en",
+    missingFields: [],
+    mode: "simulated",
+  });
+
+  assert.equal(Reflect.get(task, "requirementContract")?.id, "events.cinema-discovery.v1");
+  assert.equal(task.domain, "events.cinema");
+  assert.equal(task.actionFamily, "discover");
+  assert.equal(task.phase, "awaiting_human");
+  assert.deepEqual(task.requirements.map((requirement) => requirement.key), [
+    "movie_preference",
+    "cinema_area",
+    "showtime",
+    "quantity",
+  ]);
+
+  task = answerAll(task, "movie-answer");
+
+  assert.equal(task.phase, "completed");
+  assert.equal(task.liveness.state, "completed");
+  assert.equal(task.completion.requiresApproval, false);
+  assert.equal(task.outcome?.status, "completed");
+  assert.equal(task.outcome?.simulated, true);
+  assert.equal(task.result?.verification.status, "verified");
+  assert.ok(task.assignments.some((assignment) => assignment.agentId === "cinema-planning-specialist"));
+  assert.ok(task.assignments.some((assignment) => assignment.agentId === "cinema-showtime-agent"));
+  assert.equal(task.approvals.length, 0);
 });
 
 test("live high-impact actions remain active after approval until a connected outcome exists", () => {

@@ -67,7 +67,12 @@ const COPY: Record<AdaptiveInteractionLocale, AutomaticOptionCopy> = {
 };
 
 const TV_INTENT_PATTERN = /(?:\btv\b|\btelevision\b|smart\s*tv|電視機?|电视机?|テレビ)/iu;
+const CINEMA_INTENT_PATTERN = /(?:\bmovies?\b|\bfilms?\b|\bcinema\b|movie\s*tickets?|電影|电影|戲院|戏院|影院|映画|映画館)/iu;
 const DELIVERY_LOCATION_PATTERN = /(?:delivery\s*(?:location|address)|shipping\s*address|ship\s*to|drop[- ]?off|配送地點|配送地点|配送地址|送貨地點|送货地点|送貨地址|送货地址|收貨地點|收货地点|收貨地址|收货地址|配達先|配送先|届け先)/iu;
+const MOVIE_PREFERENCE_FIELD_PATTERN = /(?:\bmovie\b\s*(?:preference|title|name)?|\bfilm\b\s*(?:preference|title|name)?|電影|电影|影片|片名|観たい映画|映画名)/iu;
+const CINEMA_AREA_FIELD_PATTERN = /(?:cinema\s*(?:area|location)?|theat(?:er|re)\s*(?:area|location)?|戲院地區|戏院地区|影院地區|影院地区|映画館.*エリア)/iu;
+const SHOWTIME_FIELD_PATTERN = /(?:showtime|screening\s*(?:time|session)?|session\s*time|上映時間|上映时间|場次時間|场次时间|場次|场次|上映時刻)/iu;
+const TICKET_QUANTITY_FIELD_PATTERN = /(?:ticket\s*(?:quantity|count)|number\s*of\s*tickets|門票數量|门票数量|票數|票数|チケット枚数)/iu;
 const FIELD_LIST_MARKER_PATTERN = /(?:需(?:要|先)?(?:釐清|厘清|確認|确认|提供)|還需要(?:你)?提供|尚欠|缺少|need(?:s)?\s+(?:to\s+)?(?:clarify|confirm|provide)|require(?:s|d)?|missing(?:\s+fields?)?|確認が必要|不足している)/iu;
 const FIELD_LIST_SUFFIX_PATTERN = /(?:等)?(?:必要)?(?:資訊|信息|資料|资料|內容|内容|details?|information|fields?)[。.!！．]*$/iu;
 const FIELD_SEPARATOR_PATTERN = /[,，、;；]|\s+(?:and|plus)\s+|(?:以及|與|和|及)|(?:および|及び)/iu;
@@ -234,6 +239,14 @@ function decorateField(
   locale: AdaptiveInteractionLocale,
 ): AdaptiveInteractionField {
   const copy = COPY[locale];
+  const fieldIdentity = `${field.key} ${field.sourceField}`;
+
+  if (CINEMA_INTENT_PATTERN.test(intent)) {
+    if (MOVIE_PREFERENCE_FIELD_PATTERN.test(fieldIdentity)) return { ...field, key: "movie_preference" };
+    if (CINEMA_AREA_FIELD_PATTERN.test(fieldIdentity)) return { ...field, key: "cinema_area" };
+    if (SHOWTIME_FIELD_PATTERN.test(fieldIdentity)) return { ...field, key: "showtime" };
+    if (TICKET_QUANTITY_FIELD_PATTERN.test(fieldIdentity)) return { ...field, key: "quantity" };
+  }
 
   if (isDeliveryLocationField(field)) {
     return {

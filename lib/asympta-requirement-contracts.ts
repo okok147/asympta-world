@@ -54,9 +54,10 @@ export type CompiledRequirementContract = {
 
 const TV_PATTERN = /(?:\btv\b|\btelevision\b|smart\s*tv|電視機?|电视机?|テレビ)/iu;
 const EVENT_PATTERN = /(?:concert|show|performance|ticket|演唱會|演唱会|音樂會|音乐会|門票|门票|公演|チケット)/iu;
+const CINEMA_PATTERN = /(?:\bmovies?\b|\bfilms?\b|\bcinema\b|movie\s*tickets?|電影|电影|戲院|戏院|影院|映画|映画館)/iu;
 const PURCHASE_PATTERN = /(?:\b(?:buy|purchase|order|shop\s+for|acquire)\b|購買|购买|買|买|訂購|订购|購入|注文)/iu;
 const ABSTRACT_FIELD_PATTERN = /(?:other|remaining|necessary|required|details?|information|specifications?|specs?|其他|其餘|其余|必要|資料|资料|資訊|信息|規格|规格|その他|残り|必要な|情報|仕様)/iu;
-const CONCRETE_FIELD_PATTERN = /(?:budget|price|quantity|count|purpose|use|brand|model|type|size|range|capacity|location|vendor|supplier|store|shop|delivery|shipping|pickup|deadline|timeframe|date|approval|compliance|licen[cs]e|registration|預算|预算|數量|数量|用途|品牌|型號|型号|類型|类型|尺寸|航程|容量|地點|地点|供應商|供应商|商店|配送|送貨|送货|自取|期限|日期|批准|合規|合规|牌照|執照|执照|登記|登记|予算|数量|用途|ブランド|モデル|種類|サイズ|航続|容量|場所|業者|店舗|配送|受取|期限|承認|規制|免許|登録)/iu;
+const CONCRETE_FIELD_PATTERN = /(?:budget|price|quantity|count|purpose|use|brand|model|type|size|range|capacity|location|vendor|supplier|store|shop|delivery|shipping|pickup|deadline|timeframe|date|movie|film|cinema|showtime|session|approval|compliance|licen[cs]e|registration|預算|预算|數量|数量|用途|品牌|型號|型号|類型|类型|尺寸|航程|容量|地點|地点|供應商|供应商|商店|配送|送貨|送货|自取|期限|日期|電影|电影|影片|片名|戲院|戏院|影院|場次|场次|批准|合規|合规|牌照|執照|执照|登記|登记|予算|数量|用途|ブランド|モデル|種類|サイズ|航続|容量|場所|業者|店舗|配送|受取|期限|映画|映画館|上映|承認|規制|免許|登録)/iu;
 
 const REQUIREMENT_CONTRACTS: RequirementContractDefinition[] = [
   {
@@ -71,6 +72,20 @@ const REQUIREMENT_CONTRACTS: RequirementContractDefinition[] = [
       { semantic: "screen_size", field: "screen size" },
       { semantic: "brand", field: "brand preference" },
       { semantic: "delivery_location", field: "delivery location" },
+    ],
+  },
+  {
+    id: "events.cinema-discovery.v1",
+    priority: 95,
+    augmentation: "always",
+    completionMode: "simulated_execution",
+    proposalKind: "event_discovery",
+    match: (context) => context.domain === "events.cinema" || CINEMA_PATTERN.test(context.rootIntent),
+    requirements: [
+      { semantic: "movie_preference", field: "movie preference" },
+      { semantic: "cinema_area", field: "cinema area" },
+      { semantic: "showtime", field: "showtime preference" },
+      { semantic: "quantity", field: "ticket quantity" },
     ],
   },
   {
@@ -128,6 +143,9 @@ function normalize(value: string) {
 
 export function requirementSemantic(value: string) {
   const normalized = normalize(value);
+  if (/(?:^|_)(?:movie|film)(?:_?(?:preference|title|name))?(?:_|$)|(?:電影|电影|影片|片名|観たい映画|映画名)/u.test(normalized)) return "movie_preference";
+  if (/(?:cinema_?(?:area|location)?|theat(?:er|re)_?(?:area|location)?|戲院地區|戏院地区|影院地區|影院地区|映画館_?(?:の)?エリア)/u.test(normalized)) return "cinema_area";
+  if (/(?:showtime|screening_?(?:time|session)?|session_?time|上映時間|上映时间|場次時間|场次时间|場次|场次|上映時刻)/u.test(normalized)) return "showtime";
   if (/(?:delivery_?location|delivery_?address|shipping_?address|ship_?to|配送地點|配送地点|配送地址|送貨地點|送货地点|送貨地址|送货地址|收貨地址|收货地址|配送先|配達先)/u.test(normalized)) return "delivery_location";
   if (/(?:event_?(?:intent|name)|show|concert|artist|singer|band|演出|演唱會|演唱会|歌手|樂隊|乐队|公演|アーティスト|バンド)/u.test(normalized)) return "event_intent";
   if (/(?:screen_?size|display_?size|inch|螢幕尺寸|屏幕尺寸|画面サイズ|インチ)/u.test(normalized)) return "screen_size";
@@ -152,15 +170,23 @@ function isAbstractField(field: string) {
 function inferContext(input: Pick<CreateAsymptaTaskInput, "rootIntent" | "domain" | "actionFamily">): ContractContext {
   const rootIntent = input.rootIntent.trim();
   const actionFamily = input.actionFamily
-    ?? (PURCHASE_PATTERN.test(rootIntent) ? "purchase" : EVENT_PATTERN.test(rootIntent) ? "attend" : "coordinate");
+    ?? (PURCHASE_PATTERN.test(rootIntent)
+      ? "purchase"
+      : CINEMA_PATTERN.test(rootIntent)
+        ? "discover"
+        : EVENT_PATTERN.test(rootIntent)
+          ? "attend"
+          : "coordinate");
   const domain = input.domain
     ?? (TV_PATTERN.test(rootIntent)
       ? "commerce.consumer_electronics"
-      : EVENT_PATTERN.test(rootIntent)
-        ? "events"
-        : actionFamily === "purchase"
-          ? "commerce"
-          : "general");
+      : CINEMA_PATTERN.test(rootIntent)
+        ? "events.cinema"
+        : EVENT_PATTERN.test(rootIntent)
+          ? "events"
+          : actionFamily === "purchase"
+            ? "commerce"
+            : "general");
   return { rootIntent, domain, actionFamily };
 }
 

@@ -13,6 +13,7 @@ import type {
 
 const TV_PATTERN = /(?:\btv\b|\btelevision\b|smart\s*tv|電視機?|电视机?|テレビ)/iu;
 const EVENT_PATTERN = /(?:concert|show|performance|ticket|演唱會|演唱会|音樂會|音乐会|門票|门票|公演|チケット)/iu;
+const CINEMA_PATTERN = /(?:\bmovies?\b|\bfilms?\b|\bcinema\b|movie\s*tickets?|電影|电影|戲院|戏院|影院|映画|映画館)/iu;
 
 function nowIso(value?: string | number | Date) {
   return new Date(value ?? Date.now()).toISOString();
@@ -41,6 +42,7 @@ function safeEvidence(input: Omit<AsymptaTaskEvidence, "id" | "createdAt">, task
 function specialistAgentId(task: AsymptaTaskState) {
   const text = `${task.domain} ${task.actionFamily} ${task.rootIntent.raw}`;
   if (TV_PATTERN.test(text)) return "commerce-electronics-specialist";
+  if (CINEMA_PATTERN.test(text)) return "cinema-planning-specialist";
   if (EVENT_PATTERN.test(text)) return "event-discovery-specialist";
   return "general-domain-specialist";
 }
@@ -73,6 +75,8 @@ export function initialAgentAssignments(task: AsymptaTaskState, at = nowIso()): 
       role: "specialist",
       capability: TV_PATTERN.test(task.rootIntent.raw)
         ? "commerce.consumer_electronics.plan"
+        : CINEMA_PATTERN.test(`${task.domain} ${task.rootIntent.raw}`)
+          ? "cinema.showtime.plan"
         : EVENT_PATTERN.test(task.rootIntent.raw)
           ? "events.discovery.plan"
           : "domain.plan",
@@ -88,6 +92,7 @@ export function agentIdForCapability(capability: string, task: AsymptaTaskState)
   if (capability === "retail.offer_search") return "retailer-search-agent";
   if (capability === "logistics.delivery_planning") return "logistics-agent";
   if (capability === "events.performance_search") return "performance-search-agent";
+  if (capability === "cinema.showtime_search") return "cinema-showtime-agent";
   if (capability === "capability.discover") return "general-capability-agent";
   if (capability === "task.verify") return "independent-verifier";
   if (capability === "execution.perform") return "transaction-coordinator";
@@ -274,6 +279,59 @@ function eventPlan(task: AsymptaTaskState, assignment: AsymptaTaskAssignment): A
   };
 }
 
+function cinemaPlan(task: AsymptaTaskState, assignment: AsymptaTaskAssignment): AsymptaAgentPatch {
+  const plan = {
+    id: `${task.taskId}:plan:cinema`,
+    summary: "Match the confirmed movie, cinema area, showtime and ticket quantity, then verify the simulated outing plan.",
+    steps: [
+      {
+        id: `${task.taskId}:plan-step:showtimes`,
+        title: "Find matching simulated cinema showtimes",
+        ownerAgentId: "cinema-showtime-agent",
+        capability: "cinema.showtime_search",
+        status: "queued",
+      },
+      {
+        id: `${task.taskId}:plan-step:execute`,
+        title: "Coordinate the selected simulated outing",
+        ownerAgentId: "transaction-coordinator",
+        capability: "execution.perform",
+        status: "queued",
+      },
+      {
+        id: `${task.taskId}:plan-step:verify`,
+        title: "Verify the recorded cinema outcome",
+        ownerAgentId: "independent-verifier",
+        capability: "task.verify",
+        status: "queued",
+      },
+    ],
+    proposal: {
+      category: "cinema_outing",
+      confirmedConstraints: requirementFacts(task),
+      completion: task.completion,
+    },
+    createdBy: assignment.agentId,
+    createdAt: nowIso(),
+  } satisfies AsymptaTaskPlan;
+  return {
+    taskId: task.taskId,
+    baseRevision: task.revision,
+    assignmentId: assignment.id,
+    agentId: assignment.agentId,
+    operations: [
+      { op: "add_plan", plan },
+      {
+        op: "request_delegation",
+        capability: "cinema.showtime_search",
+        role: "researcher",
+        scopeRequirementIds: task.requirements.map((requirement) => requirement.id),
+      },
+      { op: "complete_assignment" },
+    ],
+  };
+}
+
 function generalPlan(task: AsymptaTaskState, assignment: AsymptaTaskAssignment): AsymptaAgentPatch {
   const plan = {
     id: `${task.taskId}:plan:general`,
@@ -405,6 +463,36 @@ function performancePatch(task: AsymptaTaskState, assignment: AsymptaTaskAssignm
           verified: true,
           value: { intent: task.rootIntent.raw, confirmedConstraints: requirementFacts(task) },
         }, task, "performances"),
+      },
+      { op: "complete_assignment" },
+    ],
+  };
+}
+
+function cinemaShowtimePatch(task: AsymptaTaskState, assignment: AsymptaTaskAssignment): AsymptaAgentPatch {
+  const constraints = requirementFacts(task);
+  const choices = [
+    { id: "simulated-cinema-best-fit", fit: "best_match", constraints },
+    { id: "simulated-cinema-earlier", fit: "earlier_showtime", constraints },
+    { id: "simulated-cinema-nearby", fit: "nearby_cinema", constraints },
+  ];
+  return {
+    taskId: task.taskId,
+    baseRevision: task.revision,
+    assignmentId: assignment.id,
+    agentId: assignment.agentId,
+    operations: [
+      { op: "set_phase", phase: "discovering", summary: "The cinema agent is matching the confirmed outing preferences." },
+      {
+        op: "add_evidence",
+        evidence: safeEvidence({
+          source: assignment.agentId,
+          kind: "offer_set",
+          summary: "Prepared bounded simulated cinema choices; no real screening or ticket availability is claimed.",
+          simulated: true,
+          verified: true,
+          value: { choices, constraints },
+        }, task, "cinema-showtimes"),
       },
       { op: "complete_assignment" },
     ],
@@ -698,6 +786,8 @@ export function runLogicalAgent(task: AsymptaTaskState, assignment: AsymptaTaskA
       return televisionPlan(task, assignment);
     case "event-discovery-specialist":
       return eventPlan(task, assignment);
+    case "cinema-planning-specialist":
+      return cinemaPlan(task, assignment);
     case "general-domain-specialist":
       return generalPlan(task, assignment);
     case "retailer-search-agent":
@@ -706,6 +796,8 @@ export function runLogicalAgent(task: AsymptaTaskState, assignment: AsymptaTaskA
       return logisticsPatch(task, assignment);
     case "performance-search-agent":
       return performancePatch(task, assignment);
+    case "cinema-showtime-agent":
+      return cinemaShowtimePatch(task, assignment);
     case "general-capability-agent":
       return capabilityDiscoveryPatch(task, assignment);
     case "transaction-coordinator":

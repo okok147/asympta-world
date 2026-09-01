@@ -282,6 +282,96 @@ test("action intent returns a confirmation-only proposal and never executes a si
   ]);
 });
 
+test("an incomplete movie clarification is repaired into a safe resumable task instead of HTTP 502", async () => {
+  const calls = [];
+  const agent = deterministicAgent(async (input) => {
+    const url = new URL(String(input));
+    calls.push(url.hostname);
+    if (url.hostname === "challenges.cloudflare.com") return turnstileSuccess();
+    if (url.hostname === "openrouter.ai") {
+      return openRouterMessage(goal("clarification", {
+        title: "安排電影行程",
+        summary: "還需要確認資料。",
+        missingFields: [],
+        requiresConfirmation: true,
+        risk: "medium",
+        actionDescription: "Book a movie ticket immediately.",
+        actionConsequence: "A ticket purchase could be created.",
+      }));
+    }
+    throw new Error(`unexpected fetch: ${url}`);
+  });
+  const { env } = baseEnv();
+
+  const response = await agent.fetch(intentRequest(validBody({
+    intent: "Help me arrange a cinema outing near Central",
+    locale: "zh-Hant",
+  })), env);
+  const { text, body } = await responseJson(response);
+
+  assert.equal(response.status, 200);
+  assert.equal(body.ok, true);
+  assert.equal(body.goal.kind, "clarification");
+  assert.equal(body.goal.status, "needs_clarification");
+  assert.equal(body.goal.requiresConfirmation, false);
+  assert.equal(body.goal.risk, "none");
+  assert.deepEqual(body.goal.missingFields, ["想看的電影", "戲院地區", "場次時間", "門票數量"]);
+  assert.equal(body.action, null);
+  assert.equal(body.result, null);
+  assert.doesNotMatch(text, /Book a movie ticket immediately|ticket purchase could be created/);
+  assert.deepEqual(calls, ["challenges.cloudflare.com", "openrouter.ai"]);
+});
+
+test("the bare movie case deterministically asks for choices without relying on the model", async () => {
+  const calls = [];
+  const agent = deterministicAgent(async (input) => {
+    const url = new URL(String(input));
+    calls.push(url.hostname);
+    if (url.hostname === "challenges.cloudflare.com") return turnstileSuccess();
+    throw new Error(`unexpected fetch: ${url}`);
+  });
+  const { env } = baseEnv();
+
+  const response = await agent.fetch(intentRequest(validBody({ intent: "Go to watch movie" })), env);
+  const body = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(body.goal.status, "needs_clarification");
+  assert.equal(body.goal.title, "Arrange a movie outing");
+  assert.deepEqual(body.goal.missingFields, [
+    "movie preference",
+    "cinema area",
+    "showtime preference",
+    "ticket quantity",
+  ]);
+  assert.equal(body.provenance.provider, "asympta");
+  assert.equal(body.provenance.model, null);
+  assert.deepEqual(calls, ["challenges.cloudflare.com"]);
+});
+
+test("malformed classifier output safely falls back to movie clarification", async () => {
+  const agent = deterministicAgent(async (input) => {
+    const url = new URL(String(input));
+    if (url.hostname === "challenges.cloudflare.com") return turnstileSuccess();
+    if (url.hostname === "openrouter.ai") return openRouterTextMessage("not valid JSON");
+    throw new Error(`unexpected fetch: ${url}`);
+  });
+  const { env } = baseEnv();
+
+  const response = await agent.fetch(intentRequest(validBody({ intent: "Arrange a cinema outing near Central" })), env);
+  const body = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(body.goal.status, "needs_clarification");
+  assert.equal(body.goal.title, "Arrange a movie outing");
+  assert.deepEqual(body.goal.missingFields, [
+    "movie preference",
+    "cinema area",
+    "showtime preference",
+    "ticket quantity",
+  ]);
+});
+
 test("weather intent uses bounded Open-Meteo geocoding and forecast data", async () => {
   const calls = [];
   const agent = deterministicAgent(async (input, init = {}) => {
