@@ -194,6 +194,16 @@ export type AsymptaTaskResult = {
   completedAt: string;
 };
 
+export type AsymptaTaskBusinessJourneyProof = {
+  requesterReachedBusiness: boolean;
+  businessReceivedRequest: boolean;
+  businessWorkCompleted: boolean;
+  businessResponseHandedOff: boolean;
+  requesterReturnedHome: boolean;
+  returnedOutcomeVerified: boolean;
+  complete: boolean;
+};
+
 export type AsymptaTaskWorldWorkflow = {
   driver: "atlas_world";
   workflowId: string;
@@ -206,6 +216,7 @@ export type AsymptaTaskWorldWorkflow = {
   completedTaskCount: number;
   totalTaskCount: number;
   agentIds: string[];
+  businessJourneyProof: AsymptaTaskBusinessJourneyProof;
   startedAt: string;
   updatedAt: string;
   completedAt?: string;

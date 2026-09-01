@@ -10,14 +10,20 @@ import {
 import type { AdaptiveInteractionSchema } from "./asympta-adaptive-interaction.ts";
 import {
   activeTaskWorldTask,
+  emptyTaskWorldBusinessJourneyProof,
+  taskWorldBusinessJourneyProof,
+  taskWorldBusinessResult,
   taskWorldCompletionSummary,
+  taskWorldProofMissingSummary,
   taskWorldProgressPhase,
   taskWorldSnapshotBelongsToTask,
+  taskWorldVerificationDetails,
   type TaskWorldWorkflowSnapshot,
 } from "./asympta-task-world-workflow.ts";
 import type {
   AnswerRequirementCommand,
   ApproveTaskCommand,
+  AsymptaTaskBusinessJourneyProof,
   AsymptaTaskKernelEventDetail,
   AsymptaTaskKernelUpdateReason,
   AsymptaTaskState,
@@ -51,6 +57,19 @@ function taskChanged(left: AsymptaTaskState, right: AsymptaTaskState) {
 
 function worldWorkflowActive(task: AsymptaTaskState) {
   return Boolean(task.worldWorkflow && task.worldWorkflow.status !== "completed");
+}
+
+function sameBusinessJourneyProof(
+  left: AsymptaTaskBusinessJourneyProof,
+  right: AsymptaTaskBusinessJourneyProof,
+) {
+  return left.requesterReachedBusiness === right.requesterReachedBusiness
+    && left.businessReceivedRequest === right.businessReceivedRequest
+    && left.businessWorkCompleted === right.businessWorkCompleted
+    && left.businessResponseHandedOff === right.businessResponseHandedOff
+    && left.requesterReturnedHome === right.requesterReturnedHome
+    && left.returnedOutcomeVerified === right.returnedOutcomeVerified
+    && left.complete === right.complete;
 }
 
 function appendWorldEvent(
@@ -238,7 +257,10 @@ export class BrowserAsymptaTaskKernel {
     if (!current || terminal(current)) return current ? cloneTask(current) : null;
     if (current.requirements.some((requirement) => requirement.status === "unknown")) return cloneTask(current);
     if (current.completion.requiresApproval || current.completion.requiresReceipt) return cloneTask(current);
-    if (current.worldWorkflow?.runId === runId && worldWorkflowActive(current)) return cloneTask(current);
+    if (current.worldWorkflow?.runId === runId
+      && current.worldWorkflow.totalTaskCount === workflow.tasks.length
+      && current.worldWorkflow.name === workflow.name
+      && worldWorkflowActive(current)) return cloneTask(current);
 
     const next = cloneTask(current);
     next.revision += 1;
@@ -262,6 +284,7 @@ export class BrowserAsymptaTaskKernel {
       completedTaskCount: 0,
       totalTaskCount: workflow.tasks.length,
       agentIds,
+      businessJourneyProof: emptyTaskWorldBusinessJourneyProof(),
       startedAt: next.updatedAt,
       updatedAt: next.updatedAt,
     };
@@ -302,6 +325,7 @@ export class BrowserAsymptaTaskKernel {
 
     const active = activeTaskWorldTask(snapshot);
     const completedTaskCount = snapshot.tasks.filter((task) => task.status === "done").length;
+    const businessJourneyProof = taskWorldBusinessJourneyProof(snapshot, current);
     const status = snapshot.phase.startsWith("block")
       ? "blocked"
       : snapshot.phase === "waiting_approval"
@@ -309,7 +333,11 @@ export class BrowserAsymptaTaskKernel {
         : "running";
     const unchanged = current.worldWorkflow.status === status
       && current.worldWorkflow.activeTaskId === (active?.id ?? null)
-      && current.worldWorkflow.completedTaskCount === completedTaskCount;
+      && current.worldWorkflow.completedTaskCount === completedTaskCount
+      && sameBusinessJourneyProof(
+        current.worldWorkflow.businessJourneyProof ?? emptyTaskWorldBusinessJourneyProof(),
+        businessJourneyProof,
+      );
     if (unchanged) return cloneTask(current);
 
     const next = cloneTask(current);
@@ -323,6 +351,7 @@ export class BrowserAsymptaTaskKernel {
       activeTaskTitle: active?.title ?? null,
       activeAgentId: active?.agentId ?? null,
       completedTaskCount,
+      businessJourneyProof,
       updatedAt: next.updatedAt,
     };
     if (next.plan) {
@@ -369,15 +398,56 @@ export class BrowserAsymptaTaskKernel {
       return current ? cloneTask(current) : null;
     }
     const worldWorkflow = current.worldWorkflow;
+    const businessJourneyProof = taskWorldBusinessJourneyProof(snapshot, current);
     const allTasksDone = snapshot.phase === "completed"
       && snapshot.tasks.length === worldWorkflow.totalTaskCount
       && snapshot.tasks.every((task) => task.status === "done");
     if (!allTasksDone || current.completion.requiresApproval || current.completion.requiresReceipt) return cloneTask(current);
 
+    if (!businessJourneyProof.complete) {
+      const next = cloneTask(current);
+      next.revision += 1;
+      next.updatedAt = new Date().toISOString();
+      const summary = taskWorldProofMissingSummary(next);
+      next.phase = "verifying";
+      next.worldWorkflow = {
+        ...worldWorkflow,
+        status: "blocked",
+        activeTaskId: null,
+        activeTaskTitle: summary,
+        activeAgentId: "agent-quality",
+        completedTaskCount: snapshot.tasks.filter((task) => task.status === "done").length,
+        businessJourneyProof,
+        updatedAt: next.updatedAt,
+      };
+      if (next.plan) {
+        next.plan.steps = next.plan.steps.map((step) => {
+          const observed = snapshot.tasks.find((task) => task.id === step.id);
+          return { ...step, status: observed?.status === "done" ? "completed" : "blocked" };
+        });
+      }
+      next.liveness.state = "waiting_external";
+      next.liveness.lastProgressRevision = next.revision;
+      next.liveness.lastProgressAt = next.updatedAt;
+      next.liveness.obstacle = {
+        code: "atlas_business_journey_unproven",
+        message: summary,
+        recoverable: true,
+        at: next.updatedAt,
+      };
+      appendWorldEvent(next, "phase_changed", "agent-quality", summary, {
+        phase: next.phase,
+        workflowId: worldWorkflow.workflowId,
+        businessJourneyProof,
+      });
+      return this.commit("agent_progress", next, current);
+    }
+
     const next = cloneTask(current);
     next.revision += 1;
     next.updatedAt = new Date().toISOString();
     const summary = taskWorldCompletionSummary(next);
+    const businessResult = taskWorldBusinessResult(next);
     const evidenceId = `${next.taskId}:evidence:atlas-world:${next.evidence.length + 1}`;
     const outcomeId = `${next.taskId}:outcome:atlas-world`;
     next.evidence.push({
@@ -391,7 +461,16 @@ export class BrowserAsymptaTaskKernel {
         simulated: true,
         workflowId: worldWorkflow.workflowId,
         runId: worldWorkflow.runId,
-        tasks: snapshot.tasks.map((task) => ({ id: task.id, agentId: task.agentId, status: task.status })),
+        businessJourneyProof,
+        businessResult,
+        tasks: snapshot.tasks.map((task) => ({
+          id: task.id,
+          agentId: task.agentId,
+          locationId: task.locationId,
+          status: task.status,
+          progress: task.progress,
+          dependencies: task.dependencies,
+        })),
       },
       createdAt: next.updatedAt,
     });
@@ -402,6 +481,7 @@ export class BrowserAsymptaTaskKernel {
       activeTaskTitle: null,
       activeAgentId: null,
       completedTaskCount: snapshot.tasks.length,
+      businessJourneyProof,
       updatedAt: next.updatedAt,
       completedAt: next.updatedAt,
     };
@@ -420,6 +500,8 @@ export class BrowserAsymptaTaskKernel {
         workflowId: worldWorkflow.workflowId,
         runId: worldWorkflow.runId,
         verificationEvidenceId: evidenceId,
+        businessJourneyProof,
+        businessResult,
       },
       createdAt: next.updatedAt,
       updatedAt: next.updatedAt,
@@ -428,15 +510,26 @@ export class BrowserAsymptaTaskKernel {
       completed: true,
       simulated: true,
       summary,
-      value: next.outcome.value,
+      value: {
+        ...businessResult,
+        businessJourneyProof,
+        verificationEvidenceId: evidenceId,
+      },
       verification: {
         status: "verified",
         criteria: {
           requirementsResolved: next.requirements.every((requirement) => requirement.status !== "unknown"),
           visibleWorkflowCompleted: true,
           everyWorkflowTaskDone: true,
+          requesterReachedBusiness: businessJourneyProof.requesterReachedBusiness,
+          businessReceivedRequest: businessJourneyProof.businessReceivedRequest,
+          businessWorkCompleted: businessJourneyProof.businessWorkCompleted,
+          businessResponseHandedOff: businessJourneyProof.businessResponseHandedOff,
+          requesterReturnedHome: businessJourneyProof.requesterReturnedHome,
+          returnedOutcomeVerified: businessJourneyProof.returnedOutcomeVerified,
+          simulationTruthDisclosed: businessResult.simulated && !businessResult.realWorldSideEffect,
         },
-        details: "The visible Atlas workflow completed every task after the required information was confirmed.",
+        details: taskWorldVerificationDetails(next),
       },
       completedAt: next.updatedAt,
     };

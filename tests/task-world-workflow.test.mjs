@@ -11,6 +11,7 @@ import { BrowserAsymptaTaskKernel } from "../lib/asympta-browser-task-kernel.ts"
 import {
   normalizeTaskWorldWorkflowSnapshot,
   TASK_WORLD_WORKFLOW_ID,
+  taskWorldBusinessJourneyTaskIds,
   taskWorldWorkflowRunId,
   upsertTaskWorldWorkflow,
 } from "../lib/asympta-task-world-workflow.ts";
@@ -84,12 +85,32 @@ test("Watch a movie continues through the visible agent workflow after option se
   const workflow = upsertTaskWorldWorkflow(task);
   assert.equal(workflow.id, TASK_WORLD_WORKFLOW_ID);
   assert.match(workflow.name, /movie/i);
-  assert.equal(workflow.tasks.length, 4);
+  assert.equal(workflow.tasks.length, 6);
   assert.deepEqual(workflow.tasks.map((item) => item.agentId), [
     "agent-user",
-    "agent-market",
-    "agent-operations",
+    "agent-business",
+    "agent-business",
+    "agent-business",
+    "agent-user",
     "agent-quality",
+  ]);
+  assert.deepEqual(workflow.tasks.map((item) => item.locationId), [
+    "marunouchi",
+    "marunouchi",
+    "marunouchi",
+    "marunouchi",
+    "shibuya",
+    "shibuya",
+  ]);
+  const ids = taskWorldBusinessJourneyTaskIds(task);
+  assert.deepEqual(workflow.tasks.map((item) => item.id), Object.values(ids));
+  assert.deepEqual(workflow.tasks.map((item) => item.dependsOn), [
+    [],
+    [ids.travelBusiness],
+    [ids.businessReceive],
+    [ids.businessWork],
+    [ids.businessHandoff],
+    [ids.returnHome],
   ]);
 
   const runId = taskWorldWorkflowRunId(task);
@@ -104,8 +125,11 @@ test("Watch a movie continues through the visible agent workflow after option se
   task = kernel.observeWorldWorkflow(task.taskId, snapshot);
   assert.notEqual(task.phase, "completed");
   assert.equal(task.result, null);
+  assert.equal(snapshot.tasks.find((item) => item.id === ids.travelBusiness)?.status, "moving");
+  assert.equal(snapshot.tasks.find((item) => item.id === ids.businessReceive)?.status, "queued");
+  assert.equal(task.worldWorkflow?.businessJourneyProof.complete, false);
 
-  for (let index = 0; index < 200 && world.phase !== "completed"; index += 1) {
+  for (let index = 0; index < 600 && world.phase !== "completed"; index += 1) {
     world = advanceAtlasWorld(world, 140);
   }
   assert.equal(world.phase, "completed");
@@ -113,11 +137,39 @@ test("Watch a movie continues through the visible agent workflow after option se
   assert.ok(snapshot);
   assert.ok(snapshot.tasks.every((item) => item.status === "done"));
 
+  const forgedWithoutBusinessReceipt = {
+    ...snapshot,
+    tasks: snapshot.tasks.map((item) => item.id === ids.businessReceive
+      ? { ...item, agentId: "agent-market" }
+      : item),
+  };
+  task = kernel.completeWorldWorkflow(task.taskId, forgedWithoutBusinessReceipt);
+  assert.notEqual(task.phase, "completed", "all-done tasks without business receipt proof must not complete");
+  assert.equal(task.result, null);
+  assert.equal(task.worldWorkflow?.status, "blocked");
+  assert.equal(task.worldWorkflow?.businessJourneyProof.businessReceivedRequest, false);
+  assert.equal(task.liveness.obstacle?.code, "atlas_business_journey_unproven");
+
   task = kernel.completeWorldWorkflow(task.taskId, snapshot);
   assert.equal(task.phase, "completed");
   assert.equal(task.result?.verification.status, "verified");
   assert.equal(task.outcome?.provider, "atlas-world");
-  assert.equal(task.worldWorkflow?.completedTaskCount, 4);
+  assert.equal(task.worldWorkflow?.completedTaskCount, 6);
+  assert.deepEqual(task.worldWorkflow?.businessJourneyProof, {
+    requesterReachedBusiness: true,
+    businessReceivedRequest: true,
+    businessWorkCompleted: true,
+    businessResponseHandedOff: true,
+    requesterReturnedHome: true,
+    returnedOutcomeVerified: true,
+    complete: true,
+  });
+  assert.equal(task.result?.verification.criteria.businessReceivedRequest, true);
+  assert.equal(task.result?.verification.criteria.requesterReturnedHome, true);
+  assert.equal(task.result?.verification.criteria.simulationTruthDisclosed, true);
+  assert.equal(task.result?.value?.kind, "simulated_movie_plan");
+  assert.equal(task.result?.value?.realWorldSideEffect, false);
+  assert.match(task.result?.summary ?? "", /No real business was contacted/i);
   assert.ok(task.evidence.some((item) => item.source === "atlas-world" && item.verified));
   assert.equal(task.rootIntent.raw, "Watch a movie");
 });

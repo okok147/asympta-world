@@ -76,6 +76,7 @@ function writeTaskMetadata(detail: ActivityDetail, task: ReturnType<ReturnType<t
     data.workflowRunId = task.worldWorkflow.runId;
     data.workflowStatus = task.worldWorkflow.status;
     data.workflowStage = task.worldWorkflow.activeTaskTitle;
+    data.businessJourneyProof = task.worldWorkflow.businessJourneyProof;
   }
   data.missingFields = task.requirements
     .filter((requirement) => requirement.status === "unknown")

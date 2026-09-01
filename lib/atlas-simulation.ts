@@ -607,6 +607,7 @@ export function atlasSnapshot(world: AtlasWorldState) {
       id: taskState.id,
       title: taskState.title,
       agentId: taskState.agentId,
+      locationId: taskState.locationId,
       status: taskState.status,
       approvalStatus: taskState.approvalStatus ?? null,
       progress: Number(taskState.progress.toFixed(3)),

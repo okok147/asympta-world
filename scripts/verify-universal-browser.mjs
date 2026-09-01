@@ -371,12 +371,30 @@ async function run() {
           runningPhase: movieRunning.phase,
           workflowId: movieRunning.worldWorkflow?.workflowId ?? null,
           worldStartedPhase: movieWorldStart.phase,
-          worldStartedTasks: movieWorldStart.tasks?.map((item) => ({ id: item.id, agentId: item.agentId, status: item.status })) ?? [],
+          worldStartedTasks: movieWorldStart.tasks?.map((item) => ({
+            id: item.id,
+            agentId: item.agentId,
+            locationId: item.locationId,
+            status: item.status,
+            progress: item.progress,
+            dependencies: item.dependencies
+          })) ?? [],
           worldCompletedPhase: movieWorld.phase,
+          worldCompletedTasks: movieWorld.tasks?.map((item) => ({
+            id: item.id,
+            agentId: item.agentId,
+            locationId: item.locationId,
+            status: item.status,
+            progress: item.progress,
+            dependencies: item.dependencies
+          })) ?? [],
           completedPhase: movieCompleted.phase,
           outcomeProvider: movieCompleted.outcome?.provider ?? null,
           verificationStatus: movieCompleted.result?.verification?.status ?? null,
           workflowAgentIds: movieCompleted.worldWorkflow?.agentIds ?? [],
+          businessJourneyProof: movieCompleted.worldWorkflow?.businessJourneyProof ?? null,
+          resultSummary: movieCompleted.result?.summary ?? null,
+          resultValue: movieCompleted.result?.value ?? null,
           verifiedWorldEvidence: movieCompleted.evidence?.some((evidence) => evidence.source === 'atlas-world' && evidence.verified) ?? false
         }
       });
@@ -445,16 +463,33 @@ async function run() {
       || uiProbe.movie.immediateResult !== null
       || uiProbe.movie.workflowId !== "task-intent"
       || uiProbe.movie.worldStartedPhase !== "running"
-      || uiProbe.movie.worldStartedTasks.length !== 4
-      || !uiProbe.movie.worldStartedTasks.some((task) => ["moving", "working"].includes(task.status))
+      || uiProbe.movie.worldStartedTasks.length !== 6
+      || !uiProbe.movie.worldStartedTasks.some((task) => task.id.endsWith("-travel-business")
+        && task.agentId === "agent-user"
+        && task.locationId === "marunouchi"
+        && ["moving", "working"].includes(task.status))
+      || !uiProbe.movie.worldStartedTasks.some((task) => task.id.endsWith("-business-receive")
+        && task.agentId === "agent-business"
+        && task.locationId === "marunouchi"
+        && task.status === "queued")
       || uiProbe.movie.worldCompletedPhase !== "completed"
+      || uiProbe.movie.worldCompletedTasks.length !== 6
+      || !uiProbe.movie.worldCompletedTasks.every((task) => task.status === "done" && task.progress === 1)
       || uiProbe.movie.completedPhase !== "completed"
       || uiProbe.movie.outcomeProvider !== "atlas-world"
       || uiProbe.movie.verificationStatus !== "verified"
+      || uiProbe.movie.businessJourneyProof?.complete !== true
+      || uiProbe.movie.businessJourneyProof?.businessReceivedRequest !== true
+      || uiProbe.movie.businessJourneyProof?.businessWorkCompleted !== true
+      || uiProbe.movie.businessJourneyProof?.businessResponseHandedOff !== true
+      || uiProbe.movie.businessJourneyProof?.requesterReturnedHome !== true
+      || uiProbe.movie.resultValue?.kind !== "simulated_movie_plan"
+      || uiProbe.movie.resultValue?.realWorldSideEffect !== false
+      || !/No real business was contacted/i.test(uiProbe.movie.resultSummary ?? "")
       || uiProbe.movie.verifiedWorldEvidence !== true) {
       throw new Error(`Watch a movie skipped or failed its visible agent workflow: ${JSON.stringify(uiProbe.movie)}`);
     }
-    for (const expectedAgent of ["agent-user", "agent-market", "agent-operations", "agent-quality"]) {
+    for (const expectedAgent of ["agent-user", "agent-business", "agent-quality"]) {
       if (!uiProbe.movie.workflowAgentIds.includes(expectedAgent)) {
         throw new Error(`Watch a movie workflow did not include ${expectedAgent}: ${JSON.stringify(uiProbe.movie)}`);
       }
@@ -465,7 +500,7 @@ async function run() {
       throw new Error(`Browser console error(s):\n${consoleErrors.join("\n---\n")}`);
     }
 
-    console.log(`Universal browser benchmark passed: ${report.completed}/${report.total} cases, typed Task Kernel option chain, visible Watch a movie workflow, high-risk confirmation, execution receipt and bounded verification completed without replay.`);
+    console.log(`Universal browser benchmark passed: ${report.completed}/${report.total} cases, typed Task Kernel option chain, six-stage Watch a movie business journey, high-risk confirmation, execution receipt and bounded verification completed without replay.`);
     socket.close();
   } finally {
     chrome.kill("SIGTERM");
