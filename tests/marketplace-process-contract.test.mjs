@@ -3,6 +3,10 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
+  createAsymptaActivity,
+  finishAsymptaActivity,
+} from "../lib/asympta-activity.ts";
+import {
   ATLAS_AGENTS,
   ATLAS_LOCATIONS,
   ATLAS_WORKFLOWS,
@@ -13,6 +17,7 @@ import {
   startAtlasWorkflow,
 } from "../lib/atlas-simulation.ts";
 import {
+  completionReceiptFromActivity,
   completionReceiptFromCurrentRequest,
   completionReceiptFromMarketplaceExecution,
 } from "../lib/asympta-completion-receipt.ts";
@@ -137,6 +142,74 @@ test("completion is receipt-backed and drives the same verified job id used by t
   assert.equal(completionReceiptFromMarketplaceExecution(missingInventory, 1_000), null);
 });
 
+test("activity fallback preserves verification and simulation provenance instead of trusting completed text", () => {
+  const base = createAsymptaActivity({ intent: "Prepare a verified result", now: 0 });
+  const bareCompleted = {
+    ...base,
+    status: "completed",
+  };
+  assert.equal(completionReceiptFromActivity(bareCompleted, 1_000), null);
+
+  const unverifiedCompleted = {
+    ...base,
+    status: "completed",
+    outcome: {
+      verified: false,
+      verification: "protocol-response",
+      summary: "A result exists but was not verified.",
+      value: { provenance: { simulated: false } },
+    },
+  };
+  assert.equal(completionReceiptFromActivity(unverifiedCompleted, 1_000), null);
+
+  const unknownMode = finishAsymptaActivity(base, {
+    verified: true,
+    verification: "protocol-response",
+    summary: "Verified but without execution-mode provenance.",
+    value: { answer: "done" },
+  }, 500);
+  assert.equal(completionReceiptFromActivity(unknownMode, 1_000), null);
+
+  const simulated = finishAsymptaActivity(base, {
+    verified: true,
+    verification: "task-completed",
+    summary: "The simulated task completed.",
+    value: { mode: "simulated", result: { simulated: true } },
+  }, 500);
+  const simulatedReceipt = completionReceiptFromActivity(simulated, 1_000);
+  assert.ok(simulatedReceipt);
+  assert.equal(simulatedReceipt.verification, "verified");
+  assert.equal(simulatedReceipt.simulated, true);
+
+  const live = finishAsymptaActivity(base, {
+    verified: true,
+    verification: "protocol-response",
+    summary: "The connected result completed.",
+    value: { provenance: { simulated: false } },
+  }, 500);
+  const liveReceipt = completionReceiptFromActivity(live, 1_000);
+  assert.ok(liveReceipt);
+  assert.equal(liveReceipt.simulated, false);
+
+  const projectedAction = {
+    requestId: "action-without-mode",
+    source: "human",
+    intent: "Do a live action",
+    goal: "Do a live action",
+    kind: "action",
+    permission: "WRITE_REQUEST",
+    status: "completed",
+    actor: "Asympta",
+    step: "Done",
+    destination: null,
+    sourceCount: 0,
+    verification: "verified",
+    events: [],
+    updatedAt: new Date(0).toISOString(),
+  };
+  assert.equal(completionReceiptFromCurrentRequest(projectedAction, 1_000), null);
+});
+
 test("all current workflow graphs validate and malformed graphs fail before they can stall", () => {
   for (const workflow of ATLAS_WORKFLOWS) {
     const validation = validateAsymptaWorkflowContract(workflow, {
@@ -168,6 +241,27 @@ test("all current workflow graphs validate and malformed graphs fail before they
   });
   assert.equal(cycle.valid, false);
   assert.ok(cycle.issues.some((issue) => issue.code === "dependency_cycle"));
+
+  const noncanonicalTask = validateAsymptaWorkflowContract({
+    id: "noncanonical-task",
+    tasks: [
+      { id: "prepare ", agentId: "agent-user", locationId: "shibuya", dependsOn: [], workMs: 100 },
+      { id: "finish", agentId: "agent-user", locationId: "shibuya", dependsOn: ["prepare"], workMs: 100 },
+    ],
+  });
+  assert.equal(noncanonicalTask.valid, false);
+  assert.ok(noncanonicalTask.issues.some((issue) => issue.code === "invalid_task_id"));
+  assert.ok(noncanonicalTask.issues.some((issue) => issue.code === "unknown_dependency"));
+
+  const noncanonicalDependency = validateAsymptaWorkflowContract({
+    id: "noncanonical-dependency",
+    tasks: [
+      { id: "prepare", agentId: "agent-user", locationId: "shibuya", dependsOn: [], workMs: 100 },
+      { id: "finish", agentId: "agent-user", locationId: "shibuya", dependsOn: ["prepare "], workMs: 100 },
+    ],
+  });
+  assert.equal(noncanonicalDependency.valid, false);
+  assert.ok(noncanonicalDependency.issues.some((issue) => issue.code === "invalid_dependency_id"));
 });
 
 test("the product mounts one completion coordinator and a queued prominent celebration screen", async () => {
@@ -183,6 +277,7 @@ test("the product mounts one completion coordinator and a queued prominent celeb
   assert.match(page, /AsymptaTaskCelebration/);
   assert.match(coordinator, /completionReceiptFromMarketplaceExecution/);
   assert.match(coordinator, /MARKETPLACE_EXECUTION_EVENT/);
+  assert.match(coordinator, /completionReceiptFromActivity\(detail\.activity\)/);
   assert.match(celebration, /subscribeAsymptaCompletionReceipts/);
   assert.match(celebration, /const queue: AsymptaCompletionReceipt\[\] = \[\]/);
   assert.match(celebration, /asympta-screen-celebration__content/);
