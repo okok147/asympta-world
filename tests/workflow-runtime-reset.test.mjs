@@ -5,7 +5,7 @@ import test from "node:test";
 import {
   createAtlasDemoWorld,
   prepareAtlasDemoWorkflowReset,
-} from "../lib/atlas-demo.ts";
+} from "../lib/atlas-canonical-demo.ts";
 
 const boundary = await readFile(new URL("../components/asympta-workflow-runtime-boundary.tsx", import.meta.url), "utf8");
 const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
@@ -20,7 +20,7 @@ test("verified completion is captured before scoped workflow runtimes remount", 
   assert.match(boundary, /ASYMPTA_WORKFLOW_RUNTIME_RESET_EVENT/);
 });
 
-test("completion reset consumes exactly one clean idle demo world", () => {
+test("completion reset consumes exactly one clean idle canonical world", () => {
   const initial = createAtlasDemoWorld(1_000);
   assert.equal(initial.phase, "running", "initial page demo should retain visible foreground activity");
 
