@@ -1,0 +1,283 @@
+/*
+ * Asympta World — final interaction polish
+ *
+ * Loaded after the experimental pencil/protocell layer. This file resolves
+ * cross-layer geometry conflicts while keeping the pencil-map visual language.
+ * The natural-language composer remains the primary human control: readable,
+ * touch-safe, IME-safe and compact at every supported viewport.
+ */
+
+:root {
+  --asympta-composer-max-width: 760px;
+  --asympta-composer-radius: 16px;
+}
+
+/* The shell is a positioning container, never a second card around its cards. */
+.asympta-intent-shell {
+  width: min(var(--asympta-composer-max-width), calc(100vw - 28px)) !important;
+  overflow: visible !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  outline: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.asympta-intent-shell::before,
+.asympta-intent-shell::after {
+  content: none !important;
+}
+
+/* Keep the prompt mark decorative and out of CSS Grid item placement. */
+.asympta-intent-composer {
+  position: relative !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 46px !important;
+  grid-template-rows: auto !important;
+  align-items: end !important;
+  gap: 10px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 62px !important;
+  padding: 8px 8px 8px 46px !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(21, 23, 20, 0.58) !important;
+  border-radius: var(--asympta-composer-radius) !important;
+  outline: 0 !important;
+  background: rgba(249, 247, 241, 0.96) !important;
+  box-shadow:
+    0 12px 32px rgba(43, 40, 34, 0.11),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.58) !important;
+  backdrop-filter: blur(14px) saturate(0.88) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(0.88) !important;
+  transition:
+    border-color 150ms ease,
+    background 150ms ease,
+    box-shadow 150ms ease !important;
+}
+
+.asympta-intent-composer:hover {
+  border-color: rgba(21, 23, 20, 0.76) !important;
+}
+
+.asympta-intent-composer:focus-within {
+  border-color: var(--pc-ink, #151714) !important;
+  background: rgba(251, 250, 245, 0.985) !important;
+  box-shadow:
+    0 14px 36px rgba(43, 40, 34, 0.13),
+    0 0 0 3px rgba(42, 97, 255, 0.12),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.72) !important;
+}
+
+.asympta-intent-composer::before {
+  content: ">" !important;
+  position: absolute !important;
+  top: 50% !important;
+  left: 17px !important;
+  z-index: 2;
+  align-self: auto !important;
+  padding: 0 !important;
+  transform: translateY(-50%) !important;
+  color: var(--pc-signal, #ff5b35) !important;
+  font: 750 15px/1 var(--pc-mono, ui-monospace, monospace) !important;
+  pointer-events: none !important;
+}
+
+.asympta-intent-composer textarea {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  align-self: center !important;
+  display: block !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 46px !important;
+  max-height: 144px !important;
+  height: auto;
+  margin: 0 !important;
+  padding: 11px 4px 10px 0 !important;
+  overflow-x: hidden !important;
+  overflow-y: hidden;
+  resize: none !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  outline: 0 !important;
+  color: var(--pc-ink, #151714) !important;
+  background: transparent !important;
+  caret-color: var(--pc-signal, #ff5b35) !important;
+  font-family: var(--pc-font, "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif) !important;
+  font-size: 15.5px !important;
+  font-weight: 500 !important;
+  line-height: 1.46 !important;
+  letter-spacing: -0.012em !important;
+  text-align: start !important;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(21, 23, 20, 0.25) transparent;
+}
+
+.asympta-intent-composer textarea::placeholder {
+  color: rgba(21, 23, 20, 0.43) !important;
+  opacity: 1 !important;
+}
+
+.asympta-intent-composer textarea::-webkit-scrollbar {
+  width: 5px;
+}
+
+.asympta-intent-composer textarea::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(21, 23, 20, 0.22);
+}
+
+.asympta-intent-composer button {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  align-self: end !important;
+  display: grid !important;
+  place-items: center !important;
+  width: 46px !important;
+  min-width: 46px !important;
+  height: 46px !important;
+  min-height: 46px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 1px solid var(--pc-ink, #151714) !important;
+  border-radius: 12px !important;
+  background: var(--pc-ink, #151714) !important;
+  color: var(--pc-paper-strong, #f7f5ee) !important;
+  box-shadow: none !important;
+  transform: translateZ(0);
+  transition:
+    transform 120ms ease,
+    background 120ms ease,
+    color 120ms ease,
+    border-color 120ms ease !important;
+}
+
+.asympta-intent-composer button:hover:not(:disabled) {
+  transform: translateY(-1px) !important;
+  border-color: var(--pc-ink, #151714) !important;
+  background: var(--pc-signal-acid, #c6ff35) !important;
+  color: var(--pc-ink, #151714) !important;
+}
+
+.asympta-intent-composer button:active:not(:disabled) {
+  transform: translateY(0) scale(0.97) !important;
+}
+
+.asympta-intent-composer button:disabled,
+.asympta-intent-composer button:disabled:hover {
+  opacity: 1 !important;
+  cursor: default !important;
+  transform: none !important;
+  border-color: rgba(21, 23, 20, 0.18) !important;
+  background: rgba(21, 23, 20, 0.08) !important;
+  color: rgba(21, 23, 20, 0.32) !important;
+}
+
+/* The status chip supports the composer but never steals its width. */
+.asympta-intent-presence {
+  max-width: calc(100% - 18px) !important;
+  margin-left: 9px !important;
+  border-color: rgba(21, 23, 20, 0.12) !important;
+  background: rgba(249, 247, 241, 0.9) !important;
+  box-shadow: 0 5px 18px rgba(43, 40, 34, 0.06) !important;
+}
+
+.asympta-intent-presence::before {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 700px) {
+  .asympta-intent-shell {
+    width: calc(100vw - 16px) !important;
+    bottom: max(8px, calc(env(safe-area-inset-bottom) + 6px)) !important;
+  }
+
+  .asympta-intent-presence {
+    max-width: calc(100% - 8px) !important;
+    margin-left: 4px !important;
+    margin-bottom: 5px !important;
+  }
+
+  .asympta-intent-presence::before {
+    content: none !important;
+  }
+
+  .asympta-intent-composer {
+    grid-template-columns: minmax(0, 1fr) 44px !important;
+    gap: 7px !important;
+    min-height: 60px !important;
+    padding: 7px 7px 7px 40px !important;
+    border-radius: 14px !important;
+  }
+
+  .asympta-intent-composer::before {
+    left: 14px !important;
+  }
+
+  /* Sixteen pixels prevents involuntary iOS page zoom while typing. */
+  .asympta-intent-composer textarea {
+    min-height: 44px !important;
+    max-height: min(34svh, 132px) !important;
+    padding: 10px 2px 9px 0 !important;
+    font-size: 16px !important;
+    line-height: 1.45 !important;
+  }
+
+  .asympta-intent-composer button {
+    width: 44px !important;
+    min-width: 44px !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    border-radius: 11px !important;
+  }
+}
+
+@media (max-height: 430px) and (orientation: landscape) {
+  .asympta-intent-shell {
+    width: min(720px, calc(100vw - 16px)) !important;
+    bottom: max(6px, calc(env(safe-area-inset-bottom) + 4px)) !important;
+  }
+
+  .asympta-intent-presence {
+    margin-bottom: 3px !important;
+  }
+
+  .asympta-intent-composer {
+    grid-template-columns: minmax(0, 1fr) 40px !important;
+    gap: 6px !important;
+    min-height: 50px !important;
+    padding: 5px 6px 5px 38px !important;
+    border-radius: 12px !important;
+  }
+
+  .asympta-intent-composer::before {
+    left: 13px !important;
+  }
+
+  .asympta-intent-composer textarea {
+    min-height: 40px !important;
+    max-height: 70px !important;
+    padding: 7px 1px 6px 0 !important;
+  }
+
+  .asympta-intent-composer button {
+    width: 40px !important;
+    min-width: 40px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    border-radius: 10px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .asympta-intent-composer,
+  .asympta-intent-composer button {
+    transition: none !important;
+  }
+}

@@ -12,6 +12,7 @@ import { AsymptaEstimatedProgress } from "@/components/asympta-estimated-progres
 import { AsymptaGlobalLocale } from "@/components/asympta-global-locale";
 import { AsymptaGlobalWorld } from "@/components/asympta-global-world";
 import { AsymptaIntentComposer } from "@/components/asympta-intent-composer";
+import { AsymptaIntentInputPolish } from "@/components/asympta-intent-input-polish";
 import { AsymptaJobMode } from "@/components/asympta-job-mode";
 import { AsymptaMarketplaceIntentBridge } from "@/components/asympta-marketplace-intent-bridge";
 import { AsymptaMarketplaceIntentRouter } from "@/components/asympta-marketplace-intent-router";
@@ -49,6 +50,7 @@ export default function HomePage() {
         <AsymptaGlobalWorld />
         <AsymptaMarketplaceIntentRouter />
         <AsymptaIntentComposer />
+        <AsymptaIntentInputPolish />
         <AsymptaAdaptiveInteraction />
         <AsymptaUniversalBenchmarkBridge />
         <AsymptaUnsafeProposalRecovery />
