@@ -299,6 +299,51 @@ async function run() {
       }, 'Timed out waiting for verified completed Task Kernel outcome after confirmation', 7000);
       await waitFor(() => !card(), 'Adaptive card remained visible after task completion');
 
+      const movieTask = window.__ASYMPTA_TASK_KERNEL__.createFromClarification({
+        activityId: 'watch-movie-visible-workflow-probe',
+        rootIntent: 'Watch a movie',
+        locale: 'en',
+        title: 'Watch a movie',
+        summary: 'Choose the required options, then continue the same task.',
+        missingFields: [],
+        mode: 'simulated',
+        risk: 'low'
+      });
+      const movieAnswers = [];
+      let movieAfterAnswer = movieTask;
+      for (let index = 0; index < 8; index += 1) {
+        const movieSchema = window.__ASYMPTA_TASK_KERNEL__.schema(movieTask.taskId);
+        const movieRequirement = movieSchema?.nextField;
+        if (!movieRequirement) break;
+        const movieOption = movieRequirement.options?.[0];
+        if (!movieOption) throw new Error('Watch a movie did not expose a selectable option for ' + movieRequirement.field + '.');
+        movieAnswers.push({ field: movieRequirement.field, value: movieOption.value, label: movieOption.label });
+        const currentMovieTask = window.__ASYMPTA_TASK_KERNEL__.getTask(movieTask.taskId);
+        movieAfterAnswer = window.__ASYMPTA_TASK_KERNEL__.answerRequirement({
+          commandId: 'watch-movie-option-browser-probe-' + movieRequirement.field,
+          taskId: movieTask.taskId,
+          requirementId: movieRequirement.id,
+          expectedRevision: currentMovieTask.revision,
+          value: movieOption.value,
+          label: movieOption.label,
+          actorId: 'human'
+        });
+      }
+      if (movieAnswers.length !== 4) throw new Error('Watch a movie did not require exactly four atomic option selections: ' + JSON.stringify(movieAnswers));
+      const movieRunning = await waitFor(() => {
+        const candidate = window.__ASYMPTA_TASK_KERNEL__.getTask(movieTask.taskId);
+        return candidate?.worldWorkflow && candidate.phase !== 'completed' ? candidate : null;
+      }, 'Watch a movie completed before its visible workflow started');
+      const movieWorldStart = window.__ASYMPTA_DEMO__.snapshot().foreground;
+      let movieWorld = movieWorldStart;
+      for (let index = 0; index < 600 && movieWorld.phase !== 'completed'; index += 1) {
+        movieWorld = window.__ASYMPTA_DEMO__.advance(140);
+      }
+      const movieCompleted = await waitFor(() => {
+        const candidate = window.__ASYMPTA_TASK_KERNEL__.getTask(movieTask.taskId);
+        return candidate?.phase === 'completed' ? candidate : null;
+      }, 'Watch a movie did not complete after every visible world task finished', 4000);
+
       return JSON.stringify({
         lang: document.documentElement.lang,
         budget,
@@ -317,6 +362,21 @@ async function run() {
           rootIntent: task.rootIntent?.raw ?? null,
           assignmentAgents: task.assignments?.map((assignment) => assignment.agentId) ?? [],
           unknownRequirements: task.requirements?.filter((requirement) => requirement.status === 'unknown').length ?? null
+        },
+        movie: {
+          answeredFields: movieAnswers.map((answer) => answer.field),
+          immediatePhase: movieAfterAnswer.phase,
+          immediateResult: movieAfterAnswer.result,
+          runningPhase: movieRunning.phase,
+          workflowId: movieRunning.worldWorkflow?.workflowId ?? null,
+          worldStartedPhase: movieWorldStart.phase,
+          worldStartedTasks: movieWorldStart.tasks?.map((item) => ({ id: item.id, agentId: item.agentId, status: item.status })) ?? [],
+          worldCompletedPhase: movieWorld.phase,
+          completedPhase: movieCompleted.phase,
+          outcomeProvider: movieCompleted.outcome?.provider ?? null,
+          verificationStatus: movieCompleted.result?.verification?.status ?? null,
+          workflowAgentIds: movieCompleted.worldWorkflow?.agentIds ?? [],
+          verifiedWorldEvidence: movieCompleted.evidence?.some((evidence) => evidence.source === 'atlas-world' && evidence.verified) ?? false
         }
       });
     })()`, true));
@@ -379,12 +439,32 @@ async function run() {
       }
     }
 
+    if (JSON.stringify(uiProbe.movie.answeredFields) !== JSON.stringify(["movie_preference", "cinema_area", "showtime", "quantity"])
+      || uiProbe.movie.immediatePhase === "completed"
+      || uiProbe.movie.immediateResult !== null
+      || uiProbe.movie.workflowId !== "task-intent"
+      || uiProbe.movie.worldStartedPhase !== "running"
+      || uiProbe.movie.worldStartedTasks.length !== 4
+      || !uiProbe.movie.worldStartedTasks.some((task) => ["moving", "working"].includes(task.status))
+      || uiProbe.movie.worldCompletedPhase !== "completed"
+      || uiProbe.movie.completedPhase !== "completed"
+      || uiProbe.movie.outcomeProvider !== "atlas-world"
+      || uiProbe.movie.verificationStatus !== "verified"
+      || uiProbe.movie.verifiedWorldEvidence !== true) {
+      throw new Error(`Watch a movie skipped or failed its visible agent workflow: ${JSON.stringify(uiProbe.movie)}`);
+    }
+    for (const expectedAgent of ["agent-user", "agent-market", "agent-operations", "agent-quality"]) {
+      if (!uiProbe.movie.workflowAgentIds.includes(expectedAgent)) {
+        throw new Error(`Watch a movie workflow did not include ${expectedAgent}: ${JSON.stringify(uiProbe.movie)}`);
+      }
+    }
+
     if (exceptions.length) throw new Error(`Browser runtime exception(s):\n${exceptions.join("\n---\n")}`);
     if (consoleErrors.some((entry) => /react|hydration|uncaught|typeerror|referenceerror|benchmark bridge failed/i.test(entry))) {
       throw new Error(`Browser console error(s):\n${consoleErrors.join("\n---\n")}`);
     }
 
-    console.log(`Universal browser benchmark passed: ${report.completed}/${report.total} cases, typed Task Kernel option chain, high-risk confirmation, execution receipt and bounded verification completed without replay.`);
+    console.log(`Universal browser benchmark passed: ${report.completed}/${report.total} cases, typed Task Kernel option chain, visible Watch a movie workflow, high-risk confirmation, execution receipt and bounded verification completed without replay.`);
     socket.close();
   } finally {
     chrome.kill("SIGTERM");

@@ -471,7 +471,11 @@ function taskActivityStatus(task: AsymptaTaskState): AsymptaActivityStatus {
 function taskSummary(task: AsymptaTaskState) {
   const nextRequirement = task.requirements.find((requirement) => requirement.status === "unknown");
   if (nextRequirement) return nextRequirement.prompt;
-  return task.result?.summary ?? task.failure?.message ?? task.plan?.summary ?? task.summary;
+  return task.result?.summary
+    ?? task.failure?.message
+    ?? task.worldWorkflow?.activeTaskTitle
+    ?? task.plan?.summary
+    ?? task.summary;
 }
 
 function taskToPublicResult(task: AsymptaTaskState): PublicAgentSuccessResponse {
@@ -507,7 +511,10 @@ function taskToPublicResult(task: AsymptaTaskState): PublicAgentSuccessResponse 
     provenance: {
       provider: "asympta",
       model: null,
-      tools: [...new Set(task.assignments.map((assignment) => assignment.agentId))],
+      tools: [...new Set([
+        ...task.assignments.map((assignment) => assignment.agentId),
+        ...(task.worldWorkflow?.agentIds ?? []),
+      ])],
       simulated: task.mode !== "live",
     },
   };
@@ -568,15 +575,20 @@ export function AsymptaIntentComposer() {
 
       const status = taskActivityStatus(task);
       const summary = taskSummary(task);
+      const actorId = task.worldWorkflow?.activeAgentId
+        ?? (status === "completed" ? "agent-quality" : status === "failed" ? "agent-support" : "agent-user");
       let next = appendAsymptaEvent(active, {
         status,
         protocol: "asympta",
-        actorId: status === "completed" ? "agent-quality" : status === "failed" ? "agent-support" : "agent-user",
+        actorId,
         summary,
         data: {
           taskId: task.taskId,
           taskRevision: task.revision,
           taskPhase: task.phase,
+          workflowId: task.worldWorkflow?.workflowId ?? null,
+          workflowStatus: task.worldWorkflow?.status ?? null,
+          workflowStage: task.worldWorkflow?.activeTaskTitle ?? null,
           missingFields: task.requirements.filter((requirement) => requirement.status === "unknown").map((requirement) => requirement.raw),
         },
       });
@@ -602,12 +614,16 @@ export function AsymptaIntentComposer() {
             ? "awaiting_confirmation"
             : ["failed", "blocked", "cancelled"].includes(task.phase)
               ? "failed"
-              : "waiting_input";
+              : task.phase === "awaiting_human"
+                ? "waiting_input"
+                : task.phase === "verifying"
+                  ? "returning"
+                  : "gathering";
         const projected: AsymptaCurrentRequest = {
           ...currentRequest,
           goal: task.title,
           kind: task.phase === "awaiting_human" ? "clarification" : "action",
-          permission: "WRITE_REQUEST",
+          permission: task.completion.outcomeKind === "information" ? "READ" : "WRITE_REQUEST",
           status: requestStatus,
           actor: task.phase === "completed" ? REQUEST_ACTOR_COPY[locale].verification : REQUEST_ACTOR_COPY[locale].asympta,
           step: summary,
@@ -635,6 +651,10 @@ export function AsymptaIntentComposer() {
         updateJourney((current) => current.tripId === task.activityId
           ? finishInformationJourney(current, task.activityId as string, "waiting")
           : current);
+      } else if (task.phase !== "awaiting_human") {
+        // Resolved options unblock the same task. The old clarification card
+        // must disappear while its visible agent workflow is in progress.
+        setPublicResult(null);
       }
     };
 
