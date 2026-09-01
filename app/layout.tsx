@@ -13,6 +13,7 @@ import "./asympta-estimated-progress.css";
 import "./asympta-global-locale.css";
 import "./asympta-task-celebration.css";
 import "./asympta-completion-celebration.css";
+import "./asympta-three-world-effects.css";
 import "./asympta-card-collapse.css";
 import "./asympta-calm-ui.css";
 import "./asympta-global-world.css";
