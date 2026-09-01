@@ -4,12 +4,15 @@ import test from "node:test";
 
 const app = await readFile(new URL("../components/asympta-world-live-60hz.tsx", import.meta.url), "utf8");
 const animalArt = await readFile(new URL("../components/asympta-animal-art.tsx", import.meta.url), "utf8");
+const threeEffects = await readFile(new URL("../components/asympta-three-world-effects.tsx", import.meta.url), "utf8");
 const engine = await readFile(new URL("../lib/atlas-simulation.ts", import.meta.url), "utf8");
 const demo = await readFile(new URL("../lib/atlas-demo.ts", import.meta.url), "utf8");
 const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
 const css = await readFile(new URL("../app/asympta-restoration.css", import.meta.url), "utf8");
 const fpsCss = await readFile(new URL("../app/asympta-live-60hz.css", import.meta.url), "utf8");
 const animalCss = await readFile(new URL("../app/asympta-animal-art.css", import.meta.url), "utf8");
+const threeCss = await readFile(new URL("../app/asympta-three-world-effects.css", import.meta.url), "utf8");
+const completionCss = await readFile(new URL("../app/asympta-completion-celebration.css", import.meta.url), "utf8");
 const requestCss = await readFile(new URL("../app/asympta-request-cards.css", import.meta.url), "utf8");
 
 test("the product now boots the 60Hz culled paper living-city renderer", () => {
@@ -120,4 +123,24 @@ test("original animal art and paper texture remain lightweight", () => {
   assert.match(animalCss, /\.asympta-animal-svg/);
   assert.doesNotMatch(css, /image-rendering:\s*pixelated/i);
   assert.doesNotMatch(css, /image-rendering:\s*crisp-edges/i);
+});
+
+test("Three.js enhancement remains a bounded read-only visual projection", () => {
+  assert.match(page, /AsymptaThreeWorldEffects/);
+  assert.match(threeEffects, /void import\("three"\)/);
+  assert.match(threeEffects, /powerPreference: "low-power"/);
+  assert.match(threeEffects, /FRAME_INTERVAL_MS = 1_000 \/ 30/);
+  assert.match(threeEffects, /Math\.min\(window\.devicePixelRatio \|\| 1, 1\.2\)/);
+  assert.match(threeEffects, /allowsVisualEnhancement/);
+  assert.match(threeEffects, /document\.hidden/);
+  assert.match(threeEffects, /\.animal-map-marker--foreground/);
+  assert.match(threeEffects, /AGENT_PROJECTION_INTERVAL_MS = 160/);
+  assert.match(threeEffects, /MAX_PROJECTED_AGENTS = 8/);
+  assert.match(threeEffects, /pointerdown/);
+  assert.match(threeEffects, /data-asympta-celebrating/);
+  assert.doesNotMatch(threeEffects, /requestWebMcpWorkflow|requestWebMcpAction|approve|authorizePayment|publishAsymptaCurrentRequest/);
+  assert.match(threeCss, /data-asympta-visual-engine="three"/);
+  assert.match(threeCss, /prefers-reduced-motion: reduce/);
+  assert.match(animalCss, /asympta-animal-walk/);
+  assert.match(completionCss, /asympta-completion-atmosphere/);
 });
