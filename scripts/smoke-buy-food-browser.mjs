@@ -197,6 +197,30 @@ async function run() {
     ]);
     await waitFor("document.readyState === 'complete' && Boolean(window.__ASYMPTA_DEMO__) && Boolean(document.querySelector('form.asympta-intent-composer'))", 15_000, "Asympta app bridges");
 
+    // Capture proof synchronously at the canonical completion receipt. The app
+    // intentionally remounts its live workflow runtime in the next microtask,
+    // so evidence belongs to the receipt while the visible runtime becomes idle.
+    await evaluate(`(() => {
+      window.__ASYMPTA_SMOKE_COMPLETIONS__ = [];
+      window.__ASYMPTA_SMOKE_RESETS__ = [];
+      window.addEventListener('asympta:completion-receipt', (event) => {
+        const worldValue = window.__ASYMPTA_DEMO__?.snapshot?.();
+        const world = worldValue?.foreground ?? worldValue ?? null;
+        const execution = window.__ASYMPTA_MARKETPLACE__?.snapshot?.() ?? null;
+        window.__ASYMPTA_SMOKE_COMPLETIONS__.push(JSON.parse(JSON.stringify({
+          receipt: event.detail ?? null,
+          world,
+          execution,
+          requestCardVisible: Boolean(document.querySelector('.asympta-request-card')),
+          bodyText: document.body?.innerText ?? ''
+        })));
+      });
+      window.addEventListener('asympta:workflow-runtime-reset', (event) => {
+        window.__ASYMPTA_SMOKE_RESETS__.push(JSON.parse(JSON.stringify(event.detail ?? null)));
+      });
+      return true;
+    })()`);
+
     await evaluate(`(async () => {
       const form = document.querySelector('form.asympta-intent-composer');
       const textarea = form?.querySelector('textarea');
@@ -267,8 +291,16 @@ async function run() {
       throw new Error('Buy some food never reached workflow completion.');
     })()`, true);
 
-    await waitFor("window.__ASYMPTA_MARKETPLACE__?.snapshot?.()?.status === 'completed'", 8_000, "marketplace completion state");
+    await waitFor("(window.__ASYMPTA_SMOKE_COMPLETIONS__?.length ?? 0) >= 1", 8_000, "food completion receipt capture");
+    await waitFor("(window.__ASYMPTA_SMOKE_RESETS__?.length ?? 0) >= 1", 8_000, "food runtime reset");
     await waitFor("Boolean(document.querySelector('.asympta-screen-celebration__content'))", 8_000, "full-screen completion celebration");
+    await waitFor(`(() => {
+      const value = window.__ASYMPTA_DEMO__?.snapshot?.();
+      const world = value?.foreground ?? value;
+      return world?.phase === 'idle'
+        && (world?.tasks?.length ?? 0) === 0
+        && (world?.pendingApprovals?.length ?? 0) === 0;
+    })()`, 8_000, "clean idle world after food completion");
     await waitFor(`(() => {
       const overlay = document.querySelector('.asympta-screen-celebration');
       const content = document.querySelector('.asympta-screen-celebration__content');
@@ -283,19 +315,26 @@ async function run() {
         && Number(contentStyle.opacity || 1) > .2;
     })()`, 4_000, "visible completion celebration entrance");
 
-    const state = JSON.parse(await evaluate(`JSON.stringify((() => {
+    const foodState = JSON.parse(await evaluate(`JSON.stringify((() => {
+      const completed = window.__ASYMPTA_SMOKE_COMPLETIONS__?.[0] ?? null;
+      const reset = window.__ASYMPTA_SMOKE_RESETS__?.[0] ?? null;
       const worldValue = window.__ASYMPTA_DEMO__?.snapshot?.();
-      const world = worldValue?.foreground ?? worldValue ?? null;
-      const execution = window.__ASYMPTA_MARKETPLACE__?.snapshot?.() ?? null;
+      const liveWorld = worldValue?.foreground ?? worldValue ?? null;
+      const liveExecution = window.__ASYMPTA_MARKETPLACE__?.snapshot?.() ?? null;
+      const execution = completed?.execution ?? null;
+      const world = completed?.world ?? null;
       const celebration = document.querySelector('.asympta-screen-celebration');
       const content = document.querySelector('.asympta-screen-celebration__content');
       const style = content ? getComputedStyle(content) : null;
       const overlayStyle = celebration ? getComputedStyle(celebration) : null;
       return {
-        worldPhase: world?.phase ?? null,
-        workflowId: world?.workflowId ?? null,
-        unfinishedTasks: (world?.tasks ?? []).filter((task) => task.status !== 'done').map((task) => [task.id, task.status]),
-        pendingApprovals: world?.pendingApprovals ?? [],
+        receiptId: completed?.receipt?.id ?? null,
+        receiptRequestId: completed?.receipt?.requestId ?? null,
+        resetCompletionId: reset?.completionId ?? null,
+        completedWorldPhase: world?.phase ?? null,
+        completedWorkflowId: world?.workflowId ?? null,
+        completedUnfinishedTasks: (world?.tasks ?? []).filter((task) => task.status !== 'done').map((task) => [task.id, task.status]),
+        completedPendingApprovals: world?.pendingApprovals ?? [],
         executionStatus: execution?.status ?? null,
         requestId: execution?.envelope?.requestId ?? null,
         requestText: execution?.envelope?.rawMessage?.text ?? null,
@@ -304,42 +343,51 @@ async function run() {
         cargo: (execution?.ledger ?? []).reduce((sum, line) => sum + Number(line.carrierCargo ?? 0), 0),
         transactionStatuses: (execution?.transactions ?? []).map((transaction) => [transaction.status, transaction.payment]),
         packetKinds: (execution?.packets ?? []).map((packet) => packet.kind),
+        requestWasInspectableAtReceipt: completed?.requestCardVisible === true && String(completed?.bodyText ?? '').includes('Buy some food'),
+        liveWorldPhase: liveWorld?.phase ?? null,
+        liveTaskCount: liveWorld?.tasks?.length ?? null,
+        livePendingApprovalCount: liveWorld?.pendingApprovals?.length ?? null,
+        liveExecutionStatus: liveExecution?.status ?? null,
         celebrationId: celebration?.dataset?.completionId ?? null,
         celebrationVerification: celebration?.dataset?.verification ?? null,
         celebrationTitle: document.querySelector('.asympta-screen-celebration__title')?.textContent?.trim() ?? null,
         celebrationSummary: document.querySelector('.asympta-screen-celebration__summary')?.textContent?.trim() ?? null,
         celebrationVisible: Boolean(content && style && overlayStyle && style.display !== 'none' && style.visibility !== 'hidden' && overlayStyle.display !== 'none' && overlayStyle.visibility !== 'hidden' && Number(style.opacity || 1) > .2 && Number(overlayStyle.opacity || 1) > .2 && content.getBoundingClientRect().width > 0),
-        requestCardVisible: Boolean(document.querySelector('.asympta-request-card')),
-        bodyText: document.body?.innerText ?? ''
+        liveRequestCardVisible: Boolean(document.querySelector('.asympta-request-card'))
       };
     })())`));
 
-    if (state.worldPhase !== "completed" || state.workflowId !== "marketplace-intent" || state.unfinishedTasks.length || state.pendingApprovals.length) {
-      throw new Error(`Buy-food world did not settle: ${JSON.stringify(state)}`);
+    if (foodState.completedWorldPhase !== "completed" || foodState.completedWorkflowId !== "marketplace-intent" || foodState.completedUnfinishedTasks.length || foodState.completedPendingApprovals.length) {
+      throw new Error(`Buy-food completion receipt lacked settled world proof: ${JSON.stringify(foodState)}`);
     }
-    if (state.executionStatus !== "completed" || state.userInventory < 1 || state.reserved !== 0 || state.cargo !== 0) {
-      throw new Error(`Buy-food marketplace did not deliver: ${JSON.stringify(state)}`);
+    if (foodState.executionStatus !== "completed" || foodState.userInventory < 1 || foodState.reserved !== 0 || foodState.cargo !== 0) {
+      throw new Error(`Buy-food completion receipt lacked delivery proof: ${JSON.stringify(foodState)}`);
     }
-    if (!state.transactionStatuses.every(([status, payment]) => status === "completed" && payment === "authorized")) {
-      throw new Error(`Buy-food transaction is incomplete: ${JSON.stringify(state.transactionStatuses)}`);
+    if (!foodState.transactionStatuses.every(([status, payment]) => status === "completed" && payment === "authorized")) {
+      throw new Error(`Buy-food transaction is incomplete: ${JSON.stringify(foodState.transactionStatuses)}`);
     }
     for (const kind of ["approval_request", "payment_authorized", "goods_handoff", "delivery_receipt"]) {
-      if (!state.packetKinds.includes(kind)) throw new Error(`Buy-food packet ${kind} is missing: ${JSON.stringify(state.packetKinds)}`);
+      if (!foodState.packetKinds.includes(kind)) throw new Error(`Buy-food packet ${kind} is missing: ${JSON.stringify(foodState.packetKinds)}`);
     }
-    if (!state.requestCardVisible || !state.bodyText.includes("Buy some food")) {
-      throw new Error(`Buy-food current request is not inspectable: ${JSON.stringify(state)}`);
+    if (!foodState.requestWasInspectableAtReceipt) {
+      throw new Error(`Buy-food request was not inspectable at verified completion: ${JSON.stringify(foodState)}`);
     }
-    if (!state.celebrationVisible || state.celebrationVerification !== "verified" || state.celebrationId !== `request:${state.requestId}`) {
-      throw new Error(`Verified full-screen celebration did not appear: ${JSON.stringify(state)}`);
+    if (foodState.liveWorldPhase !== "idle" || foodState.liveTaskCount !== 0 || foodState.livePendingApprovalCount !== 0 || foodState.liveExecutionStatus !== null || foodState.liveRequestCardVisible) {
+      throw new Error(`Buy-food live workflow state did not reset cleanly: ${JSON.stringify(foodState)}`);
     }
-    if (!state.celebrationTitle || !state.celebrationSummary) {
-      throw new Error(`Celebration content is incomplete: ${JSON.stringify(state)}`);
+    if (!foodState.receiptId || foodState.resetCompletionId !== foodState.receiptId || foodState.receiptRequestId !== foodState.requestId) {
+      throw new Error(`Buy-food reset was not tied to the verified receipt: ${JSON.stringify(foodState)}`);
+    }
+    if (!foodState.celebrationVisible || foodState.celebrationVerification !== "verified" || foodState.celebrationId !== foodState.receiptId) {
+      throw new Error(`Verified full-screen celebration did not survive runtime reset: ${JSON.stringify(foodState)}`);
+    }
+    if (!foodState.celebrationTitle || !foodState.celebrationSummary) {
+      throw new Error(`Celebration content is incomplete: ${JSON.stringify(foodState)}`);
     }
 
-    // Regression: a generic physical product must not fall back to the public
-    // agent, complete after a preference click, or leave the top-right profile
-    // card covering the new workflow. Exercise the exact reported guitar path
-    // with no saved marketplace profile.
+    // Regression: a generic physical product must start from the clean post-food
+    // runtime, clear the old celebration, collect missing preferences, and then
+    // run a completely new merchant/supplier/delivery workflow.
     await evaluate(`(() => {
       localStorage.removeItem('asympta-world.user-preferences.v1');
       const form = document.querySelector('form.asympta-intent-composer');
@@ -452,30 +500,51 @@ async function run() {
       throw new Error('Buy a guitar never reached workflow completion.');
     })()`, true);
 
-    await waitFor(
-      "window.__ASYMPTA_MARKETPLACE__?.snapshot?.()?.status === 'completed'",
-      8_000,
-      "guitar evidence-backed completion",
-    );
+    await waitFor("(window.__ASYMPTA_SMOKE_COMPLETIONS__?.length ?? 0) >= 2", 8_000, "guitar completion receipt capture");
+    await waitFor("(window.__ASYMPTA_SMOKE_RESETS__?.length ?? 0) >= 2", 8_000, "guitar runtime reset");
+    await waitFor(`(() => {
+      const value = window.__ASYMPTA_DEMO__?.snapshot?.();
+      const world = value?.foreground ?? value;
+      return world?.phase === 'idle' && (world?.tasks?.length ?? 0) === 0;
+    })()`, 8_000, "clean idle world after guitar completion");
+
     const guitarEnd = JSON.parse(await evaluate(`JSON.stringify((() => {
-      const execution = window.__ASYMPTA_MARKETPLACE__?.snapshot?.() ?? null;
+      const completed = window.__ASYMPTA_SMOKE_COMPLETIONS__?.[1] ?? null;
+      const reset = window.__ASYMPTA_SMOKE_RESETS__?.[1] ?? null;
+      const execution = completed?.execution ?? null;
+      const worldValue = window.__ASYMPTA_DEMO__?.snapshot?.();
+      const liveWorld = worldValue?.foreground ?? worldValue ?? null;
       return {
+        receiptId: completed?.receipt?.id ?? null,
+        resetCompletionId: reset?.completionId ?? null,
         status: execution?.status ?? null,
+        requestText: execution?.envelope?.rawMessage?.text ?? null,
         userInventory: execution?.ledger?.[0]?.userInventory ?? null,
         reserved: execution?.ledger?.[0]?.marketReserved ?? null,
         cargo: execution?.ledger?.[0]?.carrierCargo ?? null,
         transaction: execution?.transactions?.[0] ?? null,
-        packetKinds: (execution?.packets ?? []).map((packet) => packet.kind)
+        packetKinds: (execution?.packets ?? []).map((packet) => packet.kind),
+        liveWorldPhase: liveWorld?.phase ?? null,
+        liveTaskCount: liveWorld?.tasks?.length ?? null,
+        liveExecution: window.__ASYMPTA_MARKETPLACE__?.snapshot?.() ?? null,
+        celebrationId: document.querySelector('.asympta-screen-celebration')?.dataset?.completionId ?? null,
+        celebrationVerification: document.querySelector('.asympta-screen-celebration')?.dataset?.verification ?? null
       };
     })())`));
-    if (guitarEnd.status !== "completed" || guitarEnd.userInventory !== 1 || guitarEnd.reserved !== 0 || guitarEnd.cargo !== 0) {
-      throw new Error(`Buy a guitar did not finish through delivery: ${JSON.stringify(guitarEnd)}`);
+    if (guitarEnd.status !== "completed" || guitarEnd.requestText !== "Buy a guitar" || guitarEnd.userInventory !== 1 || guitarEnd.reserved !== 0 || guitarEnd.cargo !== 0) {
+      throw new Error(`Buy a guitar completion receipt lacked delivery proof: ${JSON.stringify(guitarEnd)}`);
     }
     if (guitarEnd.transaction?.status !== "completed" || guitarEnd.transaction?.payment !== "authorized") {
       throw new Error(`Buy a guitar transaction is incomplete: ${JSON.stringify(guitarEnd.transaction)}`);
     }
     for (const kind of ["enquiry", "availability", "offer", "approval_request", "payment_authorized", "goods_handoff", "delivery_receipt", "verification"]) {
       if (!guitarEnd.packetKinds.includes(kind)) throw new Error(`Buy a guitar packet ${kind} is missing: ${JSON.stringify(guitarEnd.packetKinds)}`);
+    }
+    if (!guitarEnd.receiptId || guitarEnd.resetCompletionId !== guitarEnd.receiptId || guitarEnd.liveWorldPhase !== "idle" || guitarEnd.liveTaskCount !== 0 || guitarEnd.liveExecution !== null) {
+      throw new Error(`Buy a guitar did not reset to a clean live runtime: ${JSON.stringify(guitarEnd)}`);
+    }
+    if (guitarEnd.celebrationId !== guitarEnd.receiptId || guitarEnd.celebrationVerification !== "verified") {
+      throw new Error(`Buy a guitar celebration did not survive runtime reset: ${JSON.stringify(guitarEnd)}`);
     }
     if (exceptions.length) {
       throw new Error(`Browser runtime exception(s):\n${exceptions.join("\n---\n")}`);
@@ -484,7 +553,7 @@ async function run() {
       throw new Error(`Browser console error(s):\n${consoleErrors.join("\n")}`);
     }
 
-    console.log(`Marketplace browser smoke passed: Buy some food and Buy a guitar both required agent, merchant, supplier, approval, handoff, delivery and verification evidence.`);
+    console.log("Marketplace browser smoke passed: verified completion receipts preserve celebration proof while each finished workflow resets to a clean idle runtime before the next request.");
     socket.close();
   } finally {
     chrome.kill("SIGTERM");
