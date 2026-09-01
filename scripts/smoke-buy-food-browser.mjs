@@ -297,6 +297,7 @@ async function run() {
         unfinishedTasks: (world?.tasks ?? []).filter((task) => task.status !== 'done').map((task) => [task.id, task.status]),
         pendingApprovals: world?.pendingApprovals ?? [],
         executionStatus: execution?.status ?? null,
+        executionId: execution?.executionId ?? null,
         requestId: execution?.envelope?.requestId ?? null,
         requestText: execution?.envelope?.rawMessage?.text ?? null,
         userInventory: (execution?.ledger ?? []).reduce((sum, line) => sum + Number(line.userInventory ?? 0), 0),
@@ -335,6 +336,51 @@ async function run() {
     if (!state.celebrationTitle || !state.celebrationSummary) {
       throw new Error(`Celebration content is incomplete: ${JSON.stringify(state)}`);
     }
+
+    await evaluate(`(async () => {
+      const form = document.querySelector('form.asympta-intent-composer');
+      const textarea = form?.querySelector('textarea');
+      if (!form || !textarea) throw new Error('Intent composer is unavailable for the next task.');
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+      if (setter) setter.call(textarea, 'Buy an apple');
+      else textarea.value = 'Buy an apple';
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      form.dispatchEvent(new SubmitEvent('submit', { bubbles: true, cancelable: true }));
+      return true;
+    })()`, true);
+
+    await waitFor(
+      `typeof window.__ASYMPTA_MARKETPLACE__?.snapshot?.()?.executionId === 'string' && window.__ASYMPTA_MARKETPLACE__?.snapshot?.()?.executionId !== ${JSON.stringify(state.executionId)}`,
+      15_000,
+      "next marketplace execution",
+    );
+    await waitFor(`(() => {
+      const start = document.querySelector('.asympta-workflow-start-celebration');
+      if (!start || start.getBoundingClientRect().width <= 0) return false;
+      const style = getComputedStyle(start);
+      return style.display !== 'none'
+        && style.visibility !== 'hidden'
+        && Number(style.opacity || 1) > .2;
+    })()`, 4_000, "visible compact start celebration");
+
+    const nextTaskCelebration = JSON.parse(await evaluate(`JSON.stringify((() => {
+      const start = document.querySelector('.asympta-workflow-start-celebration');
+      const startStyle = start ? getComputedStyle(start) : null;
+      return {
+        fullScreenCards: document.querySelectorAll('.asympta-screen-celebration').length,
+        bodyCelebrating: document.body.dataset.asymptaCelebrating ?? null,
+        startVisible: Boolean(start && startStyle && startStyle.display !== 'none' && startStyle.visibility !== 'hidden' && Number(startStyle.opacity || 1) > .2 && start.getBoundingClientRect().width > 0),
+        startTitle: start?.querySelector('strong')?.textContent?.trim() ?? null,
+        executionId: window.__ASYMPTA_MARKETPLACE__?.snapshot?.()?.executionId ?? null,
+      };
+    })())`));
+    if (nextTaskCelebration.fullScreenCards !== 0 || nextTaskCelebration.bodyCelebrating !== null) {
+      throw new Error(`The previous finish celebration covered the next task start: ${JSON.stringify(nextTaskCelebration)}`);
+    }
+    if (!nextTaskCelebration.startVisible || nextTaskCelebration.startTitle !== "Buy an apple" || nextTaskCelebration.executionId === state.executionId) {
+      throw new Error(`The next task did not receive only the compact start celebration: ${JSON.stringify(nextTaskCelebration)}`);
+    }
     if (exceptions.length) {
       throw new Error(`Browser runtime exception(s):\n${exceptions.join("\n---\n")}`);
     }
@@ -342,7 +388,7 @@ async function run() {
       throw new Error(`Browser console error(s):\n${consoleErrors.join("\n")}`);
     }
 
-    console.log(`Buy some food browser smoke passed: one confirmed payment, delivered inventory ${state.userInventory}, verified receipt and full-screen celebration ${state.celebrationId}.`);
+    console.log(`Buy some food browser smoke passed: one confirmed payment, delivered inventory ${state.userInventory}, verified finish celebration ${state.celebrationId}, then a clean compact start celebration for the next task.`);
     socket.close();
   } finally {
     chrome.kill("SIGTERM");
