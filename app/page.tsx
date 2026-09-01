@@ -30,6 +30,7 @@ import { AsymptaUniversalBenchmarkBridge } from "@/components/asympta-universal-
 import { AsymptaUnsafeProposalRecovery } from "@/components/asympta-unsafe-proposal-recovery";
 import { AsymptaUserPreferences } from "@/components/asympta-user-preferences";
 import { AsymptaWebMcpTools } from "@/components/asympta-webmcp-tools";
+import { AsymptaWebMcpToolSurface } from "@/components/asympta-webmcp-tool-surface";
 import { AsymptaWorkflowContinuation } from "@/components/asympta-workflow-continuation";
 import { AsymptaWorkflowRuntimeBoundary } from "@/components/asympta-workflow-runtime-boundary";
 import { AsymptaWorldLive60Hz } from "@/components/asympta-world-live-60hz";
@@ -72,6 +73,7 @@ export default function HomePage() {
       </AsymptaWorkflowRuntimeBoundary>
 
       <AsymptaTaskCelebration />
+      <AsymptaWebMcpToolSurface />
       <AsymptaCalmDefaults />
       <AsymptaUltraCalm />
       <AsymptaAgentCardLocale />
