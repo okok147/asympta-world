@@ -6,6 +6,7 @@ import {
   subscribeAsymptaCompletionReceipts,
   type AsymptaCompletionReceipt,
 } from "@/lib/asympta-completion-receipt";
+import { prepareAtlasDemoWorkflowReset } from "@/lib/atlas-demo";
 
 export const ASYMPTA_WORKFLOW_RUNTIME_RESET_EVENT = "asympta:workflow-runtime-reset" as const;
 
@@ -19,17 +20,22 @@ export type AsymptaWorkflowRuntimeResetSignal = {
 
 type Props = {
   children: ReactNode;
+  prepareWorldReset?: boolean;
+  emitResetSignal?: boolean;
 };
 
 const MAX_RESET_RECEIPTS = 160;
 
 /**
  * Completion receipts are the only verified finish boundary in the UI.
- * Keep the celebration/coordinator outside this component, then remount the
- * task runtime behind the celebration so a completed run cannot leak state
- * into the next request.
+ * The celebration/coordinator stay outside these reset scopes, while task
+ * runtime scopes remount behind them so completed state cannot leak forward.
  */
-export function AsymptaWorkflowRuntimeBoundary({ children }: Props) {
+export function AsymptaWorkflowRuntimeBoundary({
+  children,
+  prepareWorldReset = false,
+  emitResetSignal = false,
+}: Props) {
   const [generation, setGeneration] = useState(0);
   const seenReceiptIdsRef = useRef<string[]>([]);
   const resetQueuedRef = useRef(false);
@@ -46,25 +52,28 @@ export function AsymptaWorkflowRuntimeBoundary({ children }: Props) {
       completedAt: receipt.completedAt,
     };
 
-    // Completion receipt dispatch is synchronous. Defer the remount until all
-    // receipt listeners (especially the full-screen celebration) have captured
-    // the verified result. The celebration then stays mounted above a clean,
-    // idle runtime instead of being destroyed with the completed workflow.
+    // Receipt delivery is synchronous. Every receipt listener, especially the
+    // full-screen celebration, captures the verified result before this remount.
     if (resetQueuedRef.current) return;
     resetQueuedRef.current = true;
     queueMicrotask(() => {
       resetQueuedRef.current = false;
       const signal = pendingSignalRef.current;
       pendingSignalRef.current = null;
+
+      // Only the scope that owns AsymptaWorldLive60Hz arms the one-shot idle
+      // world. Initial page load still boots the living demo as before.
+      if (prepareWorldReset) prepareAtlasDemoWorkflowReset();
       setGeneration((value) => value + 1);
-      if (signal) {
+
+      if (emitResetSignal && signal) {
         window.dispatchEvent(new CustomEvent<AsymptaWorkflowRuntimeResetSignal>(
           ASYMPTA_WORKFLOW_RUNTIME_RESET_EVENT,
           { detail: signal },
         ));
       }
     });
-  }), []);
+  }), [emitResetSignal, prepareWorldReset]);
 
   return <Fragment key={generation}>{children}</Fragment>;
 }
