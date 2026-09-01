@@ -24,6 +24,7 @@ import {
   seedAsymptaWorkflowLifecycle,
   type AsymptaWorkflowLifecycleObservation,
 } from "@/lib/asympta-workflow-lifecycle";
+import { TASK_WORLD_WORKFLOW_ID } from "@/lib/asympta-task-world-workflow";
 
 type ActivityDetail = {
   activity?: AsymptaActivity;
@@ -136,7 +137,10 @@ export function AsymptaCompletionCoordinator() {
       if (!observation || !snapshot) return;
       const transition = observeAsymptaWorkflowLifecycle(lifecycleRef.current, observation);
       if (transition.start) publishAsymptaWorkflowStart(transition.start);
-      if (transition.completionRunId) {
+      // Task Kernel-owned Atlas runs keep the lifecycle start signal, but
+      // publish their one completion receipt through the verified activity
+      // outcome. This prevents two finish celebrations for the same task.
+      if (transition.completionRunId && observation.workflowId !== String(TASK_WORLD_WORKFLOW_ID)) {
         publishOnce(bindWorkflowReceiptToRun(
           completionReceiptFromWorkflowSnapshot(snapshot),
           transition.completionRunId,

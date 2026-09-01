@@ -8,6 +8,13 @@ import {
   taskToAdaptiveInteractionSchema,
 } from "./asympta-managed-task-kernel.ts";
 import type { AdaptiveInteractionSchema } from "./asympta-adaptive-interaction.ts";
+import {
+  activeTaskWorldTask,
+  taskWorldCompletionSummary,
+  taskWorldProgressPhase,
+  taskWorldSnapshotBelongsToTask,
+  type TaskWorldWorkflowSnapshot,
+} from "./asympta-task-world-workflow.ts";
 import type {
   AnswerRequirementCommand,
   ApproveTaskCommand,
@@ -17,6 +24,7 @@ import type {
   CancelTaskCommand,
   CreateAsymptaTaskInput,
 } from "./asympta-task-kernel-types.ts";
+import type { AtlasWorkflowDefinition } from "./atlas-simulation.ts";
 
 export const ASYMPTA_TASK_KERNEL_EVENT = "asympta:task-kernel" as const;
 const STORAGE_KEY = "asympta.task-kernel.v2";
@@ -39,6 +47,29 @@ function taskChanged(left: AsymptaTaskState, right: AsymptaTaskState) {
     || left.phase !== right.phase
     || left.liveness.state !== right.liveness.state
     || left.liveness.nextAttemptAt !== right.liveness.nextAttemptAt;
+}
+
+function worldWorkflowActive(task: AsymptaTaskState) {
+  return Boolean(task.worldWorkflow && task.worldWorkflow.status !== "completed");
+}
+
+function appendWorldEvent(
+  task: AsymptaTaskState,
+  kind: "phase_changed" | "outcome_recorded" | "task_completed",
+  actorId: string,
+  summary: string,
+  data?: Record<string, unknown>,
+) {
+  task.events.push({
+    id: `${task.taskId}:event:${task.events.length + 1}`,
+    taskId: task.taskId,
+    revision: task.revision,
+    kind,
+    actorId,
+    summary,
+    ...(data ? { data } : {}),
+    at: task.updatedAt,
+  });
 }
 
 export type AsymptaTaskKernelBrowserBridge = {
@@ -135,17 +166,18 @@ export class BrowserAsymptaTaskKernel {
 
   private scheduleResume(task: AsymptaTaskState) {
     if (typeof window === "undefined") return;
-    this.clearResume(task.taskId);
-    if (terminal(task) || task.phase === "awaiting_human" || task.phase === "awaiting_approval") return;
-    const requestedAt = task.liveness.nextAttemptAt
-      ? new Date(task.liveness.nextAttemptAt).getTime()
+    const current = this.tasks.get(task.taskId) ?? task;
+    this.clearResume(current.taskId);
+    if (terminal(current) || current.phase === "awaiting_human" || current.phase === "awaiting_approval" || worldWorkflowActive(current)) return;
+    const requestedAt = current.liveness.nextAttemptAt
+      ? new Date(current.liveness.nextAttemptAt).getTime()
       : Date.now();
     const delay = Math.min(30_000, Math.max(10, requestedAt - Date.now()));
     const timer = window.setTimeout(() => {
       this.resumeTimers.delete(task.taskId);
       this.resume(task.taskId);
     }, delay);
-    this.resumeTimers.set(task.taskId, timer);
+    this.resumeTimers.set(current.taskId, timer);
   }
 
   private commit(reason: AsymptaTaskKernelUpdateReason, task: AsymptaTaskState, previous: AsymptaTaskState | null) {
@@ -177,9 +209,12 @@ export class BrowserAsymptaTaskKernel {
   answerRequirement(command: AnswerRequirementCommand) {
     const current = this.tasks.get(command.taskId);
     if (!current) throw new Error(`Task ${command.taskId} was not found.`);
-    const next = answerTaskRequirement(current, command);
+    // Browser tasks pause at planning so the visible Atlas world can own the
+    // execution. Server-side callers retain the core's automatic continuation.
+    const next = answerTaskRequirement(current, { ...command, deferCoordination: true });
     if (next === current) return cloneTask(current);
-    return this.commit("answered", next, current);
+    const committed = this.commit("answered", next, current);
+    return this.getTask(command.taskId) ?? committed;
   }
 
   approve(command: ApproveTaskCommand) {
@@ -198,11 +233,240 @@ export class BrowserAsymptaTaskKernel {
     return this.commit("cancelled", next, current);
   }
 
+  beginWorldWorkflow(taskId: string, workflow: AtlasWorkflowDefinition, runId: string) {
+    const current = this.tasks.get(taskId);
+    if (!current || terminal(current)) return current ? cloneTask(current) : null;
+    if (current.requirements.some((requirement) => requirement.status === "unknown")) return cloneTask(current);
+    if (current.completion.requiresApproval || current.completion.requiresReceipt) return cloneTask(current);
+    if (current.worldWorkflow?.runId === runId && worldWorkflowActive(current)) return cloneTask(current);
+
+    const next = cloneTask(current);
+    next.revision += 1;
+    next.updatedAt = new Date().toISOString();
+    next.phase = "coordinating";
+    next.liveness.state = "waiting_external";
+    next.liveness.lastProgressRevision = next.revision;
+    next.liveness.lastProgressAt = next.updatedAt;
+    delete next.liveness.nextAttemptAt;
+    delete next.liveness.obstacle;
+    const agentIds = [...new Set(workflow.tasks.map((task) => task.agentId))];
+    next.worldWorkflow = {
+      driver: "atlas_world",
+      workflowId: String(workflow.id),
+      runId,
+      name: workflow.name,
+      status: "queued",
+      activeTaskId: null,
+      activeTaskTitle: null,
+      activeAgentId: null,
+      completedTaskCount: 0,
+      totalTaskCount: workflow.tasks.length,
+      agentIds,
+      startedAt: next.updatedAt,
+      updatedAt: next.updatedAt,
+    };
+    next.plan = {
+      id: `${next.taskId}:plan:atlas-world`,
+      summary: workflow.summary,
+      steps: workflow.tasks.map((task) => ({
+        id: task.id,
+        title: task.title,
+        ownerAgentId: task.agentId,
+        capability: `atlas.world.${task.id.split("-").at(-1) ?? "coordinate"}`,
+        status: "queued",
+      })),
+      proposal: {
+        workflowId: String(workflow.id),
+        runId,
+        confirmedRequirementIds: next.requirements
+          .filter((requirement) => requirement.status !== "unknown")
+          .map((requirement) => requirement.id),
+      },
+      createdBy: "atlas-world-coordinator",
+      createdAt: next.updatedAt,
+    };
+    appendWorldEvent(next, "phase_changed", "agent-operations", workflow.summary, {
+      phase: next.phase,
+      workflowId: String(workflow.id),
+      runId,
+    });
+    return this.commit("agent_progress", next, current);
+  }
+
+  observeWorldWorkflow(taskId: string, snapshot: TaskWorldWorkflowSnapshot) {
+    const current = this.tasks.get(taskId);
+    if (!current?.worldWorkflow || terminal(current) || !taskWorldSnapshotBelongsToTask(snapshot, current)) {
+      return current ? cloneTask(current) : null;
+    }
+    if (snapshot.phase === "completed") return this.completeWorldWorkflow(taskId, snapshot);
+
+    const active = activeTaskWorldTask(snapshot);
+    const completedTaskCount = snapshot.tasks.filter((task) => task.status === "done").length;
+    const status = snapshot.phase.startsWith("block")
+      ? "blocked"
+      : snapshot.phase === "waiting_approval"
+        ? "waiting_approval"
+        : "running";
+    const unchanged = current.worldWorkflow.status === status
+      && current.worldWorkflow.activeTaskId === (active?.id ?? null)
+      && current.worldWorkflow.completedTaskCount === completedTaskCount;
+    if (unchanged) return cloneTask(current);
+
+    const next = cloneTask(current);
+    next.revision += 1;
+    next.updatedAt = new Date().toISOString();
+    next.phase = taskWorldProgressPhase(snapshot);
+    next.worldWorkflow = {
+      ...current.worldWorkflow,
+      status,
+      activeTaskId: active?.id ?? null,
+      activeTaskTitle: active?.title ?? null,
+      activeAgentId: active?.agentId ?? null,
+      completedTaskCount,
+      updatedAt: next.updatedAt,
+    };
+    if (next.plan) {
+      next.plan.steps = next.plan.steps.map((step) => {
+        const observed = snapshot.tasks.find((task) => task.id === step.id);
+        return {
+          ...step,
+          status: observed?.status === "done"
+            ? "completed"
+            : observed?.status === "blocked"
+              ? "blocked"
+              : "queued",
+        };
+      });
+    }
+    next.liveness.state = "waiting_external";
+    next.liveness.lastProgressRevision = next.revision;
+    next.liveness.lastProgressAt = next.updatedAt;
+    delete next.liveness.nextAttemptAt;
+    if (status === "blocked") {
+      next.liveness.obstacle = {
+        code: "atlas_world_blocked",
+        message: "The visible agent workflow is blocked and remains recoverable.",
+        recoverable: true,
+        at: next.updatedAt,
+      };
+    } else {
+      delete next.liveness.obstacle;
+    }
+    const summary = active?.title ?? "The visible agent workflow is continuing.";
+    appendWorldEvent(next, "phase_changed", active?.agentId ?? "agent-operations", summary, {
+      phase: next.phase,
+      workflowId: next.worldWorkflow.workflowId,
+      activeTaskId: active?.id ?? null,
+      completedTaskCount,
+      totalTaskCount: next.worldWorkflow.totalTaskCount,
+    });
+    return this.commit("agent_progress", next, current);
+  }
+
+  completeWorldWorkflow(taskId: string, snapshot: TaskWorldWorkflowSnapshot) {
+    const current = this.tasks.get(taskId);
+    if (!current?.worldWorkflow || terminal(current) || !taskWorldSnapshotBelongsToTask(snapshot, current)) {
+      return current ? cloneTask(current) : null;
+    }
+    const worldWorkflow = current.worldWorkflow;
+    const allTasksDone = snapshot.phase === "completed"
+      && snapshot.tasks.length === worldWorkflow.totalTaskCount
+      && snapshot.tasks.every((task) => task.status === "done");
+    if (!allTasksDone || current.completion.requiresApproval || current.completion.requiresReceipt) return cloneTask(current);
+
+    const next = cloneTask(current);
+    next.revision += 1;
+    next.updatedAt = new Date().toISOString();
+    const summary = taskWorldCompletionSummary(next);
+    const evidenceId = `${next.taskId}:evidence:atlas-world:${next.evidence.length + 1}`;
+    const outcomeId = `${next.taskId}:outcome:atlas-world`;
+    next.evidence.push({
+      id: evidenceId,
+      source: "atlas-world",
+      kind: "verification",
+      summary,
+      simulated: true,
+      verified: true,
+      value: {
+        simulated: true,
+        workflowId: worldWorkflow.workflowId,
+        runId: worldWorkflow.runId,
+        tasks: snapshot.tasks.map((task) => ({ id: task.id, agentId: task.agentId, status: task.status })),
+      },
+      createdAt: next.updatedAt,
+    });
+    next.worldWorkflow = {
+      ...worldWorkflow,
+      status: "completed",
+      activeTaskId: null,
+      activeTaskTitle: null,
+      activeAgentId: null,
+      completedTaskCount: snapshot.tasks.length,
+      updatedAt: next.updatedAt,
+      completedAt: next.updatedAt,
+    };
+    if (next.plan) {
+      next.plan.steps = next.plan.steps.map((step) => ({ ...step, status: "completed" }));
+    }
+    next.outcome = {
+      id: outcomeId,
+      kind: next.completion.outcomeKind,
+      status: "completed",
+      simulated: true,
+      provider: "atlas-world",
+      summary,
+      value: {
+        simulated: true,
+        workflowId: worldWorkflow.workflowId,
+        runId: worldWorkflow.runId,
+        verificationEvidenceId: evidenceId,
+      },
+      createdAt: next.updatedAt,
+      updatedAt: next.updatedAt,
+    };
+    next.result = {
+      completed: true,
+      simulated: true,
+      summary,
+      value: next.outcome.value,
+      verification: {
+        status: "verified",
+        criteria: {
+          requirementsResolved: next.requirements.every((requirement) => requirement.status !== "unknown"),
+          visibleWorkflowCompleted: true,
+          everyWorkflowTaskDone: true,
+        },
+        details: "The visible Atlas workflow completed every task after the required information was confirmed.",
+      },
+      completedAt: next.updatedAt,
+    };
+    next.phase = "completed";
+    next.failure = null;
+    next.liveness.state = "completed";
+    next.liveness.lastProgressRevision = next.revision;
+    next.liveness.lastProgressAt = next.updatedAt;
+    delete next.liveness.nextAttemptAt;
+    delete next.liveness.obstacle;
+    appendWorldEvent(next, "outcome_recorded", "agent-quality", summary, {
+      outcomeId,
+      workflowId: worldWorkflow.workflowId,
+      simulated: true,
+    });
+    appendWorldEvent(next, "task_completed", "agent-quality", summary, {
+      outcomeId,
+      evidenceId,
+      workflowId: worldWorkflow.workflowId,
+      simulated: true,
+    });
+    return this.commit("resumed", next, current);
+  }
+
   resume(taskId: string) {
     const current = this.tasks.get(taskId);
     if (!current || terminal(current) || current.phase === "awaiting_human" || current.phase === "awaiting_approval") {
       return current ? cloneTask(current) : null;
     }
+    if (worldWorkflowActive(current)) return cloneTask(current);
     const next = advanceAsymptaTask(current);
     if (!taskChanged(current, next)) {
       this.scheduleResume(current);

@@ -194,6 +194,23 @@ export type AsymptaTaskResult = {
   completedAt: string;
 };
 
+export type AsymptaTaskWorldWorkflow = {
+  driver: "atlas_world";
+  workflowId: string;
+  runId: string;
+  name: string;
+  status: "queued" | "running" | "waiting_approval" | "blocked" | "completed";
+  activeTaskId: string | null;
+  activeTaskTitle: string | null;
+  activeAgentId: string | null;
+  completedTaskCount: number;
+  totalTaskCount: number;
+  agentIds: string[];
+  startedAt: string;
+  updatedAt: string;
+  completedAt?: string;
+};
+
 export type AsymptaTaskEventKind =
   | "task_created"
   | "requirements_compiled"
@@ -259,6 +276,8 @@ export type AsymptaTaskState = {
   plan: AsymptaTaskPlan | null;
   outcome: AsymptaTaskOutcome | null;
   result: AsymptaTaskResult | null;
+  /** Browser-only projection into the visible Atlas world. */
+  worldWorkflow?: AsymptaTaskWorldWorkflow;
   failure: {
     code: string;
     message: string;
@@ -292,6 +311,8 @@ export type AnswerRequirementCommand = {
   label: string;
   actorId?: string;
   now?: string | number | Date;
+  /** Keep the resolved task at planning so a visible execution driver can claim it. */
+  deferCoordination?: boolean;
 };
 
 export type ApproveTaskCommand = {

@@ -577,6 +577,7 @@ export function answerTaskRequirement(task: AsymptaTaskState, command: AnswerReq
   }
 
   transition(next, "planning", "task-kernel", "All requirements are resolved; continuing the same task automatically.");
+  if (command.deferCoordination) return next;
   return advanceAsymptaTask(next);
 }
 
