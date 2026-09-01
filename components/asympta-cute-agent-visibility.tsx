@@ -10,10 +10,16 @@ type MapBridge = {
   flyTo: (options: Record<string, unknown>) => void;
 };
 
+type DemoBridge = {
+  snapshot: () => unknown;
+};
+
+type Point = { lon: number; lat: number };
+
 const SCALE_KEY = "asympta-world.scale.v1";
-const RESTORE_KEY = "asympta-world.cute-agents-restored.v1";
-const RETRY_MS = 120;
-const MAX_ATTEMPTS = 50;
+const RESTORE_KEY = "asympta-world.cute-agents-restored.v2";
+const RETRY_MS = 140;
+const MAX_ATTEMPTS = 64;
 const TOKYO_CENTER: [number, number] = [139.7544, 35.6762];
 const TOKYO_CUTE_AGENT_ZOOM = 12.2;
 
@@ -21,7 +27,49 @@ function browserWindow() {
   return window as unknown as Window & {
     __ASYMPTA_GLOBAL_WORLD__?: GlobalWorldBridge;
     __ASYMPTA_MAP__?: MapBridge;
+    __ASYMPTA_DEMO__?: DemoBridge;
   };
+}
+
+function record(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function activeAgentPoint(): Point | null {
+  const root = record(browserWindow().__ASYMPTA_DEMO__?.snapshot?.());
+  const foreground = record(root?.foreground);
+  if (!foreground || !Array.isArray(foreground.agents)) return null;
+  const agents = foreground.agents.map(record).filter((agent): agent is Record<string, unknown> => Boolean(agent));
+  const active = agents.find((agent) => ["moving", "working", "sharing", "returning"].includes(String(agent.status)))
+    ?? agents[0];
+  if (!active) return null;
+  const lon = Number(active.lon);
+  const lat = Number(active.lat);
+  return Number.isFinite(lon) && Number.isFinite(lat) ? { lon, lat } : null;
+}
+
+function foregroundMarkerVisible() {
+  const markers = [...document.querySelectorAll<HTMLElement>(".animal-map-marker--foreground")];
+  return markers.some((marker) => {
+    const rect = marker.getBoundingClientRect();
+    const style = getComputedStyle(marker);
+    return !marker.hidden
+      && style.display !== "none"
+      && style.visibility !== "hidden"
+      && Number(style.opacity || 1) > 0
+      && rect.width > 0
+      && rect.height > 0
+      && rect.right >= 0
+      && rect.bottom >= 0
+      && rect.left <= window.innerWidth
+      && rect.top <= window.innerHeight;
+  });
+}
+
+function markRestored() {
+  try { localStorage.setItem(RESTORE_KEY, "1"); } catch {}
 }
 
 export function AsymptaCuteAgentVisibility() {
@@ -30,11 +78,10 @@ export function AsymptaCuteAgentVisibility() {
     try {
       shouldRestore = localStorage.getItem(RESTORE_KEY) !== "1";
       if (shouldRestore) {
-        // The global layer historically defaulted to world scale, which moved the
-        // camera away from Tokyo and made the still-mounted animal agents appear
-        // to vanish. Migrate that old default back to the living city once.
+        // Keep the canonical living-city scale while the real map and foreground
+        // markers hydrate. Do not mark the migration complete until an agent is
+        // actually visible in the viewport.
         localStorage.setItem(SCALE_KEY, "city");
-        localStorage.setItem(RESTORE_KEY, "1");
       }
     } catch {
       shouldRestore = true;
@@ -50,26 +97,31 @@ export function AsymptaCuteAgentVisibility() {
       const bridge = currentWindow.__ASYMPTA_GLOBAL_WORLD__;
       const map = currentWindow.__ASYMPTA_MAP__;
 
-      // The global bridge can mount before MapLibre finishes constructing its
-      // real map instance. Treating the bridge alone as success leaves the
-      // foreground agent off-screen on fast hydration/remount paths. Only stop
-      // retrying after both coordination state and the actual camera are ready.
+      // MapLibre and the raster pencil tiles can become available before the
+      // foreground marker layer has finished mounting. Bridge availability alone
+      // is therefore not proof that the agents are visible.
       if (!bridge || !map) return false;
+      if (foregroundMarkerVisible()) {
+        markRestored();
+        return true;
+      }
 
       try {
-        bridge.setScale("city");
-        // Restore the original wider Tokyo living-city composition instead of the
-        // tighter global-layer city zoom, so foreground and ambient animals are
-        // visible together again.
+        if (document.documentElement.dataset.asymptaScale !== "city") bridge.setScale("city");
+        const active = activeAgentPoint();
+        const center: [number, number] = active ? [active.lon, active.lat] : TOKYO_CENTER;
         map.flyTo({
-          center: TOKYO_CENTER,
+          center,
           zoom: TOKYO_CUTE_AGENT_ZOOM,
           bearing: 0,
           pitch: 0,
-          duration: 520,
+          // First attempt keeps a gentle transition. Subsequent bounded retries
+          // use an immediate recenter so a slow raster/style hydration cannot
+          // continuously restart the same animation.
+          duration: attempts === 1 ? 420 : 0,
           essential: true,
         });
-        return true;
+        return false;
       } catch {
         return false;
       }
