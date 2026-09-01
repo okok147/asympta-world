@@ -134,9 +134,18 @@ export function createAtlasDemoWorld(now = Date.now()) {
     clearPersistedAtlasWorld();
     return createAtlasWorld(now);
   }
+
   const persisted = loadPersistedAtlasWorld();
-  // A blocked world is still the same world. Never silently replace it with a new
-  // custom-order workflow; the escalation layer must resolve it in place.
+  // A verified completed workflow is historical evidence, never the next active
+  // workflow. This also repairs sessions that persisted completion before the
+  // runtime-reset boundary existed.
+  if (persisted?.phase === "completed") {
+    clearPersistedAtlasWorld();
+    return createAtlasWorld(now);
+  }
+
+  // A blocked/in-progress world is still the same world. Never silently replace
+  // recoverable work with a new demo workflow.
   if (persisted && persisted.workflowId) return repairApprovedMarketplaceCheckpoint(persisted);
   return startAtlasDemoWorkflow(createAtlasWorld(now), "custom-order");
 }
