@@ -31,45 +31,49 @@ import { AsymptaUnsafeProposalRecovery } from "@/components/asympta-unsafe-propo
 import { AsymptaUserPreferences } from "@/components/asympta-user-preferences";
 import { AsymptaWebMcpTools } from "@/components/asympta-webmcp-tools";
 import { AsymptaWorkflowContinuation } from "@/components/asympta-workflow-continuation";
+import { AsymptaWorkflowRuntimeBoundary } from "@/components/asympta-workflow-runtime-boundary";
 import { AsymptaWorldLive60Hz } from "@/components/asympta-world-live-60hz";
 
 export default function HomePage() {
   return (
     <>
-      <AsymptaTaskKernelBridge />
-      <AsymptaActivityEventContract />
-      <AsymptaWorldLive60Hz />
-      <AsymptaThreeWorldEffects />
-      <AsymptaWorkflowContinuation />
-      <AsymptaCameraFollowControl />
-      <AsymptaCuteAgentVisibility />
-      <AsymptaGlobalWorld />
-      <AsymptaMarketplaceIntentRouter />
-      <AsymptaIntentComposer />
-      <AsymptaAdaptiveInteraction />
-      <AsymptaUniversalBenchmarkBridge />
-      <AsymptaUnsafeProposalRecovery />
-      <AsymptaMarketplaceIntentBridge />
-      <AsymptaMarketplacePaymentApproval />
-      <AsymptaMarketplaceRecovery />
+      <AsymptaWorkflowRuntimeBoundary>
+        <AsymptaTaskKernelBridge />
+        <AsymptaActivityEventContract />
+        <AsymptaWorldLive60Hz />
+        <AsymptaThreeWorldEffects />
+        <AsymptaWorkflowContinuation />
+        <AsymptaCameraFollowControl />
+        <AsymptaCuteAgentVisibility />
+        <AsymptaGlobalWorld />
+        <AsymptaMarketplaceIntentRouter />
+        <AsymptaIntentComposer />
+        <AsymptaAdaptiveInteraction />
+        <AsymptaUniversalBenchmarkBridge />
+        <AsymptaUnsafeProposalRecovery />
+        <AsymptaMarketplaceIntentBridge />
+        <AsymptaMarketplacePaymentApproval />
+        <AsymptaMarketplaceRecovery />
+        <AsymptaEscalationGuard />
+        <AsymptaJobMode />
+        <AsymptaWebMcpTools />
+        <AsymptaPaperMapTone />
+        <AsymptaBlockActivity />
+        <AsymptaSafeSchedule />
+        <AsymptaTopPanelManager />
+        <AsymptaEstimatedProgress />
+        <AsymptaProcessCameraFollow />
+        <AsymptaCalmDefaults />
+        <AsymptaUltraCalm />
+        <AsymptaAgentCardLocale />
+        <AsymptaGlobalLocale />
+        <AsymptaCompleteLocale />
+        <AsymptaTaskKernelLocale />
+      </AsymptaWorkflowRuntimeBoundary>
+
       <AsymptaCompletionCoordinator />
       <AsymptaUserPreferences />
-      <AsymptaEscalationGuard />
-      <AsymptaJobMode />
-      <AsymptaWebMcpTools />
-      <AsymptaPaperMapTone />
-      <AsymptaBlockActivity />
-      <AsymptaSafeSchedule />
-      <AsymptaTopPanelManager />
-      <AsymptaEstimatedProgress />
-      <AsymptaProcessCameraFollow />
       <AsymptaTaskCelebration />
-      <AsymptaCalmDefaults />
-      <AsymptaUltraCalm />
-      <AsymptaAgentCardLocale />
-      <AsymptaGlobalLocale />
-      <AsymptaCompleteLocale />
-      <AsymptaTaskKernelLocale />
     </>
   );
 }
