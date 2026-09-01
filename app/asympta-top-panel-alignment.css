@@ -1,0 +1,320 @@
+/*
+ * Final top-panel alignment layer.
+ *
+ * The Agent Entry panel is the visual source of truth. Marketplace context,
+ * request panels and mobile controls must share the same paper, square geometry,
+ * typography, spacing and left edge. This file is loaded last on purpose.
+ */
+
+/* Remove the redundant second menu toggle. The identity button already opens the
+   menu; Globe owns aria-expanded and camera follow owns aria-pressed. */
+.atlas-menu-bar > .atlas-quick-icon:not([aria-expanded]):not([aria-pressed]) {
+  display: none !important;
+}
+
+.atlas-menu-bar {
+  grid-template-columns: minmax(0, 1fr) 42px 42px !important;
+  grid-auto-flow: row !important;
+  align-items: stretch !important;
+  gap: 5px !important;
+}
+
+.atlas-menu-bar > .atlas-quick-icon,
+.atlas-menu-bar > .asympta-camera-follow-toggle {
+  align-self: stretch !important;
+  width: 42px !important;
+  min-width: 42px !important;
+  height: 42px !important;
+  min-height: 42px !important;
+  margin: 0 !important;
+  border: 1px solid var(--tl-line) !important;
+  border-radius: 0 !important;
+  background: rgba(247, 243, 234, 0.56) !important;
+  box-shadow: none !important;
+}
+
+/* Marketplace context was the last rounded floating surface. It now uses the
+   exact same panel grammar as Agent Entry. */
+.asympta-marketplace-trace[data-host="standalone"] {
+  overflow: hidden !important;
+  border: 1px solid var(--tl-line) !important;
+  border-radius: var(--tl-radius) !important;
+  outline: 1px solid rgba(255, 255, 255, 0.34) !important;
+  outline-offset: -2px !important;
+  background: var(--tl-panel) !important;
+  color: var(--tl-ink) !important;
+  box-shadow: none !important;
+  backdrop-filter: blur(7px) saturate(0.82) !important;
+  -webkit-backdrop-filter: blur(7px) saturate(0.82) !important;
+}
+
+html[data-asympta-top-panel-front="access"] .asympta-access-card,
+html[data-asympta-top-panel-front="request"] .asympta-request-card,
+html[data-asympta-top-panel-front="request"] .asympta-marketplace-trace[data-host="standalone"] {
+  box-shadow: none !important;
+}
+
+.asympta-marketplace-trace__toggle {
+  min-height: 54px !important;
+  grid-template-columns: minmax(0, 1fr) max-content !important;
+  gap: 10px !important;
+  padding: 6px 8px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: var(--tl-ink) !important;
+  box-shadow: none !important;
+}
+
+.asympta-marketplace-trace__toggle:hover,
+.asympta-marketplace-trace__toggle:focus-visible {
+  background: var(--tl-green-soft) !important;
+  outline: none !important;
+}
+
+.asympta-marketplace-trace__heading {
+  gap: 8px !important;
+}
+
+.asympta-marketplace-trace__heading > svg {
+  color: var(--tl-green) !important;
+}
+
+.asympta-marketplace-trace__heading small {
+  margin-bottom: 3px !important;
+  color: var(--tl-ink-soft) !important;
+  font-family: var(--tl-mono) !important;
+  font-size: 7px !important;
+  font-weight: 650 !important;
+  line-height: 1.15 !important;
+  letter-spacing: 0.105em !important;
+  text-transform: uppercase !important;
+}
+
+.asympta-marketplace-trace__heading strong {
+  color: var(--tl-ink) !important;
+  font-family: var(--tl-font) !important;
+  font-size: 13px !important;
+  font-weight: 720 !important;
+  line-height: 1.22 !important;
+  letter-spacing: -0.018em !important;
+}
+
+.asympta-marketplace-trace__toggle-status {
+  gap: 6px !important;
+  color: var(--tl-ink-soft) !important;
+}
+
+.asympta-marketplace-trace__toggle-status small {
+  color: var(--tl-ink-soft) !important;
+  font-family: var(--tl-mono) !important;
+  font-size: 7px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.035em !important;
+}
+
+.asympta-marketplace-trace__body {
+  padding: 0 8px 8px !important;
+  border-top: 1px solid var(--tl-line) !important;
+  background: transparent !important;
+}
+
+.asympta-marketplace-profile__summary,
+.asympta-marketplace-profile,
+.asympta-marketplace-trace__item,
+.asympta-marketplace-trace__packet,
+.asympta-marketplace-trace__context,
+.asympta-marketplace-trace__status {
+  border-color: var(--tl-line) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.asympta-marketplace-profile__summary small,
+.asympta-marketplace-profile__group > strong,
+.asympta-marketplace-trace__packet > span,
+.asympta-marketplace-trace__context > summary {
+  color: var(--tl-ink-soft) !important;
+  font-family: var(--tl-mono) !important;
+  font-size: 7px !important;
+  font-weight: 650 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+}
+
+.asympta-marketplace-profile__summary strong,
+.asympta-marketplace-profile__presets b,
+.asympta-marketplace-trace__item strong,
+.asympta-marketplace-trace__packet strong {
+  color: var(--tl-ink) !important;
+  font-family: var(--tl-font) !important;
+  font-weight: 680 !important;
+}
+
+.asympta-marketplace-profile__summary > button,
+.asympta-marketplace-profile__presets > button,
+.asympta-marketplace-profile__options > button,
+.asympta-marketplace-profile__save,
+.asympta-marketplace-profile fieldset,
+.asympta-marketplace-trace__item,
+.asympta-marketplace-trace__route li > span,
+.asympta-marketplace-trace__packet,
+.asympta-marketplace-trace__context {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.asympta-marketplace-profile__summary > button,
+.asympta-marketplace-profile__presets > button,
+.asympta-marketplace-profile__options > button,
+.asympta-marketplace-profile__save {
+  border-color: var(--tl-line) !important;
+  background: rgba(247, 243, 234, 0.56) !important;
+  color: var(--tl-ink) !important;
+}
+
+.asympta-marketplace-profile__summary > button:hover,
+.asympta-marketplace-profile__presets > button:hover,
+.asympta-marketplace-profile__options > button:hover,
+.asympta-marketplace-profile__save:hover,
+.asympta-marketplace-profile__presets > button.is-selected,
+.asympta-marketplace-profile__options > button.is-selected {
+  border-color: var(--tl-line-strong) !important;
+  background: var(--tl-green-soft) !important;
+  color: var(--tl-green-deep) !important;
+}
+
+.asympta-marketplace-trace__route li > span {
+  border-color: var(--tl-line) !important;
+  background: rgba(247, 243, 234, 0.56) !important;
+}
+
+.asympta-marketplace-trace__route li[data-stage="active"] > span {
+  border-color: var(--tl-green) !important;
+  background: var(--tl-green-soft) !important;
+  box-shadow: none !important;
+}
+
+.asympta-marketplace-trace__route li[data-stage="done"] > span {
+  border-color: var(--tl-green) !important;
+  background: var(--tl-green) !important;
+  color: #f8f4eb !important;
+}
+
+/* Mobile: all top system panels share one left edge and one width. The previous
+   market card was centred/right-aligned and visually detached from Agent Entry. */
+@media (max-width: 520px) {
+  .asympta-access-card,
+  .atlas-console,
+  .atlas-console.is-collapsed,
+  .atlas-console.is-open,
+  .asympta-request-card,
+  .asympta-marketplace-trace[data-host="standalone"] {
+    left: max(10px, env(safe-area-inset-left)) !important;
+    right: auto !important;
+    width: calc(100vw - 20px) !important;
+    max-width: none !important;
+  }
+
+  .atlas-console,
+  .atlas-console.is-collapsed,
+  .atlas-console.is-open,
+  .asympta-marketplace-trace[data-host="standalone"],
+  .asympta-request-card {
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .atlas-menu-bar {
+    min-height: 50px !important;
+    grid-template-columns: minmax(0, 1fr) 40px 40px !important;
+    gap: 4px !important;
+    padding: 5px !important;
+  }
+
+  .atlas-menu-bar > .atlas-quick-icon,
+  .atlas-menu-bar > .asympta-camera-follow-toggle {
+    width: 40px !important;
+    min-width: 40px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+  }
+
+  .atlas-menu-identity {
+    min-height: 40px !important;
+    grid-template-columns: 32px minmax(0, 1fr) auto !important;
+    gap: 6px !important;
+    padding: 3px 5px !important;
+  }
+
+  .atlas-menu-icon {
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: 0 !important;
+  }
+
+  .atlas-menu-copy small {
+    font-size: 7px !important;
+    letter-spacing: 0.105em !important;
+  }
+
+  .atlas-menu-copy strong {
+    font-size: 12.5px !important;
+  }
+
+  .atlas-mini-phase {
+    max-width: 82px !important;
+    overflow: hidden !important;
+    font-family: var(--tl-mono) !important;
+    font-size: 6.5px !important;
+    text-overflow: ellipsis !important;
+  }
+
+  html[data-asympta-top-panels="stacked"] .asympta-marketplace-trace[data-host="standalone"],
+  html[data-asympta-top-panels="stacked"] .asympta-request-card {
+    left: max(10px, env(safe-area-inset-left)) !important;
+    right: auto !important;
+  }
+
+  .asympta-marketplace-trace__toggle {
+    min-height: 50px !important;
+    padding: 5px 7px !important;
+  }
+
+  .asympta-marketplace-trace__heading strong {
+    font-size: 12.5px !important;
+  }
+
+  .asympta-marketplace-trace__toggle-status {
+    max-width: 92px !important;
+  }
+
+  .asympta-marketplace-trace__toggle-status small {
+    max-width: 72px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .asympta-marketplace-trace__body {
+    padding: 0 7px 7px !important;
+  }
+
+  .asympta-marketplace-profile__presets {
+    gap: 4px !important;
+  }
+
+  .asympta-marketplace-profile__presets > button {
+    min-height: 58px !important;
+    padding: 6px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .asympta-marketplace-trace[data-host="standalone"],
+  .asympta-marketplace-trace__toggle,
+  .atlas-menu-bar > .atlas-quick-icon,
+  .atlas-menu-bar > .asympta-camera-follow-toggle {
+    transition: none !important;
+  }
+}
