@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
+import type { AsymptaActivity, AsymptaActivityEvent } from "@/lib/asympta-activity";
 import {
   completionReceiptFromActivity,
   completionReceiptFromCurrentRequest,
@@ -18,15 +19,8 @@ import {
 } from "@/lib/asympta-marketplace-intent";
 
 type ActivityDetail = {
-  activity?: {
-    id?: string;
-    intent?: unknown;
-    status?: string;
-  };
-  event?: {
-    status?: string;
-    summary?: string;
-  };
+  activity?: AsymptaActivity;
+  event?: AsymptaActivityEvent;
 };
 
 type CompletionWindow = Window & {
@@ -36,13 +30,6 @@ type CompletionWindow = Window & {
 
 const COMPLETION_SYNC_MS = 260;
 const MAX_RECEIPT_IDS = 160;
-
-function activityIntent(value: unknown) {
-  if (typeof value === "string") return value.trim();
-  if (!value || typeof value !== "object" || Array.isArray(value)) return "";
-  const raw = Reflect.get(value, "raw");
-  return typeof raw === "string" ? raw.trim() : "";
-}
 
 function workflowSnapshot(value: unknown): CompletionWorkflowSnapshot | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
@@ -65,9 +52,9 @@ export function AsymptaCompletionCoordinator() {
 
     const unsubscribeRequest = subscribeAsymptaCurrentRequest((request) => {
       // Marketplace completion is accepted only from its inventory/receipt-backed
-      // execution state below. This prevents a display-only request update from
-      // celebrating before delivery is actually recorded.
-      if (request.kind === "marketplace") return;
+      // execution state below. Generic actions are accepted only from their
+      // provenance-bearing Asympta activity outcome.
+      if (request.kind === "marketplace" || request.kind === "action") return;
       publishOnce(completionReceiptFromCurrentRequest(request));
     });
 
@@ -79,11 +66,11 @@ export function AsymptaCompletionCoordinator() {
 
     const onActivity = (event: Event) => {
       const detail = (event as CustomEvent<ActivityDetail>).detail;
-      const status = detail?.event?.status ?? detail?.activity?.status;
-      const id = detail?.activity?.id?.trim() ?? "";
-      if (status !== "completed" || !id) return;
-      const title = activityIntent(detail?.activity?.intent) || "Job completed";
-      publishOnce(completionReceiptFromActivity(id, title, detail?.event?.summary ?? "The requested job was completed."));
+      // `completionReceiptFromActivity` fails closed unless the activity itself
+      // contains a verified outcome plus explicit execution provenance. A bare
+      // `status: completed` event can never create a celebration receipt.
+      if (!detail?.activity) return;
+      publishOnce(completionReceiptFromActivity(detail.activity));
     };
     window.addEventListener("asympta:activity", onActivity);
 
