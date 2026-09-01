@@ -48,13 +48,20 @@ export function AsymptaCuteAgentVisibility() {
       attempts += 1;
       const currentWindow = browserWindow();
       const bridge = currentWindow.__ASYMPTA_GLOBAL_WORLD__;
-      if (!bridge) return false;
+      const map = currentWindow.__ASYMPTA_MAP__;
+
+      // The global bridge can mount before MapLibre finishes constructing its
+      // real map instance. Treating the bridge alone as success leaves the
+      // foreground agent off-screen on fast hydration/remount paths. Only stop
+      // retrying after both coordination state and the actual camera are ready.
+      if (!bridge || !map) return false;
+
       try {
         bridge.setScale("city");
         // Restore the original wider Tokyo living-city composition instead of the
         // tighter global-layer city zoom, so foreground and ambient animals are
         // visible together again.
-        currentWindow.__ASYMPTA_MAP__?.flyTo({
+        map.flyTo({
           center: TOKYO_CENTER,
           zoom: TOKYO_CUTE_AGENT_ZOOM,
           bearing: 0,
