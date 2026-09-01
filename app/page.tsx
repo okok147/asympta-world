@@ -23,6 +23,7 @@ import { AsymptaSafeSchedule } from "@/components/asympta-safe-schedule";
 import { AsymptaTaskCelebration } from "@/components/asympta-task-celebration";
 import { AsymptaTaskKernelBridge } from "@/components/asympta-task-kernel-bridge";
 import { AsymptaTaskKernelLocale } from "@/components/asympta-task-kernel-locale";
+import { AsymptaThreeWorldEffects } from "@/components/asympta-three-world-effects";
 import { AsymptaTopPanelManager } from "@/components/asympta-top-panel-manager";
 import { AsymptaUltraCalm } from "@/components/asympta-ultra-calm";
 import { AsymptaUniversalBenchmarkBridge } from "@/components/asympta-universal-benchmark";
@@ -38,6 +39,7 @@ export default function HomePage() {
       <AsymptaTaskKernelBridge />
       <AsymptaActivityEventContract />
       <AsymptaWorldLive60Hz />
+      <AsymptaThreeWorldEffects />
       <AsymptaWorkflowContinuation />
       <AsymptaCameraFollowControl />
       <AsymptaCuteAgentVisibility />

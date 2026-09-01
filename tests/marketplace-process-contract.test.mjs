@@ -35,6 +35,11 @@ import {
   inspectAsymptaWorkflowLiveness,
   validateAsymptaWorkflowContract,
 } from "../lib/asympta-workflow-contract.ts";
+import {
+  createAsymptaWorkflowLifecycleTracker,
+  observeAsymptaWorkflowLifecycle,
+  seedAsymptaWorkflowLifecycle,
+} from "../lib/asympta-workflow-lifecycle.ts";
 
 function compileBuySomeFood(requestId = "buy-some-food-process") {
   const compilation = compileAsymptaContext("Buy some food", {
@@ -210,6 +215,67 @@ test("activity fallback preserves verification and simulation provenance instead
   assert.equal(completionReceiptFromCurrentRequest(projectedAction, 1_000), null);
 });
 
+test("workflow lifecycle gives a short start signal, one completion gate, and never replays hydration completion", () => {
+  const completedObservation = {
+    source: "workflow",
+    fingerprint: "dinner-network",
+    workflowId: "dinner-network",
+    title: "Dinner Coordination",
+    phase: "completed",
+    simulated: true,
+    requestId: null,
+  };
+  const hydrationTracker = createAsymptaWorkflowLifecycleTracker();
+  seedAsymptaWorkflowLifecycle(hydrationTracker, "workflow", completedObservation);
+  assert.deepEqual(
+    observeAsymptaWorkflowLifecycle(hydrationTracker, completedObservation, 100),
+    { start: null, completionRunId: null },
+  );
+
+  const tracker = createAsymptaWorkflowLifecycleTracker();
+  seedAsymptaWorkflowLifecycle(tracker, "marketplace", null);
+  const active = {
+    source: "marketplace",
+    fingerprint: "execution-food-1",
+    workflowId: "marketplace-intent",
+    title: "Buy some food",
+    phase: "active",
+    simulated: true,
+    requestId: "food-1",
+  };
+  const started = observeAsymptaWorkflowLifecycle(tracker, active, 1_000);
+  assert.ok(started.start);
+  assert.equal(started.start.title, "Buy some food");
+  assert.equal(started.start.schemaVersion, "asympta.workflow-start.v1");
+  assert.equal(started.completionRunId, null);
+  assert.deepEqual(
+    observeAsymptaWorkflowLifecycle(tracker, active, 1_100),
+    { start: null, completionRunId: null },
+  );
+
+  const completed = observeAsymptaWorkflowLifecycle(tracker, { ...active, phase: "completed" }, 2_000);
+  assert.equal(completed.start, null);
+  assert.equal(completed.completionRunId, started.start.id);
+  assert.deepEqual(
+    observeAsymptaWorkflowLifecycle(tracker, { ...active, phase: "completed" }, 2_100),
+    { start: null, completionRunId: null },
+  );
+
+  const restarted = observeAsymptaWorkflowLifecycle(tracker, active, 3_000);
+  assert.ok(restarted.start);
+  assert.notEqual(restarted.start.id, started.start.id);
+
+  const restoredActiveTracker = createAsymptaWorkflowLifecycleTracker();
+  seedAsymptaWorkflowLifecycle(restoredActiveTracker, "marketplace", active);
+  const restoredCompletion = observeAsymptaWorkflowLifecycle(
+    restoredActiveTracker,
+    { ...active, phase: "completed" },
+    4_000,
+  );
+  assert.equal(restoredCompletion.start, null);
+  assert.ok(restoredCompletion.completionRunId);
+});
+
 test("all current workflow graphs validate and malformed graphs fail before they can stall", () => {
   for (const workflow of ATLAS_WORKFLOWS) {
     const validation = validateAsymptaWorkflowContract(workflow, {
@@ -264,26 +330,45 @@ test("all current workflow graphs validate and malformed graphs fail before they
   assert.ok(noncanonicalDependency.issues.some((issue) => issue.code === "invalid_dependency_id"));
 });
 
-test("the product mounts one completion coordinator and a queued prominent celebration screen", async () => {
-  const [page, coordinator, celebration, css, workflow] = await Promise.all([
+test("the product separates the short start celebration from the verified large finish celebration", async () => {
+  const [page, layout, coordinator, lifecycle, threeEffects, effectsCss, celebration, completionCss, workflow] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/asympta-completion-coordinator.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../lib/asympta-workflow-lifecycle.ts", import.meta.url), "utf8"),
+    readFile(new URL("../components/asympta-three-world-effects.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/asympta-three-world-effects.css", import.meta.url), "utf8"),
     readFile(new URL("../components/asympta-task-celebration.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/asympta-completion-celebration.css", import.meta.url), "utf8"),
     readFile(new URL("../lib/asympta-marketplace-workflow.ts", import.meta.url), "utf8"),
   ]);
 
   assert.match(page, /AsymptaCompletionCoordinator/);
+  assert.match(page, /AsymptaThreeWorldEffects/);
   assert.match(page, /AsymptaTaskCelebration/);
-  assert.match(coordinator, /completionReceiptFromMarketplaceExecution/);
-  assert.match(coordinator, /MARKETPLACE_EXECUTION_EVENT/);
-  assert.match(coordinator, /completionReceiptFromActivity\(detail\.activity\)/);
+  assert.match(layout, /asympta-three-world-effects\.css/);
+  assert.match(coordinator, /seedAsymptaWorkflowLifecycle/);
+  assert.match(coordinator, /observeAsymptaWorkflowLifecycle/);
+  assert.match(coordinator, /publishAsymptaWorkflowStart/);
+  assert.match(coordinator, /bindWorkflowReceiptToRun/);
+  assert.match(lifecycle, /asympta\.workflow-start\.v1/);
+  assert.match(lifecycle, /already-completed persisted job cannot replay|completed run found during hydration/i);
+  assert.match(threeEffects, /import\("three"\)/);
+  assert.match(threeEffects, /subscribeAsymptaWorkflowStarts/);
+  assert.match(threeEffects, /subscribeAsymptaCompletionReceipts/);
+  assert.match(threeEffects, /FRAME_INTERVAL_MS/);
+  assert.match(threeEffects, /powerPreference:\s*"low-power"/);
+  assert.match(threeEffects, /allowsVisualEnhancement/);
+  assert.match(threeEffects, /asympta-workflow-start-celebration/);
+  assert.match(effectsCss, /pointer-events:\s*none/);
+  assert.match(effectsCss, /prefers-reduced-motion/);
+  assert.match(effectsCss, /asympta-workflow-start-card/);
   assert.match(celebration, /subscribeAsymptaCompletionReceipts/);
   assert.match(celebration, /const queue: AsymptaCompletionReceipt\[\] = \[\]/);
   assert.match(celebration, /asympta-screen-celebration__content/);
   assert.match(celebration, /data.*completionId|dataset\.completionId/);
-  assert.match(css, /width:\s*min\(620px/);
-  assert.match(css, /asympta-completion-content/);
-  assert.match(css, /prefers-reduced-motion/);
+  assert.match(completionCss, /width:\s*min\(620px/);
+  assert.match(completionCss, /asympta-completion-content/);
+  assert.match(completionCss, /prefers-reduced-motion/);
   assert.match(workflow, /assertAsymptaWorkflowContract/);
 });

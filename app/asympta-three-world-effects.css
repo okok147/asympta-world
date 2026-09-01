@@ -1,0 +1,187 @@
+.asympta-three-world-effects {
+  position: absolute;
+  z-index: 8;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+}
+
+.asympta-three-world-effects__surface {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  opacity: .88;
+  pointer-events: none;
+}
+
+.asympta-workflow-start-celebration {
+  position: absolute;
+  z-index: 2;
+  top: max(15%, calc(env(safe-area-inset-top) + 66px));
+  left: 50%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  width: min(390px, calc(100vw - 32px));
+  min-height: 72px;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 17px 13px 14px;
+  border: 1px solid rgba(82, 112, 96, .22);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 8% 18%, rgba(255, 236, 181, .44), transparent 32%),
+    linear-gradient(145deg, rgba(255, 254, 247, .94), rgba(239, 245, 238, .9));
+  box-shadow:
+    0 16px 48px rgba(39, 61, 51, .16),
+    inset 0 1px rgba(255, 255, 255, .88);
+  color: #26352f;
+  opacity: 0;
+  transform: translate(-50%, 14px) scale(.95);
+  animation: asympta-workflow-start-card 1.65s cubic-bezier(.2, .78, .24, 1) both;
+  backdrop-filter: blur(16px) saturate(1.08);
+  -webkit-backdrop-filter: blur(16px) saturate(1.08);
+}
+
+.asympta-workflow-start-celebration__mark {
+  position: relative;
+  display: grid;
+  width: 46px;
+  aspect-ratio: 1;
+  place-items: center;
+  border: 1px solid rgba(68, 111, 88, .25);
+  border-radius: 50%;
+  background: rgba(218, 236, 224, .82);
+  box-shadow: 0 7px 20px rgba(60, 103, 82, .14);
+}
+
+.asympta-workflow-start-celebration__mark::before,
+.asympta-workflow-start-celebration__mark::after,
+.asympta-workflow-start-celebration__mark i {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #5e8872;
+  content: "";
+}
+
+.asympta-workflow-start-celebration__mark::before {
+  transform: translate(-11px, 5px);
+}
+
+.asympta-workflow-start-celebration__mark::after {
+  transform: translate(11px, 5px);
+}
+
+.asympta-workflow-start-celebration__mark i:nth-child(1) {
+  transform: translateY(-11px);
+}
+
+.asympta-workflow-start-celebration__mark i:nth-child(2) {
+  width: 12px;
+  height: 12px;
+  background: #426a57;
+}
+
+.asympta-workflow-start-celebration__mark i:nth-child(3) {
+  width: 26px;
+  height: 26px;
+  border: 1px solid rgba(70, 113, 91, .2);
+  background: transparent;
+  animation: asympta-workflow-start-orbit 1.15s ease-out 120ms both;
+}
+
+.asympta-workflow-start-celebration > span:last-child {
+  min-width: 0;
+}
+
+.asympta-workflow-start-celebration small,
+.asympta-workflow-start-celebration strong,
+.asympta-workflow-start-celebration em {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asympta-workflow-start-celebration small {
+  color: #577565;
+  font-size: .63rem;
+  font-style: normal;
+  font-weight: 780;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
+
+.asympta-workflow-start-celebration strong {
+  margin-top: 3px;
+  font-size: clamp(.92rem, 2.1vw, 1.08rem);
+  font-weight: 730;
+  letter-spacing: -.018em;
+}
+
+.asympta-workflow-start-celebration em {
+  margin-top: 3px;
+  color: rgba(48, 67, 58, .64);
+  font-size: .69rem;
+  font-style: normal;
+}
+
+@keyframes asympta-workflow-start-card {
+  0% { opacity: 0; transform: translate(-50%, 14px) scale(.95); }
+  14% { opacity: 1; transform: translate(-50%, 0) scale(1.012); }
+  24%, 72% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -8px) scale(.985); }
+}
+
+@keyframes asympta-workflow-start-orbit {
+  0% { opacity: 0; transform: scale(.45) rotate(-18deg); }
+  38% { opacity: .82; transform: scale(1.18) rotate(8deg); }
+  100% { opacity: .18; transform: scale(1.55) rotate(26deg); }
+}
+
+@media (max-width: 620px) {
+  .asympta-three-world-effects {
+    z-index: 6;
+  }
+
+  .asympta-workflow-start-celebration {
+    top: max(20%, calc(env(safe-area-inset-top) + 82px));
+    width: min(340px, calc(100vw - 24px));
+    min-height: 66px;
+    gap: 11px;
+    padding: 11px 14px 11px 12px;
+    border-radius: 19px;
+  }
+
+  .asympta-workflow-start-celebration__mark {
+    width: 42px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .asympta-three-world-effects__surface {
+    display: none;
+  }
+
+  .asympta-workflow-start-celebration {
+    animation: asympta-workflow-start-still 1.65s linear both;
+    transform: translate(-50%, 0);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .asympta-workflow-start-celebration__mark i:nth-child(3) {
+    animation: none;
+    opacity: .35;
+  }
+}
+
+@keyframes asympta-workflow-start-still {
+  0%, 10% { opacity: 0; }
+  16%, 76% { opacity: 1; }
+  100% { opacity: 0; }
+}
