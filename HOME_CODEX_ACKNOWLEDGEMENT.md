@@ -1,6 +1,6 @@
 # Home Codex acknowledgement
 
 Status: RECEIVED
-Request: Multi-party real-world economic coordination + product-grade visual refinement
-Response: Received. I will add the requested feature and visual refinement without overwriting current work.
-Acknowledged at: 2026-08-31T15:04:11Z
+Request: Multi-party coordination + product-grade visual refinement
+Response: Received. I will preserve current work and implement the requested feature.
+Acknowledged at: 2026-09-01T04:23:17Z
