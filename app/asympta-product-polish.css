@@ -1,18 +1,393 @@
 /*
- * Asympta World — final interaction polish
+ * Asympta World — compact paper menu system
  *
- * Loaded after the experimental pencil/protocell layer. This file resolves
- * cross-layer geometry conflicts while keeping the pencil-map visual language.
- * The natural-language composer remains the primary human control: readable,
- * touch-safe, IME-safe and compact at every supported viewport.
+ * The visual source of truth is the top-left Agent Entry panel: warm paper,
+ * square geometry, thin grey rules, muted green controls, tiny mono metadata,
+ * and crisp dark titles. This file is loaded last and intentionally normalises
+ * every product surface without changing workflow state, map behaviour or agents.
  */
 
 :root {
+  --tl-paper: #f2eee4;
+  --tl-panel: rgba(247, 243, 234, 0.95);
+  --tl-panel-solid: #f7f3ea;
+  --tl-panel-hover: #f1ede3;
+  --tl-line: rgba(82, 83, 77, 0.24);
+  --tl-line-strong: rgba(82, 83, 77, 0.42);
+  --tl-ink: #32332f;
+  --tl-ink-soft: #6f7069;
+  --tl-ink-faint: #a2a198;
+  --tl-green: #587c71;
+  --tl-green-deep: #41645a;
+  --tl-green-soft: rgba(88, 124, 113, 0.10);
+  --tl-rust: #9c7560;
+  --tl-rust-soft: rgba(156, 117, 96, 0.10);
+  --tl-radius: 2px;
+  --tl-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "PingFang TC", "Noto Sans TC", Arial, sans-serif;
+  --tl-mono: ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
   --asympta-composer-max-width: 760px;
-  --asympta-composer-radius: 16px;
 }
 
-/* The shell is a positioning container, never a second card around its cards. */
+html,
+body,
+button,
+input,
+textarea,
+select {
+  font-family: var(--tl-font) !important;
+}
+
+body {
+  color: var(--tl-ink) !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* One card grammar everywhere                                                 */
+/* -------------------------------------------------------------------------- */
+
+.atlas-console,
+.atlas-safe-schedule,
+.atlas-agent-card,
+.atlas-approval,
+.asympta-access-card,
+.asympta-request-card,
+.asympta-adaptive-interaction,
+.asympta-workflow-continuation,
+.asympta-marketplace-payment-approval,
+.asympta-marketplace-recovery,
+.asympta-webmcp-draft,
+.asympta-intent-error,
+.asympta-information-journey,
+.asympta-intent-result,
+.asympta-user-preferences,
+.asympta-webmcp-tool-surface,
+.asympta-job-panel,
+.asympta-job-auto,
+.asympta-escalation-notice,
+.map-status,
+.map-zoom,
+.map-control {
+  border: 1px solid var(--tl-line) !important;
+  border-radius: var(--tl-radius) !important;
+  outline: 0 !important;
+  background: var(--tl-panel) !important;
+  color: var(--tl-ink) !important;
+  box-shadow: none !important;
+  backdrop-filter: blur(7px) saturate(0.82) !important;
+  -webkit-backdrop-filter: blur(7px) saturate(0.82) !important;
+}
+
+.atlas-console,
+.atlas-safe-schedule,
+.atlas-agent-card,
+.atlas-approval,
+.asympta-request-card,
+.asympta-workflow-continuation,
+.asympta-marketplace-payment-approval {
+  outline: 1px solid rgba(255, 255, 255, 0.34) !important;
+  outline-offset: -2px !important;
+}
+
+.atlas-console::before,
+.atlas-agent-card::before,
+.atlas-approval::before,
+.asympta-request-card::before,
+.asympta-workflow-continuation::before {
+  color: var(--tl-ink-faint) !important;
+  font-family: var(--tl-mono) !important;
+  opacity: 0.72 !important;
+}
+
+.atlas-menu-bar,
+.atlas-safe-schedule__header,
+.atlas-agent-card__top,
+.atlas-approval__body,
+.asympta-information-journey > header,
+.asympta-request-card header,
+.asympta-workflow-continuation header,
+.asympta-webmcp-tool-surface header,
+.asympta-user-preferences header {
+  border-bottom-color: var(--tl-line) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Typography — top-left panel hierarchy everywhere                            */
+/* -------------------------------------------------------------------------- */
+
+.atlas-menu-copy small,
+.atlas-safe-schedule__header small,
+.atlas-approval__eyebrow,
+.atlas-agent-card small,
+.atlas-webmcp-inspector small,
+.asympta-access-stamp,
+.asympta-information-journey header > span,
+.asympta-intent-result__goal > span,
+.asympta-intent-result__meta,
+.asympta-request-card small,
+.asympta-workflow-continuation small,
+.asympta-adaptive-interaction small,
+.asympta-marketplace-payment-approval small,
+.asympta-user-preferences small,
+.asympta-webmcp-tool-surface small,
+.map-status small {
+  color: var(--tl-ink-soft) !important;
+  font-family: var(--tl-mono) !important;
+  font-size: 8px !important;
+  font-weight: 650 !important;
+  line-height: 1.2 !important;
+  letter-spacing: 0.105em !important;
+  text-transform: uppercase !important;
+}
+
+.atlas-menu-copy strong,
+.atlas-safe-schedule__header strong,
+.atlas-agent-card strong,
+.atlas-approval strong,
+.asympta-intent-result__goal > strong,
+.asympta-request-card strong,
+.asympta-workflow-continuation strong,
+.asympta-adaptive-interaction strong,
+.asympta-marketplace-payment-approval strong,
+.asympta-user-preferences strong,
+.asympta-webmcp-tool-surface strong {
+  color: var(--tl-ink) !important;
+  font-family: var(--tl-font) !important;
+  font-size: 13px !important;
+  font-weight: 720 !important;
+  line-height: 1.25 !important;
+  letter-spacing: -0.018em !important;
+}
+
+.atlas-menu-copy,
+.atlas-safe-task__body,
+.asympta-request-card,
+.asympta-workflow-continuation,
+.asympta-adaptive-interaction,
+.asympta-marketplace-payment-approval,
+.asympta-intent-result,
+.asympta-user-preferences,
+.asympta-webmcp-tool-surface {
+  color: var(--tl-ink) !important;
+}
+
+.atlas-safe-task__body small,
+.atlas-safe-task__progress,
+.asympta-request-card p,
+.asympta-workflow-continuation p,
+.asympta-adaptive-interaction p,
+.asympta-marketplace-payment-approval p,
+.asympta-intent-result__summary,
+.asympta-intent-result__answer,
+.asympta-user-preferences p,
+.asympta-webmcp-tool-surface p {
+  color: var(--tl-ink-soft) !important;
+  font-family: var(--tl-font) !important;
+  font-size: 11px !important;
+  line-height: 1.45 !important;
+  letter-spacing: -0.004em !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Buttons / icon controls                                                     */
+/* -------------------------------------------------------------------------- */
+
+.atlas-menu-identity,
+.atlas-quick-icon,
+.atlas-card-close,
+.atlas-follow,
+.map-zoom button,
+.map-control,
+.asympta-access-actions button,
+.asympta-access-map-controls button,
+.atlas-approval__actions button,
+.asympta-workflow-continuation button,
+.asympta-adaptive-interaction button,
+.asympta-request-card button,
+.asympta-marketplace-payment-approval button,
+.asympta-intent-error button,
+.asympta-user-preferences button,
+.asympta-webmcp-tool-surface button,
+.asympta-job-actions button,
+.atlas-tool-actions button,
+.atlas-workflow {
+  border: 1px solid var(--tl-line) !important;
+  border-radius: 0 !important;
+  background: rgba(247, 243, 234, 0.56) !important;
+  color: var(--tl-ink) !important;
+  box-shadow: none !important;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease !important;
+}
+
+.atlas-menu-identity:hover,
+.atlas-quick-icon:hover,
+.atlas-card-close:hover,
+.atlas-follow:hover,
+.map-zoom button:hover,
+.map-control:hover,
+.asympta-access-actions button:hover,
+.asympta-access-map-controls button:hover,
+.atlas-approval__actions button:hover,
+.asympta-workflow-continuation button:hover,
+.asympta-adaptive-interaction button:hover,
+.asympta-request-card button:hover,
+.asympta-marketplace-payment-approval button:hover,
+.asympta-intent-error button:hover,
+.asympta-user-preferences button:hover,
+.asympta-webmcp-tool-surface button:hover,
+.asympta-job-actions button:hover,
+.atlas-tool-actions button:hover,
+.atlas-workflow:hover {
+  border-color: var(--tl-line-strong) !important;
+  background: var(--tl-green-soft) !important;
+  color: var(--tl-green-deep) !important;
+}
+
+button:focus-visible,
+textarea:focus-visible,
+input:focus-visible,
+select:focus-visible,
+a:focus-visible {
+  outline: 1px solid var(--tl-green) !important;
+  outline-offset: 2px !important;
+}
+
+.atlas-menu-icon,
+.atlas-menu-icon svg,
+.atlas-follow svg,
+.map-control svg,
+.asympta-access-actions svg,
+.asympta-access-map-controls svg {
+  color: var(--tl-green) !important;
+}
+
+.atlas-allow,
+.asympta-workflow-continuation button:first-of-type,
+.asympta-marketplace-payment-approval button[data-action="approve"],
+.atlas-approval__actions button:first-child {
+  border-color: var(--tl-green) !important;
+  background: var(--tl-green) !important;
+  color: #f8f4eb !important;
+}
+
+.atlas-allow:hover,
+.asympta-workflow-continuation button:first-of-type:hover,
+.asympta-marketplace-payment-approval button[data-action="approve"]:hover,
+.atlas-approval__actions button:first-child:hover {
+  border-color: var(--tl-green-deep) !important;
+  background: var(--tl-green-deep) !important;
+  color: #f8f4eb !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Pills become compact rectangular readouts                                   */
+/* -------------------------------------------------------------------------- */
+
+.atlas-mini-phase,
+.atlas-agent-status,
+.atlas-permission,
+.asympta-access-stamp,
+.asympta-intent-presence,
+.atlas-resource-chip,
+.atlas-safe-schedule__phase,
+.world-phase,
+.asympta-job-disclosure,
+.map-status {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.atlas-mini-phase,
+.atlas-safe-schedule__phase,
+.atlas-permission,
+.asympta-access-stamp,
+.world-phase {
+  color: var(--tl-ink-soft) !important;
+  font-family: var(--tl-mono) !important;
+  font-size: 7px !important;
+  font-weight: 650 !important;
+  letter-spacing: 0.075em !important;
+  text-transform: uppercase !important;
+}
+
+.atlas-mini-phase i,
+.atlas-safe-schedule__phase i,
+.atlas-permission i,
+.asympta-access-readout i {
+  border-radius: 0 !important;
+  background: var(--tl-rust) !important;
+  box-shadow: none !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Top-left menu is the canonical visual reference                             */
+/* -------------------------------------------------------------------------- */
+
+.atlas-console {
+  border-color: var(--tl-line) !important;
+  background: rgba(247, 243, 234, 0.96) !important;
+}
+
+.atlas-menu-bar {
+  min-height: 54px !important;
+  gap: 5px !important;
+  padding: 5px !important;
+}
+
+.atlas-menu-identity {
+  min-height: 42px !important;
+  padding: 4px 7px !important;
+}
+
+.atlas-menu-copy small {
+  margin-bottom: 3px !important;
+}
+
+.atlas-menu-copy strong {
+  font-size: 13px !important;
+}
+
+.atlas-quick-icon {
+  width: 42px !important;
+  height: 42px !important;
+}
+
+.atlas-menu-panel {
+  border-top-color: var(--tl-line) !important;
+  background: transparent !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Top-right schedule / market card                                            */
+/* -------------------------------------------------------------------------- */
+
+.atlas-safe-schedule,
+.atlas-safe-schedule.is-collapsed {
+  border-radius: var(--tl-radius) !important;
+  background: rgba(247, 243, 234, 0.95) !important;
+}
+
+.atlas-safe-schedule__header {
+  min-height: 50px !important;
+  padding: 8px 11px !important;
+}
+
+.atlas-safe-schedule__summary {
+  border-bottom-color: var(--tl-line) !important;
+  color: var(--tl-ink-soft) !important;
+  font-family: var(--tl-mono) !important;
+}
+
+.atlas-safe-task {
+  border-bottom-color: rgba(82, 83, 77, 0.12) !important;
+  background: transparent !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Human composer — same panel, same buttons, no bubble styling                */
+/* -------------------------------------------------------------------------- */
+
 .asympta-intent-shell {
   width: min(var(--asympta-composer-max-width), calc(100vw - 28px)) !important;
   overflow: visible !important;
@@ -30,58 +405,65 @@
   content: none !important;
 }
 
-/* Keep the prompt mark decorative and out of CSS Grid item placement. */
+.asympta-intent-presence {
+  max-width: calc(100% - 18px) !important;
+  margin: 0 0 5px 0 !important;
+  padding: 5px 8px !important;
+  border: 1px solid var(--tl-line) !important;
+  background: rgba(247, 243, 234, 0.94) !important;
+  color: var(--tl-ink-soft) !important;
+  font-family: var(--tl-mono) !important;
+  font-size: 8px !important;
+  line-height: 1.2 !important;
+  letter-spacing: 0.07em !important;
+}
+
+.asympta-intent-presence::before {
+  color: var(--tl-ink-faint) !important;
+  font-family: var(--tl-mono) !important;
+  font-size: 7px !important;
+  letter-spacing: 0.08em !important;
+}
+
 .asympta-intent-composer {
   position: relative !important;
   display: grid !important;
   grid-template-columns: minmax(0, 1fr) 46px !important;
   grid-template-rows: auto !important;
   align-items: end !important;
-  gap: 10px !important;
+  gap: 7px !important;
   width: 100% !important;
   min-width: 0 !important;
-  min-height: 62px !important;
-  padding: 8px 8px 8px 46px !important;
+  min-height: 60px !important;
+  padding: 7px 7px 7px 42px !important;
   overflow: hidden !important;
-  border: 1px solid rgba(21, 23, 20, 0.58) !important;
-  border-radius: var(--asympta-composer-radius) !important;
+  border: 1px solid var(--tl-line-strong) !important;
+  border-radius: var(--tl-radius) !important;
   outline: 0 !important;
-  background: rgba(249, 247, 241, 0.96) !important;
-  box-shadow:
-    0 12px 32px rgba(43, 40, 34, 0.11),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.58) !important;
-  backdrop-filter: blur(14px) saturate(0.88) !important;
-  -webkit-backdrop-filter: blur(14px) saturate(0.88) !important;
-  transition:
-    border-color 150ms ease,
-    background 150ms ease,
-    box-shadow 150ms ease !important;
+  background: rgba(247, 243, 234, 0.97) !important;
+  box-shadow: none !important;
+  backdrop-filter: blur(7px) saturate(0.82) !important;
+  -webkit-backdrop-filter: blur(7px) saturate(0.82) !important;
+  transition: border-color 120ms ease, background 120ms ease !important;
 }
 
-.asympta-intent-composer:hover {
-  border-color: rgba(21, 23, 20, 0.76) !important;
-}
-
+.asympta-intent-composer:hover,
 .asympta-intent-composer:focus-within {
-  border-color: var(--pc-ink, #151714) !important;
-  background: rgba(251, 250, 245, 0.985) !important;
-  box-shadow:
-    0 14px 36px rgba(43, 40, 34, 0.13),
-    0 0 0 3px rgba(42, 97, 255, 0.12),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.72) !important;
+  border-color: var(--tl-green) !important;
+  background: rgba(249, 246, 238, 0.99) !important;
+  box-shadow: none !important;
 }
 
 .asympta-intent-composer::before {
   content: ">" !important;
   position: absolute !important;
   top: 50% !important;
-  left: 17px !important;
+  left: 16px !important;
   z-index: 2;
-  align-self: auto !important;
   padding: 0 !important;
   transform: translateY(-50%) !important;
-  color: var(--pc-signal, #ff5b35) !important;
-  font: 750 15px/1 var(--pc-mono, ui-monospace, monospace) !important;
+  color: var(--tl-green) !important;
+  font: 750 14px/1 var(--tl-mono) !important;
   pointer-events: none !important;
 }
 
@@ -92,45 +474,36 @@
   display: block !important;
   width: 100% !important;
   min-width: 0 !important;
-  min-height: 46px !important;
+  min-height: 44px !important;
   max-height: 144px !important;
   height: auto;
   margin: 0 !important;
-  padding: 11px 4px 10px 0 !important;
+  padding: 10px 4px 9px 0 !important;
   overflow-x: hidden !important;
   overflow-y: hidden;
   resize: none !important;
   border: 0 !important;
   border-radius: 0 !important;
   outline: 0 !important;
-  color: var(--pc-ink, #151714) !important;
+  color: var(--tl-ink) !important;
   background: transparent !important;
-  caret-color: var(--pc-signal, #ff5b35) !important;
-  font-family: var(--pc-font, "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif) !important;
-  font-size: 15.5px !important;
-  font-weight: 500 !important;
-  line-height: 1.46 !important;
+  caret-color: var(--tl-green) !important;
+  font-family: var(--tl-font) !important;
+  font-size: 15px !important;
+  font-weight: 540 !important;
+  line-height: 1.42 !important;
   letter-spacing: -0.012em !important;
   text-align: start !important;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   word-break: break-word;
   scrollbar-width: thin;
-  scrollbar-color: rgba(21, 23, 20, 0.25) transparent;
+  scrollbar-color: var(--tl-line-strong) transparent;
 }
 
 .asympta-intent-composer textarea::placeholder {
-  color: rgba(21, 23, 20, 0.43) !important;
+  color: var(--tl-ink-faint) !important;
   opacity: 1 !important;
-}
-
-.asympta-intent-composer textarea::-webkit-scrollbar {
-  width: 5px;
-}
-
-.asympta-intent-composer textarea::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: rgba(21, 23, 20, 0.22);
 }
 
 .asympta-intent-composer button {
@@ -145,52 +518,105 @@
   min-height: 46px !important;
   margin: 0 !important;
   padding: 0 !important;
-  border: 1px solid var(--pc-ink, #151714) !important;
-  border-radius: 12px !important;
-  background: var(--pc-ink, #151714) !important;
-  color: var(--pc-paper-strong, #f7f5ee) !important;
+  border: 1px solid var(--tl-line-strong) !important;
+  border-radius: 0 !important;
+  background: rgba(247, 243, 234, 0.74) !important;
+  color: var(--tl-green) !important;
   box-shadow: none !important;
-  transform: translateZ(0);
-  transition:
-    transform 120ms ease,
-    background 120ms ease,
-    color 120ms ease,
-    border-color 120ms ease !important;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease !important;
 }
 
 .asympta-intent-composer button:hover:not(:disabled) {
-  transform: translateY(-1px) !important;
-  border-color: var(--pc-ink, #151714) !important;
-  background: var(--pc-signal-acid, #c6ff35) !important;
-  color: var(--pc-ink, #151714) !important;
-}
-
-.asympta-intent-composer button:active:not(:disabled) {
-  transform: translateY(0) scale(0.97) !important;
+  border-color: var(--tl-green) !important;
+  background: var(--tl-green) !important;
+  color: #f8f4eb !important;
 }
 
 .asympta-intent-composer button:disabled,
 .asympta-intent-composer button:disabled:hover {
   opacity: 1 !important;
   cursor: default !important;
-  transform: none !important;
-  border-color: rgba(21, 23, 20, 0.18) !important;
-  background: rgba(21, 23, 20, 0.08) !important;
-  color: rgba(21, 23, 20, 0.32) !important;
+  border-color: var(--tl-line) !important;
+  background: rgba(82, 83, 77, 0.045) !important;
+  color: var(--tl-ink-faint) !important;
 }
 
-/* The status chip supports the composer but never steals its width. */
-.asympta-intent-presence {
-  max-width: calc(100% - 18px) !important;
-  margin-left: 9px !important;
-  border-color: rgba(21, 23, 20, 0.12) !important;
-  background: rgba(249, 247, 241, 0.9) !important;
-  box-shadow: 0 5px 18px rgba(43, 40, 34, 0.06) !important;
+/* -------------------------------------------------------------------------- */
+/* Forms and option rows                                                       */
+/* -------------------------------------------------------------------------- */
+
+.asympta-adaptive-interaction input,
+.asympta-request-card input,
+.asympta-workflow-continuation input,
+.asympta-marketplace-payment-approval input,
+.asympta-user-preferences input,
+.asympta-user-preferences select {
+  border: 1px solid var(--tl-line) !important;
+  border-radius: 0 !important;
+  background: rgba(255, 255, 255, 0.14) !important;
+  color: var(--tl-ink) !important;
+  box-shadow: none !important;
+  font-family: var(--tl-font) !important;
 }
 
-.asympta-intent-presence::before {
-  flex: 0 0 auto;
+.asympta-request-card button.is-selected,
+.asympta-adaptive-interaction button.is-selected,
+.atlas-workflow.is-active,
+.atlas-quick-icon.is-active,
+.atlas-tool-actions button.is-active {
+  border-color: var(--tl-green) !important;
+  background: var(--tl-green-soft) !important;
+  color: var(--tl-green-deep) !important;
 }
+
+/* -------------------------------------------------------------------------- */
+/* Agent dialogue cards use the same small paper labels                        */
+/* -------------------------------------------------------------------------- */
+
+.animal-map-marker__dialogue,
+.animal-map-marker__status-text,
+.asympta-protocol-bubble {
+  border: 1px solid var(--tl-line) !important;
+  border-radius: 0 !important;
+  background: rgba(247, 243, 234, 0.95) !important;
+  color: var(--tl-ink-soft) !important;
+  box-shadow: none !important;
+  font-family: var(--tl-mono) !important;
+  letter-spacing: 0.02em !important;
+}
+
+.animal-map-marker__status-dot {
+  border-radius: 0 !important;
+  box-shadow: 0 0 0 1px var(--tl-line-strong) !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Map chrome                                                                  */
+/* -------------------------------------------------------------------------- */
+
+.maplibregl-ctrl-attrib {
+  border: 1px solid var(--tl-line) !important;
+  border-radius: 0 !important;
+  background: rgba(247, 243, 234, 0.88) !important;
+  color: var(--tl-ink-soft) !important;
+  font-family: var(--tl-mono) !important;
+  font-size: 8px !important;
+  box-shadow: none !important;
+}
+
+.map-zoom button {
+  border: 0 !important;
+  border-bottom: 1px solid var(--tl-line) !important;
+  background: transparent !important;
+}
+
+.map-zoom button:last-child {
+  border-bottom: 0 !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Responsive                                                                  */
+/* -------------------------------------------------------------------------- */
 
 @media (max-width: 700px) {
   .asympta-intent-shell {
@@ -199,9 +625,8 @@
   }
 
   .asympta-intent-presence {
-    max-width: calc(100% - 8px) !important;
-    margin-left: 4px !important;
-    margin-bottom: 5px !important;
+    max-width: 100% !important;
+    margin-bottom: 4px !important;
   }
 
   .asympta-intent-presence::before {
@@ -210,23 +635,21 @@
 
   .asympta-intent-composer {
     grid-template-columns: minmax(0, 1fr) 44px !important;
-    gap: 7px !important;
-    min-height: 60px !important;
-    padding: 7px 7px 7px 40px !important;
-    border-radius: 14px !important;
+    gap: 6px !important;
+    min-height: 58px !important;
+    padding: 7px 7px 7px 38px !important;
   }
 
   .asympta-intent-composer::before {
-    left: 14px !important;
+    left: 13px !important;
   }
 
-  /* Sixteen pixels prevents involuntary iOS page zoom while typing. */
   .asympta-intent-composer textarea {
     min-height: 44px !important;
     max-height: min(34svh, 132px) !important;
     padding: 10px 2px 9px 0 !important;
     font-size: 16px !important;
-    line-height: 1.45 !important;
+    line-height: 1.42 !important;
   }
 
   .asympta-intent-composer button {
@@ -234,7 +657,16 @@
     min-width: 44px !important;
     height: 44px !important;
     min-height: 44px !important;
-    border-radius: 11px !important;
+  }
+
+  .atlas-menu-copy strong,
+  .atlas-safe-schedule__header strong,
+  .atlas-agent-card strong,
+  .atlas-approval strong,
+  .asympta-request-card strong,
+  .asympta-workflow-continuation strong,
+  .asympta-adaptive-interaction strong {
+    font-size: 12.5px !important;
   }
 }
 
@@ -250,14 +682,12 @@
 
   .asympta-intent-composer {
     grid-template-columns: minmax(0, 1fr) 40px !important;
-    gap: 6px !important;
     min-height: 50px !important;
-    padding: 5px 6px 5px 38px !important;
-    border-radius: 12px !important;
+    padding: 5px 6px 5px 36px !important;
   }
 
   .asympta-intent-composer::before {
-    left: 13px !important;
+    left: 12px !important;
   }
 
   .asympta-intent-composer textarea {
@@ -271,13 +701,19 @@
     min-width: 40px !important;
     height: 40px !important;
     min-height: 40px !important;
-    border-radius: 10px !important;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .asympta-intent-composer,
-  .asympta-intent-composer button {
+  .asympta-intent-composer button,
+  .atlas-console,
+  .atlas-safe-schedule,
+  .atlas-agent-card,
+  .atlas-approval,
+  .asympta-request-card,
+  .asympta-workflow-continuation {
     transition: none !important;
+    animation: none !important;
   }
 }
