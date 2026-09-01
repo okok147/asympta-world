@@ -431,9 +431,9 @@ async function run() {
       "guitar marketplace execution start",
     );
     await waitFor(
-      "Boolean(document.querySelector('.asympta-request-card.is-collapsed')) && !document.querySelector('.asympta-screen-celebration')",
+      "Boolean(document.querySelector('.asympta-request-card.is-expanded')) && !document.querySelector('.asympta-screen-celebration')",
       8_000,
-      "new guitar workflow focus",
+      "guitar request card preserves expansion",
     );
 
     const guitarStart = JSON.parse(await evaluate(`JSON.stringify((() => {
