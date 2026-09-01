@@ -6,35 +6,51 @@
     max(22px, env(safe-area-inset-right))
     max(28px, env(safe-area-inset-bottom))
     max(22px, env(safe-area-inset-left));
+  perspective: 1200px;
   animation-duration: 5.6s;
+}
+
+.asympta-screen-celebration::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(255, 242, 198, .2), transparent 30%),
+    radial-gradient(circle at 50% 50%, rgba(94, 143, 119, .08), transparent 56%);
+  opacity: 0;
+  animation: asympta-completion-atmosphere 5.45s ease 40ms both;
 }
 
 .asympta-screen-celebration__content {
   position: relative;
   z-index: 5;
   display: grid;
-  width: min(620px, calc(100vw - 36px));
-  min-height: min(330px, calc(100dvh - 72px));
+  width: min(640px, calc(100vw - 36px));
+  min-height: min(344px, calc(100dvh - 72px));
   place-items: center;
   align-content: center;
-  padding: clamp(36px, 7vmin, 68px) clamp(28px, 7vw, 76px);
+  padding: clamp(38px, 7vmin, 72px) clamp(28px, 7vw, 80px);
   overflow: hidden;
-  border: 1px solid rgba(111, 125, 116, .28);
-  border-radius: clamp(28px, 5vmin, 46px);
+  border: 1px solid rgba(100, 119, 108, .29);
+  border-radius: clamp(30px, 5vmin, 48px);
   background:
-    radial-gradient(circle at 50% -5%, rgba(255, 231, 164, .44), transparent 42%),
-    linear-gradient(145deg, rgba(255, 254, 247, .96), rgba(244, 241, 229, .9));
+    radial-gradient(circle at 50% -4%, rgba(255, 232, 165, .51), transparent 41%),
+    radial-gradient(circle at 90% 92%, rgba(110, 166, 139, .13), transparent 35%),
+    linear-gradient(145deg, rgba(255, 254, 247, .97), rgba(243, 241, 229, .92));
   box-shadow:
-    0 34px 110px rgba(35, 50, 44, .22),
-    inset 0 1px rgba(255, 255, 255, .9),
-    inset 0 0 0 1px rgba(255, 255, 255, .28);
+    0 42px 128px rgba(34, 49, 43, .24),
+    0 10px 34px rgba(34, 49, 43, .11),
+    inset 0 1px rgba(255, 255, 255, .94),
+    inset 0 0 0 1px rgba(255, 255, 255, .3);
   color: #26322e;
   text-align: center;
-  backdrop-filter: blur(24px) saturate(1.12);
-  -webkit-backdrop-filter: blur(24px) saturate(1.12);
+  backdrop-filter: blur(26px) saturate(1.14);
+  -webkit-backdrop-filter: blur(26px) saturate(1.14);
   opacity: 0;
-  transform: translateY(26px) scale(.92);
-  animation: asympta-completion-content 5.45s cubic-bezier(.18,.76,.24,1) 80ms both;
+  transform: translateY(30px) rotateX(4deg) scale(.9);
+  transform-origin: 50% 60%;
+  animation: asympta-completion-content 5.45s cubic-bezier(.18,.76,.24,1) 70ms both;
 }
 
 .asympta-screen-celebration__content::before,
@@ -48,69 +64,98 @@
   inset: 14px;
   border: 1px solid rgba(91, 116, 103, .14);
   border-radius: inherit;
+  box-shadow: inset 0 0 34px rgba(255,255,255,.24);
 }
 
 .asympta-screen-celebration__content::after {
-  right: -17%;
-  bottom: -45%;
-  width: 60%;
+  right: -18%;
+  bottom: -48%;
+  width: 64%;
   aspect-ratio: 1;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(113, 167, 143, .17), transparent 68%);
+  background: radial-gradient(circle, rgba(113, 167, 143, .2), rgba(113,167,143,.05) 45%, transparent 69%);
+  animation: asympta-completion-orb 5.2s ease-in-out 180ms both;
 }
 
 .asympta-screen-celebration__seal {
   position: relative;
   display: grid;
-  width: clamp(72px, 12vmin, 104px);
+  width: clamp(76px, 12vmin, 108px);
   aspect-ratio: 1;
   place-items: center;
   margin-bottom: clamp(20px, 4vmin, 34px);
-  border: 1px solid rgba(66, 102, 90, .32);
+  border: 1px solid rgba(66, 102, 90, .34);
   border-radius: 50%;
   background:
-    radial-gradient(circle at 36% 28%, rgba(255, 255, 255, .92), transparent 34%),
-    linear-gradient(145deg, #dcebdd, #b9d6c5);
+    radial-gradient(circle at 35% 27%, rgba(255, 255, 255, .96), transparent 32%),
+    linear-gradient(145deg, #e0efdf, #b7d7c3);
   box-shadow:
-    0 14px 40px rgba(61, 104, 84, .22),
-    0 0 0 10px rgba(119, 170, 143, .08);
+    0 16px 44px rgba(61, 104, 84, .24),
+    0 0 0 10px rgba(119, 170, 143, .085),
+    0 0 0 22px rgba(119, 170, 143, .035);
   color: #315f4d;
-  font-size: clamp(34px, 6vmin, 52px);
+  font-size: clamp(35px, 6vmin, 54px);
   font-weight: 620;
   line-height: 1;
   opacity: 0;
-  transform: scale(.4) rotate(-12deg);
-  animation: asympta-completion-seal 1.25s cubic-bezier(.16,.82,.23,1) 260ms both;
+  transform: scale(.34) rotate(-14deg);
+  animation: asympta-completion-seal 1.35s cubic-bezier(.16,.82,.23,1) 240ms both;
+}
+
+.asympta-screen-celebration__seal::before,
+.asympta-screen-celebration__seal::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.asympta-screen-celebration__seal::before {
+  inset: -11px;
+  border: 1px solid rgba(82, 132, 106, .18);
+  animation: asympta-completion-seal-ring 2.1s cubic-bezier(.2,.72,.24,1) 360ms both;
+}
+
+.asympta-screen-celebration__seal::after {
+  inset: 16%;
+  background: radial-gradient(circle at 38% 30%, rgba(255,255,255,.55), transparent 48%);
 }
 
 .asympta-screen-celebration__eyebrow {
   display: block;
-  margin: 0 0 10px;
+  margin: 0 0 11px;
   color: #527365;
   font-size: clamp(.68rem, 1.5vmin, .82rem);
-  font-weight: 780;
-  letter-spacing: .18em;
+  font-weight: 790;
+  letter-spacing: .19em;
   line-height: 1.3;
   text-transform: uppercase;
+  opacity: 0;
+  animation: asympta-completion-copy-in .7s ease 480ms both;
 }
 
 .asympta-screen-celebration__title {
   display: block;
   max-width: 16ch;
   text-wrap: balance;
-  font-size: clamp(2rem, 7.2vmin, 4.6rem);
-  font-weight: 720;
-  letter-spacing: -.055em;
-  line-height: .98;
+  font-size: clamp(2.05rem, 7.25vmin, 4.7rem);
+  font-weight: 725;
+  letter-spacing: -.057em;
+  line-height: .97;
+  opacity: 0;
+  transform: translateY(8px);
+  animation: asympta-completion-copy-in .82s cubic-bezier(.2,.75,.24,1) 530ms both;
 }
 
 .asympta-screen-celebration__summary {
   max-width: 48ch;
   margin: clamp(18px, 3.2vmin, 28px) 0 0;
   color: rgba(48, 61, 56, .72);
-  font-size: clamp(.9rem, 2.1vmin, 1.08rem);
+  font-size: clamp(.9rem, 2.1vmin, 1.09rem);
   line-height: 1.58;
   text-wrap: balance;
+  opacity: 0;
+  animation: asympta-completion-copy-in .72s ease 650ms both;
 }
 
 .asympta-screen-celebration__meta {
@@ -119,6 +164,8 @@
   justify-content: center;
   gap: 8px;
   margin-top: clamp(24px, 4vmin, 36px);
+  opacity: 0;
+  animation: asympta-completion-copy-in .68s ease 760ms both;
 }
 
 .asympta-screen-celebration__meta span {
@@ -128,10 +175,11 @@
   padding: 0 12px;
   border: 1px solid rgba(75, 100, 87, .18);
   border-radius: 999px;
-  background: rgba(255, 255, 255, .56);
+  background: rgba(255, 255, 255, .6);
+  box-shadow: inset 0 1px rgba(255,255,255,.7);
   color: #4d6359;
   font-size: .7rem;
-  font-weight: 720;
+  font-weight: 725;
   letter-spacing: .035em;
 }
 
@@ -145,45 +193,78 @@
 .asympta-screen-celebration__meta .is-simulated {
   border-color: rgba(93, 116, 163, .16);
   color: #5a6d91;
-  background: rgba(234, 239, 249, .65);
+  background: rgba(234, 239, 249, .68);
 }
 
 body[data-asympta-celebrating="true"] .map-app {
-  transform: scale(1.008);
-  filter: saturate(1.045) brightness(1.018);
-  transition: transform 760ms cubic-bezier(.2,.7,.25,1), filter 760ms ease;
+  transform: scale(1.012);
+  filter: saturate(1.055) brightness(1.022);
+  transition: transform 820ms cubic-bezier(.2,.7,.25,1), filter 820ms ease;
+}
+
+body[data-asympta-celebrating="true"] .asympta-three-world-effects__surface {
+  opacity: 1;
+}
+
+@keyframes asympta-completion-atmosphere {
+  0% { opacity: 0; transform: scale(.94); }
+  13%, 76% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.04); }
 }
 
 @keyframes asympta-completion-content {
-  0% { opacity: 0; transform: translateY(26px) scale(.92); }
-  10% { opacity: 1; transform: translateY(0) scale(1.012); }
-  18%, 78% { opacity: 1; transform: translateY(0) scale(1); }
-  91% { opacity: .94; transform: translateY(-3px) scale(.995); }
-  100% { opacity: 0; transform: translateY(-14px) scale(.98); }
+  0% { opacity: 0; transform: translateY(30px) rotateX(4deg) scale(.9); }
+  10% { opacity: 1; transform: translateY(-1px) rotateX(0) scale(1.015); }
+  18%, 78% { opacity: 1; transform: translateY(0) rotateX(0) scale(1); }
+  91% { opacity: .94; transform: translateY(-3px) rotateX(-.4deg) scale(.995); }
+  100% { opacity: 0; transform: translateY(-16px) rotateX(-1deg) scale(.976); }
 }
 
 @keyframes asympta-completion-seal {
-  0% { opacity: 0; transform: scale(.4) rotate(-12deg); }
-  38% { opacity: 1; transform: scale(1.12) rotate(4deg); }
-  68% { transform: scale(.96) rotate(-1deg); }
+  0% { opacity: 0; transform: scale(.34) rotate(-14deg); }
+  36% { opacity: 1; transform: scale(1.14) rotate(4.5deg); }
+  66% { transform: scale(.955) rotate(-1.3deg); }
+  84% { transform: scale(1.025) rotate(.4deg); }
   100% { opacity: 1; transform: scale(1) rotate(0); }
+}
+
+@keyframes asympta-completion-seal-ring {
+  0% { opacity: 0; transform: scale(.6); }
+  32% { opacity: .8; }
+  100% { opacity: 0; transform: scale(1.9); }
+}
+
+@keyframes asympta-completion-copy-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes asympta-completion-orb {
+  0% { opacity: 0; transform: translate(8%, 8%) scale(.75); }
+  25%, 78% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-6%, -8%) scale(1.2); }
 }
 
 @media (max-width: 620px) {
   .asympta-screen-celebration__content {
-    min-height: min(420px, calc(100dvh - 56px));
+    min-height: min(430px, calc(100dvh - 56px));
     padding-inline: 24px;
-    border-radius: 30px;
+    border-radius: 31px;
   }
 
-  .asympta-screen-celebration__title {
-    max-width: 13ch;
-  }
+  .asympta-screen-celebration__title { max-width: 13ch; }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .asympta-screen-celebration::before,
   .asympta-screen-celebration__content,
-  .asympta-screen-celebration__seal {
+  .asympta-screen-celebration__content::after,
+  .asympta-screen-celebration__seal,
+  .asympta-screen-celebration__seal::before,
+  .asympta-screen-celebration__eyebrow,
+  .asympta-screen-celebration__title,
+  .asympta-screen-celebration__summary,
+  .asympta-screen-celebration__meta {
     animation: none;
     opacity: 1;
     transform: none;
