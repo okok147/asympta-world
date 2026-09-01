@@ -10,6 +10,7 @@ type DemoApi = {
 };
 
 const SPEEDS: SimulationSpeed[] = [1, 2, 3, 4, 5];
+const DEFAULT_SPEED: SimulationSpeed = 2;
 const STORAGE_KEY = "asympta-world.simulation-speed.v1";
 const ACCELERATOR_TICK_MS = 160;
 
@@ -31,7 +32,7 @@ function readSpeed(): SimulationSpeed {
     const value = Number(localStorage.getItem(STORAGE_KEY));
     if (SPEEDS.includes(value as SimulationSpeed)) return value as SimulationSpeed;
   } catch {}
-  return 1;
+  return DEFAULT_SPEED;
 }
 
 function writeSpeed(speed: SimulationSpeed) {
@@ -45,8 +46,8 @@ function demoApi() {
 export function AsymptaSimulationSpeed() {
   const [target, setTarget] = useState<HTMLElement | null>(null);
   const [locale, setLocale] = useState<Locale>("en");
-  const [speed, setSpeed] = useState<SimulationSpeed>(1);
-  const speedRef = useRef<SimulationSpeed>(1);
+  const [speed, setSpeed] = useState<SimulationSpeed>(DEFAULT_SPEED);
+  const speedRef = useRef<SimulationSpeed>(DEFAULT_SPEED);
 
   useEffect(() => {
     const stored = readSpeed();
