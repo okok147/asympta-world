@@ -315,7 +315,8 @@ async function run() {
         const movieSchema = window.__ASYMPTA_TASK_KERNEL__.schema(movieTask.taskId);
         const movieRequirement = movieSchema?.nextField;
         if (!movieRequirement) break;
-        const movieOption = movieRequirement.options?.[0];
+        const movieOption = movieRequirement.options?.[0]
+          ?? (movieRequirement.control === 'number' ? { value: 2, label: '2' } : null);
         if (!movieOption) throw new Error('Watch a movie did not expose a selectable option for ' + movieRequirement.key + '.');
         movieAnswers.push({ field: movieRequirement.key, value: movieOption.value, label: movieOption.label });
         const currentMovieTask = window.__ASYMPTA_TASK_KERNEL__.getTask(movieTask.taskId);
