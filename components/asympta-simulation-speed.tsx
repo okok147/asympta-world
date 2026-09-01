@@ -11,7 +11,7 @@ type DemoApi = {
 
 const SPEEDS: SimulationSpeed[] = [1, 2, 3, 4, 5];
 const DEFAULT_SPEED: SimulationSpeed = 2;
-const STORAGE_KEY = "asympta-world.simulation-speed.v1";
+const STORAGE_KEY = "asympta-world.simulation-speed.v2";
 const ACCELERATOR_TICK_MS = 160;
 
 const COPY: Record<Locale, string> = {
