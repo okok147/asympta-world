@@ -131,7 +131,7 @@ function approvalView(approval: PendingApproval | null, execution: MarketplaceEx
 
   // Atlas can expose the pending approval one render tick before the marketplace
   // projection records its `approval_request` packet. Keep the human checkpoint
-  // visible, but do not invent an item/amount or enable either decision until the
+  // visible, but do not invent an item/amount or expose either decision until the
   // structured execution has observed the same waiting state. This makes the
   // audit packet and the decision one ordered, inspectable process.
   if (!transaction || !line) {
@@ -256,7 +256,6 @@ export function AsymptaMarketplacePaymentApproval() {
   const amount = formatAmount(locale, approval.totalAmount);
   const isPayOnDelivery = approval.paymentMethod === "pay_on_delivery";
   const standalone = host.tagName === "BODY";
-  const decisionsDisabled = resolving || !approval.ready;
 
   return createPortal(
     <section
@@ -285,16 +284,18 @@ export function AsymptaMarketplacePaymentApproval() {
         </div>
       ) : null}
 
-      <div className="asympta-marketplace-payment-approval__actions">
-        <button type="button" onClick={() => resolve(true)} disabled={decisionsDisabled}>
-          <ShieldCheck size={13} aria-hidden="true" />
-          {copy.confirm(amount)}
-        </button>
-        <button type="button" onClick={() => resolve(false)} disabled={decisionsDisabled}>
-          <X size={13} aria-hidden="true" />
-          {copy.decline}
-        </button>
-      </div>
+      {approval.ready ? (
+        <div className="asympta-marketplace-payment-approval__actions">
+          <button type="button" onClick={() => resolve(true)} disabled={resolving}>
+            <ShieldCheck size={13} aria-hidden="true" />
+            {copy.confirm(amount)}
+          </button>
+          <button type="button" onClick={() => resolve(false)} disabled={resolving}>
+            <X size={13} aria-hidden="true" />
+            {copy.decline}
+          </button>
+        </div>
+      ) : null}
 
       <small className="asympta-marketplace-payment-approval__safety">{copy.safe}</small>
       {error ? <span className="asympta-marketplace-payment-approval__error">{error}</span> : null}
