@@ -6,6 +6,7 @@ import {
   subscribeAsymptaCompletionReceipts,
   type AsymptaCompletionReceipt,
 } from "@/lib/asympta-completion-receipt";
+import { subscribeAsymptaWorkflowStarts } from "@/lib/asympta-workflow-lifecycle";
 
 type TaskSnapshot = {
   id: string;
@@ -199,6 +200,13 @@ function removeScreenCelebration(overlay: HTMLElement | null) {
   }
 }
 
+function removeAllScreenCelebrations() {
+  document.querySelectorAll<HTMLElement>(".asympta-screen-celebration").forEach((overlay) => {
+    overlay.remove();
+  });
+  delete document.body.dataset.asymptaCelebrating;
+}
+
 export function AsymptaTaskCelebration() {
   const previousStatusRef = useRef(new Map<string, string>());
   const seededRef = useRef(false);
@@ -210,6 +218,17 @@ export function AsymptaTaskCelebration() {
     let lifetimeTimer = 0;
     let gapTimer = 0;
     let disposed = false;
+
+    const dismissCompletionPresentation = () => {
+      window.clearTimeout(lifetimeTimer);
+      window.clearTimeout(gapTimer);
+      lifetimeTimer = 0;
+      gapTimer = 0;
+      queue.length = 0;
+      removeScreenCelebration(activeOverlay);
+      activeOverlay = null;
+      removeAllScreenCelebrations();
+    };
 
     const startNext = () => {
       if (disposed || activeOverlay || !queue.length) return;
@@ -229,6 +248,12 @@ export function AsymptaTaskCelebration() {
       if (celebratedIds.length > MAX_CELEBRATED_RECEIPTS) celebratedIds.splice(0, celebratedIds.length - MAX_CELEBRATED_RECEIPTS);
       queue.push(receipt);
       startNext();
+    });
+
+    // A new run owns the screen immediately. Never let the previous run's
+    // large finish card or any queued finish cards cover the short start cue.
+    const unsubscribeStart = subscribeAsymptaWorkflowStarts(() => {
+      dismissCompletionPresentation();
     });
 
     const syncTaskBursts = () => {
@@ -265,10 +290,8 @@ export function AsymptaTaskCelebration() {
       window.clearTimeout(lifetimeTimer);
       window.clearTimeout(gapTimer);
       unsubscribeReceipt();
-      queue.length = 0;
-      removeScreenCelebration(activeOverlay);
-      document.querySelectorAll(".asympta-screen-celebration").forEach((node) => node.remove());
-      delete document.body.dataset.asymptaCelebrating;
+      unsubscribeStart();
+      dismissCompletionPresentation();
     };
   }, []);
 

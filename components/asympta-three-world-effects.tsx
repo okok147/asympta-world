@@ -81,6 +81,9 @@ export function AsymptaThreeWorldEffects() {
 
   useEffect(() => {
     const unsubscribeStart = subscribeAsymptaWorkflowStarts((signal) => {
+      // Starting a new run supersedes every visual from the previous finish.
+      // Only the compact start card and green pulse may remain on screen.
+      completionPulseAtRef.current = Number.NEGATIVE_INFINITY;
       startPulseAtRef.current = performance.now();
       setStartCard(signal);
       window.clearTimeout(startTimerRef.current);
@@ -89,6 +92,11 @@ export function AsymptaThreeWorldEffects() {
       )), START_CARD_MS);
     });
     const unsubscribeCompletion = subscribeAsymptaCompletionReceipts(() => {
+      // Completion is the inverse phase: remove a still-running start cue so
+      // the verified finish celebration is the sole celebration on screen.
+      startPulseAtRef.current = Number.NEGATIVE_INFINITY;
+      window.clearTimeout(startTimerRef.current);
+      setStartCard(null);
       completionPulseAtRef.current = performance.now();
     });
     return () => {

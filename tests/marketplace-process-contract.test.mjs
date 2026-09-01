@@ -364,9 +364,15 @@ test("the product separates the short start celebration from the verified large 
   assert.match(effectsCss, /prefers-reduced-motion/);
   assert.match(effectsCss, /asympta-workflow-start-card/);
   assert.match(celebration, /subscribeAsymptaCompletionReceipts/);
+  assert.match(celebration, /subscribeAsymptaWorkflowStarts/);
   assert.match(celebration, /const queue: AsymptaCompletionReceipt\[\] = \[\]/);
+  assert.match(celebration, /dismissCompletionPresentation/);
+  assert.match(celebration, /queue\.length = 0/);
+  assert.match(celebration, /removeAllScreenCelebrations/);
   assert.match(celebration, /asympta-screen-celebration__content/);
   assert.match(celebration, /data.*completionId|dataset\.completionId/);
+  assert.match(threeEffects, /completionPulseAtRef\.current = Number\.NEGATIVE_INFINITY/);
+  assert.match(threeEffects, /startPulseAtRef\.current = Number\.NEGATIVE_INFINITY/);
   assert.match(completionCss, /width:\s*min\(620px/);
   assert.match(completionCss, /asympta-completion-content/);
   assert.match(completionCss, /prefers-reduced-motion/);
