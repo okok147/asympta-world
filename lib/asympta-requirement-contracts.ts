@@ -55,11 +55,28 @@ export type CompiledRequirementContract = {
 const TV_PATTERN = /(?:\btv\b|\btelevision\b|smart\s*tv|電視機?|电视机?|テレビ)/iu;
 const EVENT_PATTERN = /(?:concert|show|performance|ticket|演唱會|演唱会|音樂會|音乐会|門票|门票|公演|チケット)/iu;
 const CINEMA_PATTERN = /(?:\bmovies?\b|\bfilms?\b|\bcinema\b|movie\s*tickets?|電影|电影|戲院|戏院|影院|映画|映画館)/iu;
+const PROPERTY_PATTERN = /(?:\breal[ -]?estate\b|\bproperty\b|\bproperties\b|\bhouse\b|\bhome\b|\bapartment\b|\bflat\b|\bcondo(?:minium)?\b|\btownhouse\b|\bland\b|房屋|房子|住宅|樓盤|楼盘|公寓|單位|单位|物業|物业|地產|地产|不動産|住宅|マンション|アパート|一戸建て|土地)/iu;
 const PURCHASE_PATTERN = /(?:\b(?:buy|purchase|order|shop\s+for|acquire)\b|購買|购买|買|买|訂購|订购|購入|注文)/iu;
 const ABSTRACT_FIELD_PATTERN = /(?:other|remaining|necessary|required|details?|information|specifications?|specs?|其他|其餘|其余|必要|資料|资料|資訊|信息|規格|规格|その他|残り|必要な|情報|仕様)/iu;
-const CONCRETE_FIELD_PATTERN = /(?:budget|price|quantity|count|purpose|use|brand|model|type|size|range|capacity|location|vendor|supplier|store|shop|delivery|shipping|pickup|deadline|timeframe|date|movie|film|cinema|showtime|session|approval|compliance|licen[cs]e|registration|預算|预算|數量|数量|用途|品牌|型號|型号|類型|类型|尺寸|航程|容量|地點|地点|供應商|供应商|商店|配送|送貨|送货|自取|期限|日期|電影|电影|影片|片名|戲院|戏院|影院|場次|场次|批准|合規|合规|牌照|執照|执照|登記|登记|予算|数量|用途|ブランド|モデル|種類|サイズ|航続|容量|場所|業者|店舗|配送|受取|期限|映画|映画館|上映|承認|規制|免許|登録)/iu;
+const CONCRETE_FIELD_PATTERN = /(?:budget|price|quantity|count|purpose|use|brand|model|type|size|range|capacity|location|area|district|neighbou?rhood|bedroom|room|financ|mortgage|cash|property|house|apartment|flat|condo|vendor|supplier|store|shop|delivery|shipping|pickup|deadline|timeframe|date|movie|film|cinema|showtime|session|approval|compliance|licen[cs]e|registration|預算|预算|數量|数量|用途|品牌|型號|型号|類型|类型|尺寸|航程|容量|地點|地点|地區|地区|區域|区域|房型|睡房|房間|房间|按揭|貸款|贷款|現金|现金|房屋|房子|住宅|樓盤|楼盘|公寓|物業|物业|供應商|供应商|商店|配送|送貨|送货|自取|期限|日期|電影|电影|影片|片名|戲院|戏院|影院|場次|场次|批准|合規|合规|牌照|執照|执照|登記|登记|予算|数量|用途|ブランド|モデル|種類|サイズ|場所|地域|エリア|寝室|部屋|住宅|不動産|マンション|アパート|住宅ローン|現金|業者|店舗|配送|受取|期限|映画|映画館|上映|承認|規制|免許|登録)/iu;
 
 const REQUIREMENT_CONTRACTS: RequirementContractDefinition[] = [
+  {
+    id: "real-estate.residential-purchase.v1",
+    priority: 120,
+    augmentation: "always",
+    completionMode: "simulated_execution",
+    proposalKind: "coordination",
+    match: (context) => PROPERTY_PATTERN.test(context.rootIntent)
+      && (context.actionFamily === "purchase" || PURCHASE_PATTERN.test(context.rootIntent)),
+    requirements: [
+      { semantic: "property_location", field: "property location" },
+      { semantic: "budget", field: "budget" },
+      { semantic: "property_type", field: "property type" },
+      { semantic: "bedrooms", field: "bedrooms" },
+      { semantic: "financing", field: "financing preference" },
+    ],
+  },
   {
     id: "commerce.consumer-electronics.purchase.v1",
     priority: 100,
@@ -143,6 +160,10 @@ function normalize(value: string) {
 
 export function requirementSemantic(value: string) {
   const normalized = normalize(value);
+  if (/(?:property_?(?:location|area|district)|preferred_?(?:area|district|neighbou?rhood)|house_?location|home_?location|樓盤地區|楼盘地区|物業地區|物业地区|房屋地區|房屋地区|住宅地區|住宅地区|希望地域|希望エリア|物件エリア)/u.test(normalized)) return "property_location";
+  if (/(?:property_?type|home_?type|housing_?type|house_?type|房屋類型|房屋类型|物業類型|物业类型|住宅類型|住宅类型|房型|物件種別|住宅タイプ)/u.test(normalized)) return "property_type";
+  if (/(?:bedrooms?|bed_?rooms?|number_?of_?bedrooms?|sleeping_?rooms?|睡房|睡房數|睡房数|房間數|房间数|寝室|寝室数|部屋数)/u.test(normalized)) return "bedrooms";
+  if (/(?:financ(?:e|ing)|mortgage|loan|cash_?purchase|payment_?plan|按揭|貸款|贷款|現金購買|现金购买|付款方式|住宅ローン|融資|現金購入)/u.test(normalized)) return "financing";
   if (/(?:^|_)(?:movie|film)(?:_?(?:preference|title|name))?(?:_|$)|(?:電影|电影|影片|片名|観たい映画|映画名)/u.test(normalized)) return "movie_preference";
   if (/(?:cinema_?(?:area|location)?|theat(?:er|re)_?(?:area|location)?|戲院地區|戏院地区|影院地區|影院地区|映画館_?(?:の)?エリア)/u.test(normalized)) return "cinema_area";
   if (/(?:showtime|screening_?(?:time|session)?|session_?time|上映時間|上映时间|場次時間|场次时间|場次|场次|上映時刻)/u.test(normalized)) return "showtime";
@@ -169,24 +190,29 @@ function isAbstractField(field: string) {
 
 function inferContext(input: Pick<CreateAsymptaTaskInput, "rootIntent" | "domain" | "actionFamily">): ContractContext {
   const rootIntent = input.rootIntent.trim();
+  const propertyPurchase = PROPERTY_PATTERN.test(rootIntent) && PURCHASE_PATTERN.test(rootIntent);
   const actionFamily = input.actionFamily
-    ?? (PURCHASE_PATTERN.test(rootIntent)
+    ?? (propertyPurchase
       ? "purchase"
-      : CINEMA_PATTERN.test(rootIntent)
-        ? "discover"
-        : EVENT_PATTERN.test(rootIntent)
-          ? "attend"
-          : "coordinate");
+      : PURCHASE_PATTERN.test(rootIntent)
+        ? "purchase"
+        : CINEMA_PATTERN.test(rootIntent)
+          ? "discover"
+          : EVENT_PATTERN.test(rootIntent)
+            ? "attend"
+            : "coordinate");
   const domain = input.domain
-    ?? (TV_PATTERN.test(rootIntent)
-      ? "commerce.consumer_electronics"
-      : CINEMA_PATTERN.test(rootIntent)
-        ? "events.cinema"
-        : EVENT_PATTERN.test(rootIntent)
-          ? "events"
-          : actionFamily === "purchase"
-            ? "commerce"
-            : "general");
+    ?? (propertyPurchase
+      ? "real_estate.residential"
+      : TV_PATTERN.test(rootIntent)
+        ? "commerce.consumer_electronics"
+        : CINEMA_PATTERN.test(rootIntent)
+          ? "events.cinema"
+          : EVENT_PATTERN.test(rootIntent)
+            ? "events"
+            : actionFamily === "purchase"
+              ? "commerce"
+              : "general");
   return { rootIntent, domain, actionFamily };
 }
 

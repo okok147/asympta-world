@@ -19,6 +19,7 @@ import "./asympta-calm-ui.css";
 import "./asympta-global-world.css";
 import "./asympta-intent.css";
 import "./asympta-request-cards.css";
+import "./asympta-protocell-pencil.css";
 
 const faviconPath = process.env.ASYMPTA_PAGES_BUILD === "1"
   ? "/asympta-world/favicon-asympta-cat-20260829.svg"
@@ -42,11 +43,33 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: "cover",
-  themeColor: "#fbfaf7",
+  themeColor: "#f1efe7",
 };
 
 const ASYMPTA_MAP_BRIDGE_BOOTSTRAP = `(() => {
   let current = window.maplibregl;
+  const reearthPencilStyle = {
+    version: 8,
+    name: "Asympta · Re:Earth Pencil Sketch",
+    sources: {
+      "reearth-pencil-sketch": {
+        type: "raster",
+        url: "https://papers.reearth.land/styles/paint-pencil-sketch/tilejson.json",
+        tileSize: 256
+      }
+    },
+    layers: [
+      {
+        id: "reearth-pencil-sketch",
+        type: "raster",
+        source: "reearth-pencil-sketch",
+        paint: {
+          "raster-opacity": 1,
+          "raster-fade-duration": 0
+        }
+      }
+    ]
+  };
 
   const wrap = (value) => {
     if (!value || value.__asymptaCameraBridgeWrapped || !value.Map) return value;
@@ -56,7 +79,12 @@ const ASYMPTA_MAP_BRIDGE_BOOTSTRAP = `(() => {
         const deviceRatio = Math.min(window.devicePixelRatio || 1, 2);
         const requestedZoom = Number(options?.zoom);
         const initialZoom = Number.isFinite(requestedZoom) ? Math.min(20, requestedZoom + 2) : options?.zoom;
-        super({ ...options, zoom: initialZoom, pixelRatio: options?.pixelRatio ?? deviceRatio });
+        super({
+          ...options,
+          style: reearthPencilStyle,
+          zoom: initialZoom,
+          pixelRatio: options?.pixelRatio ?? deviceRatio
+        });
         window.__ASYMPTA_MAP__ = this;
       }
 

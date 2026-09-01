@@ -59,6 +59,11 @@ function worldWorkflowActive(task: AsymptaTaskState) {
   return Boolean(task.worldWorkflow && task.worldWorkflow.status !== "completed");
 }
 
+function approvalSatisfied(task: AsymptaTaskState) {
+  return !task.completion.requiresApproval
+    || task.approvals.some((approval) => approval.status === "approved");
+}
+
 function sameBusinessJourneyProof(
   left: AsymptaTaskBusinessJourneyProof,
   right: AsymptaTaskBusinessJourneyProof,
@@ -239,6 +244,49 @@ export class BrowserAsymptaTaskKernel {
   approve(command: ApproveTaskCommand) {
     const current = this.tasks.get(command.taskId);
     if (!current) throw new Error(`Task ${command.taskId} was not found.`);
+
+    // In the browser's simulated world an approved consequential action must
+    // not jump straight from approval to a synthetic terminal result. Record
+    // the approval and hand the SAME task to the visible Atlas workflow, which
+    // will execute, issue a simulated receipt and verify the returned outcome.
+    if (command.approved && current.mode === "simulated") {
+      if (current.processedCommandIds.includes(command.commandId)) return cloneTask(current);
+      if (current.revision !== command.expectedRevision) {
+        throw new Error(`Task ${current.taskId} is at revision ${current.revision}, not ${command.expectedRevision}.`);
+      }
+      const next = cloneTask(current);
+      const approval = next.approvals.find((candidate) => candidate.id === command.approvalId);
+      if (!approval || approval.status !== "pending") {
+        throw new Error(`Approval ${command.approvalId} is not pending.`);
+      }
+      next.revision += 1;
+      next.updatedAt = new Date(command.now ?? Date.now()).toISOString();
+      approval.status = "approved";
+      approval.decidedAt = next.updatedAt;
+      next.processedCommandIds = [...next.processedCommandIds, command.commandId].slice(-128);
+      next.phase = "coordinating";
+      next.liveness.state = "running";
+      next.liveness.lastProgressRevision = next.revision;
+      next.liveness.lastProgressAt = next.updatedAt;
+      delete next.liveness.nextAttemptAt;
+      delete next.liveness.obstacle;
+      next.events.push({
+        id: `${next.taskId}:event:${next.events.length + 1}`,
+        taskId: next.taskId,
+        revision: next.revision,
+        kind: "approval_decided",
+        actorId: command.actorId ?? "human",
+        summary: "Approved the simulated consequential action and handed execution to the visible world.",
+        data: { approvalId: approval.id, approved: true, executionDriver: "atlas_world" },
+        at: next.updatedAt,
+      });
+      appendWorldEvent(next, "phase_changed", "policy-gate", "Approval recorded; the visible world will now execute and verify the task.", {
+        phase: next.phase,
+        executionDriver: "atlas_world",
+      });
+      return this.commit("approval", next, current);
+    }
+
     const next = approveAsymptaTask(current, command);
     if (next === current) return cloneTask(current);
     return this.commit("approval", next, current);
@@ -256,7 +304,7 @@ export class BrowserAsymptaTaskKernel {
     const current = this.tasks.get(taskId);
     if (!current || terminal(current)) return current ? cloneTask(current) : null;
     if (current.requirements.some((requirement) => requirement.status === "unknown")) return cloneTask(current);
-    if (current.completion.requiresApproval || current.completion.requiresReceipt) return cloneTask(current);
+    if (!approvalSatisfied(current)) return cloneTask(current);
     if (current.worldWorkflow?.runId === runId
       && current.worldWorkflow.totalTaskCount === workflow.tasks.length
       && current.worldWorkflow.name === workflow.name
@@ -402,7 +450,7 @@ export class BrowserAsymptaTaskKernel {
     const allTasksDone = snapshot.phase === "completed"
       && snapshot.tasks.length === worldWorkflow.totalTaskCount
       && snapshot.tasks.every((task) => task.status === "done");
-    if (!allTasksDone || current.completion.requiresApproval || current.completion.requiresReceipt) return cloneTask(current);
+    if (!allTasksDone || !approvalSatisfied(current)) return cloneTask(current);
 
     if (!businessJourneyProof.complete) {
       const next = cloneTask(current);
@@ -449,6 +497,9 @@ export class BrowserAsymptaTaskKernel {
     const summary = taskWorldCompletionSummary(next);
     const businessResult = taskWorldBusinessResult(next);
     const evidenceId = `${next.taskId}:evidence:atlas-world:${next.evidence.length + 1}`;
+    const receiptEvidenceId = current.completion.requiresReceipt
+      ? `${next.taskId}:evidence:atlas-world-receipt:${next.evidence.length + 2}`
+      : null;
     const outcomeId = `${next.taskId}:outcome:atlas-world`;
     next.evidence.push({
       id: evidenceId,
@@ -474,6 +525,25 @@ export class BrowserAsymptaTaskKernel {
       },
       createdAt: next.updatedAt,
     });
+    if (receiptEvidenceId) {
+      next.evidence.push({
+        id: receiptEvidenceId,
+        source: "atlas-world",
+        kind: "receipt",
+        summary: `Simulated execution receipt: ${summary}`,
+        simulated: true,
+        verified: true,
+        value: {
+          simulated: true,
+          realWorldSideEffect: false,
+          workflowId: worldWorkflow.workflowId,
+          runId: worldWorkflow.runId,
+          approvalIds: next.approvals.filter((approval) => approval.status === "approved").map((approval) => approval.id),
+          businessJourneyProof,
+        },
+        createdAt: next.updatedAt,
+      });
+    }
     next.worldWorkflow = {
       ...worldWorkflow,
       status: "completed",
@@ -497,9 +567,11 @@ export class BrowserAsymptaTaskKernel {
       summary,
       value: {
         simulated: true,
+        realWorldSideEffect: false,
         workflowId: worldWorkflow.workflowId,
         runId: worldWorkflow.runId,
         verificationEvidenceId: evidenceId,
+        ...(receiptEvidenceId ? { receiptEvidenceId } : {}),
         businessJourneyProof,
         businessResult,
       },
@@ -512,13 +584,17 @@ export class BrowserAsymptaTaskKernel {
       summary,
       value: {
         ...businessResult,
+        realWorldSideEffect: false,
         businessJourneyProof,
         verificationEvidenceId: evidenceId,
+        ...(receiptEvidenceId ? { receiptEvidenceId } : {}),
       },
       verification: {
         status: "verified",
         criteria: {
           requirementsResolved: next.requirements.every((requirement) => requirement.status !== "unknown"),
+          approvalSatisfied: approvalSatisfied(next),
+          receiptRecorded: !next.completion.requiresReceipt || Boolean(receiptEvidenceId),
           visibleWorkflowCompleted: true,
           everyWorkflowTaskDone: true,
           requesterReachedBusiness: businessJourneyProof.requesterReachedBusiness,
@@ -544,12 +620,14 @@ export class BrowserAsymptaTaskKernel {
       outcomeId,
       workflowId: worldWorkflow.workflowId,
       simulated: true,
+      ...(receiptEvidenceId ? { receiptEvidenceId } : {}),
     });
     appendWorldEvent(next, "task_completed", "agent-quality", summary, {
       outcomeId,
       evidenceId,
       workflowId: worldWorkflow.workflowId,
       simulated: true,
+      ...(receiptEvidenceId ? { receiptEvidenceId } : {}),
     });
     return this.commit("resumed", next, current);
   }

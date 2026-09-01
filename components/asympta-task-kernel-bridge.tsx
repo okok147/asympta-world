@@ -64,6 +64,14 @@ function riskFromData(data: Record<string, unknown>, consequential: boolean): As
   return consequential ? "high" : "low";
 }
 
+function approvedSimulatedTaskCanUseWorld(task: AsymptaTaskState) {
+  return task.mode === "simulated"
+    && !["completed", "cancelled"].includes(task.phase)
+    && task.worldWorkflow?.status !== "blocked"
+    && task.requirements.every((requirement) => requirement.status !== "unknown")
+    && (!task.completion.requiresApproval || task.approvals.some((approval) => approval.status === "approved"));
+}
+
 function writeTaskMetadata(detail: ActivityDetail, task: ReturnType<ReturnType<typeof getBrowserAsymptaTaskKernel>["getTask"]>) {
   if (!task || !detail.event) return;
   const data = dataRecord(detail.event.data);
@@ -103,7 +111,11 @@ export function AsymptaTaskKernelBridge() {
     const demoBridge = () => (window as Window & { __ASYMPTA_DEMO__?: DemoBridge }).__ASYMPTA_DEMO__;
 
     const ensureWorldRun = (task: AsymptaTaskState) => {
-      if (!taskUsesVisibleWorldWorkflow(task)) return;
+      // Read-only / non-consequential tasks use the existing predicate. Approved
+      // simulated consequential tasks also enter the SAME visible world after
+      // the human boundary, so purchases (including property) cannot disappear
+      // into an invisible executor after approval.
+      if (!taskUsesVisibleWorldWorkflow(task) && !approvedSimulatedTaskCanUseWorld(task)) return;
       if (task.worldWorkflow?.status === "completed") return;
       const runId = task.worldWorkflow?.runId ?? taskWorldWorkflowRunId(task);
       const existing = activeWorldRunRef.current;

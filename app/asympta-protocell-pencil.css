@@ -1,0 +1,593 @@
+/*
+ * Asympta World — computational pencil / protocell visual system
+ * Reference direction: generative interface language + Re:Earth pencil map.
+ * This file is intentionally loaded LAST so one coherent design system wins
+ * over older demo-era decoration without changing canonical state or workflow.
+ */
+
+:root {
+  --pc-paper: #f1efe7;
+  --pc-paper-strong: #f7f5ee;
+  --pc-paper-glass: rgba(247, 245, 238, 0.90);
+  --pc-ink: #151714;
+  --pc-ink-soft: rgba(21, 23, 20, 0.66);
+  --pc-ink-faint: rgba(21, 23, 20, 0.34);
+  --pc-line: rgba(21, 23, 20, 0.22);
+  --pc-line-strong: rgba(21, 23, 20, 0.48);
+  --pc-signal: #ff5b35;
+  --pc-signal-cool: #2a61ff;
+  --pc-signal-acid: #c6ff35;
+  --pc-radius: 2px;
+  --pc-font: "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif;
+  --pc-mono: ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
+}
+
+html,
+body {
+  background: var(--pc-paper) !important;
+  color: var(--pc-ink) !important;
+  font-family: var(--pc-font) !important;
+}
+
+body {
+  letter-spacing: -0.012em;
+}
+
+button,
+textarea,
+input,
+select {
+  font: inherit;
+}
+
+::selection {
+  background: var(--pc-signal-acid);
+  color: var(--pc-ink);
+}
+
+/* -------------------------------------------------------------------------- */
+/* World surface                                                               */
+/* -------------------------------------------------------------------------- */
+
+.map-app {
+  background: var(--pc-paper) !important;
+  isolation: isolate;
+}
+
+.map-app::before,
+.map-app::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.map-app::before {
+  background-image:
+    linear-gradient(rgba(20, 22, 19, .025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(20, 22, 19, .025) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: linear-gradient(to bottom, rgba(0,0,0,.48), transparent 74%);
+}
+
+.map-app::after {
+  background:
+    radial-gradient(circle at 22% 17%, rgba(255,255,255,.23), transparent 30%),
+    radial-gradient(circle at 83% 73%, rgba(21,23,20,.025), transparent 34%);
+  mix-blend-mode: multiply;
+}
+
+.map-canvas,
+.maplibregl-map,
+.maplibregl-canvas-container,
+.maplibregl-canvas {
+  background: var(--pc-paper) !important;
+}
+
+.maplibregl-canvas {
+  filter: saturate(.90) contrast(1.025) brightness(1.015);
+}
+
+.map-paper-wash {
+  background: rgba(244, 242, 234, .06) !important;
+  opacity: .35 !important;
+  mix-blend-mode: multiply;
+}
+
+.map-paper-grain {
+  opacity: .16 !important;
+  mix-blend-mode: multiply;
+  filter: grayscale(1) contrast(1.2);
+}
+
+.maplibregl-ctrl-attrib {
+  border: 1px solid var(--pc-line) !important;
+  border-radius: 0 !important;
+  background: rgba(247,245,238,.84) !important;
+  color: var(--pc-ink-soft) !important;
+  font: 8px/1.2 var(--pc-mono) !important;
+  box-shadow: none !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Panel grammar                                                               */
+/* -------------------------------------------------------------------------- */
+
+.atlas-console,
+.atlas-agent-card,
+.atlas-approval,
+.asympta-intent-shell,
+.asympta-request-card,
+.asympta-adaptive-interaction,
+.asympta-workflow-continuation,
+.asympta-marketplace-payment-approval,
+.asympta-marketplace-recovery,
+.asympta-webmcp-draft,
+.asympta-intent-error,
+.asympta-information-journey,
+.asympta-user-preferences,
+.asympta-webmcp-tool-surface {
+  border: 1px solid var(--pc-line-strong) !important;
+  border-radius: var(--pc-radius) !important;
+  background: var(--pc-paper-glass) !important;
+  color: var(--pc-ink) !important;
+  box-shadow: none !important;
+  backdrop-filter: blur(8px) saturate(.85) !important;
+  -webkit-backdrop-filter: blur(8px) saturate(.85) !important;
+}
+
+.atlas-console,
+.atlas-agent-card,
+.atlas-approval,
+.asympta-request-card,
+.asympta-workflow-continuation,
+.asympta-marketplace-payment-approval {
+  outline: 1px solid rgba(247,245,238,.72);
+  outline-offset: -2px;
+}
+
+.atlas-console::before,
+.atlas-agent-card::before,
+.atlas-approval::before,
+.asympta-request-card::before,
+.asympta-workflow-continuation::before {
+  content: "+";
+  position: absolute;
+  top: 5px;
+  right: 7px;
+  z-index: 4;
+  color: var(--pc-ink-faint);
+  font: 10px/1 var(--pc-mono);
+  pointer-events: none;
+}
+
+.atlas-menu-bar,
+.atlas-agent-card__top,
+.atlas-approval__body,
+.asympta-information-journey > header {
+  border-bottom-color: var(--pc-line) !important;
+}
+
+.atlas-menu-copy small,
+.atlas-approval__eyebrow,
+.atlas-webmcp-inspector small,
+.asympta-access-stamp,
+.asympta-information-journey header > span,
+.asympta-request-card small,
+.asympta-workflow-continuation small,
+.asympta-adaptive-interaction small {
+  color: var(--pc-ink-soft) !important;
+  font-family: var(--pc-mono) !important;
+  font-size: 8px !important;
+  font-weight: 650 !important;
+  letter-spacing: .11em !important;
+  text-transform: uppercase;
+}
+
+.atlas-menu-copy strong,
+.atlas-agent-card strong,
+.atlas-approval strong,
+.asympta-request-card strong,
+.asympta-workflow-continuation strong,
+.asympta-adaptive-interaction strong {
+  color: var(--pc-ink) !important;
+  font-weight: 590 !important;
+  letter-spacing: -.022em;
+}
+
+.atlas-menu-identity,
+.atlas-quick-icon,
+.atlas-card-close,
+.atlas-follow,
+.map-zoom button,
+.map-control,
+.asympta-access-actions button,
+.asympta-access-map-controls button,
+.atlas-approval__actions button,
+.asympta-intent-composer button,
+.asympta-workflow-continuation button,
+.asympta-adaptive-interaction button,
+.asympta-request-card button,
+.asympta-marketplace-payment-approval button {
+  border: 1px solid var(--pc-line) !important;
+  border-radius: 1px !important;
+  background: rgba(247,245,238,.76) !important;
+  color: var(--pc-ink) !important;
+  box-shadow: none !important;
+  transition: background 120ms linear, color 120ms linear, border-color 120ms linear, transform 120ms ease !important;
+}
+
+.atlas-menu-identity:hover,
+.atlas-quick-icon:hover,
+.atlas-card-close:hover,
+.atlas-follow:hover,
+.map-zoom button:hover,
+.map-control:hover,
+.asympta-access-actions button:hover,
+.asympta-access-map-controls button:hover,
+.atlas-approval__actions button:hover,
+.asympta-intent-composer button:hover,
+.asympta-workflow-continuation button:hover,
+.asympta-adaptive-interaction button:hover,
+.asympta-request-card button:hover,
+.asympta-marketplace-payment-approval button:hover {
+  border-color: var(--pc-ink) !important;
+  background: var(--pc-ink) !important;
+  color: var(--pc-paper-strong) !important;
+}
+
+button:focus-visible,
+textarea:focus-visible,
+input:focus-visible {
+  outline: 1px solid var(--pc-signal-cool) !important;
+  outline-offset: 2px !important;
+}
+
+.atlas-allow,
+.asympta-workflow-continuation button:first-of-type,
+.asympta-marketplace-payment-approval button[data-action="approve"] {
+  background: var(--pc-ink) !important;
+  color: var(--pc-paper-strong) !important;
+  border-color: var(--pc-ink) !important;
+}
+
+.atlas-allow:hover,
+.asympta-workflow-continuation button:first-of-type:hover {
+  background: var(--pc-signal-acid) !important;
+  border-color: var(--pc-ink) !important;
+  color: var(--pc-ink) !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Intent composer — terminal-like human input                                 */
+/* -------------------------------------------------------------------------- */
+
+.asympta-intent-shell {
+  overflow: visible !important;
+}
+
+.asympta-intent-presence {
+  color: var(--pc-ink-soft) !important;
+  font-family: var(--pc-mono) !important;
+  font-size: 9px !important;
+  letter-spacing: .04em;
+}
+
+.asympta-intent-presence::before {
+  content: "HUMAN → SYSTEM / ";
+  color: var(--pc-ink-faint);
+  font: 8px/1 var(--pc-mono);
+  letter-spacing: .08em;
+}
+
+.asympta-intent-composer {
+  border: 1px solid var(--pc-line-strong) !important;
+  border-radius: 1px !important;
+  background: rgba(247,245,238,.90) !important;
+  box-shadow: none !important;
+}
+
+.asympta-intent-composer::before {
+  content: ">";
+  align-self: center;
+  padding-left: 10px;
+  color: var(--pc-signal);
+  font: 700 13px/1 var(--pc-mono);
+}
+
+.asympta-intent-composer textarea {
+  color: var(--pc-ink) !important;
+  caret-color: var(--pc-signal) !important;
+  background: transparent !important;
+  font: 500 13px/1.45 var(--pc-mono) !important;
+}
+
+.asympta-intent-composer textarea::placeholder {
+  color: rgba(21,23,20,.42) !important;
+}
+
+.asympta-intent-composer button {
+  margin: 4px !important;
+  border-color: var(--pc-ink) !important;
+  background: var(--pc-ink) !important;
+  color: var(--pc-paper) !important;
+}
+
+.asympta-intent-turnstile {
+  opacity: .65;
+  filter: grayscale(1) contrast(1.1);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Agent system — keep animals, redraw them as monochrome computational marks  */
+/* -------------------------------------------------------------------------- */
+
+.animal-map-marker,
+.asympta-animal-portrait {
+  --agent-cell-paper: rgba(247,245,238,.94);
+}
+
+.animal-map-marker__face,
+.atlas-agent-avatar,
+.atlas-approval__avatar,
+.asympta-intent-avatar,
+.asympta-animal-portrait {
+  border: 1px solid rgba(21,23,20,.52) !important;
+  border-radius: 50% !important;
+  background: var(--agent-cell-paper) !important;
+  box-shadow: none !important;
+}
+
+.animal-map-marker__face::before,
+.asympta-animal-portrait::before {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border: 1px dashed rgba(21,23,20,.18);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.asympta-animal-svg {
+  filter: grayscale(1) contrast(1.28) brightness(1.05) !important;
+  mix-blend-mode: multiply;
+  opacity: .92;
+}
+
+.animal-map-marker--ambient .asympta-animal-svg {
+  opacity: .54;
+}
+
+.animal-map-marker--foreground.is-selected .animal-map-marker__face,
+.animal-map-marker--foreground.is-working .animal-map-marker__face {
+  box-shadow: 0 0 0 1px var(--pc-ink), 0 0 0 5px rgba(198,255,53,.34) !important;
+  transform: scale(1.035);
+}
+
+.animal-map-marker--foreground::before {
+  border-radius: 50% !important;
+  border-style: dashed !important;
+  background: transparent !important;
+}
+
+.animal-map-marker--foreground.is-selected::before,
+.animal-map-marker--foreground.is-working::before {
+  border-color: rgba(21,23,20,.38) !important;
+  background: transparent !important;
+}
+
+.animal-map-marker__status-dot {
+  width: 7px !important;
+  height: 7px !important;
+  border: 1px solid var(--pc-paper-strong) !important;
+  border-radius: 0 !important;
+  box-shadow: 0 0 0 1px rgba(21,23,20,.46);
+}
+
+.animal-map-marker.is-working .animal-map-marker__status-dot,
+.animal-map-marker.is-moving .animal-map-marker__status-dot {
+  animation: pc-signal-pulse 1.15s steps(2, end) infinite;
+}
+
+.animal-map-marker__dialogue {
+  padding: 5px 7px !important;
+  border: 1px solid var(--pc-line-strong) !important;
+  border-radius: 1px !important;
+  background: rgba(247,245,238,.95) !important;
+  color: var(--pc-ink) !important;
+  box-shadow: none !important;
+  font: 7.5px/1.22 var(--pc-mono) !important;
+  letter-spacing: .01em;
+}
+
+.animal-map-marker__dialogue::after {
+  width: 5px !important;
+  height: 5px !important;
+  border-color: var(--pc-line-strong) !important;
+  background: rgba(247,245,238,.95) !important;
+}
+
+.animal-map-marker__status-text {
+  padding: 2px 4px !important;
+  border: 1px solid rgba(21,23,20,.16);
+  border-radius: 1px !important;
+  background: rgba(247,245,238,.88) !important;
+  color: var(--pc-ink-soft) !important;
+  font: 6.5px/1.15 var(--pc-mono) !important;
+  text-transform: uppercase;
+  letter-spacing: .055em;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Status / signals                                                            */
+/* -------------------------------------------------------------------------- */
+
+.atlas-mini-phase,
+.atlas-agent-status,
+.asympta-access-stamp,
+.atlas-permission {
+  border-radius: 1px !important;
+  font-family: var(--pc-mono) !important;
+}
+
+.atlas-mini-phase i,
+.asympta-access-readout i {
+  border-radius: 0 !important;
+}
+
+.atlas-mini-phase--ready i,
+.atlas-mini-phase--native i,
+.atlas-mini-phase--checking i {
+  background: var(--pc-signal-acid) !important;
+  box-shadow: 0 0 0 1px rgba(21,23,20,.28);
+}
+
+.asympta-access-stamp.is-read,
+.atlas-permission--read {
+  background: rgba(42,97,255,.08) !important;
+  color: #1d43b1 !important;
+}
+
+.asympta-access-stamp.is-write,
+.atlas-permission--write {
+  background: rgba(255,91,53,.10) !important;
+  color: #a92d12 !important;
+}
+
+.atlas-access-readout,
+.asympta-access-readout,
+.atlas-json-grid section,
+.atlas-webmcp-inspector {
+  border-color: var(--pc-line) !important;
+  border-radius: 1px !important;
+  background: rgba(247,245,238,.52) !important;
+  box-shadow: none !important;
+}
+
+.atlas-json-grid pre,
+.atlas-json-title,
+.atlas-webmcp-tool-list small {
+  font-family: var(--pc-mono) !important;
+  color: var(--pc-ink-soft) !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Clarification / task UI                                                     */
+/* -------------------------------------------------------------------------- */
+
+.asympta-adaptive-interaction,
+.asympta-request-card,
+.asympta-workflow-continuation {
+  color: var(--pc-ink) !important;
+}
+
+.asympta-adaptive-interaction [role="radiogroup"],
+.asympta-adaptive-interaction fieldset,
+.asympta-request-card fieldset {
+  border-color: var(--pc-line) !important;
+}
+
+.asympta-adaptive-interaction button,
+.asympta-request-card button {
+  font-family: var(--pc-mono) !important;
+  font-size: 9px !important;
+  letter-spacing: .02em;
+}
+
+.asympta-adaptive-interaction button[aria-pressed="true"],
+.asympta-adaptive-interaction button.is-selected,
+.asympta-request-card button.is-selected {
+  background: var(--pc-signal-acid) !important;
+  border-color: var(--pc-ink) !important;
+  color: var(--pc-ink) !important;
+}
+
+.asympta-adaptive-interaction input,
+.asympta-request-card input {
+  border: 0 !important;
+  border-bottom: 1px solid var(--pc-line-strong) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: var(--pc-ink) !important;
+  box-shadow: none !important;
+  font-family: var(--pc-mono) !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Map controls                                                                */
+/* -------------------------------------------------------------------------- */
+
+.map-zoom,
+.map-control {
+  border-radius: 1px !important;
+  box-shadow: none !important;
+}
+
+.map-zoom {
+  border: 1px solid var(--pc-line-strong) !important;
+  background: rgba(247,245,238,.88) !important;
+}
+
+.map-zoom button {
+  border: 0 !important;
+  border-bottom: 1px solid var(--pc-line) !important;
+  background: transparent !important;
+}
+
+.map-zoom button:last-child {
+  border-bottom: 0 !important;
+}
+
+.map-status {
+  border: 1px solid var(--pc-line-strong) !important;
+  border-radius: 1px !important;
+  background: rgba(247,245,238,.92) !important;
+  color: var(--pc-ink-soft) !important;
+  box-shadow: none !important;
+  font: 9px/1.25 var(--pc-mono) !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Motion                                                                      */
+/* -------------------------------------------------------------------------- */
+
+@keyframes pc-signal-pulse {
+  0%, 100% { opacity: .38; transform: scale(.82); }
+  50% { opacity: 1; transform: scale(1.12); }
+}
+
+@media (max-width: 700px) {
+  :root { --pc-radius: 1px; }
+
+  .atlas-console,
+  .atlas-agent-card,
+  .atlas-approval,
+  .asympta-intent-shell,
+  .asympta-request-card,
+  .asympta-workflow-continuation {
+    backdrop-filter: blur(5px) saturate(.8) !important;
+    -webkit-backdrop-filter: blur(5px) saturate(.8) !important;
+  }
+
+  .map-app::before {
+    background-size: 42px 42px;
+  }
+
+  .asympta-intent-composer textarea {
+    font-size: 12px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+  }
+
+  .animal-map-marker.is-working .animal-map-marker__status-dot,
+  .animal-map-marker.is-moving .animal-map-marker__status-dot {
+    animation: none !important;
+  }
+}
