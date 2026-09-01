@@ -300,6 +300,47 @@ test("public request carries only the bounded intent context and uses a persiste
   assert.equal(captured.init.cache, "no-store");
 });
 
+test("the browser recovers a stale worker's incomplete movie clarification without weakening action safety", async () => {
+  const invalidClarification = {
+    ok: false,
+    activityId: null,
+    error: {
+      code: "invalid_upstream_response",
+      message: "The clarification goal was incomplete.",
+      retryable: true,
+    },
+  };
+  const request = {
+    intent: "Go to watch movie",
+    locale: "zh-Hant",
+    timezone: "Asia/Hong_Kong",
+    turnstileToken: "single-use-browser-token",
+    clientId: "18e8ae4f-f4b7-46a0-b307-377f9bb1a69a",
+  };
+  const recovered = await runPublicAgentIntent(request, {
+    endpoint: "https://agent.example/v1/intent",
+    fetcher: async () => new Response(JSON.stringify(invalidClarification), { status: 502 }),
+  });
+
+  assert.equal(recovered.goal.kind, "clarification");
+  assert.equal(recovered.goal.status, "needs_clarification");
+  assert.deepEqual(recovered.goal.missingFields, ["想看的電影", "戲院地區", "場次時間", "門票數量"]);
+  assert.equal(recovered.goal.requiresConfirmation, false);
+  assert.equal(recovered.action, null);
+  assert.equal(recovered.provenance.provider, "asympta");
+  assert.equal(recovered.provenance.model, null);
+  assert.equal(recovered.provenance.simulated, true);
+
+  await assert.rejects(
+    runPublicAgentIntent({ ...request, intent: "Book two movie tickets" }, {
+      endpoint: "https://agent.example/v1/intent",
+      fetcher: async () => new Response(JSON.stringify(invalidClarification), { status: 502 }),
+    }),
+    (error) => error instanceof PublicAgentClientError
+      && error.code === "invalid_upstream_response",
+  );
+});
+
 test("an action cannot cross the confirmation boundary even if an upstream response claims completion", async () => {
   const unsafe = validInformationResponse();
   unsafe.goal.kind = "action";

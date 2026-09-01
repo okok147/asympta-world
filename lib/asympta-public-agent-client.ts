@@ -15,6 +15,7 @@ const TURNSTILE_TIMEOUT_MS = 30_000;
 const TURNSTILE_SCRIPT_TIMEOUT_MS = 15_000;
 const TURNSTILE_RETRY_INTERVAL_MS = 8_000;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const BARE_MOVIE_INTENT_PATTERN = /^(?:(?:please\s+)?(?:(?:i\s+)?(?:want|wanna|would\s+like)\s+to\s+|(?:let'?s\s+)?go\s+(?:to\s+)?|)(?:watch|see)\s+(?:a\s+|some\s+)?(?:movie|film)s?(?:\s+(?:at|in)\s+(?:a\s+|the\s+)?cinema)?|(?:我)?(?:想|想去|要去|去)(?:睇戲|看電影|看电影|睇電影|睇电影)|(?:映画を見たい|映画を観たい|映画を見に行きたい|映画を観に行きたい))$/iu;
 const ERROR_CODES = new Set<PublicAgentErrorCode>([
   "invalid_origin",
   "method_not_allowed",
@@ -200,6 +201,56 @@ function createUuid() {
   bytes[8] = (bytes[8] & 0x3f) | 0x80;
   const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+function localMovieClarification(request: PublicAgentRequest): PublicAgentSuccessResponse {
+  const locale = request.locale.toLowerCase();
+  const copy = locale.startsWith("zh")
+    ? {
+        title: "安排電影行程",
+        summary: "先確認你想看的電影；Asympta 會保留同一任務，並只逐項詢問下一個必要選擇。",
+        missingFields: ["想看的電影", "戲院地區", "場次時間", "門票數量"],
+      }
+    : locale.startsWith("ja")
+      ? {
+          title: "映画鑑賞を手配",
+          summary: "まず観たい映画を確認します。Asympta は同じタスクを維持し、次に必要な選択だけを順番に尋ねます。",
+          missingFields: ["観たい映画", "映画館のエリア", "上映時間", "チケット枚数"],
+        }
+      : {
+          title: "Arrange a movie outing",
+          summary: "Choose the movie first; Asympta will keep the same task active and ask only for each next necessary choice.",
+          missingFields: ["movie preference", "cinema area", "showtime preference", "ticket quantity"],
+        };
+
+  return {
+    ok: true,
+    activityId: `activity-local-movie-${createUuid()}`,
+    goal: {
+      ...copy,
+      kind: "clarification",
+      status: "needs_clarification",
+      requiresConfirmation: false,
+      risk: "none",
+    },
+    result: null,
+    action: null,
+    provenance: {
+      provider: "asympta",
+      model: null,
+      tools: [],
+      simulated: true,
+    },
+  };
+}
+
+function recoverSafeClarification(
+  request: PublicAgentRequest,
+  error: unknown,
+): PublicAgentSuccessResponse | null {
+  if (!(error instanceof PublicAgentClientError) || error.code !== "invalid_upstream_response") return null;
+  const normalizedIntent = request.intent.replace(/[。.!！?？]+$/gu, "").replace(/\s+/g, " ").trim();
+  return BARE_MOVIE_INTENT_PATTERN.test(normalizedIntent) ? localMovieClarification(request) : null;
 }
 
 function buildEndpoint(value: string) {
@@ -400,7 +451,16 @@ export async function runPublicAgentIntent(
   });
 
   const payload: unknown = await response.json().catch(() => null);
-  return parseResponse(payload, response.status, response.ok);
+  try {
+    return parseResponse(payload, response.status, response.ok);
+  } catch (error) {
+    // A stale or unreliable classifier must not turn a harmless, incomplete
+    // movie outing into a terminal task. This recovery remains clarification-
+    // only: it cannot propose, approve or execute a booking or payment.
+    const recovered = recoverSafeClarification(request, error);
+    if (recovered) return recovered;
+    throw error;
+  }
 }
 
 export function isSafePublicAgentSourceUrl(value: string) {
