@@ -5,15 +5,38 @@
   overflow: hidden;
   pointer-events: none;
   contain: strict;
+  isolation: isolate;
+}
+
+.asympta-three-world-effects::before,
+.asympta-three-world-effects::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.asympta-three-world-effects::before {
+  z-index: 0;
+  background:
+    radial-gradient(circle at 16% 12%, rgba(255, 239, 194, .13), transparent 30%),
+    radial-gradient(circle at 82% 78%, rgba(117, 163, 142, .055), transparent 34%);
+  mix-blend-mode: soft-light;
+}
+
+.asympta-three-world-effects::after {
+  z-index: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,.025), transparent 28%, rgba(84,119,101,.025));
 }
 
 .asympta-three-world-effects__surface {
   position: absolute;
+  z-index: 1;
   inset: 0;
   display: block;
   width: 100%;
   height: 100%;
-  opacity: .88;
+  opacity: .92;
   pointer-events: none;
 }
 
@@ -24,37 +47,57 @@
   left: 50%;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  width: min(390px, calc(100vw - 32px));
-  min-height: 72px;
+  width: min(400px, calc(100vw - 32px));
+  min-height: 76px;
   align-items: center;
-  gap: 14px;
-  padding: 13px 17px 13px 14px;
-  border: 1px solid rgba(82, 112, 96, .22);
-  border-radius: 22px;
+  gap: 15px;
+  padding: 14px 18px 14px 14px;
+  overflow: hidden;
+  border: 1px solid rgba(82, 112, 96, .24);
+  border-radius: 24px;
   background:
-    radial-gradient(circle at 8% 18%, rgba(255, 236, 181, .44), transparent 32%),
-    linear-gradient(145deg, rgba(255, 254, 247, .94), rgba(239, 245, 238, .9));
+    radial-gradient(circle at 8% 18%, rgba(255, 236, 181, .52), transparent 33%),
+    radial-gradient(circle at 92% 86%, rgba(135, 181, 157, .14), transparent 38%),
+    linear-gradient(145deg, rgba(255, 254, 247, .95), rgba(237, 244, 237, .91));
   box-shadow:
-    0 16px 48px rgba(39, 61, 51, .16),
-    inset 0 1px rgba(255, 255, 255, .88);
+    0 18px 54px rgba(39, 61, 51, .17),
+    0 2px 7px rgba(39, 61, 51, .055),
+    inset 0 1px rgba(255, 255, 255, .94),
+    inset 0 0 0 1px rgba(255,255,255,.22);
   color: #26352f;
   opacity: 0;
-  transform: translate(-50%, 14px) scale(.95);
+  transform: translate(-50%, 16px) scale(.94);
   animation: asympta-workflow-start-card 1.65s cubic-bezier(.2, .78, .24, 1) both;
-  backdrop-filter: blur(16px) saturate(1.08);
-  -webkit-backdrop-filter: blur(16px) saturate(1.08);
+  backdrop-filter: blur(18px) saturate(1.1);
+  -webkit-backdrop-filter: blur(18px) saturate(1.1);
+}
+
+.asympta-workflow-start-celebration::after {
+  content: "";
+  position: absolute;
+  top: -65%;
+  left: -18%;
+  width: 42%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,255,255,.7), rgba(255,234,178,.16) 42%, transparent 68%);
+  animation: asympta-workflow-start-light 1.65s ease-out both;
 }
 
 .asympta-workflow-start-celebration__mark {
   position: relative;
   display: grid;
-  width: 46px;
+  width: 48px;
   aspect-ratio: 1;
   place-items: center;
-  border: 1px solid rgba(68, 111, 88, .25);
+  border: 1px solid rgba(68, 111, 88, .26);
   border-radius: 50%;
-  background: rgba(218, 236, 224, .82);
-  box-shadow: 0 7px 20px rgba(60, 103, 82, .14);
+  background:
+    radial-gradient(circle at 35% 28%, rgba(255,255,255,.78), transparent 30%),
+    rgba(215, 236, 222, .85);
+  box-shadow:
+    0 8px 22px rgba(60, 103, 82, .15),
+    0 0 0 6px rgba(92,143,115,.05);
 }
 
 .asympta-workflow-start-celebration__mark::before,
@@ -68,35 +111,24 @@
   content: "";
 }
 
-.asympta-workflow-start-celebration__mark::before {
-  transform: translate(-11px, 5px);
-}
-
-.asympta-workflow-start-celebration__mark::after {
-  transform: translate(11px, 5px);
-}
-
-.asympta-workflow-start-celebration__mark i:nth-child(1) {
-  transform: translateY(-11px);
-}
-
+.asympta-workflow-start-celebration__mark::before { transform: translate(-11px, 5px); }
+.asympta-workflow-start-celebration__mark::after { transform: translate(11px, 5px); }
+.asympta-workflow-start-celebration__mark i:nth-child(1) { transform: translateY(-11px); }
 .asympta-workflow-start-celebration__mark i:nth-child(2) {
   width: 12px;
   height: 12px;
   background: #426a57;
+  box-shadow: 0 0 0 4px rgba(66,106,87,.08);
 }
-
 .asympta-workflow-start-celebration__mark i:nth-child(3) {
-  width: 26px;
-  height: 26px;
-  border: 1px solid rgba(70, 113, 91, .2);
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(70, 113, 91, .22);
   background: transparent;
   animation: asympta-workflow-start-orbit 1.15s ease-out 120ms both;
 }
 
-.asympta-workflow-start-celebration > span:last-child {
-  min-width: 0;
-}
+.asympta-workflow-start-celebration > span:last-child { min-width: 0; }
 
 .asympta-workflow-start-celebration small,
 .asympta-workflow-start-celebration strong,
@@ -111,61 +143,126 @@
   color: #577565;
   font-size: .63rem;
   font-style: normal;
-  font-weight: 780;
-  letter-spacing: .13em;
+  font-weight: 790;
+  letter-spacing: .14em;
   text-transform: uppercase;
 }
 
 .asympta-workflow-start-celebration strong {
   margin-top: 3px;
-  font-size: clamp(.92rem, 2.1vw, 1.08rem);
-  font-weight: 730;
-  letter-spacing: -.018em;
+  font-size: clamp(.94rem, 2.1vw, 1.1rem);
+  font-weight: 740;
+  letter-spacing: -.02em;
 }
 
 .asympta-workflow-start-celebration em {
   margin-top: 3px;
   color: rgba(48, 67, 58, .64);
-  font-size: .69rem;
+  font-size: .7rem;
   font-style: normal;
 }
 
+html[data-asympta-visual-engine="three"] button,
+html[data-asympta-visual-engine="three"] textarea,
+html[data-asympta-visual-engine="three"] input,
+html[data-asympta-visual-engine="three"] select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html[data-asympta-visual-engine="three"] button:not(:disabled) {
+  transition:
+    transform 130ms cubic-bezier(.2,.72,.24,1),
+    border-color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease,
+    opacity 180ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  html[data-asympta-visual-engine="three"] button:not(:disabled):hover {
+    box-shadow: 0 3px 12px rgba(48, 65, 57, .075);
+  }
+}
+
+html[data-asympta-visual-engine="three"] button:not(:disabled):active {
+  transform: scale(.982);
+  transition-duration: 70ms;
+}
+
+html[data-asympta-visual-engine="three"] :is(button, textarea, input, select, a):focus-visible {
+  outline: 2px solid rgba(73, 119, 96, .42);
+  outline-offset: 2px;
+}
+
+html[data-asympta-visual-engine="three"] :is(.atlas-console, .atlas-safe-schedule, .asympta-request-card, .asympta-intent-shell) {
+  transition:
+    border-color 240ms ease,
+    box-shadow 260ms ease,
+    background-color 240ms ease,
+    opacity 240ms ease;
+}
+
+html[data-asympta-visual-engine="three"] :is(.atlas-console, .atlas-safe-schedule, .asympta-request-card):focus-within {
+  border-color: rgba(77, 112, 94, .22);
+  box-shadow: 0 14px 42px rgba(45, 60, 53, .105), inset 0 1px rgba(255,255,255,.58);
+}
+
+html[data-asympta-visual-engine="three"] .asympta-request-card__status i {
+  box-shadow: 0 0 0 0 rgba(85, 133, 107, .18);
+  animation: asympta-three-status-breathe 2.8s ease-in-out infinite;
+}
+
+html[data-asympta-visual-engine="three"] .animal-map-marker__dialogue {
+  transform: translateX(-50%) translateY(3px) scale(.98);
+  transform-origin: 50% 100%;
+  transition: opacity 140ms ease, transform 180ms cubic-bezier(.2,.76,.24,1);
+}
+
+html[data-asympta-visual-engine="three"] .animal-map-marker.has-dialogue .animal-map-marker__dialogue {
+  transform: translateX(-50%) translateY(0) scale(1);
+}
+
 @keyframes asympta-workflow-start-card {
-  0% { opacity: 0; transform: translate(-50%, 14px) scale(.95); }
-  14% { opacity: 1; transform: translate(-50%, 0) scale(1.012); }
+  0% { opacity: 0; transform: translate(-50%, 16px) scale(.94); }
+  13% { opacity: 1; transform: translate(-50%, -1px) scale(1.015); }
   24%, 72% { opacity: 1; transform: translate(-50%, 0) scale(1); }
-  100% { opacity: 0; transform: translate(-50%, -8px) scale(.985); }
+  100% { opacity: 0; transform: translate(-50%, -9px) scale(.982); }
+}
+
+@keyframes asympta-workflow-start-light {
+  0% { opacity: 0; transform: translate(-18%, 22%) scale(.72); }
+  28% { opacity: .9; }
+  100% { opacity: 0; transform: translate(240%, 135%) scale(1.4); }
 }
 
 @keyframes asympta-workflow-start-orbit {
   0% { opacity: 0; transform: scale(.45) rotate(-18deg); }
-  38% { opacity: .82; transform: scale(1.18) rotate(8deg); }
-  100% { opacity: .18; transform: scale(1.55) rotate(26deg); }
+  38% { opacity: .84; transform: scale(1.18) rotate(8deg); }
+  100% { opacity: .16; transform: scale(1.58) rotate(28deg); }
+}
+
+@keyframes asympta-three-status-breathe {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(85, 133, 107, .16); }
+  50% { box-shadow: 0 0 0 4px rgba(85, 133, 107, 0); }
 }
 
 @media (max-width: 620px) {
-  .asympta-three-world-effects {
-    z-index: 6;
-  }
+  .asympta-three-world-effects { z-index: 6; }
 
   .asympta-workflow-start-celebration {
     top: max(20%, calc(env(safe-area-inset-top) + 82px));
-    width: min(340px, calc(100vw - 24px));
-    min-height: 66px;
+    width: min(344px, calc(100vw - 24px));
+    min-height: 68px;
     gap: 11px;
     padding: 11px 14px 11px 12px;
-    border-radius: 19px;
+    border-radius: 20px;
   }
 
-  .asympta-workflow-start-celebration__mark {
-    width: 42px;
-  }
+  .asympta-workflow-start-celebration__mark { width: 43px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .asympta-three-world-effects__surface {
-    display: none;
-  }
+  .asympta-three-world-effects__surface { display: none; }
 
   .asympta-workflow-start-celebration {
     animation: asympta-workflow-start-still 1.65s linear both;
@@ -174,9 +271,16 @@
     -webkit-backdrop-filter: none;
   }
 
-  .asympta-workflow-start-celebration__mark i:nth-child(3) {
+  .asympta-workflow-start-celebration::after,
+  .asympta-workflow-start-celebration__mark i:nth-child(3),
+  html[data-asympta-visual-engine="three"] .asympta-request-card__status i {
     animation: none;
-    opacity: .35;
+  }
+
+  html[data-asympta-visual-engine="three"] button,
+  html[data-asympta-visual-engine="three"] .animal-map-marker__dialogue,
+  html[data-asympta-visual-engine="three"] :is(.atlas-console, .atlas-safe-schedule, .asympta-request-card, .asympta-intent-shell) {
+    transition: none;
   }
 }
 
