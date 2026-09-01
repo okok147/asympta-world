@@ -34,17 +34,19 @@ type MarketplaceBridge = {
 type ApprovalView = {
   id: string;
   title: string;
-  itemLabel: string;
-  quantity: number;
-  paymentMethod: string;
-  totalAmount: number;
-  currency: "JPY";
+  ready: boolean;
+  itemLabel: string | null;
+  quantity: number | null;
+  paymentMethod: string | null;
+  totalAmount: number | null;
+  currency: "JPY" | null;
 };
 
 const COPY: Record<Locale, {
   title: string;
   courierReady: string;
   orderReady: string;
+  syncing: string;
   payOnDelivery: string;
   confirm: (amount: string) => string;
   decline: string;
@@ -55,6 +57,7 @@ const COPY: Record<Locale, {
     title: "Payment confirmation",
     courierReady: "The courier is here with your item. Confirm the simulated payment to complete the handoff.",
     orderReady: "The order is ready for simulated payment authorisation.",
+    syncing: "Preparing the verified item and payment details…",
     payOnDelivery: "Pay on delivery",
     confirm: (amount) => `Confirm ${amount}`,
     decline: "Decline",
@@ -65,6 +68,7 @@ const COPY: Record<Locale, {
     title: "付款確認",
     courierReady: "速遞員已帶着物品到達。確認模擬付款後即可完成交收。",
     orderReady: "訂單已準備好，等待你確認模擬付款。",
+    syncing: "正在準備已驗證的物品與付款資料…",
     payOnDelivery: "貨到付款",
     confirm: (amount) => `確認支付 ${amount}`,
     decline: "拒絕",
@@ -75,6 +79,7 @@ const COPY: Record<Locale, {
     title: "支払い確認",
     courierReady: "配達員が商品を持って到着しました。シミュレーション支払いを確認すると受け渡しが完了します。",
     orderReady: "注文はシミュレーション支払いの確認待ちです。",
+    syncing: "検証済みの商品と支払い情報を準備しています…",
     payOnDelivery: "代引き",
     confirm: (amount) => `${amount} を確認`,
     decline: "拒否",
@@ -123,21 +128,30 @@ function approvalView(approval: PendingApproval | null, execution: MarketplaceEx
   const line = transaction
     ? execution?.ledger.find((candidate) => candidate.goalId === transaction.goalId)
     : null;
+
+  // Atlas can expose the pending approval one render tick before the marketplace
+  // projection records its `approval_request` packet. Keep the human checkpoint
+  // visible, but do not invent an item/amount or expose either decision until the
+  // structured execution has observed the same waiting state. This makes the
+  // audit packet and the decision one ordered, inspectable process.
   if (!transaction || !line) {
     return {
       id: approval.id,
       title: approval.title ?? "Authorise simulated payment",
-      itemLabel: "marketplace item",
-      quantity: 1,
-      paymentMethod: "simulated_payment",
-      totalAmount: 1_200,
-      currency: "JPY",
+      ready: false,
+      itemLabel: null,
+      quantity: null,
+      paymentMethod: null,
+      totalAmount: null,
+      currency: null,
     };
   }
+
   const quote = marketplaceSimulatedQuote(line.domain, line.itemLabel, line.quantity);
   return {
     id: approval.id,
     title: approval.title ?? "Authorise simulated payment",
+    ready: true,
     itemLabel: line.itemLabel,
     quantity: line.quantity,
     paymentMethod: transaction.paymentMethod,
@@ -150,13 +164,16 @@ function sameApproval(left: ApprovalView | null, right: ApprovalView | null) {
   if (left === right) return true;
   if (!left || !right) return false;
   return left.id === right.id
+    && left.title === right.title
+    && left.ready === right.ready
     && left.itemLabel === right.itemLabel
     && left.quantity === right.quantity
     && left.paymentMethod === right.paymentMethod
     && left.totalAmount === right.totalAmount;
 }
 
-function formatAmount(locale: Locale, amount: number) {
+function formatAmount(locale: Locale, amount: number | null) {
+  if (amount === null) return "—";
   const language = locale === "zh-Hant" ? "zh-HK" : locale;
   return new Intl.NumberFormat(language, {
     style: "currency",
@@ -211,11 +228,13 @@ export function AsymptaMarketplacePaymentApproval() {
   }, []);
 
   const resolve = useCallback((approved: boolean) => {
-    if (!approval || resolving) return;
+    if (!approval?.ready || resolving) return;
     const app = bridges();
     const snapshot = normalizeWorldSnapshot(app.__ASYMPTA_DEMO__?.snapshot());
     const pending = pendingMarketplacePayment(snapshot);
-    if (!pending?.id || pending.id !== approval.id || !app.__ASYMPTA_DEMO__) {
+    const execution = app.__ASYMPTA_MARKETPLACE__?.snapshot() ?? null;
+    const projected = approvalView(pending, execution);
+    if (!pending?.id || pending.id !== approval.id || !projected?.ready || !app.__ASYMPTA_DEMO__) {
       setError(COPY[locale].error);
       return;
     }
@@ -242,8 +261,10 @@ export function AsymptaMarketplacePaymentApproval() {
     <section
       className={`${styles.root} asympta-marketplace-payment-approval`}
       data-host={standalone ? "standalone" : "request-card"}
-      data-payment-method={approval.paymentMethod}
+      data-payment-method={approval.paymentMethod ?? "pending_projection"}
+      data-projection-ready={approval.ready ? "true" : "false"}
       role="alert"
+      aria-busy={!approval.ready}
       aria-live="polite"
       aria-label={copy.title}
     >
@@ -255,22 +276,26 @@ export function AsymptaMarketplacePaymentApproval() {
         </span>
       </header>
 
-      <p>{isPayOnDelivery ? copy.courierReady : copy.orderReady}</p>
-      <div className="asympta-marketplace-payment-approval__item">
-        <span>{approval.quantity} × {approval.itemLabel}</span>
-        <b>{amount}</b>
-      </div>
+      <p>{!approval.ready ? copy.syncing : isPayOnDelivery ? copy.courierReady : copy.orderReady}</p>
+      {approval.ready && approval.itemLabel !== null && approval.quantity !== null ? (
+        <div className="asympta-marketplace-payment-approval__item">
+          <span>{approval.quantity} × {approval.itemLabel}</span>
+          <b>{amount}</b>
+        </div>
+      ) : null}
 
-      <div className="asympta-marketplace-payment-approval__actions">
-        <button type="button" onClick={() => resolve(true)} disabled={resolving}>
-          <ShieldCheck size={13} aria-hidden="true" />
-          {copy.confirm(amount)}
-        </button>
-        <button type="button" onClick={() => resolve(false)} disabled={resolving}>
-          <X size={13} aria-hidden="true" />
-          {copy.decline}
-        </button>
-      </div>
+      {approval.ready ? (
+        <div className="asympta-marketplace-payment-approval__actions">
+          <button type="button" onClick={() => resolve(true)} disabled={resolving}>
+            <ShieldCheck size={13} aria-hidden="true" />
+            {copy.confirm(amount)}
+          </button>
+          <button type="button" onClick={() => resolve(false)} disabled={resolving}>
+            <X size={13} aria-hidden="true" />
+            {copy.decline}
+          </button>
+        </div>
+      ) : null}
 
       <small className="asympta-marketplace-payment-approval__safety">{copy.safe}</small>
       {error ? <span className="asympta-marketplace-payment-approval__error">{error}</span> : null}

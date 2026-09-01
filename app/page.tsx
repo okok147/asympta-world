@@ -5,6 +5,7 @@ import { AsymptaBlockActivity } from "@/components/asympta-block-activity";
 import { AsymptaCalmDefaults } from "@/components/asympta-calm-defaults";
 import { AsymptaCameraFollowControl } from "@/components/asympta-camera-follow-control";
 import { AsymptaCompleteLocale } from "@/components/asympta-complete-locale";
+import { AsymptaCompletionCoordinator } from "@/components/asympta-completion-coordinator";
 import { AsymptaCuteAgentVisibility } from "@/components/asympta-cute-agent-visibility";
 import { AsymptaEscalationGuard } from "@/components/asympta-escalation-guard";
 import { AsymptaEstimatedProgress } from "@/components/asympta-estimated-progress";
@@ -49,6 +50,7 @@ export default function HomePage() {
       <AsymptaMarketplaceIntentBridge />
       <AsymptaMarketplacePaymentApproval />
       <AsymptaMarketplaceRecovery />
+      <AsymptaCompletionCoordinator />
       <AsymptaUserPreferences />
       <AsymptaEscalationGuard />
       <AsymptaJobMode />

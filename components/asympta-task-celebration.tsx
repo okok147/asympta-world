@@ -2,7 +2,10 @@
 
 import { useEffect, useRef } from "react";
 
-import { subscribeAsymptaCurrentRequest } from "@/lib/asympta-current-request";
+import {
+  subscribeAsymptaCompletionReceipts,
+  type AsymptaCompletionReceipt,
+} from "@/lib/asympta-completion-receipt";
 
 type TaskSnapshot = {
   id: string;
@@ -16,20 +19,13 @@ type DemoSnapshot = {
   };
 };
 
-type ActivityDetail = {
-  activity?: {
-    id?: string;
-    status?: string;
-  };
-  event?: {
-    status?: string;
-  };
-};
+type Locale = "en" | "zh-Hant" | "ja";
 
 const CELEBRATION_SYNC_MS = 280;
 const CELEBRATION_LIFETIME_MS = 1_150;
-const SCREEN_CELEBRATION_LIFETIME_MS = 4_200;
-const SCREEN_CELEBRATION_COOLDOWN_MS = 2_000;
+const SCREEN_CELEBRATION_LIFETIME_MS = 5_600;
+const SCREEN_CELEBRATION_QUEUE_GAP_MS = 220;
+const MAX_CELEBRATED_RECEIPTS = 160;
 const PARTICLES = [
   [0, -23],
   [16, -17],
@@ -63,6 +59,39 @@ const SCREEN_SPARKS = [
   [95, 12, 20, 42, 3],
 ] as const;
 
+const COPY: Record<Locale, {
+  eyebrow: string;
+  verified: string;
+  simulated: string;
+  completed: string;
+}> = {
+  en: {
+    eyebrow: "Job completed",
+    verified: "Verified result",
+    simulated: "Simulated world",
+    completed: "Completed",
+  },
+  "zh-Hant": {
+    eyebrow: "任務完成",
+    verified: "已驗證結果",
+    simulated: "模擬世界",
+    completed: "已完成",
+  },
+  ja: {
+    eyebrow: "ジョブ完了",
+    verified: "検証済み",
+    simulated: "シミュレーション世界",
+    completed: "完了",
+  },
+};
+
+function localeFromDocument(): Locale {
+  const value = document.documentElement.lang.toLowerCase();
+  if (value.startsWith("zh")) return "zh-Hant";
+  if (value.startsWith("ja")) return "ja";
+  return "en";
+}
+
 function celebrate(agentId: string) {
   const marker = document.querySelector<HTMLElement>(`.animal-map-marker--foreground[data-agent-id="${agentId}"]`);
   if (!marker || marker.querySelector(".asympta-task-celebration")) return;
@@ -89,15 +118,28 @@ function celebrate(agentId: string) {
   window.setTimeout(() => burst.remove(), CELEBRATION_LIFETIME_MS);
 }
 
-function celebrateScreen() {
-  document.querySelector(".asympta-screen-celebration")?.remove();
+function celebrationText(tag: "small" | "strong" | "p" | "span", className: string, text: string) {
+  const node = document.createElement(tag);
+  node.className = className;
+  node.textContent = text;
+  return node;
+}
 
-  const overlay = document.createElement("div");
+function createScreenCelebration(receipt: AsymptaCompletionReceipt) {
+  const locale = localeFromDocument();
+  const copy = COPY[locale];
+  const overlay = document.createElement("section");
   overlay.className = "asympta-screen-celebration";
-  overlay.setAttribute("aria-hidden", "true");
+  overlay.dataset.completionId = receipt.id;
+  overlay.dataset.verification = receipt.verification;
+  overlay.dataset.provenance = receipt.provenance;
+  overlay.setAttribute("role", "status");
+  overlay.setAttribute("aria-live", "assertive");
+  overlay.setAttribute("aria-atomic", "true");
 
   const wash = document.createElement("i");
   wash.className = "asympta-screen-celebration__wash";
+  wash.setAttribute("aria-hidden", "true");
   overlay.appendChild(wash);
 
   SPLASHES.forEach(([x, y, size, kind], index) => {
@@ -108,6 +150,7 @@ function celebrateScreen() {
     splash.style.setProperty("--splash-size", `${size}vmin`);
     splash.style.setProperty("--splash-delay", `${index * 110}ms`);
     splash.dataset.kind = String(kind);
+    splash.setAttribute("aria-hidden", "true");
     overlay.appendChild(splash);
   });
 
@@ -120,49 +163,75 @@ function celebrateScreen() {
     spark.style.setProperty("--spark-dy", `${dy}px`);
     spark.style.setProperty("--spark-delay", `${180 + index * 60}ms`);
     spark.dataset.kind = String(kind);
+    spark.setAttribute("aria-hidden", "true");
     overlay.appendChild(spark);
   });
 
+  const content = document.createElement("div");
+  content.className = "asympta-screen-celebration__content";
+
+  const seal = document.createElement("span");
+  seal.className = "asympta-screen-celebration__seal";
+  seal.textContent = "✓";
+  seal.setAttribute("aria-hidden", "true");
+  content.appendChild(seal);
+
+  content.appendChild(celebrationText("small", "asympta-screen-celebration__eyebrow", copy.eyebrow));
+  content.appendChild(celebrationText("strong", "asympta-screen-celebration__title", receipt.title || copy.completed));
+  content.appendChild(celebrationText("p", "asympta-screen-celebration__summary", receipt.summary));
+
+  const meta = document.createElement("div");
+  meta.className = "asympta-screen-celebration__meta";
+  meta.appendChild(celebrationText("span", "is-verified", copy.verified));
+  meta.appendChild(celebrationText("span", receipt.simulated ? "is-simulated" : "is-completed", receipt.simulated ? copy.simulated : copy.completed));
+  content.appendChild(meta);
+  overlay.appendChild(content);
+
   document.body.dataset.asymptaCelebrating = "true";
   document.body.appendChild(overlay);
-  window.setTimeout(() => {
-    overlay.remove();
-    if (!document.querySelector(".asympta-screen-celebration")) {
-      delete document.body.dataset.asymptaCelebrating;
-    }
-  }, SCREEN_CELEBRATION_LIFETIME_MS);
+  return overlay;
+}
+
+function removeScreenCelebration(overlay: HTMLElement | null) {
+  overlay?.remove();
+  if (!document.querySelector(".asympta-screen-celebration")) {
+    delete document.body.dataset.asymptaCelebrating;
+  }
 }
 
 export function AsymptaTaskCelebration() {
   const previousStatusRef = useRef(new Map<string, string>());
   const seededRef = useRef(false);
-  const previousAllDoneRef = useRef(false);
-  const celebratedRequestIdsRef = useRef(new Set<string>());
-  const lastScreenCelebrationAtRef = useRef(0);
 
   useEffect(() => {
-    const screenCelebrateOnce = (key: string) => {
-      if (!key || celebratedRequestIdsRef.current.has(key)) return;
-      const now = Date.now();
-      if (now - lastScreenCelebrationAtRef.current < SCREEN_CELEBRATION_COOLDOWN_MS) return;
-      celebratedRequestIdsRef.current.add(key);
-      lastScreenCelebrationAtRef.current = now;
-      celebrateScreen();
+    const queue: AsymptaCompletionReceipt[] = [];
+    const celebratedIds: string[] = [];
+    let activeOverlay: HTMLElement | null = null;
+    let lifetimeTimer = 0;
+    let gapTimer = 0;
+    let disposed = false;
+
+    const startNext = () => {
+      if (disposed || activeOverlay || !queue.length) return;
+      const receipt = queue.shift();
+      if (!receipt) return;
+      activeOverlay = createScreenCelebration(receipt);
+      lifetimeTimer = window.setTimeout(() => {
+        removeScreenCelebration(activeOverlay);
+        activeOverlay = null;
+        gapTimer = window.setTimeout(startNext, SCREEN_CELEBRATION_QUEUE_GAP_MS);
+      }, SCREEN_CELEBRATION_LIFETIME_MS);
     };
 
-    const unsubscribeRequest = subscribeAsymptaCurrentRequest((request) => {
-      if (request.status === "completed") screenCelebrateOnce(`request:${request.requestId}`);
+    const unsubscribeReceipt = subscribeAsymptaCompletionReceipts((receipt) => {
+      if (celebratedIds.includes(receipt.id)) return;
+      celebratedIds.push(receipt.id);
+      if (celebratedIds.length > MAX_CELEBRATED_RECEIPTS) celebratedIds.splice(0, celebratedIds.length - MAX_CELEBRATED_RECEIPTS);
+      queue.push(receipt);
+      startNext();
     });
 
-    const onActivity = (event: Event) => {
-      const detail = (event as CustomEvent<ActivityDetail>).detail;
-      const status = detail?.event?.status ?? detail?.activity?.status;
-      const id = detail?.activity?.id;
-      if (status === "completed" && id) screenCelebrateOnce(`activity:${id}`);
-    };
-    window.addEventListener("asympta:activity", onActivity);
-
-    const sync = () => {
+    const syncTaskBursts = () => {
       if (document.hidden) return;
       let snapshot: DemoSnapshot | undefined;
       try {
@@ -177,7 +246,6 @@ export function AsymptaTaskCelebration() {
 
       if (!seededRef.current) {
         previousStatusRef.current = current;
-        previousAllDoneRef.current = tasks.length > 0 && tasks.every((task) => task.status === "done");
         seededRef.current = true;
         return;
       }
@@ -186,20 +254,20 @@ export function AsymptaTaskCelebration() {
         const previous = previousStatusRef.current.get(task.id);
         if (task.status === "done" && previous && previous !== "done") celebrate(task.agentId);
       }
-
-      const allDone = tasks.length > 0 && tasks.every((task) => task.status === "done");
-      if (allDone && !previousAllDoneRef.current) screenCelebrateOnce(`world:${tasks.map((task) => task.id).sort().join("|")}`);
-      previousAllDoneRef.current = allDone;
       previousStatusRef.current = current;
     };
 
-    sync();
-    const timer = window.setInterval(sync, CELEBRATION_SYNC_MS);
+    syncTaskBursts();
+    const syncTimer = window.setInterval(syncTaskBursts, CELEBRATION_SYNC_MS);
     return () => {
-      window.clearInterval(timer);
-      unsubscribeRequest();
-      window.removeEventListener("asympta:activity", onActivity);
-      document.querySelector(".asympta-screen-celebration")?.remove();
+      disposed = true;
+      window.clearInterval(syncTimer);
+      window.clearTimeout(lifetimeTimer);
+      window.clearTimeout(gapTimer);
+      unsubscribeReceipt();
+      queue.length = 0;
+      removeScreenCelebration(activeOverlay);
+      document.querySelectorAll(".asympta-screen-celebration").forEach((node) => node.remove());
       delete document.body.dataset.asymptaCelebrating;
     };
   }, []);
