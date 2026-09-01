@@ -1,3 +1,4 @@
+import type { AsymptaActivity } from "./asympta-activity.ts";
 import type { AsymptaCurrentRequest } from "./asympta-current-request.ts";
 import {
   marketplaceInventoryInvariant,
@@ -35,11 +36,23 @@ function compactText(value: unknown, fallback: string, max = 240) {
   return (clean || fallback).slice(0, max);
 }
 
+function record(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
 export function completionReceiptFromCurrentRequest(
   request: AsymptaCurrentRequest,
   now: string | number | Date = Date.now(),
 ): AsymptaCompletionReceipt | null {
   if (!request?.requestId || request.status !== "completed" || request.verification !== "verified") return null;
+
+  // Generic write/action requests do not carry execution-mode provenance in the
+  // display projection. Their completion receipt must come from the canonical
+  // activity/Task Kernel outcome instead of guessing whether it was simulated.
+  if (request.kind === "action") return null;
+
   return {
     schemaVersion: "asympta.completion-receipt.v1",
     id: `request:${request.requestId}`,
@@ -47,7 +60,7 @@ export function completionReceiptFromCurrentRequest(
     title: compactText(request.goal ?? request.intent, "Job completed", 120),
     summary: compactText(request.step, "The requested job was completed and verified."),
     verification: "verified",
-    simulated: request.kind === "marketplace" || request.permission === "WRITE_REQUEST",
+    simulated: request.kind === "marketplace",
     provenance: "current_request",
     completedAt: timestamp(now),
     details: {
@@ -146,24 +159,60 @@ export function completionReceiptFromWorkflowSnapshot(
   };
 }
 
+function explicitSimulationProvenance(value: unknown, depth = 0, seen = new Set<object>()): boolean | null {
+  if (depth > 4) return null;
+  const candidate = record(value);
+  if (!candidate || seen.has(candidate)) return null;
+  seen.add(candidate);
+
+  if (typeof candidate.simulated === "boolean") return candidate.simulated;
+  if (candidate.mode === "simulated") return true;
+  if (candidate.mode === "live") return false;
+
+  for (const key of ["provenance", "result", "outcome", "task", "value"] as const) {
+    const nested = explicitSimulationProvenance(candidate[key], depth + 1, seen);
+    if (nested !== null) return nested;
+  }
+  return null;
+}
+
+function activitySimulationProvenance(activity: AsymptaActivity) {
+  const explicit = explicitSimulationProvenance(activity.outcome?.value);
+  if (explicit !== null) return explicit;
+
+  // Connected A2A/MCP evidence is a live transport provenance signal. It is
+  // different from Asympta's local simulated-world execution and may therefore
+  // be shown as non-simulated only after a verified protocol outcome exists.
+  if (activity.evidence.some((evidence) => evidence.protocol === "a2a" || evidence.protocol === "mcp")) return false;
+  return null;
+}
+
 export function completionReceiptFromActivity(
-  activityId: string,
-  title: string,
-  summary: string,
+  activity: AsymptaActivity,
   now: string | number | Date = Date.now(),
 ): AsymptaCompletionReceipt | null {
-  const id = activityId.trim();
-  if (!id) return null;
+  const id = activity?.id?.trim() ?? "";
+  const outcome = activity?.outcome;
+  if (!id || activity.status !== "completed" || !outcome?.verified || outcome.verification === "none") return null;
+
+  const simulated = activitySimulationProvenance(activity);
+  if (simulated === null) return null;
+
   return {
     schemaVersion: "asympta.completion-receipt.v1",
     id: `request:${id}`,
     requestId: id,
-    title: compactText(title, "Job completed", 120),
-    summary: compactText(summary, "The requested job was completed."),
+    title: compactText(activity.intent?.raw, "Job completed", 120),
+    summary: compactText(outcome.summary, "The requested job was completed and verified."),
     verification: "verified",
-    simulated: false,
+    simulated,
     provenance: "activity",
     completedAt: timestamp(now),
+    details: {
+      verificationMethod: outcome.verification,
+      evidenceCount: activity.evidence.length,
+      evidenceProtocols: [...new Set(activity.evidence.map((evidence) => evidence.protocol))],
+    },
   };
 }
 
