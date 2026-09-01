@@ -316,11 +316,11 @@ async function run() {
         const movieRequirement = movieSchema?.nextField;
         if (!movieRequirement) break;
         const movieOption = movieRequirement.options?.[0];
-        if (!movieOption) throw new Error('Watch a movie did not expose a selectable option for ' + movieRequirement.field + '.');
-        movieAnswers.push({ field: movieRequirement.field, value: movieOption.value, label: movieOption.label });
+        if (!movieOption) throw new Error('Watch a movie did not expose a selectable option for ' + movieRequirement.key + '.');
+        movieAnswers.push({ field: movieRequirement.key, value: movieOption.value, label: movieOption.label });
         const currentMovieTask = window.__ASYMPTA_TASK_KERNEL__.getTask(movieTask.taskId);
         movieAfterAnswer = window.__ASYMPTA_TASK_KERNEL__.answerRequirement({
-          commandId: 'watch-movie-option-browser-probe-' + movieRequirement.field,
+          commandId: 'watch-movie-option-browser-probe-' + movieRequirement.key,
           taskId: movieTask.taskId,
           requirementId: movieRequirement.id,
           expectedRevision: currentMovieTask.revision,
