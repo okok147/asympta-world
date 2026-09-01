@@ -64,8 +64,20 @@ function riskFromData(data: Record<string, unknown>, consequential: boolean): As
   return consequential ? "high" : "low";
 }
 
+function taskRequirementContractId(task: AsymptaTaskState) {
+  const contract = Reflect.get(task, "requirementContract");
+  if (!contract || typeof contract !== "object" || Array.isArray(contract)) return null;
+  const id = Reflect.get(contract, "id");
+  return typeof id === "string" ? id : null;
+}
+
 function approvedSimulatedTaskCanUseWorld(task: AsymptaTaskState) {
+  // The property contract is deliberately the first consequential Task Kernel
+  // flow promoted into the full visible business journey. Other mature domains
+  // (for example TV purchasing) retain their already-verified bounded executor
+  // instead of being slowed or semantically changed by this rollout.
   return task.mode === "simulated"
+    && taskRequirementContractId(task) === "real-estate.residential-purchase.v1"
     && !["completed", "cancelled"].includes(task.phase)
     && task.worldWorkflow?.status !== "blocked"
     && task.requirements.every((requirement) => requirement.status !== "unknown")
@@ -111,10 +123,9 @@ export function AsymptaTaskKernelBridge() {
     const demoBridge = () => (window as Window & { __ASYMPTA_DEMO__?: DemoBridge }).__ASYMPTA_DEMO__;
 
     const ensureWorldRun = (task: AsymptaTaskState) => {
-      // Read-only / non-consequential tasks use the existing predicate. Approved
-      // simulated consequential tasks also enter the SAME visible world after
-      // the human boundary, so purchases (including property) cannot disappear
-      // into an invisible executor after approval.
+      // Read-only / non-consequential tasks use the existing predicate. The
+      // residential-property contract is the consequential path that must cross
+      // the visible simulated world after human approval and return a receipt.
       if (!taskUsesVisibleWorldWorkflow(task) && !approvedSimulatedTaskCanUseWorld(task)) return;
       if (task.worldWorkflow?.status === "completed") return;
       const runId = task.worldWorkflow?.runId ?? taskWorldWorkflowRunId(task);
