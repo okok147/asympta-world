@@ -21,6 +21,7 @@ import "./asympta-intent.css";
 import "./asympta-request-cards.css";
 import "./asympta-protocell-pencil.css";
 import "./asympta-product-polish.css";
+import "./asympta-top-panel-alignment.css";
 
 const faviconPath = process.env.ASYMPTA_PAGES_BUILD === "1"
   ? "/asympta-world/favicon-asympta-cat-20260829.svg"
