@@ -172,12 +172,27 @@ function forceFreshActiveTasksToTravel(world: AtlasWorldState) {
   return next;
 }
 
+let resetNextDemoWorldToIdle = false;
+
+/**
+ * The landing demo still starts with visible activity, but a verified completed
+ * user workflow must not silently spawn that demo again. The runtime boundary
+ * arms exactly one clean idle world for the completion remount.
+ */
+export function prepareAtlasDemoWorkflowReset() {
+  resetNextDemoWorldToIdle = true;
+}
+
 export function startAtlasDemoWorkflow(current: AtlasWorldState, workflowId: WorkflowId) {
   const started = startAtlasWorkflow(current, workflowId);
   return String(workflowId) === "marketplace-intent" ? started : forceFreshActiveTasksToTravel(started);
 }
 
 export function createAtlasDemoWorld(now = Date.now()) {
+  if (resetNextDemoWorldToIdle) {
+    resetNextDemoWorldToIdle = false;
+    return createAtlasWorld(now);
+  }
   return startAtlasDemoWorkflow(createAtlasWorld(now), "custom-order");
 }
 
