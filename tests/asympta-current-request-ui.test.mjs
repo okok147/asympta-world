@@ -43,6 +43,11 @@ test("the top-right card is request-scoped, source-honest, and absent before a r
   assert.match(requestCss, /\.asympta-global-console[\s\S]*display: none !important/);
 });
 
+test("marketplace progress keeps the top-right card at the user's chosen expansion state", () => {
+  assert.match(requestCard, /Workflow progress updates must preserve the user's open\/collapsed choice/);
+  assert.doesNotMatch(requestCard, /next\.kind === "marketplace" && next\.status === "gathering"\) setExpanded\(false\)/);
+});
+
 test("source-less cross-check status is shown to the user instead of failing silently", () => {
   assert.match(composer, /asympta-intent-result__verification/);
   assert.match(composer, /data-verification=\{response\.result\.verification\.status\}/);
