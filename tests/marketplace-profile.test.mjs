@@ -228,7 +228,7 @@ test("marketplace profile persists within the existing browser user-preference r
   }
 });
 
-test("marketplace context no longer occupies the centre composer and is nested in the collapsible top-right request card", async () => {
+test("marketplace context stays in the collapsible top-right request card without progress forcing it closed", async () => {
   const [bridge, css, schedule, preferences] = await Promise.all([
     readFile(new URL("../components/asympta-marketplace-intent-bridge.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/asympta-marketplace-intent-bridge.module.css", import.meta.url), "utf8"),
@@ -246,8 +246,9 @@ test("marketplace context no longer occupies the centre composer and is nested i
   assert.match(css, /right: max\(12px, env\(safe-area-inset-right\)\)/);
   assert.match(schedule, /MARKETPLACE_PROFILE_REQUIRED_EVENT/);
   assert.match(schedule, /setExpanded\(true\)/);
-  assert.match(schedule, /next\.kind === "marketplace" && next\.status === "gathering"/);
-  assert.match(schedule, /setExpanded\(false\)/);
+  assert.match(schedule, /Workflow progress updates must preserve the user's open\/collapsed choice/);
+  assert.doesNotMatch(schedule, /next\.kind === "marketplace" && next\.status === "gathering"/);
+  assert.doesNotMatch(schedule, /setExpanded\(false\)/);
   assert.match(preferences, /marketplaceProfile/);
   assert.doesNotMatch(`${bridge}\n${preferences}`, /cardNumber|fullAddress|streetAddress/i);
 });
