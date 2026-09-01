@@ -73,8 +73,9 @@ function marketplaceObservation(execution: MarketplaceExecution): AsymptaWorkflo
 function workflowObservation(
   snapshot: CompletionWorkflowSnapshot | null,
 ): AsymptaWorkflowLifecycleObservation | null {
-  const workflowId = typeof snapshot?.workflowId === "string" ? snapshot.workflowId : "";
-  if (!workflowId || workflowId === "marketplace-intent" || snapshot?.phase === "idle") return null;
+  if (!snapshot) return null;
+  const workflowId = typeof snapshot.workflowId === "string" ? snapshot.workflowId : "";
+  if (!workflowId || workflowId === "marketplace-intent" || snapshot.phase === "idle") return null;
   const tasks = Array.isArray(snapshot.tasks) ? snapshot.tasks : [];
   if (!tasks.length) return null;
   return {
