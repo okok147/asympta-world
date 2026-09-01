@@ -335,6 +335,148 @@ async function run() {
     if (!state.celebrationTitle || !state.celebrationSummary) {
       throw new Error(`Celebration content is incomplete: ${JSON.stringify(state)}`);
     }
+
+    // Regression: a generic physical product must not fall back to the public
+    // agent, complete after a preference click, or leave the top-right profile
+    // card covering the new workflow. Exercise the exact reported guitar path
+    // with no saved marketplace profile.
+    await evaluate(`(() => {
+      localStorage.removeItem('asympta-world.user-preferences.v1');
+      const form = document.querySelector('form.asympta-intent-composer');
+      const textarea = form?.querySelector('textarea');
+      if (!form || !textarea) throw new Error('Intent composer is unavailable for Buy a guitar.');
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+      if (setter) setter.call(textarea, 'Buy a guitar');
+      else textarea.value = 'Buy a guitar';
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+      form.dispatchEvent(new SubmitEvent('submit', { bubbles: true, cancelable: true }));
+      return true;
+    })()`);
+
+    await waitFor(
+      "document.documentElement.dataset.asymptaMarketplaceNextField === 'fulfilmentMethod'",
+      12_000,
+      "guitar fulfilment preference",
+    );
+    await evaluate(`(() => {
+      const button = document.querySelector('.asympta-marketplace-profile fieldset:nth-of-type(2) button');
+      if (!button) throw new Error('Guitar fulfilment choice is unavailable.');
+      button.click();
+      return true;
+    })()`);
+
+    await waitFor(
+      "document.documentElement.dataset.asymptaMarketplaceNextField === 'paymentMethod'",
+      12_000,
+      "guitar payment preference",
+    );
+    await evaluate(`(() => {
+      const button = document.querySelector('.asympta-marketplace-profile fieldset:nth-of-type(3) button');
+      if (!button) throw new Error('Guitar payment choice is unavailable.');
+      button.click();
+      return true;
+    })()`);
+
+    await waitFor(
+      "window.__ASYMPTA_MARKETPLACE__?.snapshot?.()?.envelope?.rawMessage?.text === 'Buy a guitar'",
+      12_000,
+      "guitar marketplace execution start",
+    );
+    await waitFor(
+      "Boolean(document.querySelector('.asympta-request-card.is-collapsed')) && !document.querySelector('.asympta-screen-celebration')",
+      8_000,
+      "new guitar workflow focus",
+    );
+
+    const guitarStart = JSON.parse(await evaluate(`JSON.stringify((() => {
+      const worldValue = window.__ASYMPTA_DEMO__?.snapshot?.();
+      const world = worldValue?.foreground ?? worldValue ?? null;
+      const execution = window.__ASYMPTA_MARKETPLACE__?.snapshot?.() ?? null;
+      return {
+        worldPhase: world?.phase ?? null,
+        workflowId: world?.workflowId ?? null,
+        executionStatus: execution?.status ?? null,
+        domain: execution?.envelope?.goals?.[0]?.domain ?? null,
+        item: execution?.ledger?.[0]?.itemLabel ?? null,
+        taskIds: (world?.tasks ?? []).map((task) => task.id),
+        userInventory: execution?.ledger?.[0]?.userInventory ?? null,
+        packetKinds: (execution?.packets ?? []).map((packet) => packet.kind)
+      };
+    })())`));
+    if (guitarStart.workflowId !== "marketplace-intent" || guitarStart.executionStatus === "completed") {
+      throw new Error(`Buy a guitar claimed completion before a workflow ran: ${JSON.stringify(guitarStart)}`);
+    }
+    if (guitarStart.domain !== "retail" || guitarStart.item !== "guitar" || guitarStart.userInventory !== 0) {
+      throw new Error(`Buy a guitar was not compiled as pending retail delivery: ${JSON.stringify(guitarStart)}`);
+    }
+    for (const id of ["mp-1-retail-store", "mp-1-retail-stock", "mp-1-retail-offer", "mp-1-retail-handoff", "mp-1-retail-deliver", "mp-1-retail-verify"]) {
+      if (!guitarStart.taskIds.includes(id)) throw new Error(`Buy a guitar workflow task ${id} is missing: ${JSON.stringify(guitarStart.taskIds)}`);
+    }
+    if (guitarStart.packetKinds.includes("delivery_receipt")) {
+      throw new Error(`Buy a guitar had a delivery receipt before execution: ${JSON.stringify(guitarStart.packetKinds)}`);
+    }
+
+    await evaluate(`(async () => {
+      const demo = window.__ASYMPTA_DEMO__;
+      if (!demo) throw new Error('Demo bridge unavailable for Buy a guitar.');
+      for (let index = 0; index < 8000; index += 1) {
+        const value = demo.snapshot?.();
+        const snapshot = value?.foreground ?? value;
+        if (snapshot?.phase === 'blocked') throw new Error('Buy a guitar blocked before approval.');
+        if ((snapshot?.pendingApprovals ?? []).some((approval) => approval.actionType === 'authorize_payment')) return true;
+        demo.advance(140);
+        if (index % 20 === 0) await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+      throw new Error('Buy a guitar never reached payment confirmation.');
+    })()`, true);
+
+    await waitFor("Boolean(document.querySelector('.asympta-marketplace-payment-approval__actions button'))", 8_000, "guitar payment confirmation card");
+    await evaluate(`(() => {
+      const confirm = document.querySelector('.asympta-marketplace-payment-approval__actions button');
+      if (!confirm) throw new Error('Guitar payment confirmation button is unavailable.');
+      confirm.click();
+      return true;
+    })()`);
+
+    await evaluate(`(async () => {
+      const demo = window.__ASYMPTA_DEMO__;
+      if (!demo) throw new Error('Demo bridge unavailable after guitar approval.');
+      for (let index = 0; index < 8000; index += 1) {
+        const value = demo.snapshot?.();
+        const snapshot = value?.foreground ?? value;
+        if (snapshot?.phase === 'completed') return true;
+        if (snapshot?.phase === 'blocked') throw new Error('Buy a guitar blocked after payment approval.');
+        demo.advance(140);
+        if (index % 20 === 0) await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+      throw new Error('Buy a guitar never reached workflow completion.');
+    })()`, true);
+
+    await waitFor(
+      "window.__ASYMPTA_MARKETPLACE__?.snapshot?.()?.status === 'completed'",
+      8_000,
+      "guitar evidence-backed completion",
+    );
+    const guitarEnd = JSON.parse(await evaluate(`JSON.stringify((() => {
+      const execution = window.__ASYMPTA_MARKETPLACE__?.snapshot?.() ?? null;
+      return {
+        status: execution?.status ?? null,
+        userInventory: execution?.ledger?.[0]?.userInventory ?? null,
+        reserved: execution?.ledger?.[0]?.marketReserved ?? null,
+        cargo: execution?.ledger?.[0]?.carrierCargo ?? null,
+        transaction: execution?.transactions?.[0] ?? null,
+        packetKinds: (execution?.packets ?? []).map((packet) => packet.kind)
+      };
+    })())`));
+    if (guitarEnd.status !== "completed" || guitarEnd.userInventory !== 1 || guitarEnd.reserved !== 0 || guitarEnd.cargo !== 0) {
+      throw new Error(`Buy a guitar did not finish through delivery: ${JSON.stringify(guitarEnd)}`);
+    }
+    if (guitarEnd.transaction?.status !== "completed" || guitarEnd.transaction?.payment !== "authorized") {
+      throw new Error(`Buy a guitar transaction is incomplete: ${JSON.stringify(guitarEnd.transaction)}`);
+    }
+    for (const kind of ["enquiry", "availability", "offer", "approval_request", "payment_authorized", "goods_handoff", "delivery_receipt", "verification"]) {
+      if (!guitarEnd.packetKinds.includes(kind)) throw new Error(`Buy a guitar packet ${kind} is missing: ${JSON.stringify(guitarEnd.packetKinds)}`);
+    }
     if (exceptions.length) {
       throw new Error(`Browser runtime exception(s):\n${exceptions.join("\n---\n")}`);
     }
@@ -342,7 +484,7 @@ async function run() {
       throw new Error(`Browser console error(s):\n${consoleErrors.join("\n")}`);
     }
 
-    console.log(`Buy some food browser smoke passed: one confirmed payment, delivered inventory ${state.userInventory}, verified receipt and full-screen celebration ${state.celebrationId}.`);
+    console.log(`Marketplace browser smoke passed: Buy some food and Buy a guitar both required agent, merchant, supplier, approval, handoff, delivery and verification evidence.`);
     socket.close();
   } finally {
     chrome.kill("SIGTERM");

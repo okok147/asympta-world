@@ -139,6 +139,7 @@ export function AsymptaSafeSchedule() {
     const unsubscribe = subscribeAsymptaCurrentRequest((next) => {
       setRequest(next);
       if (["awaiting_confirmation", "waiting_input", "failed"].includes(next.status)) setExpanded(true);
+      else if (next.kind === "marketplace" && next.status === "gathering") setExpanded(false);
     });
     window.addEventListener(MARKETPLACE_PROFILE_REQUIRED_EVENT, showMarketplaceProfile);
     return () => {

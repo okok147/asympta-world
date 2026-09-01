@@ -246,6 +246,8 @@ test("marketplace context no longer occupies the centre composer and is nested i
   assert.match(css, /right: max\(12px, env\(safe-area-inset-right\)\)/);
   assert.match(schedule, /MARKETPLACE_PROFILE_REQUIRED_EVENT/);
   assert.match(schedule, /setExpanded\(true\)/);
+  assert.match(schedule, /next\.kind === "marketplace" && next\.status === "gathering"/);
+  assert.match(schedule, /setExpanded\(false\)/);
   assert.match(preferences, /marketplaceProfile/);
   assert.doesNotMatch(`${bridge}\n${preferences}`, /cardNumber|fullAddress|streetAddress/i);
 });

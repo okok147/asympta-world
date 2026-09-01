@@ -1,6 +1,7 @@
 import type { AsymptaActivity } from "./asympta-activity.ts";
 import type { AsymptaCurrentRequest } from "./asympta-current-request.ts";
 import {
+  marketplaceCompletionEvidence,
   marketplaceInventoryInvariant,
   type MarketplaceExecution,
 } from "./asympta-marketplace-intent.ts";
@@ -94,7 +95,8 @@ export function completionReceiptFromMarketplaceExecution(
 ): AsymptaCompletionReceipt | null {
   if (!execution?.envelope?.requestId || execution.status !== "completed") return null;
   const invariant = marketplaceInventoryInvariant(execution);
-  if (!invariant.valid || !execution.transactions.length || !execution.ledger.length || !completedMarketplaceGoals(execution)) return null;
+  const evidence = marketplaceCompletionEvidence(execution);
+  if (!invariant.valid || !evidence.valid || !execution.transactions.length || !execution.ledger.length || !completedMarketplaceGoals(execution)) return null;
 
   const quantity = execution.ledger.reduce((sum, line) => sum + line.quantity, 0);
   const labels = execution.ledger.map((line) => `${line.quantity} × ${line.itemLabel}`);

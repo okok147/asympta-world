@@ -116,6 +116,17 @@ export type MarketplaceWorldSnapshot = {
   pendingApprovals?: Array<{ id?: string; taskId?: string | null; actionType?: string | null }>;
 };
 
+const COMPLETION_PACKET_KINDS: MarketplacePacketKind[] = [
+  "enquiry",
+  "availability",
+  "offer",
+  "verification",
+  "approval_request",
+  "payment_authorized",
+  "goods_handoff",
+  "delivery_receipt",
+];
+
 function cloneExecution(execution: MarketplaceExecution): MarketplaceExecution {
   return JSON.parse(JSON.stringify(execution)) as MarketplaceExecution;
 }
@@ -375,6 +386,20 @@ export function syncMarketplaceExecution(current: MarketplaceExecution, snapshot
 
     if (taskDone(snapshot, ids.payment)) {
       execution.status = "coordinating";
+      // Projection polling can miss the short waiting_approval frame when a
+      // human confirms immediately. A completed canonical approval task proves
+      // that the request existed, so reconstruct its inspectable packet before
+      // recording authorisation instead of weakening the completion gate.
+      applyOnce(execution, `${goal.id}:approval-request`, () => {
+        addPacket(execution, "approval_request", "agent-finance", "human", {
+          action: "authorize_simulated_payment",
+          paymentMethod: transaction.paymentMethod,
+          itemId: line.itemId,
+          quantity: line.quantity,
+          consequence: "Advance simulated state only; no real charge or order.",
+          reconstructedFromCanonicalTask: true,
+        }, goal.id);
+      });
       applyOnce(execution, `${goal.id}:payment`, () => {
         transaction.status = "authorized";
         transaction.payment = "authorized";
@@ -430,8 +455,9 @@ export function syncMarketplaceExecution(current: MarketplaceExecution, snapshot
     }
   }
 
+  const completionEvidence = marketplaceCompletionEvidence(execution);
   if (snapshot.phase === "blocked") execution.status = "blocked";
-  else if (snapshot.phase === "completed" || execution.transactions.every((transaction) => transaction.status === "completed")) {
+  else if (completionEvidence.valid) {
     execution.status = "completed";
     execution.activeGoalId = null;
     execution.progress = 1;
@@ -458,5 +484,37 @@ export function marketplaceInventoryInvariant(execution: MarketplaceExecution) {
       issues.push(`${line.itemId} personal-agent compatibility cargo is inconsistent.`);
     }
   }
+  return { valid: issues.length === 0, issues };
+}
+
+export function marketplaceCompletionEvidence(execution: MarketplaceExecution) {
+  const issues: string[] = [];
+  if (!execution.transactions.length || !execution.ledger.length) {
+    issues.push("Marketplace completion requires at least one transaction and ledger line.");
+    return { valid: false, issues };
+  }
+
+  for (const transaction of execution.transactions) {
+    if (transaction.status !== "completed") issues.push(`${transaction.goalId} is not completed.`);
+    if (transaction.payment !== "authorized") issues.push(`${transaction.goalId} has no authorised simulated payment.`);
+
+    const packets = new Set(
+      execution.packets
+        .filter((packet) => packet.goalId === transaction.goalId)
+        .map((packet) => packet.kind),
+    );
+    for (const kind of COMPLETION_PACKET_KINDS) {
+      if (!packets.has(kind)) issues.push(`${transaction.goalId} is missing ${kind} evidence.`);
+    }
+  }
+
+  for (const line of execution.ledger) {
+    if (line.userInventory < line.quantity) issues.push(`${line.goalId} was not delivered into user inventory.`);
+    if (line.marketReserved !== 0) issues.push(`${line.goalId} still has reserved marketplace inventory.`);
+    if (line.carrierCargo !== 0) issues.push(`${line.goalId} is still held by a carrier.`);
+  }
+
+  const invariant = marketplaceInventoryInvariant(execution);
+  issues.push(...invariant.issues);
   return { valid: issues.length === 0, issues };
 }

@@ -7,6 +7,7 @@ import {
   compileAsymptaContext,
   createMarketplaceExecution,
   marketplaceInventoryInvariant,
+  marketplaceCompletionEvidence,
   marketplaceProfilePreset,
   marketplaceTaskIds,
   syncMarketplaceExecution,
@@ -188,6 +189,7 @@ test("structured execution conserves inventory from market reservation through c
   assert.equal(execution.transactions[0].status, "completed");
   assert.ok(execution.packets.some((packet) => packet.kind === "delivery_receipt"));
   assert.deepEqual(marketplaceInventoryInvariant(execution), { valid: true, issues: [] });
+  assert.deepEqual(marketplaceCompletionEvidence(execution), { valid: true, issues: [] });
   assert.equal(
     execution.ledger[0].marketAvailable
       + execution.ledger[0].marketReserved
@@ -195,6 +197,20 @@ test("structured execution conserves inventory from market reservation through c
       + execution.ledger[0].userInventory,
     initial,
   );
+});
+
+test("a completed world phase cannot claim marketplace completion without business and delivery evidence", () => {
+  const envelope = compileReady("Buy a guitar", "request-guitar-fail-closed");
+  let execution = createMarketplaceExecution(envelope);
+  execution = syncMarketplaceExecution(execution, snapshot({
+    "mp-context": "done",
+  }, "completed"));
+
+  assert.notEqual(execution.status, "completed");
+  const evidence = marketplaceCompletionEvidence(execution);
+  assert.equal(evidence.valid, false);
+  assert.ok(evidence.issues.some((issue) => /offer evidence/i.test(issue)));
+  assert.ok(evidence.issues.some((issue) => /delivery_receipt evidence/i.test(issue)));
 });
 
 test("declining simulated payment releases reserved inventory and blocks the transaction", () => {

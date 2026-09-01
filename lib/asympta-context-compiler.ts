@@ -11,7 +11,7 @@ import {
   type MarketplaceProfileField,
 } from "./asympta-marketplace-profile.ts";
 
-export type MarketplaceDomain = "food" | "clothing";
+export type MarketplaceDomain = "food" | "clothing" | "retail";
 export type ContextFactStatus = "explicit" | "profile" | "defaulted";
 export type ContextFactSource = "user_message" | "approved_user_profile" | "system_default";
 
@@ -517,7 +517,10 @@ function factValue<T extends string>(goal: MarketplaceGoal, key: string): T | nu
 
 export function marketplaceGoalItem(goal: MarketplaceGoal) {
   const fact = goal.facts.find((candidate) => candidate.key === "requested_item");
-  return typeof fact?.value === "string" ? fact.value : goal.domain === "food" ? "ready-to-eat meal" : "everyday clothing set";
+  if (typeof fact?.value === "string") return fact.value;
+  if (goal.domain === "food") return "ready-to-eat meal";
+  if (goal.domain === "clothing") return "everyday clothing set";
+  return "general retail item";
 }
 
 export function marketplaceGoalQuantity(goal: MarketplaceGoal) {

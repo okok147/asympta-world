@@ -83,6 +83,10 @@ test("an immediate explicit COD confirmation can finish even when the projection
   assert.equal(execution.ledger[0].marketReserved, 0);
   assert.equal(execution.ledger[0].carrierCargo, 0);
   assert.equal(execution.ledger[0].userInventory, 1);
+  assert.equal(
+    execution.packets.find((packet) => packet.kind === "approval_request")?.payload.reconstructedFromCanonicalTask,
+    true,
+  );
   assert.equal(invariant.valid, true, invariant.issues.join(" "));
 });
 

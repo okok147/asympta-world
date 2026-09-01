@@ -6,6 +6,7 @@ import {
   subscribeAsymptaCompletionReceipts,
   type AsymptaCompletionReceipt,
 } from "@/lib/asympta-completion-receipt";
+import { subscribeAsymptaWorkflowStarts } from "@/lib/asympta-workflow-lifecycle";
 
 type TaskSnapshot = {
   id: string;
@@ -231,6 +232,19 @@ export function AsymptaTaskCelebration() {
       startNext();
     });
 
+    const unsubscribeStart = subscribeAsymptaWorkflowStarts(() => {
+      // A completion card belongs to the run that produced it. Starting the
+      // next canonical workflow immediately clears that card and its queue so
+      // it can never cover the new agents' work.
+      window.clearTimeout(lifetimeTimer);
+      window.clearTimeout(gapTimer);
+      lifetimeTimer = 0;
+      gapTimer = 0;
+      queue.length = 0;
+      removeScreenCelebration(activeOverlay);
+      activeOverlay = null;
+    });
+
     const syncTaskBursts = () => {
       if (document.hidden) return;
       let snapshot: DemoSnapshot | undefined;
@@ -265,6 +279,7 @@ export function AsymptaTaskCelebration() {
       window.clearTimeout(lifetimeTimer);
       window.clearTimeout(gapTimer);
       unsubscribeReceipt();
+      unsubscribeStart();
       queue.length = 0;
       removeScreenCelebration(activeOverlay);
       document.querySelectorAll(".asympta-screen-celebration").forEach((node) => node.remove());

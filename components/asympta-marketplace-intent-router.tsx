@@ -38,7 +38,7 @@ import {
 } from "@/lib/asympta-user-preferences";
 
 type MarketplaceBrowserBridge = {
-  runIntent: (intent: string) => Promise<MarketplaceExecution | null>;
+  runIntent: (intent: string, requestId?: string) => Promise<MarketplaceExecution | null>;
 };
 
 type MarketplaceWindow = Window & {
@@ -81,8 +81,17 @@ function marketplaceWindow() {
   return window as MarketplaceWindow;
 }
 
+function createMarketplaceRequestId() {
+  const nonce = globalThis.crypto?.randomUUID?.()
+    ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  return `market-${nonce}`;
+}
+
 function compileMarketplaceIntent(intent: string): ClaimedIntent["compilation"] | null {
+  const requestId = createMarketplaceRequestId();
   const compilation = compileAsymptaContext(intent, {
+    requestId,
+    conversationId: requestId,
     locale: localeFromDocument(),
     now: Date.now(),
     profile: readAsymptaMarketplaceProfile(),
@@ -204,7 +213,7 @@ export function AsymptaMarketplaceIntentRouter() {
 
       try {
         const bridge = await waitForMarketplaceBridge(() => disposed || activeRequestIdRef.current !== envelope.requestId);
-        await bridge.runIntent(intent);
+        await bridge.runIntent(intent, envelope.requestId);
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return;
         if (activeRequestIdRef.current !== envelope.requestId) return;
@@ -318,7 +327,7 @@ export function AsymptaMarketplaceIntentRouter() {
       void (async () => {
         try {
           const bridge = await waitForMarketplaceBridge(() => disposed || activeRequestIdRef.current !== pending.requestId);
-          await bridge.runIntent(pending.intent);
+          await bridge.runIntent(pending.intent, pending.requestId);
         } catch (error) {
           if (error instanceof DOMException && error.name === "AbortError") return;
           if (compilation.envelope && activeRequestIdRef.current === pending.requestId) {

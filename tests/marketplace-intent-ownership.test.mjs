@@ -59,14 +59,14 @@ test("marketplace execution owns the current-request status throughout the simul
   assert.match(routed.actor, /市場/);
   assert.doesNotMatch(routed.step, /公開|研究|資料來源/);
 
-  const completed = marketplaceCurrentRequestFromExecution({
+  const unprovenCompletion = marketplaceCurrentRequestFromExecution({
     ...execution,
     status: "completed",
     progress: 1,
   }, "human", "zh-Hant");
-  assert.equal(completed.status, "completed");
-  assert.equal(completed.verification, "verified");
-  assert.match(completed.step, /交付/);
+  assert.equal(unprovenCompletion.status, "gathering");
+  assert.equal(unprovenCompletion.verification, null);
+  assert.match(unprovenCompletion.step, /市場|供應|商戶/);
 });
 
 test("an incomplete profile asks only the next necessary question", () => {
@@ -128,8 +128,11 @@ test("browser router claims marketplace forms, asks one field at a time and fini
   assert.match(router, /addEventListener\("click", onProfileChoice, true\)/);
   assert.match(router, /stopImmediatePropagation\(\)/);
   assert.match(router, /compileAsymptaContext/);
+  assert.match(router, /createMarketplaceRequestId/);
+  assert.match(router, /crypto\?\.randomUUID/);
+  assert.match(router, /runIntent\(intent, envelope\.requestId\)/);
   assert.match(router, /__ASYMPTA_MARKETPLACE__/);
-  assert.match(router, /runIntent\(pending\.intent\)/);
+  assert.match(router, /runIntent\(pending\.intent, pending\.requestId\)/);
   assert.match(router, /writeAsymptaMarketplaceProfile/);
   assert.match(router, /patchMarketplaceProfile/);
   assert.match(router, /marketplaceProfilePrompt/);

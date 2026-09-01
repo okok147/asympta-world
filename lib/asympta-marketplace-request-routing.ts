@@ -3,10 +3,11 @@ import type {
   AsymptaCurrentRequestSource,
   AsymptaCurrentRequestStatus,
 } from "./asympta-current-request.ts";
-import type {
-  ContextEnvelope,
-  MarketplaceExecution,
-  MarketplaceProfileField,
+import {
+  marketplaceCompletionEvidence,
+  type ContextEnvelope,
+  type MarketplaceExecution,
+  type MarketplaceProfileField,
 } from "./asympta-marketplace-intent.ts";
 
 export type MarketplaceRequestLocale = "en" | "zh-Hant" | "ja";
@@ -33,6 +34,7 @@ const PROFILE_FIELD_PRIORITY: MarketplaceProfileField[] = [
 const COPY: Record<MarketplaceRequestLocale, {
   buyFood: string;
   buyClothing: string;
+  buyProduct: string;
   coordinator: string;
   marketAgents: string;
   financeAgent: string;
@@ -50,6 +52,7 @@ const COPY: Record<MarketplaceRequestLocale, {
   en: {
     buyFood: "Buy food",
     buyClothing: "Buy clothing",
+    buyProduct: "Buy a product",
     coordinator: "Marketplace coordinator",
     marketAgents: "Marketplace agents",
     financeAgent: "Finance agent",
@@ -79,6 +82,7 @@ const COPY: Record<MarketplaceRequestLocale, {
   "zh-Hant": {
     buyFood: "購買食物",
     buyClothing: "購買衣服",
+    buyProduct: "購買商品",
     coordinator: "市場協調代理",
     marketAgents: "市場代理群",
     financeAgent: "付款代理",
@@ -108,6 +112,7 @@ const COPY: Record<MarketplaceRequestLocale, {
   ja: {
     buyFood: "食べ物を購入",
     buyClothing: "衣服を購入",
+    buyProduct: "商品を購入",
     coordinator: "マーケット調整エージェント",
     marketAgents: "マーケットエージェント",
     financeAgent: "支払いエージェント",
@@ -158,7 +163,11 @@ export function marketplaceProfilePrompt(
 function requestGoal(envelope: ContextEnvelope, locale: MarketplaceRequestLocale) {
   const copy = COPY[locale];
   const domains = [...new Set(envelope.goals.map((goal) => goal.domain))];
-  return domains.map((domain) => domain === "food" ? copy.buyFood : copy.buyClothing).join(" + ");
+  return domains.map((domain) => {
+    if (domain === "food") return copy.buyFood;
+    if (domain === "clothing") return copy.buyClothing;
+    return copy.buyProduct;
+  }).join(" + ");
 }
 
 function statusForExecution(status: MarketplaceExecution["status"]): AsymptaCurrentRequestStatus {
@@ -247,7 +256,12 @@ export function marketplaceCurrentRequestFromExecution(
   locale: MarketplaceRequestLocale,
 ): AsymptaCurrentRequest {
   const copy = COPY[locale];
-  const step = copy.statuses[execution.status];
+  const completionVerified = execution.status !== "completed"
+    || marketplaceCompletionEvidence(execution).valid;
+  const safeExecution = completionVerified
+    ? execution
+    : { ...execution, status: "coordinating" as const };
+  const step = copy.statuses[safeExecution.status];
   return {
     requestId: execution.envelope.requestId,
     source,
@@ -255,13 +269,13 @@ export function marketplaceCurrentRequestFromExecution(
     goal: requestGoal(execution.envelope, locale),
     kind: "marketplace",
     permission: "WRITE_REQUEST",
-    status: statusForExecution(execution.status),
-    actor: actorForExecution(execution, locale),
+    status: statusForExecution(safeExecution.status),
+    actor: actorForExecution(safeExecution, locale),
     step,
-    destination: destinationForExecution(execution, locale),
+    destination: destinationForExecution(safeExecution, locale),
     sourceCount: 0,
-    verification: execution.status === "completed" ? "verified" : null,
-    events: packetEvents(execution, step),
+    verification: safeExecution.status === "completed" ? "verified" : null,
+    events: packetEvents(safeExecution, step),
     updatedAt: new Date().toISOString(),
   };
 }

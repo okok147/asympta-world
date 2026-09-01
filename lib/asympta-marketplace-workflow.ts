@@ -233,7 +233,11 @@ export function buildMarketplaceWorkflow(envelope: ContextEnvelope): AtlasWorkfl
     previousGoalCompletion = ids.verify;
   }
 
-  const goalNames = specs.map((spec) => spec.goal.domain === "food" ? "food" : "clothing").join(" + ");
+  const goalNames = specs.map((spec) => {
+    if (spec.goal.domain === "food") return "food";
+    if (spec.goal.domain === "clothing") return "clothing";
+    return "retail product";
+  }).join(" + ");
   const workflow: AtlasWorkflowDefinition = {
     id: MARKETPLACE_WORKFLOW_ID,
     name: `Intent Marketplace · ${goalNames}`,

@@ -77,7 +77,7 @@ type DemoBridge = {
 
 type MarketplaceBridge = {
   compile: (intent: string) => ContextCompilation;
-  runIntent: (intent: string) => Promise<MarketplaceExecution | null>;
+  runIntent: (intent: string, requestId?: string) => Promise<MarketplaceExecution | null>;
   snapshot: () => MarketplaceExecution | null;
   profile: () => AsymptaMarketplaceProfile | null;
 };
@@ -557,6 +557,10 @@ export function AsymptaMarketplaceIntentBridge() {
     setRuntimeError(null);
     setPendingIntent(null);
     setEditingProfile(false);
+    // A required choice is a temporary interruption. Once the canonical world
+    // actually starts, return visual focus to the agents and map; the trace can
+    // still be opened manually for inspection.
+    setPanelExpanded(false);
 
     upsertMarketplaceWorkflow(compilation.envelope);
     let next = createMarketplaceExecution(compilation.envelope);
@@ -720,7 +724,7 @@ export function AsymptaMarketplaceIntentBridge() {
         now: Date.now(),
         profile: readAsymptaMarketplaceProfile(),
       }),
-      runIntent: (intent) => runIntent(intent),
+      runIntent: (intent, requestId) => runIntent(intent, requestId),
       snapshot: () => cloneExecution(executionRef.current),
       profile: () => profileRef.current,
     };
