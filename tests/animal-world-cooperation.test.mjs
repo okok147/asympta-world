@@ -13,6 +13,8 @@ import {
 } from "../lib/atlas-animal-cooperation.ts";
 import { startAtlasDemoWorkflow } from "../lib/atlas-canonical-demo.ts";
 
+const simulationSpeedSource = readFileSync(new URL("../components/asympta-simulation-speed.tsx", import.meta.url), "utf8");
+
 function balances(world) {
   return Object.fromEntries(world.runtime.accounts.map((account) => [account.ownerId, account.balance]));
 }
@@ -104,6 +106,15 @@ test("simulation speed supports every 1x through 5x world-time multiplier", () =
     assert.equal(atlasSimulationSpeed(world), speed);
     assert.equal(world.now - before, 120 * speed);
   }
+});
+
+test("browser agent speed defaults to 2x while keeping the full 1x through 5x control", () => {
+  assert.match(simulationSpeedSource, /const DEFAULT_SPEED: SimulationSpeed = 2/);
+  assert.match(simulationSpeedSource, /const SPEEDS: SimulationSpeed\[\] = \[1, 2, 3, 4, 5\]/);
+  assert.match(simulationSpeedSource, /return DEFAULT_SPEED/);
+  assert.match(simulationSpeedSource, /useState<SimulationSpeed>\(DEFAULT_SPEED\)/);
+  assert.match(simulationSpeedSource, /useRef<SimulationSpeed>\(DEFAULT_SPEED\)/);
+  assert.match(simulationSpeedSource, /api\.advance\(elapsed \* \(multiplier - 1\)\)/);
 });
 
 test("all four local workflows run successfully to completion without replay", () => {
