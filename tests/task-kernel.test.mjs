@@ -29,6 +29,10 @@ function answerValue(requirement) {
     screen_size: ["55-inch", "55″"],
     brand: ["agent_choice", "Let Asympta choose"],
     delivery_location: ["saved_home", "Usual address"],
+    property_location: ["best_available_area", "Best available area"],
+    property_type: ["apartment", "Apartment"],
+    bedrooms: [2, "2 bedrooms"],
+    financing: ["mortgage", "Mortgage"],
     event_intent: ["personalized_discovery", "Recommend from my preferences"],
     movie_preference: ["personalized_recommendation", "Recommend from my preferences"],
     cinema_area: ["nearby", "Near my current location"],
@@ -74,11 +78,10 @@ function approve(task, commandId) {
   });
 }
 
-test("unknown purchases are expanded by one data contract instead of item-specific code", () => {
+test("unknown purchases are expanded by one generic data contract instead of item-specific code", () => {
   const cases = [
     "buy me an airplane",
     "purchase an industrial robot",
-    "buy a house",
     "purchase a delivery van",
     "buy a server rack",
     "purchase a commercial oven",
@@ -115,6 +118,38 @@ test("unknown purchases are expanded by one data contract instead of item-specif
     assert.equal(task.outcome, null, rootIntent);
     assert.ok(task.requirements.length >= 6, rootIntent);
   }
+});
+
+test("residential property purchase uses a dedicated contract before consequential execution", () => {
+  const task = createAsymptaTask({
+    activityId: "house-contract-regression",
+    rootIntent: "buy a house",
+    locale: "en",
+    missingFields: [],
+    mode: "simulated",
+    confirmationRequired: true,
+    risk: "high",
+  });
+  const contract = Reflect.get(task, "requirementContract");
+  assert.equal(contract?.id, "real-estate.residential-purchase.v1");
+  assert.equal(contract?.completionMode, "simulated_execution");
+  assert.deepEqual(contract?.requiredSemantics, [
+    "property_location",
+    "budget",
+    "property_type",
+    "bedrooms",
+    "financing",
+  ]);
+  assert.equal(task.phase, "awaiting_human");
+  assert.deepEqual(task.requirements.map((requirement) => requirementSemantic(requirement.raw)), [
+    "property_location",
+    "budget",
+    "property_type",
+    "bedrooms",
+    "financing",
+  ]);
+  assert.equal(task.result, null);
+  assert.equal(task.outcome, null);
 });
 
 test("the exact airplane case gathers facts, pauses only for risk confirmation, then executes and verifies", () => {
