@@ -154,6 +154,15 @@ test("the payment card is the only marketplace payment decision owner", async ()
   assert.doesNotMatch(router, /autoApproveSimulatedMarketplacePayment/);
   assert.doesNotMatch(router, /__ASYMPTA_DEMO__.*approve/s);
   assert.match(approval, /pendingMarketplacePayment/);
+  assert.match(approval, /candidate\.payment === "awaiting_approval"/);
+  assert.match(approval, /ready:\s*false/);
+  assert.match(approval, /ready:\s*true/);
+  assert.match(approval, /data-projection-ready/);
+  assert.match(approval, /approval\.ready \? \(/);
+  assert.match(approval, /if \(!approval\?\.ready \|\| resolving\) return/);
+  assert.match(approval, /!projected\?\.ready/);
+  assert.doesNotMatch(approval, /totalAmount:\s*1_200/);
+  assert.doesNotMatch(approval, /itemLabel:\s*"marketplace item"/);
   assert.match(approval, /\.approve\(pending\.id, approved\)/);
   assert.match(approval, /onClick=\{\(\) => resolve\(true\)\}/);
   assert.match(approval, /onClick=\{\(\) => resolve\(false\)\}/);
