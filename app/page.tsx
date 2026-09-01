@@ -37,7 +37,7 @@ import { AsymptaWorldLive60Hz } from "@/components/asympta-world-live-60hz";
 export default function HomePage() {
   return (
     <>
-      <AsymptaWorkflowRuntimeBoundary>
+      <AsymptaWorkflowRuntimeBoundary prepareWorldReset emitResetSignal>
         <AsymptaTaskKernelBridge />
         <AsymptaActivityEventContract />
         <AsymptaWorldLive60Hz />
@@ -54,6 +54,12 @@ export default function HomePage() {
         <AsymptaMarketplaceIntentBridge />
         <AsymptaMarketplacePaymentApproval />
         <AsymptaMarketplaceRecovery />
+      </AsymptaWorkflowRuntimeBoundary>
+
+      <AsymptaCompletionCoordinator />
+      <AsymptaUserPreferences />
+
+      <AsymptaWorkflowRuntimeBoundary>
         <AsymptaEscalationGuard />
         <AsymptaJobMode />
         <AsymptaWebMcpTools />
@@ -63,17 +69,15 @@ export default function HomePage() {
         <AsymptaTopPanelManager />
         <AsymptaEstimatedProgress />
         <AsymptaProcessCameraFollow />
-        <AsymptaCalmDefaults />
-        <AsymptaUltraCalm />
-        <AsymptaAgentCardLocale />
-        <AsymptaGlobalLocale />
-        <AsymptaCompleteLocale />
-        <AsymptaTaskKernelLocale />
       </AsymptaWorkflowRuntimeBoundary>
 
-      <AsymptaCompletionCoordinator />
-      <AsymptaUserPreferences />
       <AsymptaTaskCelebration />
+      <AsymptaCalmDefaults />
+      <AsymptaUltraCalm />
+      <AsymptaAgentCardLocale />
+      <AsymptaGlobalLocale />
+      <AsymptaCompleteLocale />
+      <AsymptaTaskKernelLocale />
     </>
   );
 }
