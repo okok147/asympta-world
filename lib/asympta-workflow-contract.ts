@@ -17,9 +17,11 @@ export type AsymptaWorkflowDefinitionContract = {
 
 export type AsymptaWorkflowContractIssueCode =
   | "missing_workflow_id"
+  | "invalid_workflow_id"
   | "empty_workflow"
   | "invalid_task_id"
   | "duplicate_task_id"
+  | "invalid_dependency_id"
   | "unknown_dependency"
   | "self_dependency"
   | "dependency_cycle"
@@ -52,6 +54,10 @@ function allowedSet(value: ReadonlySet<string> | readonly string[] | undefined) 
   return value instanceof Set ? value : value ? new Set(value) : null;
 }
 
+function canonicalId(value: unknown) {
+  return typeof value === "string" && value.length > 0 && value === value.trim();
+}
+
 export function validateAsymptaWorkflowContract(
   workflow: AsymptaWorkflowDefinitionContract,
   options: AsymptaWorkflowContractOptions = {},
@@ -60,9 +66,15 @@ export function validateAsymptaWorkflowContract(
   const tasks = Array.isArray(workflow?.tasks) ? workflow.tasks : [];
   const agentIds = allowedSet(options.agentIds);
   const locationIds = allowedSet(options.locationIds);
+  const workflowId = typeof workflow?.id === "string" ? workflow.id : "";
 
-  if (!workflow?.id?.trim()) {
+  if (!workflowId.trim()) {
     issues.push({ code: "missing_workflow_id", message: "A workflow requires a stable id." });
+  } else if (!canonicalId(workflowId)) {
+    issues.push({
+      code: "invalid_workflow_id",
+      message: "A workflow id must already be canonical and cannot contain surrounding whitespace.",
+    });
   }
   if (!tasks.length) {
     issues.push({ code: "empty_workflow", message: "A workflow requires at least one task." });
@@ -70,15 +82,24 @@ export function validateAsymptaWorkflowContract(
 
   const taskById = new Map<string, AsymptaWorkflowTaskContract>();
   for (const task of tasks) {
-    const id = typeof task?.id === "string" ? task.id.trim() : "";
-    if (!id) {
-      issues.push({ code: "invalid_task_id", message: "Every workflow task requires a stable id." });
-      continue;
+    const id = typeof task?.id === "string" ? task.id : "";
+    if (!canonicalId(id)) {
+      issues.push({
+        code: "invalid_task_id",
+        ...(id ? { taskId: id } : {}),
+        message: id
+          ? `Task id ${JSON.stringify(id)} is not canonical; surrounding whitespace is not allowed.`
+          : "Every workflow task requires a stable id.",
+      });
+      if (!id) continue;
     }
     if (taskById.has(id)) {
       issues.push({ code: "duplicate_task_id", taskId: id, message: `Task id ${id} is duplicated.` });
       continue;
     }
+
+    // Keep the exact runtime id. Validation never trims or silently normalizes a
+    // graph because Atlas compares ids byte-for-byte when resolving dependencies.
     taskById.set(id, task);
 
     if (!Number.isFinite(task.workMs) || task.workMs <= 0) {
@@ -111,8 +132,20 @@ export function validateAsymptaWorkflowContract(
   }
 
   for (const [id, task] of taskById) {
-    const uniqueDependencies = new Set(task.dependsOn ?? []);
-    for (const dependencyId of uniqueDependencies) {
+    const uniqueDependencies = new Set<unknown>(Array.isArray(task.dependsOn) ? task.dependsOn : []);
+    for (const dependency of uniqueDependencies) {
+      const dependencyId = typeof dependency === "string" ? dependency : "";
+      if (!canonicalId(dependencyId)) {
+        issues.push({
+          code: "invalid_dependency_id",
+          taskId: id,
+          ...(dependencyId ? { dependencyId } : {}),
+          message: dependencyId
+            ? `Task ${id} has noncanonical dependency id ${JSON.stringify(dependencyId)}.`
+            : `Task ${id} has an empty or invalid dependency id.`,
+        });
+        continue;
+      }
       if (dependencyId === id) {
         issues.push({
           code: "self_dependency",
