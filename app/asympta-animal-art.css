@@ -4,6 +4,8 @@
   height: 100%;
   overflow: visible;
   pointer-events: none;
+  transform-origin: 50% 82%;
+  will-change: auto;
 }
 
 .asympta-animal-portrait {
@@ -16,16 +18,74 @@
 }
 
 .animal-map-marker__face {
+  position: relative;
   overflow: visible;
   padding: 1px;
+  transform-origin: 50% 82%;
+  transition: filter 180ms ease, transform 180ms cubic-bezier(.2,.72,.24,1);
+}
+
+.animal-map-marker--foreground {
+  isolation: isolate;
+}
+
+.animal-map-marker--foreground::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 6%;
+  border: 1px solid rgba(87, 132, 108, 0);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(111, 161, 137, 0), transparent 68%);
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(.78);
+  transition: opacity 180ms ease, transform 220ms cubic-bezier(.2,.75,.24,1), border-color 180ms ease;
 }
 
 .animal-map-marker--foreground .animal-map-marker__face { padding: 1.25px; }
 .animal-map-marker--ambient .animal-map-marker__face { padding: 0.25px; filter: saturate(0.86); }
 
-/* Only the selected foreground character breathes. Do not animate every city actor. */
-.animal-map-marker--foreground.is-selected.is-moving .asympta-animal-svg {
-  animation: asympta-animal-breathe 1.8s ease-in-out infinite;
+.animal-map-marker--foreground.is-selected::before,
+.animal-map-marker--foreground.is-working::before {
+  border-color: rgba(87, 132, 108, .22);
+  background: radial-gradient(circle, rgba(111, 161, 137, .15), rgba(111, 161, 137, .04) 46%, transparent 70%);
+  opacity: 1;
+  transform: scale(1.25);
+}
+
+.animal-map-marker--foreground.is-selected .animal-map-marker__face {
+  filter: saturate(1.055) contrast(1.015) drop-shadow(0 3px 4px rgba(51, 70, 60, .12));
+}
+
+.animal-map-marker--foreground.is-moving .asympta-animal-svg {
+  animation: asympta-animal-walk 1.05s cubic-bezier(.42,0,.58,1) infinite;
+  will-change: transform;
+}
+
+.animal-map-marker--foreground.is-working:not(.is-moving) .asympta-animal-svg {
+  animation: asympta-animal-working-breathe 2.4s ease-in-out infinite;
+  will-change: transform;
+}
+
+.animal-map-marker--foreground.is-selected.is-moving::before {
+  animation: asympta-animal-presence-pulse 2.2s ease-in-out infinite;
+}
+
+.animal-map-marker--foreground.has-dialogue .animal-map-marker__face {
+  transform: translateY(-1px) scale(1.015);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .animal-map-marker--foreground:hover .animal-map-marker__face {
+    filter: saturate(1.07) contrast(1.015) drop-shadow(0 4px 5px rgba(51, 70, 60, .13));
+  }
+
+  .animal-map-marker--foreground:hover::before {
+    border-color: rgba(87, 132, 108, .18);
+    opacity: .75;
+    transform: scale(1.16);
+  }
 }
 
 .atlas-agent-avatar,
@@ -42,15 +102,37 @@
   height: 100%;
 }
 
+.atlas-agent-avatar {
+  transition: transform 180ms cubic-bezier(.2,.72,.24,1), box-shadow 180ms ease;
+}
+
+.atlas-agent-card:focus-within .atlas-agent-avatar,
+.atlas-agent-card.is-active .atlas-agent-avatar {
+  transform: scale(1.035);
+  box-shadow: 0 0 0 4px rgba(91, 138, 113, .07);
+}
+
 .atlas-phase__animal {
   width: 22px;
   height: 22px;
   border-radius: 50%;
 }
 
-@keyframes asympta-animal-breathe {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.018); }
+@keyframes asympta-animal-walk {
+  0%, 100% { transform: translateY(0) rotate(0deg) scaleX(1); }
+  25% { transform: translateY(-1.25px) rotate(-1.2deg) scaleX(.994); }
+  50% { transform: translateY(.2px) rotate(.6deg) scaleX(1.006); }
+  75% { transform: translateY(-.85px) rotate(1deg) scaleX(.996); }
+}
+
+@keyframes asympta-animal-working-breathe {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-.55px) scale(1.018); }
+}
+
+@keyframes asympta-animal-presence-pulse {
+  0%, 100% { opacity: .72; transform: scale(1.2); }
+  50% { opacity: 1; transform: scale(1.38); }
 }
 
 @media (max-width: 640px) {
@@ -63,5 +145,15 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animal-map-marker--foreground.is-selected.is-moving .asympta-animal-svg { animation: none; }
+  .animal-map-marker--foreground.is-moving .asympta-animal-svg,
+  .animal-map-marker--foreground.is-working:not(.is-moving) .asympta-animal-svg,
+  .animal-map-marker--foreground.is-selected.is-moving::before {
+    animation: none;
+  }
+
+  .animal-map-marker__face,
+  .animal-map-marker--foreground::before,
+  .atlas-agent-avatar {
+    transition: none;
+  }
 }
