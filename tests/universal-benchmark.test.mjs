@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  generateKernelAdversarialScenarios,
+  runKernelAdversarialBenchmark,
+} from "../lib/asympta-kernel-adversarial-benchmark.ts";
+import {
   generateUniversalStressCases,
   generateUniversalUseCases,
   runUniversalBenchmark,
@@ -54,4 +58,38 @@ test("stress generation is deterministic and includes unseen fields and reordere
   assert.deepEqual(first, second);
   assert.ok(first.some((entry) => entry.requiredFields?.some((field) => /novel|unseen|新型|未知/i.test(field))));
   assert.ok(first.some((entry) => entry.requiredFields?.some((field) => field.includes("_"))));
+});
+
+test("the independent 1,000-case kernel attack exposes common structural failure families instead of rewarding simulated completion", () => {
+  const scenarios = generateKernelAdversarialScenarios();
+  const report = runKernelAdversarialBenchmark();
+  assert.equal(scenarios.length, 1_000);
+  assert.equal(new Set(scenarios.map((scenario) => scenario.id)).size, 1_000);
+  assert.deepEqual(new Set(scenarios.map((scenario) => scenario.locale)), new Set(["en", "zh-Hant", "ja"]));
+  assert.equal(report.total, 1_000);
+
+  const expectedFailureFamilies = [
+    "explicit_fact_binding",
+    "numeric_disambiguation",
+    "currency_integrity",
+    "sensitive_metadata",
+    "write_approval_coverage",
+    "domain_contract_coverage",
+    "blocked_requirement_safety",
+    "benchmark_false_pass",
+  ];
+  for (const family of expectedFailureFamilies) {
+    assert.equal(report.byFamily[family].total, 100);
+    assert.equal(
+      report.byFamily[family].failed,
+      100,
+      `${family}: ${JSON.stringify(report.failures.filter((failure) => failure.family === family).slice(0, 5), null, 2)}`,
+    );
+  }
+
+  assert.deepEqual(report.byFamily.positive_approval_control, { total: 100, passed: 100, failed: 0 });
+  assert.deepEqual(report.byFamily.positive_explicit_control, { total: 100, passed: 100, failed: 0 });
+  assert.equal(report.passed, 200);
+  assert.equal(report.failed, 800);
+  assert.equal(report.passRate, 0.2);
 });
