@@ -9,14 +9,28 @@ import {
   type DisplayTask,
 } from "@/lib/atlas-display-progress";
 
+type PendingApproval = {
+  id: string;
+  source?: string;
+  actionType?: string | null;
+  taskId?: string | null;
+};
+
+type ForegroundSnapshot = {
+  phase?: string;
+  workflowId?: string | null;
+  tasks?: DisplayTask[];
+  agents?: DisplayAgent[];
+  pendingApprovals?: PendingApproval[];
+};
+
 type Snapshot = {
-  foreground?: {
-    tasks?: DisplayTask[];
-    agents?: DisplayAgent[];
-  };
+  foreground?: ForegroundSnapshot;
 };
 
 const ACTIVE_TASKS = new Set(["moving", "working", "waiting_approval", "blocked"]);
+const MARKER_PROGRESS_TASKS = new Set(["moving", "working"]);
+const FALLBACK_SYNC_MS = 180;
 
 function setData(node: Element | null, key: string, value: string) {
   if (!(node instanceof HTMLElement)) return;
@@ -29,23 +43,78 @@ function clearDuplicateAgentProgress() {
     .forEach((node) => delete node.dataset.asymptaEstimatedStatus);
 }
 
+function markerForAgent(agentId: string) {
+  return [...document.querySelectorAll<HTMLElement>(".animal-map-marker--foreground")]
+    .find((node) => node.dataset.agentId === agentId) ?? null;
+}
+
+function statusLabel(status: string) {
+  const language = document.documentElement.lang.toLowerCase();
+  if (language.startsWith("zh")) {
+    if (status === "moving" || status === "returning") return "移動中";
+    if (status === "working" || status === "sharing") return "工作中";
+    return status;
+  }
+  if (language.startsWith("ja")) {
+    if (status === "moving" || status === "returning") return "移動中";
+    if (status === "working" || status === "sharing") return "作業中";
+    return status;
+  }
+  return status.replaceAll("_", " ");
+}
+
+function approvalBelongsToVisibleWorkflow(foreground: ForegroundSnapshot | undefined) {
+  const approvals = foreground?.pendingApprovals ?? [];
+  if (!approvals.length) return false;
+
+  const waitingTaskIds = new Set(
+    (foreground?.tasks ?? [])
+      .filter((task) => task.status === "waiting_approval")
+      .map((task) => task.id),
+  );
+
+  return approvals.some((approval) => {
+    // A task approval is valid only at the current workflow checkpoint.
+    if (approval.taskId) return Boolean(foreground?.workflowId && waitingTaskIds.has(approval.taskId));
+
+    // A WebMCP request to START a workflow has no task/action yet and is a
+    // legitimate explicit review surface. A standalone action request with an
+    // actionType but no active workflow is an orphan and must never appear as a
+    // random approval card.
+    if (!foreground?.workflowId) return !approval.actionType;
+    return true;
+  });
+}
+
+function syncApprovalCard(foreground: ForegroundSnapshot | undefined) {
+  const card = document.querySelector<HTMLElement>(".atlas-approval");
+  if (!card) return;
+  const visible = approvalBelongsToVisibleWorkflow(foreground);
+  card.hidden = !visible;
+  card.setAttribute("aria-hidden", visible ? "false" : "true");
+  card.style.display = visible ? "" : "none";
+  card.dataset.asymptaApprovalIntegrity = visible ? "verified" : "suppressed-orphan";
+}
+
 export function AsymptaEstimatedProgress() {
   const travelOriginDistanceRef = useRef(new Map<string, number>());
   const previousStatusRef = useRef(new Map<string, string>());
 
   useEffect(() => {
-    // The living-world renderer already owns the one visible agent status/progress
-    // label. Estimated progress is useful in the schedule, but projecting a second
-    // percentage onto the marker creates two competing moving-% readouts. Clear any
-    // legacy marker annotation and keep this component schedule-only.
     clearDuplicateAgentProgress();
+    let frame = 0;
 
     const sync = () => {
+      frame = 0;
       if (document.hidden) return;
       let snapshot: Snapshot | undefined;
       try { snapshot = window.__ASYMPTA_DEMO__?.snapshot() as Snapshot | undefined; } catch { return; }
-      const tasks = snapshot?.foreground?.tasks ?? [];
-      const agents = snapshot?.foreground?.agents ?? [];
+      const foreground = snapshot?.foreground;
+      const tasks = foreground?.tasks ?? [];
+      const agents = foreground?.agents ?? [];
+
+      syncApprovalCard(foreground);
+
       if (!tasks.length) {
         clearDuplicateAgentProgress();
         return;
@@ -86,14 +155,55 @@ export function AsymptaEstimatedProgress() {
         setData(node, "asymptaEstimatedProgress", `${estimate.percent}%`);
       });
 
+      // There is exactly one visible status label per foreground agent. Write the
+      // distance-based estimate into that existing label instead of adding a second
+      // pseudo-element. The 60Hz renderer owns marker geometry; this component owns
+      // only the display percentage while an active task is moving/working.
+      for (const agent of agents) {
+        const task = tasks.find((candidate) => candidate.agentId === agent.id && MARKER_PROGRESS_TASKS.has(candidate.status));
+        if (!task) continue;
+        const statusNode = markerForAgent(agent.id)?.querySelector<HTMLElement>(".animal-map-marker__status-text");
+        if (!statusNode) continue;
+        const estimate = estimateTaskProgress(
+          task,
+          agent,
+          tasks,
+          travelOriginDistanceRef.current.get(task.id),
+        );
+        const nextText = `${statusLabel(agent.status)} · ${estimate.percent}%`;
+        if (statusNode.textContent !== nextText) statusNode.textContent = nextText;
+        delete statusNode.dataset.asymptaEstimatedStatus;
+      }
+
       clearDuplicateAgentProgress();
     };
 
+    const scheduleSync = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(sync);
+    };
+
     sync();
-    const timer = window.setInterval(sync, 400);
+    const timer = window.setInterval(sync, FALLBACK_SYNC_MS);
+    const observer = new MutationObserver((mutations) => {
+      if (mutations.some((mutation) => {
+        const target = mutation.target instanceof Element ? mutation.target : mutation.target.parentElement;
+        return Boolean(target?.closest(".animal-map-marker--foreground, .atlas-approval"));
+      })) scheduleSync();
+    });
+    observer.observe(document.body, { subtree: true, childList: true, characterData: true });
+
     return () => {
       window.clearInterval(timer);
+      window.cancelAnimationFrame(frame);
+      observer.disconnect();
       clearDuplicateAgentProgress();
+      document.querySelectorAll<HTMLElement>(".atlas-approval[data-asympta-approval-integrity]").forEach((card) => {
+        card.hidden = false;
+        card.style.removeProperty("display");
+        card.removeAttribute("aria-hidden");
+        delete card.dataset.asymptaApprovalIntegrity;
+      });
     };
   }, []);
 
