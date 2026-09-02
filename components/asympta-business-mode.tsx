@@ -57,21 +57,21 @@ async function readFile(file: File) {
 
 export function AsymptaBusinessMode() {
   const [mode, setMode] = useState<AudienceMode>("users");
-  const [profile, setProfile] = useState<AsymptaBusinessProfile>({ ...EMPTY_ASYMPTA_BUSINESS_PROFILE });
-  const [products, setProducts] = useState<AsymptaBusinessProduct[]>([]);
-  const [thread, setThread] = useState<BusinessThreadMessage[]>([]);
+  const [profile, setProfile] = useState<AsymptaBusinessProfile>(() =>
+    typeof window === "undefined"
+      ? { ...EMPTY_ASYMPTA_BUSINESS_PROFILE }
+      : readJson(PROFILE_KEY, { ...EMPTY_ASYMPTA_BUSINESS_PROFILE }),
+  );
+  const [products, setProducts] = useState<AsymptaBusinessProduct[]>(() =>
+    typeof window === "undefined" ? [] : readJson(PRODUCTS_KEY, [] as AsymptaBusinessProduct[]),
+  );
+  const [thread, setThread] = useState<BusinessThreadMessage[]>(() =>
+    typeof window === "undefined" ? [] : readJson(THREAD_KEY, [] as BusinessThreadMessage[]),
+  );
   const [inquiry, setInquiry] = useState("");
   const [importError, setImportError] = useState<string | null>(null);
   const businessFileRef = useRef<HTMLInputElement>(null);
   const productFileRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    const savedMode = window.localStorage.getItem(MODE_KEY);
-    if (savedMode === "business") setMode("business");
-    setProfile(readJson(PROFILE_KEY, { ...EMPTY_ASYMPTA_BUSINESS_PROFILE }));
-    setProducts(readJson(PRODUCTS_KEY, [] as AsymptaBusinessProduct[]));
-    setThread(readJson(THREAD_KEY, [] as BusinessThreadMessage[]));
-  }, []);
 
   useEffect(() => {
     document.documentElement.dataset.asymptaAudience = mode;
