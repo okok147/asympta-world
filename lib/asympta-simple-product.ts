@@ -7,6 +7,10 @@ import {
   type ContextFact,
   type MarketplaceGoal,
 } from "./asympta-context-compiler.ts";
+import {
+  exactProductDecisionForIntent,
+  type ExactProductDecision,
+} from "./asympta-product-decision.ts";
 
 export type SimpleProductMatch = {
   index: number;
@@ -170,10 +174,55 @@ function patchFact(
   };
 }
 
+function catalogueFacts(decision: ExactProductDecision | null, requestId: string): ContextFact[] {
+  if (!decision) return [];
+  const common: ContextFact = {
+    key: "product_catalog_category",
+    value: decision.category,
+    status: "defaulted",
+    source: { type: "system_default", ref: `catalog:${decision.category}:verified-reference`, evidence: decision.requestedLabel },
+    confidence: 1,
+    scope: "task",
+  };
+  if (!decision.selected) return [common];
+  const selected = decision.selected;
+  const explicit = (key: string, value: string): ContextFact => ({
+    key,
+    value,
+    status: "explicit",
+    source: { type: "user_message", ref: requestId, evidence: selected.exactName },
+    confidence: 1,
+    scope: "task",
+  });
+  return [
+    common,
+    explicit("exact_product_id", selected.id),
+    explicit("exact_product_name", selected.exactName),
+    explicit("brand", selected.brand),
+    explicit("model", selected.model),
+    {
+      key: "product_reference_url",
+      value: selected.manufacturerUrl,
+      status: "defaulted",
+      source: { type: "system_default", ref: `manufacturer:${selected.brand}`, evidence: selected.verifiedAt },
+      confidence: 1,
+      scope: "task",
+    },
+  ];
+}
+
 function retailUnknownFields(facts: ContextFact[]) {
   const keys = new Set(facts.map((fact) => fact.key));
-  return ["product_preference", "model", "max_budget", "desired_time", "fulfilment_mode", "payment_method"]
-    .filter((field) => !keys.has(field));
+  const requiresExactProduct = keys.has("product_catalog_category");
+  return [
+    ...(requiresExactProduct ? ["exact_product_id"] : []),
+    "product_preference",
+    "model",
+    "max_budget",
+    "desired_time",
+    "fulfilment_mode",
+    "payment_method",
+  ].filter((field) => !keys.has(field));
 }
 
 function retailGoal(
@@ -181,8 +230,12 @@ function retailGoal(
   requestId: string,
   item: SimpleProductMatch,
   quantity: ReturnType<typeof quantityNearItem>,
+  decision: ExactProductDecision | null,
 ): MarketplaceGoal {
-  const facts = goal.facts.map((fact) => patchFact(fact, item, quantity));
+  const facts = [
+    ...goal.facts.map((fact) => patchFact(fact, item, quantity)),
+    ...catalogueFacts(decision, requestId),
+  ];
   return {
     ...goal,
     id: `${requestId}:goal:1:retail`,
@@ -212,6 +265,7 @@ export function compileSimpleProductContext(
   if (!compiled.supported || !compiled.envelope) return null;
 
   const quantity = quantityNearItem(clean, item);
+  const productDecision = exactProductDecisionForIntent(clean);
   const envelope = {
     ...compiled.envelope,
     rawMessage: {
@@ -220,7 +274,7 @@ export function compileSimpleProductContext(
       sourceRef: requestId,
     },
     goals: compiled.envelope.goals.map((goal) => (
-      goal.domain === "clothing" ? retailGoal(goal, requestId, item, quantity) : goal
+      goal.domain === "clothing" ? retailGoal(goal, requestId, item, quantity, productDecision) : goal
     )),
   };
   const validation = validateContextEnvelope(envelope);

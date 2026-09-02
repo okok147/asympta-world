@@ -10,6 +10,7 @@ type DemoApi = {
 };
 
 const SPEEDS: SimulationSpeed[] = [1, 2, 3, 4, 5];
+const ACCESS_SPEEDS: SimulationSpeed[] = [1, 2, 3];
 const DEFAULT_SPEED: SimulationSpeed = 2;
 const STORAGE_KEY = "asympta-world.simulation-speed.v2";
 const ACCELERATOR_TICK_MS = 160;
@@ -30,7 +31,7 @@ function currentLocale(): Locale {
 function readSpeed(): SimulationSpeed {
   try {
     const value = Number(localStorage.getItem(STORAGE_KEY));
-    if (SPEEDS.includes(value as SimulationSpeed)) return value as SimulationSpeed;
+    if (ACCESS_SPEEDS.includes(value as SimulationSpeed)) return value as SimulationSpeed;
   } catch {}
   return DEFAULT_SPEED;
 }
@@ -113,10 +114,10 @@ export function AsymptaSimulationSpeed() {
         .atlas-simulation-speed button.is-active{background:rgba(75,127,166,.11);color:#4b6f8c;box-shadow:inset 0 0 0 1px rgba(75,127,166,.10)}
         @media(max-width:700px){.atlas-simulation-speed{gap:4px}.atlas-simulation-speed button{min-width:26px}}
       `}</style>
-      <section className="atlas-simulation-speed" aria-label={COPY[locale]}>
+      <section className="atlas-simulation-speed" aria-label={COPY[locale]} data-supported-speed-range={SPEEDS.join(",")}>
         <span>{COPY[locale]}</span>
         <div className="atlas-simulation-speed__options">
-          {SPEEDS.map((value) => (
+          {ACCESS_SPEEDS.map((value) => (
             <button
               key={value}
               type="button"

@@ -20,6 +20,7 @@ import { AsymptaMarketplacePaymentApproval } from "@/components/asympta-marketpl
 import { AsymptaMarketplaceRecovery } from "@/components/asympta-marketplace-recovery";
 import { AsymptaPaperMapTone } from "@/components/asympta-paper-map-tone";
 import { AsymptaProcessCameraFollow } from "@/components/asympta-process-camera-follow";
+import { AsymptaPurchaseDecisionGate } from "@/components/asympta-purchase-decision-gate";
 import { AsymptaSafeSchedule } from "@/components/asympta-safe-schedule";
 import { AsymptaTaskCelebration } from "@/components/asympta-task-celebration";
 import { AsymptaTaskKernelBridge } from "@/components/asympta-task-kernel-bridge";
@@ -48,6 +49,7 @@ export default function HomePage() {
         <AsymptaCameraFollowControl />
         <AsymptaCuteAgentVisibility />
         <AsymptaGlobalWorld />
+        <AsymptaPurchaseDecisionGate />
         <AsymptaMarketplaceIntentRouter />
         <AsymptaIntentComposer />
         <AsymptaIntentInputPolish />
