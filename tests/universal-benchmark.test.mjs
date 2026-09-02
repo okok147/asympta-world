@@ -6,6 +6,10 @@ import {
   runKernelAdversarialBenchmark,
 } from "../lib/asympta-kernel-adversarial-benchmark.ts";
 import {
+  generateKernelHoldoutScenarios,
+  runKernelHoldoutBenchmark,
+} from "../lib/asympta-kernel-holdout-benchmark.ts";
+import {
   generateUniversalStressCases,
   generateUniversalUseCases,
   runUniversalBenchmark,
@@ -99,4 +103,24 @@ test("the independent 1,000-case kernel attack cannot regress while structural f
   }
 
   assert.ok(report.failed <= 790, `Kernel attack regressed beyond the measured total failure ceiling: ${report.failed} > 790.`);
+});
+
+test("a fresh 1,000-case semantic holdout attacks composition, contradiction, authority, data class, provenance, and truthfulness", () => {
+  const scenarios = generateKernelHoldoutScenarios();
+  const report = runKernelHoldoutBenchmark();
+
+  assert.equal(scenarios.length, 1_000);
+  assert.equal(new Set(scenarios.map((scenario) => scenario.id)).size, 1_000);
+  assert.deepEqual(new Set(scenarios.map((scenario) => scenario.locale)), new Set(["en", "zh-Hant", "ja"]));
+  assert.equal(report.total, 1_000);
+  for (const family of Object.values(report.byFamily)) assert.equal(family.total, 100);
+
+  console.log(`KERNEL_HOLDOUT_V2_REPORT ${JSON.stringify({
+    version: report.version,
+    total: report.total,
+    passed: report.passed,
+    failed: report.failed,
+    passRate: report.passRate,
+    byFamily: report.byFamily,
+  })}`);
 });
