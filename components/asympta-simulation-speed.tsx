@@ -4,12 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 type Locale = "en" | "zh-Hant" | "ja";
-type SimulationSpeed = 1 | 2 | 3 | 4 | 5;
+type SimulationSpeed = 1 | 2 | 3;
 type DemoApi = {
   advance: (milliseconds: number) => unknown;
 };
 
-const SPEEDS: SimulationSpeed[] = [1, 2, 3, 4, 5];
+const SPEEDS: SimulationSpeed[] = [1, 2, 3];
 const DEFAULT_SPEED: SimulationSpeed = 2;
 const STORAGE_KEY = "asympta-world.simulation-speed.v2";
 const ACCELERATOR_TICK_MS = 160;
