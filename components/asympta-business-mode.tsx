@@ -2,12 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import {
+  Briefcase,
   Building2,
-  BriefcaseBusiness,
-  FileUp,
-  MessageSquareText,
-  PackageSearch,
+  MessageSquare,
+  Package,
   Send,
+  Upload,
   Users,
 } from "lucide-react";
 import {
@@ -173,7 +173,7 @@ export function AsymptaBusinessMode() {
           aria-pressed={mode === "business"}
           onClick={() => setMode("business")}
         >
-          <BriefcaseBusiness aria-hidden="true" />
+          <Briefcase aria-hidden="true" />
           <span>Business</span>
         </button>
       </nav>
@@ -192,7 +192,7 @@ export function AsymptaBusinessMode() {
               </div>
               <div className={styles.heroStatus}>
                 <span><Building2 aria-hidden="true" /> {profile.name || "Business not imported"}</span>
-                <span><PackageSearch aria-hidden="true" /> {products.length} products · {availableCount} available</span>
+                <span><Package aria-hidden="true" /> {products.length} products · {availableCount} available</span>
               </div>
             </header>
 
@@ -206,7 +206,7 @@ export function AsymptaBusinessMode() {
                     <h2 id="business-info-title">Business information</h2>
                   </div>
                   <button type="button" className={styles.importButton} onClick={() => businessFileRef.current?.click()}>
-                    <FileUp aria-hidden="true" /> Import JSON / CSV
+                    <Upload aria-hidden="true" /> Import JSON / CSV
                   </button>
                   <input ref={businessFileRef} className={styles.hiddenInput} type="file" accept=".json,.csv,text/csv,application/json" onChange={importBusiness} />
                 </div>
@@ -246,7 +246,7 @@ export function AsymptaBusinessMode() {
                     <h2 id="catalog-title">Products</h2>
                   </div>
                   <button type="button" className={styles.importButton} onClick={() => productFileRef.current?.click()}>
-                    <FileUp aria-hidden="true" /> Import JSON / CSV
+                    <Upload aria-hidden="true" /> Import JSON / CSV
                   </button>
                   <input ref={productFileRef} className={styles.hiddenInput} type="file" accept=".json,.csv,text/csv,application/json" onChange={importProducts} />
                 </div>
@@ -268,7 +268,7 @@ export function AsymptaBusinessMode() {
                   </div>
                 ) : (
                   <div className={styles.emptyState}>
-                    <PackageSearch aria-hidden="true" />
+                    <Package aria-hidden="true" />
                     <strong>No catalog imported yet</strong>
                     <span>Use JSON or CSV with name, description, price, currency and availability fields.</span>
                   </div>
@@ -281,7 +281,7 @@ export function AsymptaBusinessMode() {
                     <p>03</p>
                     <h2 id="communication-title">Business Agent ↔ Customer Agent</h2>
                   </div>
-                  <span className={styles.localBadge}><MessageSquareText aria-hidden="true" /> Local protocol simulation</span>
+                  <span className={styles.localBadge}><MessageSquare aria-hidden="true" /> Local protocol simulation</span>
                 </div>
 
                 <div className={styles.thread} aria-live="polite">
