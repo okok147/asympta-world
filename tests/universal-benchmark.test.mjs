@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  generateKernelAdversarialScenarios,
+  runKernelAdversarialBenchmark,
+} from "../lib/asympta-kernel-adversarial-benchmark.ts";
+import {
   generateUniversalStressCases,
   generateUniversalUseCases,
   runUniversalBenchmark,
@@ -54,4 +58,45 @@ test("stress generation is deterministic and includes unseen fields and reordere
   assert.deepEqual(first, second);
   assert.ok(first.some((entry) => entry.requiredFields?.some((field) => /novel|unseen|新型|未知/i.test(field))));
   assert.ok(first.some((entry) => entry.requiredFields?.some((field) => field.includes("_"))));
+});
+
+test("the independent 1,000-case kernel attack cannot regress while structural fixes are allowed to reduce failures", () => {
+  const scenarios = generateKernelAdversarialScenarios();
+  const report = runKernelAdversarialBenchmark();
+  assert.equal(scenarios.length, 1_000);
+  assert.equal(new Set(scenarios.map((scenario) => scenario.id)).size, 1_000);
+  assert.deepEqual(new Set(scenarios.map((scenario) => scenario.locale)), new Set(["en", "zh-Hant", "ja"]));
+  assert.equal(report.total, 1_000);
+
+  console.log(`KERNEL_ATTACK_REPORT ${JSON.stringify({
+    version: report.version,
+    total: report.total,
+    passed: report.passed,
+    failed: report.failed,
+    passRate: report.passRate,
+    byFamily: report.byFamily,
+  })}`);
+
+  const failureCeilings = {
+    explicit_fact_binding: 100,
+    numeric_disambiguation: 100,
+    currency_integrity: 100,
+    sensitive_metadata: 90,
+    write_approval_coverage: 100,
+    domain_contract_coverage: 100,
+    blocked_requirement_safety: 100,
+    benchmark_false_pass: 100,
+    positive_approval_control: 0,
+    positive_explicit_control: 0,
+  };
+
+  for (const [family, ceiling] of Object.entries(failureCeilings)) {
+    assert.equal(report.byFamily[family].total, 100);
+    assert.ok(
+      report.byFamily[family].failed <= ceiling,
+      `${family} regressed beyond its measured failure ceiling: ${report.byFamily[family].failed} > ${ceiling}`,
+    );
+  }
+
+  assert.ok(report.failed <= 790, `Kernel attack regressed beyond the measured total failure ceiling: ${report.failed} > 790.`);
 });
