@@ -93,17 +93,21 @@ test("custom order advances through approvals and completion", () => {
   assert.ok(completed.events.some((event) => event.detail.includes("published the result")));
 });
 
-test("demo boots with a foreground agent visibly travelling", () => {
+test("landing demo stays idle until a real workflow starts while ambient city remains alive", () => {
   const demo = createAtlasDemoWorld(5_000);
-  const moving = demo.agents.filter((agent) => agent.status === "moving");
-  assert.ok(moving.length >= 1);
-  for (const agent of moving) {
-    assert.notDeepEqual(agent.position, agent.target);
-  }
+  assert.equal(demo.phase, "idle");
+  assert.equal(demo.workflowId, undefined);
+  assert.equal(demo.tasks.length, 0);
+  assert.equal(demo.approvals.length, 0);
+  assert.ok(demo.agents.every((agent) => agent.status === "idle"));
+
+  const ambient = cityLifeSnapshot(5_000);
+  assert.ok(ambient.some((actor) => actor.status === "moving"));
+  assert.ok(ambient.some((actor) => actor.status === "working"));
 });
 
 test("approving a demo checkpoint resumes work immediately at the checkpoint", () => {
-  let world = createAtlasDemoWorld(8_000);
+  let world = startAtlasDemoWorkflow(createAtlasWorld(8_000), "custom-order");
   for (let index = 0; index < 7000; index += 1) {
     world = advanceAtlasWorld(world, 120);
     const approval = world.approvals.find((item) => item.status === "pending");
