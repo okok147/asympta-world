@@ -5,6 +5,8 @@ export type DisplayTask = {
   agentId: string;
   status: string;
   progress: number;
+  locationId?: string;
+  workMs?: number;
 };
 
 export type DisplayAgent = {
@@ -26,6 +28,7 @@ export type EstimatedTaskProgress = {
 // Mirrors the stable simulation engine. This is display-only and never advances world state.
 const TRAVEL_DEGREES_PER_MS = 0.0000028;
 const ARRIVAL_DISTANCE = 0.00034;
+const UNKNOWN_WORK_MS = 2_000;
 
 function clamp01(value: number) {
   return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
@@ -42,6 +45,12 @@ function taskDefinition(taskId: string) {
     if (index >= 0) return { workflow, index, task: workflow.tasks[index] };
   }
   return null;
+}
+
+function taskDestination(taskState: DisplayTask) {
+  const context = taskDefinition(taskState.id);
+  const locationId = context?.task.locationId ?? taskState.locationId;
+  return locationId ? ATLAS_LOCATIONS[locationId]?.point ?? null : null;
 }
 
 function startPoint(taskId: string, taskStates: DisplayTask[]) {
@@ -66,8 +75,7 @@ export function currentTaskTravelDistance(
   agentState: DisplayAgent | undefined,
 ) {
   if (!agentState) return null;
-  const context = taskDefinition(taskState.id);
-  const destination = context ? ATLAS_LOCATIONS[context.task.locationId]?.point : undefined;
+  const destination = taskDestination(taskState);
   if (!destination) return null;
   return coordinateDistance(agentState, destination);
 }
@@ -83,14 +91,9 @@ export function estimateTaskProgress(
   }
 
   const context = taskDefinition(taskState.id);
-  if (!context) {
-    const percent = Math.round(clamp01(taskState.progress) * 100);
-    return { percent, totalMs: 0, remainingMs: 0, travelTotalMs: 0, travelRemainingMs: 0, workTotalMs: 0 };
-  }
-
-  const destination = ATLAS_LOCATIONS[context.task.locationId]?.point;
-  const fallbackOrigin = startPoint(taskState.id, taskStates);
-  const workTotalMs = Math.max(1, context.task.workMs);
+  const destination = taskDestination(taskState);
+  const fallbackOrigin = context ? startPoint(taskState.id, taskStates) : null;
+  const workTotalMs = Math.max(1, context?.task.workMs ?? taskState.workMs ?? UNKNOWN_WORK_MS);
 
   let travelTotalMs = 0;
   let travelRemainingMs = 0;
@@ -101,14 +104,18 @@ export function estimateTaskProgress(
     const measuredOriginDistance = Number.isFinite(actualTravelOriginDistance)
       ? Math.max(0, actualTravelOriginDistance ?? 0)
       : 0;
-    const routeDistance = measuredOriginDistance > ARRIVAL_DISTANCE ? measuredOriginDistance : fallbackDistance;
+    const currentDistance = agentState ? coordinateDistance(agentState, destination) : 0;
+    const routeDistance = measuredOriginDistance > ARRIVAL_DISTANCE
+      ? measuredOriginDistance
+      : fallbackDistance > ARRIVAL_DISTANCE
+        ? fallbackDistance
+        : currentDistance;
     const effectiveDistance = routeDistance <= ARRIVAL_DISTANCE ? 0 : routeDistance;
     travelTotalMs = effectiveDistance / TRAVEL_DEGREES_PER_MS;
 
     if (taskState.status === "queued") {
       travelRemainingMs = travelTotalMs;
     } else if (taskState.status === "moving" && agentState) {
-      const currentDistance = coordinateDistance(agentState, destination);
       const remainingDistance = Math.min(effectiveDistance, currentDistance);
       travelRemainingMs = remainingDistance / TRAVEL_DEGREES_PER_MS;
       travelCompletedMs = Math.max(0, travelTotalMs - travelRemainingMs);
@@ -119,6 +126,14 @@ export function estimateTaskProgress(
 
   let workCompletedMs = 0;
   if (taskState.status === "working") workCompletedMs = clamp01(taskState.progress) * workTotalMs;
+
+  // If a dynamic task has no location metadata, retain the canonical task progress
+  // rather than inventing movement. Dynamic world tasks that expose locationId get
+  // the same distance-based travel estimate as built-in workflows.
+  if (!context && !destination) {
+    const percent = Math.round(clamp01(taskState.progress) * 100);
+    return { percent, totalMs: workTotalMs, remainingMs: Math.round((1 - clamp01(taskState.progress)) * workTotalMs), travelTotalMs: 0, travelRemainingMs: 0, workTotalMs };
+  }
 
   const totalMs = Math.max(1, travelTotalMs + workTotalMs);
   const completedMs = Math.min(totalMs, travelCompletedMs + workCompletedMs);
