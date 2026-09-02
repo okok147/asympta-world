@@ -3,7 +3,10 @@ import {
   type CompilerOptions,
   type ContextCompilation,
 } from "./asympta-context-compiler.ts";
-import { evaluatePurchaseFeasibility } from "./asympta-purchase-feasibility.ts";
+import {
+  evaluatePurchaseFeasibility,
+  recentPurchaseFundsEvidence,
+} from "./asympta-purchase-feasibility.ts";
 import { compileSimpleConsumableContext } from "./asympta-simple-consumable.ts";
 import { compileSimpleProductContext } from "./asympta-simple-product.ts";
 
@@ -35,7 +38,8 @@ export function compileAsymptaContext(
   intention: string,
   options: MarketplaceCompilerOptions = {},
 ): ContextCompilation {
-  const feasibility = evaluatePurchaseFeasibility(intention, options.availableFundsJPY ?? null);
+  const availableFundsJPY = options.availableFundsJPY ?? recentPurchaseFundsEvidence(intention);
+  const feasibility = evaluatePurchaseFeasibility(intention, availableFundsJPY);
   if (feasibility && !feasibility.canProceed) {
     return {
       supported: false,
