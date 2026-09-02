@@ -74,7 +74,7 @@ function systemFact(key: string, value: string): ContextFact {
     status: "defaulted",
     source: {
       type: "system_default",
-      ref: "system:durable-product-fulfilment/v1",
+      ref: "system:durable-product-fulfilment/v2",
     },
     confidence: 1,
     scope: "task",
@@ -132,17 +132,22 @@ function patchVehicleGoal(goal: MarketplaceGoal, match: DurableProductMatch, req
     explicitFact("product_class", match.productClass, requestId, match.evidence),
     systemFact("handling_class", "vehicle_transport"),
     systemFact("market_selection", "simulated_vehicle_dealer"),
-    // A personal/animal agent cannot physically carry a vehicle. Vehicle
-    // purchases therefore default to the logistics/transport lane; payment
-    // still remains human-gated by the existing marketplace contract.
+    // Vehicle requests should enter the agent workflow immediately instead of
+    // opening the generic grocery/retail profile editor. The transport lane and
+    // simulated payment rail are execution mechanics, not user preferences.
+    // Consequential settlement remains separately human-gated by the existing
+    // approval checkpoint, and any explicit payment wording above still wins.
     systemFact("fulfilment_mode", "courier_delivery"),
   );
+  if (!facts.some((fact) => fact.key === "payment_method")) {
+    facts.push(systemFact("payment_method", "asympta_wallet"));
+  }
 
   return {
     ...goal,
     domain: "retail",
     facts,
-    unknownFields: goal.unknownFields.filter((field) => field !== "fulfilment_mode"),
+    unknownFields: goal.unknownFields.filter((field) => !["fulfilment_mode", "payment_method"].includes(field)),
     successCriteria: [
       "A simulated dealer confirms a bounded vehicle offer.",
       "A human approves the consequential simulated purchase before settlement.",
@@ -192,10 +197,13 @@ export function compileDurableProductContext(
     supported: true,
     envelope,
     issues: [],
+    // A vehicle request no longer depends on the global marketplace profile.
+    // This is deliberately task-scoped: explicit request wording can still
+    // override payment facts, while approval remains mandatory at commitment.
     profileRequirements: {
-      required: compiled.profileRequirements.required.filter((field) => field !== "fulfilmentMethod"),
-      missing: compiled.profileRequirements.missing.filter((field) => field !== "fulfilmentMethod"),
-      resolvedFromProfile: compiled.profileRequirements.resolvedFromProfile.filter((field) => field !== "fulfilmentMethod"),
+      required: [],
+      missing: [],
+      resolvedFromProfile: [],
     },
   };
 }

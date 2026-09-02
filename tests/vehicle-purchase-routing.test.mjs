@@ -13,7 +13,7 @@ function fact(goal, key) {
   return goal.facts.find((candidate) => candidate.key === key);
 }
 
-test("Buy a car is routed into a durable vehicle marketplace instead of falling through", () => {
+test("Buy a car starts the vehicle agent workflow immediately without generic profile questions", () => {
   const result = compileAsymptaContext("Buy a car", {
     requestId: "request-car",
     conversationId: "conversation-car",
@@ -31,21 +31,27 @@ test("Buy a car is routed into a durable vehicle marketplace instead of falling 
   assert.equal(fact(goal, "product_class")?.value, "vehicle");
   assert.equal(fact(goal, "handling_class")?.value, "vehicle_transport");
   assert.equal(fact(goal, "fulfilment_mode")?.value, "courier_delivery");
-  assert.deepEqual(result.profileRequirements.missing, ["paymentMethod"]);
+  assert.equal(fact(goal, "payment_method")?.value, "asympta_wallet");
+  assert.equal(fact(goal, "payment_method")?.status, "defaulted");
+  assert.deepEqual(result.profileRequirements, {
+    required: [],
+    missing: [],
+    resolvedFromProfile: [],
+  });
 
   const protocol = buildMarketplaceTaskProtocol(result.envelope);
-  assert.equal(protocol.readiness.status, "needs_information");
-  assert.equal(protocol.readiness.nextQuestion?.field, "payment_method");
+  assert.equal(protocol.readiness.status, "ready");
+  assert.equal(protocol.readiness.nextQuestion, null);
+  assert.equal(protocol.readiness.nextProfileField, null);
+  assert.deepEqual(protocol.readiness.missingProfileFields, []);
 });
 
-test("saved preferences let a car purchase reach dealer, approval, transport and verified handover", () => {
-  const profile = marketplaceProfilePreset("everyday", 0);
+test("an unprofiled car purchase reaches dealer, approval, transport and verified handover", () => {
   const result = compileAsymptaContext("Buy a car", {
     requestId: "request-car-ready",
     conversationId: "conversation-car-ready",
     locale: "en",
     now: 0,
-    profile,
   });
 
   assert.equal(result.supported, true, result.issues.join(" "));
@@ -68,12 +74,21 @@ test("saved preferences let a car purchase reach dealer, approval, transport and
   assert.equal(payment?.requiresApproval, true);
 });
 
+test("explicit vehicle payment wording overrides the non-blocking simulated default", () => {
+  const result = compileAsymptaContext("Buy a car with pay on delivery", { now: 0 });
+  assert.equal(result.supported, true, result.issues.join(" "));
+  const payment = fact(result.envelope.goals[0], "payment_method");
+  assert.equal(payment?.value, "pay_on_delivery");
+  assert.equal(payment?.status, "explicit");
+});
+
 test("vehicle purchase routing generalizes across common vehicle nouns and languages", () => {
   for (const intent of ["Buy a motorcycle", "幫我買一架汽車", "自動車を買いたい"]) {
     const result = compileAsymptaContext(intent, { now: 0 });
     assert.equal(result.supported, true, `${intent}: ${result.issues.join(" ")}`);
     assert.equal(fact(result.envelope.goals[0], "product_class")?.value, "vehicle");
     assert.equal(fact(result.envelope.goals[0], "fulfilment_mode")?.value, "courier_delivery");
+    assert.equal(result.profileRequirements.missing.length, 0);
   }
 });
 
@@ -91,4 +106,11 @@ test("ordinary retail routing remains unchanged", () => {
   assert.equal(result.envelope.goals[0].domain, "retail");
   assert.equal(fact(result.envelope.goals[0], "requested_item")?.value, "guitar");
   assert.equal(fact(result.envelope.goals[0], "product_class"), undefined);
+  assert.deepEqual(result.profileRequirements.missing, ["fulfilmentMethod", "paymentMethod"]);
+});
+
+test("saved marketplace preferences still work for ordinary retail", () => {
+  const result = compileAsymptaContext("Buy a guitar", { now: 0, profile: marketplaceProfilePreset("everyday", 0) });
+  assert.equal(result.supported, true, result.issues.join(" "));
+  assert.deepEqual(result.profileRequirements.missing, []);
 });
