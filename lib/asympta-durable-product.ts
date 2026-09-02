@@ -96,9 +96,23 @@ function explicitFact(key: string, value: string, requestId: string, evidence: s
   };
 }
 
+function restoreVehicleEvidence(fact: ContextFact, match: DurableProductMatch, requestId: string): ContextFact {
+  if (fact.source.type !== "user_message") return fact;
+  const evidence = fact.source.evidence?.replace(/guitar/giu, match.evidence);
+  return {
+    ...fact,
+    source: {
+      ...fact.source,
+      ref: requestId,
+      ...(evidence ? { evidence } : {}),
+    },
+  };
+}
+
 function patchVehicleGoal(goal: MarketplaceGoal, match: DurableProductMatch, requestId: string): MarketplaceGoal {
   const facts = goal.facts
     .filter((fact) => !["product_class", "handling_class", "fulfilment_mode", "market_selection"].includes(fact.key))
+    .map((fact) => restoreVehicleEvidence(fact, match, requestId))
     .map((fact) => {
       if (fact.key !== "requested_item") return fact;
       return {
