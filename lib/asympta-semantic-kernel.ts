@@ -1,4 +1,4 @@
-import type { AsymptaCanonicalFact, AsymptaDataClass, AsymptaTaskAnswerValue, AsymptaTaskRequirement } from "./asympta-task-kernel-types.ts";
+import type { AsymptaCanonicalFact, AsymptaTaskAnswerValue, AsymptaTaskRequirement } from "./asympta-task-kernel-types.ts";
 import {
   canonicalFactsFromRequirements as canonicalFactsFromRequirementsV2,
   resolveExplicitRequirementValue as resolveExplicitRequirementValueV2,

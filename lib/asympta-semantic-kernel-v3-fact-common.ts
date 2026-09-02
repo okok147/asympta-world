@@ -25,7 +25,8 @@ export function segmentFactClauses(intent: string) {
     .replace(/\s+(?:\/|\||—)\s+/gu, "\n")
     .replace(/[；;]+/gu, "\n")
     .replace(/\s*\.\.\.\s*/gu, "\n")
-    .replace(/(?<=[.!?。！？])\s+/gu, "\n");
+    .replace(/[。！？]+/gu, "\n")
+    .replace(/(?<=[.!?])\s+/gu, "\n");
   prepared = prepared.replace(new RegExp(`,\\s+(?=${FACT_LABEL_START_SOURCE})`, "giu"), "\n");
   prepared = prepared.replace(new RegExp(`\\s{2,}(?=${FACT_LABEL_START_SOURCE})`, "giu"), "\n");
   return prepared.split(/\n+/u).map((clause) => clause.trim()).filter(Boolean);
@@ -53,7 +54,7 @@ export function rawValuesFromClauses(intent: string, semantic: string) {
   return relevantClauses(intent, semantic).flatMap(({ text, index }) => {
     const match = pattern.exec(text);
     const raw = stripDiscourseSuffix(match?.[1] ?? "");
-    if (!raw) return [];
+    if (!raw || /^(?:requirement|field|constraint|slot)(?:\s|$)/iu.test(raw)) return [];
     return [{ raw, clause: text, index, corrected: CORRECTION_PATTERN.test(text) }];
   });
 }
