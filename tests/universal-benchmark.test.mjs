@@ -102,7 +102,7 @@ test("the independent 1,000-case kernel attack cannot regress while structural f
     );
   }
 
-  assert.ok(report.failed <= 790, `Kernel attack regressed beyond the measured total failure ceiling: ${report.failed} > 790.`);
+  assert.equal(report.failed, 0, `Frozen kernel regression suite must stay fully green: ${report.failed} failures.`);
 });
 
 test("a fresh 1,000-case semantic holdout attacks composition, contradiction, authority, data class, provenance, and truthfulness", () => {
@@ -123,4 +123,6 @@ test("a fresh 1,000-case semantic holdout attacks composition, contradiction, au
     passRate: report.passRate,
     byFamily: report.byFamily,
   })}`);
+
+  assert.equal(report.failed, 0, `Fresh semantic holdout must be fully green: ${JSON.stringify(report.failures.slice(0, 10), null, 2)}`);
 });

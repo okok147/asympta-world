@@ -82,15 +82,15 @@ export function classifyTaskEffect(input: { intent: string; actionFamily?: strin
   let matchedAction: string | undefined;
 
   const rules: Array<[AsymptaEffectClass, RegExp]> = [
-    ["money_movement", /\b(?:wire|transfer|debit|refund|pay|payment|withdraw|remit|charge)\b|轉帳|转账|付款|退款|提款|振込|支払/iu],
+    ["money_movement", /\b(?:wire|debit|pay|withdraw|remit|charge)\b|\btransfer\b(?!\s+(?:details?|instructions?|options?|information|plan)\b)|\brefund\b(?!\s+(?:amount|estimate|quote|details?|policy)\b)|\b(?:make|send|issue|authorize)\s+(?:a\s+)?payment\b|轉帳|转账|付款|退款|提款|振込|支払/iu],
     ["deletion", /\b(?:delete|remove|cancel|terminate)\b|刪除|删除|取消|削除/iu],
-    ["publication", /\b(?:publish|post|announce|broadcast)\b|發布|发布|公開/iu],
+    ["publication", /\b(?:publish|announce|broadcast)\b|\bpost\b(?=\s+(?:the|this|that|an?|my|your|our|update|announcement|message)\b)|發布|发布|公開/iu],
     ["shipment", /\b(?:ship|dispatch|courier)\b|\brelease\b[^.;]{0,40}\b(?:parcel|shipment|package)\b|派送|寄送|発送/iu],
-    ["application", /\b(?:apply|application|enroll)\b|\bfile\b[^.;]{0,35}\bapplication\b|申請|申请|報名|报名/iu],
+    ["application", /\b(?:apply|enroll)\b|\b(?:file|submit)\b[^.;]{0,35}\bapplication\b|申請|申请|報名|报名/iu],
     ["scheduling", /\b(?:schedule|reschedule|appointment)\b|安排|排期/iu],
     ["account_mutation", /\b(?:renew|register|subscribe|unsubscribe)\b|\b(?:open|update|change)\b[^.;]{0,40}\b(?:account|subscription|membership)\b|續期|续期|註冊|注册|更新|登録/iu],
-    ["communicate", /\b(?:send|email|message|notify|forward)\b|發送|发送|送信/iu],
-    ["external_commitment", /\b(?:buy|purchase|order|book|reserve|commit|authorize|accept|sign|hire|bid|procure)\b|\bbinding\b[^.;]{0,35}\b(?:order|agreement|quote)\b|\block\s+in\b|購買|购买|訂購|订购|預訂|预订|購入|注文|予約|接受|簽署|签署/iu],
+    ["communicate", /\b(?:send|notify|forward)\b|\bemail\b(?=\s+(?!(?:only|draft|template)\b)(?:to\s+)?[\p{L}\w@])|發送|发送|送信/iu],
+    ["external_commitment", /\b(?:buy|purchase|order|book|reserve|commit|authorize|accept|sign|hire|bid|procure|submit)\b|\bbinding\b[^.;]{0,35}\b(?:order|agreement|quote)\b|\block\s+in\b|購買|购买|訂購|订购|預訂|预订|購入|注文|予約|接受|簽署|签署/iu],
   ];
 
   for (const [candidate, pattern] of rules) {
@@ -220,21 +220,21 @@ export function resolveExplicitRequirementValue(intent: string, key: string): { 
   }
 
   if (semantic === "date") {
-    const value = lastCapture(cleanIntent, [/\bdate\s+(?:is|=|:)\s*([^.;。]+)/giu, /日期\s*(?:是|[:=])\s*([^。；;]+)/gu, /日付\s*(?:は|[:=])\s*([^。；;]+)/gu]);
+    const value = lastCapture(cleanIntent, [/\bdate\s*(?:is\b|[:=])\s*([^.;。]+)/giu, /日期\s*(?:是|[:=])\s*([^。；;]+)/gu, /日付\s*(?:は|[:=])\s*([^。；;]+)/gu]);
     if (value) return { value, label: value };
   }
 
   if (semantic === "time") {
-    const value = lastCapture(cleanIntent, [/\btime\s+(?:is|=|:)\s*([0-2]?\d:[0-5]\d(?:\s*(?:am|pm))?)/giu, /時間\s*(?:是|[:=])\s*([0-2]?\d:[0-5]\d)/gu, /時間\s*(?:は|[:=])\s*([0-2]?\d:[0-5]\d)/gu]);
+    const value = lastCapture(cleanIntent, [/\btime\s*(?:is\b|[:=])\s*([0-2]?\d:[0-5]\d(?:\s*(?:am|pm))?)/giu, /時間\s*(?:是|[:=])\s*([0-2]?\d:[0-5]\d)/gu, /時間\s*(?:は|[:=])\s*([0-2]?\d:[0-5]\d)/gu]);
     if (value) return { value, label: value };
   }
 
   const textPatterns: Partial<Record<string, RegExp[]>> = {
-    recipient: [/\brecipient(?:\s+is\b|\s*[:=]|\s+)\s*([^.;。]+)/giu, /收件人\s*(?:是|[:=])\s*([^。；;]+)/gu, /受取人\s*(?:は|[:=])\s*([^。；;]+)/gu],
-    origin: [/\borigin\s+(?:is|=|:)\s*([^.;。]+)/giu, /出發地\s*(?:是|[:=])\s*([^。；;]+)/gu, /出发地\s*(?:是|[:=])\s*([^。；;]+)/gu, /出発地\s*(?:は|[:=])\s*([^。；;]+)/gu],
-    destination: [/\bdestination\s+(?:is|=|:)\s*([^.;。]+)/giu, /目的地\s*(?:是|[:=])\s*([^。；;]+)/gu, /目的地\s*(?:は|[:=])\s*([^。；;]+)/gu],
-    deadline: [/\bdeadline\s+(?:is|=|:)\s*([^.;。]+)/giu, /截止時間\s*(?:是|[:=])\s*([^。；;]+)/gu, /截止时间\s*(?:是|[:=])\s*([^。；;]+)/gu, /締切\s*(?:は|[:=])\s*([^。；;]+)/gu],
-    service: [/\bservice\s+(?:needed\s+)?(?:is|=|:)\s*([^.;。]+)/giu],
+    recipient: [/\brecipient\s*(?:is\b|[:=])\s*([^.;。]+)/giu, /\brecipient\s+(?!is\b|requirement\b)([^.;。]+)/giu, /收件人\s*(?:是|[:=])\s*([^。；;]+)/gu, /受取人\s*(?:は|[:=])\s*([^。；;]+)/gu],
+    origin: [/\borigin\s*(?:is\b|[:=])\s*([^.;。]+)/giu, /出發地\s*(?:是|[:=])\s*([^。；;]+)/gu, /出发地\s*(?:是|[:=])\s*([^。；;]+)/gu, /出発地\s*(?:は|[:=])\s*([^。；;]+)/gu],
+    destination: [/\bdestination\s*(?:is\b|[:=])\s*([^.;。]+)/giu, /目的地\s*(?:是|[:=])\s*([^。；;]+)/gu, /目的地\s*(?:は|[:=])\s*([^。；;]+)/gu],
+    deadline: [/\bdeadline\s*(?:is\b|[:=])\s*([^.;。]+)/giu, /截止時間\s*(?:是|[:=])\s*([^。；;]+)/gu, /截止时间\s*(?:是|[:=])\s*([^。；;]+)/gu, /締切\s*(?:は|[:=])\s*([^。；;]+)/gu],
+    service: [/\bservice\s+(?:needed\s+)?(?:is\b|[:=])\s*([^.;。]+)/giu],
   };
   if (textPatterns[semantic]) {
     const value = lastCapture(cleanIntent, textPatterns[semantic] ?? []);
@@ -242,7 +242,11 @@ export function resolveExplicitRequirementValue(intent: string, key: string): { 
   }
 
   if (semantic === "currency") {
-    const explicit = lastCapture(cleanIntent, [/\bcurrency\s+(?:is|=|:)\s*(HKD|USD|EUR|JPY|GBP|SGD|AUD|CAD|CNY|RMB|TWD|KRW)\b/giu]);
+    if (/\b(?:US|U\.S\.)\s+dollars?\b/iu.test(cleanIntent)) return { value: "USD", label: "USD" };
+    if (/\b(?:Hong Kong|HK)\s+dollars?\b/iu.test(cleanIntent)) return { value: "HKD", label: "HKD" };
+    if (/\beuros?\b/iu.test(cleanIntent)) return { value: "EUR", label: "EUR" };
+    if (/\b(?:Japanese\s+)?yen\b/iu.test(cleanIntent)) return { value: "JPY", label: "JPY" };
+    const explicit = lastCapture(cleanIntent, [/\bcurrency\s*(?:is\b|[:=])\s*(HKD|USD|EUR|JPY|GBP|SGD|AUD|CAD|CNY|RMB|TWD|KRW)\b/giu]);
     if (explicit) {
       const code = currencyCode(explicit);
       return { value: code, label: code };
@@ -276,7 +280,7 @@ export function canonicalFactsFromRequirements(requirements: AsymptaTaskRequirem
       semantic: canonicalizeRequirementSemantic(requirement.semantic),
       value: requirement.value,
       displayValue: requirement.displayValue ?? String(requirement.value),
-      valueType: typeof requirement.value,
+      valueType: typeof requirement.value as "string" | "number" | "boolean",
       source: requirement.provenance?.source ?? "agent_inference",
       ...(requirement.provenance?.actorId ? { actorId: requirement.provenance.actorId } : {}),
       confidence: requirement.provenance?.confidence ?? 0,
@@ -299,7 +303,7 @@ export function upsertCanonicalFact(facts: AsymptaCanonicalFact[], requirement: 
     semantic,
     value: requirement.value,
     displayValue: requirement.displayValue ?? String(requirement.value),
-    valueType: typeof requirement.value,
+    valueType: typeof requirement.value as "string" | "number" | "boolean",
     source: requirement.provenance?.source ?? "agent_inference",
     ...(requirement.provenance?.actorId ? { actorId: requirement.provenance.actorId } : {}),
     confidence: requirement.provenance?.confidence ?? 0,

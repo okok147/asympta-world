@@ -37,6 +37,53 @@ export type AsymptaTaskFactSource =
 export type AsymptaTaskControl = "single_choice" | "text" | "number" | "boolean";
 export type AsymptaTaskAnswerValue = string | number | boolean;
 
+export type AsymptaDataClass =
+  | "public"
+  | "personal"
+  | "sensitive_personal"
+  | "identity"
+  | "credential"
+  | "financial"
+  | "health";
+
+export type AsymptaEffectClass =
+  | "read"
+  | "communicate"
+  | "external_commitment"
+  | "money_movement"
+  | "account_mutation"
+  | "shipment"
+  | "publication"
+  | "deletion"
+  | "application"
+  | "scheduling";
+
+export type AsymptaTaskEffect = {
+  effectClass: AsymptaEffectClass;
+  requiresApproval: boolean;
+  externalWrite: boolean;
+  matchedAction?: string;
+};
+
+export type AsymptaCanonicalFactStatus = "asserted" | "conflicted";
+
+export type AsymptaCanonicalFact = {
+  id: string;
+  semantic: string;
+  value: AsymptaTaskAnswerValue;
+  displayValue: string;
+  valueType: "string" | "number" | "boolean";
+  source: AsymptaTaskFactSource;
+  actorId?: string;
+  confidence: number;
+  dataClass: AsymptaDataClass;
+  sensitive: boolean;
+  status: AsymptaCanonicalFactStatus;
+  currency?: string;
+  unit?: string;
+  at: string;
+};
+
 export type AsymptaTaskOption = {
   value: AsymptaTaskAnswerValue;
   label: string;
@@ -56,6 +103,7 @@ export type AsymptaTaskRequirement = {
   allowCustom: boolean;
   customPlaceholder?: string;
   required: true;
+  dataClass?: AsymptaDataClass;
   sensitive: boolean;
   consequential: boolean;
   status: AsymptaTaskRequirementStatus;
@@ -276,6 +324,10 @@ export type AsymptaTaskState = {
   title: string;
   summary: string;
   requirements: AsymptaTaskRequirement[];
+  /** Typed semantic projection derived from resolved requirements and their provenance. */
+  facts?: AsymptaCanonicalFact[];
+  /** Highest material external effect shared by policy, UI, audit, and execution. */
+  effect?: AsymptaTaskEffect;
   assignments: AsymptaTaskAssignment[];
   approvals: AsymptaTaskApproval[];
   evidence: AsymptaTaskEvidence[];

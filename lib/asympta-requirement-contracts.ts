@@ -1,4 +1,5 @@
 import { expandAutomaticClarificationFields } from "./asympta-automatic-clarification-options.ts";
+import { canonicalizeRequirementSemantic } from "./asympta-semantic-kernel.ts";
 import type {
   AsymptaTaskRequirement,
   AsymptaTaskRequirementStatus,
@@ -297,38 +298,8 @@ const REQUIREMENT_CONTRACTS: RequirementContractDefinition[] = [
   },
 ];
 
-function normalize(value: string) {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[\s./-]+/g, "_")
-    .replace(/[^\p{L}\p{N}_]+/gu, "")
-    .replace(/_+/g, "_")
-    .replace(/^_|_$/g, "");
-}
-
 export function requirementSemantic(value: string) {
-  const normalized = normalize(value);
-  if (/(?:property_?(?:location|area|district)|preferred_?(?:area|district|neighbou?rhood)|house_?location|home_?location|樓盤地區|楼盘地区|物業地區|物业地区|房屋地區|房屋地区|住宅地區|住宅地区|希望地域|希望エリア|物件エリア)/u.test(normalized)) return "property_location";
-  if (/(?:property_?type|home_?type|housing_?type|house_?type|房屋類型|房屋类型|物業類型|物业类型|住宅類型|住宅类型|房型|物件種別|住宅タイプ)/u.test(normalized)) return "property_type";
-  if (/(?:bedrooms?|bed_?rooms?|number_?of_?bedrooms?|sleeping_?rooms?|睡房|睡房數|睡房数|房間數|房间数|寝室|寝室数|部屋数)/u.test(normalized)) return "bedrooms";
-  if (/(?:financ(?:e|ing)|mortgage|loan|cash_?purchase|payment_?plan|按揭|貸款|贷款|現金購買|现金购买|付款方式|住宅ローン|融資|現金購入)/u.test(normalized)) return "financing";
-  if (/(?:^|_)(?:movie|film)(?:_?(?:preference|title|name))?(?:_|$)|(?:電影|电影|影片|片名|観たい映画|映画名)/u.test(normalized)) return "movie_preference";
-  if (/(?:cinema_?(?:area|location)?|theat(?:er|re)_?(?:area|location)?|戲院地區|戏院地区|影院地區|影院地区|映画館_?(?:の)?エリア)/u.test(normalized)) return "cinema_area";
-  if (/(?:showtime|screening_?(?:time|session)?|session_?time|上映時間|上映时间|場次時間|场次时间|場次|场次|上映時刻)/u.test(normalized)) return "showtime";
-  if (/(?:delivery_?location|delivery_?address|shipping_?address|ship_?to|配送地點|配送地点|配送地址|送貨地點|送货地点|送貨地址|送货地址|收貨地址|收货地址|配送先|配達先)/u.test(normalized)) return "delivery_location";
-  if (/(?:event_?(?:intent|name)|show|concert|artist|singer|band|演出|演唱會|演唱会|歌手|樂隊|乐队|公演|アーティスト|バンド)/u.test(normalized)) return "event_intent";
-  if (/(?:screen_?size|display_?size|inch|螢幕尺寸|屏幕尺寸|画面サイズ|インチ)/u.test(normalized)) return "screen_size";
-  if (/(?:budget|price_?range|max_?price|spend|預算|预算|予算|価格)/u.test(normalized)) return "budget";
-  if (/(?:brand|maker|manufacturer|品牌|牌子|メーカー|ブランド)/u.test(normalized)) return "brand";
-  if (/(?:quantity|count|amount|number|數量|数量|張數|张数|個數|个数|枚数)/u.test(normalized)) return "quantity";
-  if (/(?:purchase_?location|buy_?where|store_?preference|supplier|vendor|shop|store|acquisition_?channel|購買地點|购买地点|購買方式|供應商|供应商|商店|購入先|業者|店舗)/u.test(normalized)) return "acquisition_channel";
-  if (/(?:fulfil|fulfill|delivery|pickup|shipping|receive|handover|配送|送貨|送货|取貨|取货|交付|受取|引渡)/u.test(normalized)) return "fulfilment";
-  if (/(?:deadline|timeframe|when|due|needed_?by|期限|需要時間|需要时间|幾時|什么时候|いつ|納期)/u.test(normalized)) return "deadline";
-  if (/(?:purpose|use_?case|usage|intended_?use|用途|目的|使用目的)/u.test(normalized)) return "purpose";
-  if (/(?:model|type|specification|specs|requirements|capacity|range|型號|型号|類型|类型|規格|规格|容量|航程|モデル|種類|仕様|容量|航続)/u.test(normalized)) return "item_specification";
-  if (/(?:compliance|regulatory|licen[cs]e|registration|permit|approval|合規|合规|監管|监管|牌照|執照|执照|登記|登记|許可|许可|規制|免許|登録|承認)/u.test(normalized)) return "compliance";
-  return normalized || "generic";
+  return canonicalizeRequirementSemantic(value);
 }
 
 function isAbstractField(field: string) {
