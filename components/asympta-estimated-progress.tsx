@@ -186,6 +186,21 @@ export function AsymptaEstimatedProgress() {
     sync();
     const timer = window.setInterval(sync, FALLBACK_SYNC_MS);
     const observer = new MutationObserver((mutations) => {
+      const markerTextChanged = mutations.some((mutation) => {
+        const target = mutation.target instanceof Element ? mutation.target : mutation.target.parentElement;
+        return Boolean(target?.closest(".animal-map-marker__status-text"));
+      });
+
+      if (markerTextChanged) {
+        // The canonical 60Hz renderer updates task metadata inside requestAnimationFrame.
+        // During travel/work transitions its engine progress can momentarily be zero.
+        // MutationObserver callbacks run at the microtask checkpoint before the browser
+        // paints that frame, so correct the display synchronously here instead of waiting
+        // for the next rAF. This removes the visible 0% flash without touching engine state.
+        sync();
+        return;
+      }
+
       if (mutations.some((mutation) => {
         const target = mutation.target instanceof Element ? mutation.target : mutation.target.parentElement;
         return Boolean(target?.closest(".animal-map-marker--foreground, .atlas-approval"));
