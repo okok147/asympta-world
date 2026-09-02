@@ -200,7 +200,7 @@ test("structured execution conserves inventory from market reservation through c
 });
 
 test("a completed world phase cannot claim marketplace completion without business and delivery evidence", () => {
-  const envelope = compileReady("Buy a guitar", "request-guitar-fail-closed");
+  const envelope = compileReady("Buy a Martin D-X2E guitar", "request-guitar-fail-closed");
   let execution = createMarketplaceExecution(envelope);
   execution = syncMarketplaceExecution(execution, snapshot({
     "mp-context": "done",
