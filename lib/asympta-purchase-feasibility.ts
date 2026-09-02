@@ -86,6 +86,7 @@ export function evaluatePurchaseFeasibility(intent: string, availableFundsJPY: n
     };
   }
 
+  rememberPurchaseFundsEvidence(clean, common.availableFundsJPY);
   return {
     ...common,
     status: "eligible_for_further_review",
