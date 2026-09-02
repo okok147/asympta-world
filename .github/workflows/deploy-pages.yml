@@ -59,6 +59,9 @@ jobs:
       - name: Validate Buy some food through delivery and celebration
         run: node scripts/smoke-buy-food-browser.mjs
 
+      - name: Validate Buy a car through dealer, approval and delivery
+        run: node scripts/smoke-buy-car-browser.mjs
+
       - name: Validate 100 real-life cases and stress mutations in browser
         run: node scripts/verify-universal-browser.mjs
 
