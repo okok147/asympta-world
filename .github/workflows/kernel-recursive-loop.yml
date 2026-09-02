@@ -1,6 +1,9 @@
 name: Kernel Recursive Research Loop
 
 on:
+  push:
+    branches:
+      - main
   pull_request:
     branches:
       - main
