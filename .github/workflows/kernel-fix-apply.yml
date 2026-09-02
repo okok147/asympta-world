@@ -34,6 +34,25 @@ jobs:
       - name: Install
         run: npm ci
 
+      - name: Repair one-off patch runner quoting
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("scripts/apply-kernel-fix.mjs")
+          text = path.read_text()
+          replacements = [
+              ('return { value: amount, label: `${code} ${money[2]}` };', 'return { value: amount, label: code + " " + money[2] };'),
+              ('if (match) return { value: `${match[1]}-inch`, label: `${match[1]}″` };', 'if (match) return { value: match[1] + "-inch", label: match[1] + "″" };'),
+              (r'new RegExp(`\\b${candidate}\\b`, "iu")', r'new RegExp("\\b" + candidate + "\\b", "iu")'),
+          ]
+          for old, new in replacements:
+              if old not in text:
+                  raise SystemExit(f"repair target missing: {old}")
+              text = text.replace(old, new)
+          path.write_text(text)
+          PY
+          node --check scripts/apply-kernel-fix.mjs
+
       - name: Apply structural kernel patch
         run: node scripts/apply-kernel-fix.mjs
 
