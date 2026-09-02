@@ -34,14 +34,14 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Repair one-off patch runner quoting
+      - name: Repair one-off patch runner quoting and boundaries
         run: |
           python - <<'PY'
           from pathlib import Path
           path = Path("scripts/apply-kernel-fix.mjs")
           lines = path.read_text().splitlines()
           repaired = []
-          seen = {"money": False, "size": False, "brand": False}
+          seen = {"money": False, "size": False, "brand": False, "truth": False}
           for line in lines:
               if 'return { value: amount, label:' in line and '${money[2]}' in line:
                   repaired.append('      return { value: amount, label: code + " " + money[2] };')
@@ -50,8 +50,11 @@ jobs:
                   repaired.append('    if (match) return { value: match[1] + "-inch", label: match[1] + "″" };')
                   seen["size"] = True
               elif 'const brand = brands.find' in line and '${candidate}' in line:
-                  repaired.append('    const brand = brands.find((candidate) => new RegExp("\\\\b" + candidate + "\\\\b", "iu").test(cleanIntent));')
+                  repaired.append('    const brand = brands.find((candidate) => cleanIntent.toLowerCase().split(/[^a-z0-9]+/u).includes(candidate.toLowerCase()));')
                   seen["brand"] = True
+              elif 'if ((input.mode ?? "benchmark") === "benchmark" && requirement.semantic === "generic") {' in line:
+                  repaired.append('  if ((input.mode ?? "benchmark") === "benchmark" && requirement.semantic === "generic" && !input.profile) {')
+                  seen["truth"] = True
               else:
                   repaired.append(line)
           missing = [name for name, found in seen.items() if not found]
