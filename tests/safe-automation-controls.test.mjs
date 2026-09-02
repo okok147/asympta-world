@@ -149,25 +149,39 @@ test("bottom-left agent card localization stays display-only and language-aware"
   assert.doesNotMatch(cardLocale, /requestAnimationFrame|MutationObserver|advanceAtlasWorld|JSON\.parse\(JSON\.stringify/);
 });
 
-test("status percentage uses the actual moving origin plus work time without changing engine progress", () => {
+test("status percentage follows real travel distance while remaining display-only", () => {
   assert.match(page, /AsymptaEstimatedProgress/);
   assert.match(progressMath, /TRAVEL_DEGREES_PER_MS = 0\.0000028/);
+  assert.match(progressMath, /UNKNOWN_WORK_MS = 2_000/);
   assert.match(progressMath, /currentTaskTravelDistance/);
   assert.match(progressMath, /actualTravelOriginDistance/);
   assert.match(progressMath, /measuredOriginDistance/);
+  assert.match(progressMath, /currentDistance/);
   assert.match(progressMath, /remainingDistance/);
   assert.match(progressMath, /completedMs \/ totalMs/);
-  assert.match(progressMath, /context\.task\.workMs/);
+  assert.match(progressMath, /taskState\.locationId/);
+  assert.match(progressMath, /context\?\.task\.workMs/);
   assert.match(estimatedProgress, /travelOriginDistanceRef/);
   assert.match(estimatedProgress, /previousStatusRef/);
   assert.match(estimatedProgress, /task\.status === "moving" && previousStatus !== "moving"/);
   assert.match(estimatedProgress, /currentTaskTravelDistance/);
   assert.match(estimatedProgress, /travelOriginDistanceRef\.current\.get\(task\.id\)/);
+  assert.match(estimatedProgress, /markerForAgent/);
+  assert.match(estimatedProgress, /statusNode\.textContent/);
+  assert.match(estimatedProgress, /MutationObserver/);
+  assert.match(estimatedProgress, /requestAnimationFrame\(sync\)/);
   assert.match(estimatedProgress, /asymptaEstimatedProgress/);
-  assert.match(estimatedProgress, /asymptaEstimatedStatus/);
   assert.match(progressCss, /data-asympta-estimated-progress/);
-  assert.match(progressCss, /data-asympta-estimated-status/);
-  assert.doesNotMatch(estimatedProgress, /requestAnimationFrame|MutationObserver|advanceAtlasWorld|JSON\.parse\(JSON\.stringify/);
+  assert.doesNotMatch(estimatedProgress, /advanceAtlasWorld|startAtlasWorkflow|resolveAtlasApproval|JSON\.parse\(JSON\.stringify/);
+});
+
+test("approval display is tied to a real workflow gate and suppresses orphan actions", () => {
+  assert.match(estimatedProgress, /approvalBelongsToVisibleWorkflow/);
+  assert.match(estimatedProgress, /waitingTaskIds/);
+  assert.match(estimatedProgress, /foreground\?\.workflowId/);
+  assert.match(estimatedProgress, /if \(!foreground\?\.workflowId\) return !approval\.actionType/);
+  assert.match(estimatedProgress, /suppressed-orphan/);
+  assert.match(estimatedProgress, /syncApprovalCard/);
 });
 
 test("completed tasks trigger one bounded celebration burst without touching the animation loop", () => {
