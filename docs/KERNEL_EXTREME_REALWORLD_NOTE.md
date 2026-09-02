@@ -1,1 +1,0 @@
-The v3 holdout was authored against the frozen Kernel v2 behavior and is intended to measure generalization failures, not to encode fixes. Any subsequent kernel changes should be structural and should keep the previous 2,000 adversarial cases frozen and green.
