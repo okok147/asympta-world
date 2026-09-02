@@ -76,7 +76,7 @@ function requirementSemantic(key: string) {
 }
 
 function sensitiveRequirement(key: string) {
-  return /(?:payment|card|account|identity|contact|document|address|medical|symptom)/iu.test(key);
+  return /(?:payment|card|account|identity|contact|document|address|medical|symptom|passport|phone|mobile|email|date[_\s-]*of[_\s-]*birth|\bdob\b|birth|tax[_\s-]*(?:id|identifier)|social[_\s-]*security|\bssn\b|biometric|driver[_\s-]*licen[cs]e|licen[cs]e[_\s-]*(?:id|number)|entry[_\s-]*code|access[_\s-]*code|security[_\s-]*(?:answer|question)|credential|secret)/iu.test(key);
 }
 
 function consequentialRequirement(key: string) {
@@ -84,41 +84,132 @@ function consequentialRequirement(key: string) {
 }
 
 function explicitRequirementValue(intent: string, key: string): { value: AsymptaTaskAnswerValue; label: string } | null {
-  if (key === "budget") {
-    if (/(?:premium|high[- ]?end|flagship|高階|高端|旗艦|旗舰)/iu.test(intent)) return { value: "premium", label: "高階 / Premium" };
-    const amount = /(?:HK\$|HKD|港幣|港币)?\s*(\d{3,7}(?:,\d{3})?)/iu.exec(intent);
-    if (amount) return { value: Number(amount[1].replace(/,/g, "")), label: `HK$${amount[1]}` };
+  const semantic = requirementSemantic(key);
+  const cleanIntent = intent.trim();
+
+  const currencyCode = (value: string) => {
+    const upper = value.toUpperCase().replace(/\s+/g, "");
+    if (["HKD", "HK$", "港幣", "港币"].includes(upper)) return "HKD";
+    if (["USD", "US$", "$", "USDOLLARS", "USDOLLAR", "USDOLLAR", "USDOLLARS"].includes(upper)) return "USD";
+    if (["EUR", "€", "EURO", "EUROS"].includes(upper)) return "EUR";
+    if (["JPY", "¥", "YEN", "JAPANESEYEN", "日圓", "日元"].includes(upper)) return "JPY";
+    if (["GBP", "£", "POUND", "POUNDS", "BRITISHPOUNDS"].includes(upper)) return "GBP";
+    if (["SGD", "S$"].includes(upper)) return "SGD";
+    if (["AUD", "A$"].includes(upper)) return "AUD";
+    if (["CAD", "C$"].includes(upper)) return "CAD";
+    if (["CNY", "RMB", "CN¥"].includes(upper)) return "CNY";
+    if (["TWD", "NT$"].includes(upper)) return "TWD";
+    if (["KRW", "₩"].includes(upper)) return "KRW";
+    return upper;
+  };
+
+  if (semantic === "budget") {
+    if (/(?:premium|high[- ]?end|flagship|高階|高端|旗艦|旗舰)/iu.test(cleanIntent)) return { value: "premium", label: "高階 / Premium" };
+    const money = /((?:HK|US|S|A|C|NT)\$|CN¥|[$€£¥₩]|HKD|USD|EUR|JPY|GBP|SGD|AUD|CAD|CNY|RMB|TWD|KRW|港幣|港币|日圓|日元)\s*(\d{1,7}(?:,\d{3})*)/iu.exec(cleanIntent);
+    if (money) {
+      const code = currencyCode(money[1]);
+      const amount = Number(money[2].replace(/,/g, ""));
+      return { value: amount, label: code + " " + money[2] };
+    }
+    const budget = /(?:\bbudget\b|預算|预算|予算)(?:\s+(?:of|is|=|:))?\s*(\d{1,7}(?:,\d{3})*)/iu.exec(cleanIntent);
+    if (budget) return { value: Number(budget[1].replace(/,/g, "")), label: budget[1] };
   }
-  if (key === "screen_size" || key === "size") {
-    const match = /(\d{2,3})\s*(?:inch|inches|"|吋|英寸|インチ)/iu.exec(intent);
-    if (match) return { value: `${match[1]}-inch`, label: `${match[1]}″` };
+
+  if (semantic === "size") {
+    const match = /(\d{2,3})\s*(?:inch|inches|"|吋|英寸|インチ)/iu.exec(cleanIntent);
+    if (match) return { value: match[1] + "-inch", label: match[1] + "″" };
   }
-  if (key === "brand") {
-    const brands = ["Samsung", "LG", "Sony", "TCL", "Hisense", "Panasonic", "Philips"];
-    const brand = brands.find((candidate) => new RegExp(`\\b${candidate}\\b`, "iu").test(intent));
+
+  if (semantic === "brand") {
+    const brands = ["Samsung", "LG", "Sony", "TCL", "Hisense", "Panasonic", "Philips", "Apple", "Lenovo", "Dell", "Nike", "Adidas"];
+    const brand = brands.find((candidate) => cleanIntent.toLowerCase().split(/[^a-z0-9]+/u).includes(candidate.toLowerCase()));
     if (brand) return { value: brand.toLowerCase(), label: brand };
-    if (/(?:no brand preference|any brand|沒有品牌偏好|无品牌偏好|品牌不限|ブランド指定なし)/iu.test(intent)) {
+    if (/(?:no brand preference|any brand|沒有品牌偏好|无品牌偏好|品牌不限|ブランド指定なし)/iu.test(cleanIntent)) {
       return { value: "no_preference", label: "沒有品牌偏好" };
     }
   }
-  if (key === "purpose") {
-    if (/(?:gaming|game|遊戲|游戏|ゲーム)/iu.test(intent)) return { value: "gaming", label: "Gaming" };
-    if (/(?:movie|film|streaming|電影|电影|串流|映画)/iu.test(intent)) return { value: "movies_streaming", label: "電影／串流" };
-    if (/(?:sport|football|sports|體育|体育|運動|スポーツ)/iu.test(intent)) return { value: "sports", label: "體育賽事" };
+
+  if (semantic === "purpose") {
+    if (/(?:gaming|game|遊戲|游戏|ゲーム)/iu.test(cleanIntent)) return { value: "gaming", label: "Gaming" };
+    if (/(?:movie|film|streaming|電影|电影|串流|映画)/iu.test(cleanIntent)) return { value: "movies_streaming", label: "電影／串流" };
+    if (/(?:sport|football|sports|體育|体育|運動|スポーツ)/iu.test(cleanIntent)) return { value: "sports", label: "體育賽事" };
   }
-  if (key === "delivery_location" || key === "fulfilment") {
-    if (/(?:store pickup|self collect|pickup|自取|門市自取|门市自取|店舗受取)/iu.test(intent)) {
+
+  if (semantic === "delivery_location") {
+    if (/(?:store pickup|self collect|pickup|自取|門市自取|门市自取|店舗受取)/iu.test(cleanIntent)) {
       return { value: "store_pickup", label: "門市自取" };
     }
-    if (/(?:deliver|delivery|ship|home|送貨|送货|配送|屋企|家中|自宅)/iu.test(intent)) {
+    if (/(?:deliver|delivery|ship|home|送貨|送货|配送|屋企|家中|自宅)/iu.test(cleanIntent)) {
       return { value: "saved_home", label: "常用住址" };
     }
   }
-  if (key === "quantity") {
-    const match = /(?:^|\s)(\d{1,3})\s*(?:tv|televisions?|items?|units?|台|部|個|个)?/iu.exec(intent);
+
+  if (semantic === "quantity") {
+    const match = /(?:^|\s)(\d{1,3})\s*(?:tvs?|televisions?|items?|units?|tickets?|pieces?|台|部|個|个|件|份|張|张)(?=\s|[.,;!?]|$)/iu.exec(cleanIntent);
     if (match) return { value: Number(match[1]), label: match[1] };
-    if (/(?:\ba\s+television\b|\bone\s+television\b|一台電視|一台电视)/iu.test(intent)) return { value: 1, label: "1" };
+    if (/(?:\ba\s+television\b|\bone\s+television\b|一台電視|一台电视)/iu.test(cleanIntent)) return { value: 1, label: "1" };
   }
+
+  if (semantic === "participants") {
+    const words: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
+    const match = /(?:\b(\d{1,3}|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:participants?|people|guests?|attendees?)\b)/iu.exec(cleanIntent);
+    if (match) {
+      const raw = match[1].toLowerCase();
+      const value = /^\d+$/.test(raw) ? Number(raw) : words[raw];
+      return { value, label: String(value) };
+    }
+  }
+
+  if (semantic === "date") {
+    const match = /\bdate\s+(?:is|=|:)\s*([^.;]+)/iu.exec(cleanIntent);
+    if (match) return { value: match[1].trim(), label: match[1].trim() };
+  }
+
+  if (semantic === "time") {
+    const match = /\btime\s+(?:is|=|:)\s*([0-2]?\d:[0-5]\d(?:\s*(?:am|pm))?)/iu.exec(cleanIntent);
+    if (match) return { value: match[1].trim(), label: match[1].trim() };
+  }
+
+  if (semantic === "recipient") {
+    const match = /\brecipient\s+(?:is|=|:)\s*([^.;]+)/iu.exec(cleanIntent);
+    if (match) return { value: match[1].trim(), label: match[1].trim() };
+  }
+
+  if (semantic === "origin") {
+    const match = /\borigin\s+(?:is|=|:)\s*([^.;]+)/iu.exec(cleanIntent);
+    if (match) return { value: match[1].trim(), label: match[1].trim() };
+  }
+
+  if (semantic === "destination") {
+    const match = /\bdestination\s+(?:is|=|:)\s*([^.;]+)/iu.exec(cleanIntent);
+    if (match) return { value: match[1].trim(), label: match[1].trim() };
+  }
+
+  if (semantic === "deadline") {
+    const match = /\bdeadline\s+(?:is|=|:)\s*([^.;]+)/iu.exec(cleanIntent);
+    if (match) return { value: match[1].trim(), label: match[1].trim() };
+  }
+
+  if (semantic === "currency") {
+    const match = /\b(HKD|USD|EUR|JPY|GBP|SGD|AUD|CAD|CNY|RMB|TWD|KRW)\b|\b(US dollars?|euros?|Japanese yen|British pounds?)\b/iu.exec(cleanIntent);
+    if (match) {
+      const code = currencyCode(match[1] ?? match[2]);
+      return { value: code, label: code };
+    }
+  }
+
+  if (semantic === "contact") {
+    const email = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/iu.exec(cleanIntent);
+    if (email) return { value: email[0], label: email[0] };
+    const phone = /(?:\+?\d[\d ()-]{6,}\d)/u.exec(cleanIntent);
+    if (phone) return { value: phone[0], label: phone[0] };
+  }
+
+  if (semantic === "service") {
+    const match = /\bservice\s+(?:needed\s+)?(?:is|=|:)\s*([^.;]+)/iu.exec(cleanIntent);
+    if (match) return { value: match[1].trim(), label: match[1].trim() };
+  }
+
   return null;
 }
 
@@ -203,8 +294,14 @@ function compileRequirements(input: CreateAsymptaTaskInput, taskId: string, at: 
   });
 }
 
+function requirementIsSatisfied(requirement: AsymptaTaskRequirement) {
+  return requirement.status === "resolved"
+    || requirement.status === "confirmed"
+    || requirement.status === "not_applicable";
+}
+
 function unresolved(task: AsymptaTaskState) {
-  return task.requirements.filter((requirement) => requirement.required && requirement.status === "unknown");
+  return task.requirements.filter((requirement) => requirement.required && !requirementIsSatisfied(requirement));
 }
 
 function rememberCommand(task: AsymptaTaskState, commandId: string) {

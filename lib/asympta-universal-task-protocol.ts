@@ -419,6 +419,7 @@ function profileValue(profile: AsymptaUniversalProfile | undefined, requirement:
     case "evidence": return profile.evidenceToken;
     case "accessibility": return profile.accessibilityPreference;
     case "recipient": return profile.savedRecipients?.self ?? profile.contactToken;
+    case "generic": return profile.preferences?.default;
     default: return profile.preferences?.[requirement.semantic];
   }
 }
@@ -552,6 +553,10 @@ function resolveRequirement(
   const fromProfile = profileValue(input.profile, requirement);
   if (fromProfile !== undefined && fromProfile !== null && fromProfile !== "") {
     return { value: fromProfile, source: "profile" as const, resolution: "profile" as const, confidence: 0.9 };
+  }
+
+  if ((input.mode ?? "benchmark") === "benchmark" && requirement.semantic === "generic" && !input.profile) {
+    return null;
   }
 
   if (requirement.semantic === "approval") {
