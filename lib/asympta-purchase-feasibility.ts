@@ -18,12 +18,34 @@ export type PurchaseFeasibility = {
 
 const PURCHASE_ACTION = /\b(?:buy|purchase|order|get\s+me|acquire)\b|幫我買|帮我买|想買|想买|要買|要买|購入|買いたい/iu;
 const RAIL_VEHICLE = /\b(?:train|locomotive|railcar|rail\s+car|metro\s+train|subway\s+train)\b|列車|列车|火車|火车|機関車|電車/iu;
+const FUNDS_EVIDENCE_TTL_MS = 30_000;
 
 // This is deliberately a conservative proof-of-funds floor, not a claim that a
 // train costs exactly this amount. A real rolling-stock acquisition must still
 // discover a seller, an exact vehicle, operating/storage arrangements, legal
 // constraints, delivery logistics and a verified quote before any commitment.
 const RAIL_VEHICLE_MINIMUM_PROOF_OF_FUNDS_JPY = 100_000_000;
+const fundsEvidence = new Map<string, { availableFundsJPY: number; recordedAt: number }>();
+
+function intentKey(intent: string) {
+  return intent.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+export function rememberPurchaseFundsEvidence(intent: string, availableFundsJPY: number, recordedAt = Date.now()) {
+  if (!Number.isFinite(availableFundsJPY) || availableFundsJPY < 0) return;
+  fundsEvidence.set(intentKey(intent), { availableFundsJPY, recordedAt });
+}
+
+export function recentPurchaseFundsEvidence(intent: string, now = Date.now()) {
+  const key = intentKey(intent);
+  const evidence = fundsEvidence.get(key);
+  if (!evidence) return null;
+  if (now - evidence.recordedAt > FUNDS_EVIDENCE_TTL_MS) {
+    fundsEvidence.delete(key);
+    return null;
+  }
+  return evidence.availableFundsJPY;
+}
 
 export function evaluatePurchaseFeasibility(intent: string, availableFundsJPY: number | null): PurchaseFeasibility | null {
   const clean = intent.trim();
