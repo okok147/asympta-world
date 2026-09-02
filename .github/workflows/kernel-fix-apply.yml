@@ -39,17 +39,25 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           path = Path("scripts/apply-kernel-fix.mjs")
-          text = path.read_text()
-          replacements = [
-              ('return { value: amount, label: `${code} ${money[2]}` };', 'return { value: amount, label: code + " " + money[2] };'),
-              ('if (match) return { value: `${match[1]}-inch`, label: `${match[1]}″` };', 'if (match) return { value: match[1] + "-inch", label: match[1] + "″" };'),
-              (r'new RegExp(`\\b${candidate}\\b`, "iu")', r'new RegExp("\\b" + candidate + "\\b", "iu")'),
-          ]
-          for old, new in replacements:
-              if old not in text:
-                  raise SystemExit(f"repair target missing: {old}")
-              text = text.replace(old, new)
-          path.write_text(text)
+          lines = path.read_text().splitlines()
+          repaired = []
+          seen = {"money": False, "size": False, "brand": False}
+          for line in lines:
+              if 'return { value: amount, label:' in line and '${money[2]}' in line:
+                  repaired.append('      return { value: amount, label: code + " " + money[2] };')
+                  seen["money"] = True
+              elif 'if (match) return { value:' in line and '${match[1]}-inch' in line:
+                  repaired.append('    if (match) return { value: match[1] + "-inch", label: match[1] + "″" };')
+                  seen["size"] = True
+              elif 'const brand = brands.find' in line and '${candidate}' in line:
+                  repaired.append('    const brand = brands.find((candidate) => new RegExp("\\\\b" + candidate + "\\\\b", "iu").test(cleanIntent));')
+                  seen["brand"] = True
+              else:
+                  repaired.append(line)
+          missing = [name for name, found in seen.items() if not found]
+          if missing:
+              raise SystemExit("repair targets missing: " + ", ".join(missing))
+          path.write_text("\n".join(repaired) + "\n")
           PY
           node --check scripts/apply-kernel-fix.mjs
 
