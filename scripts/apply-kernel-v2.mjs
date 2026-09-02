@@ -12,6 +12,13 @@ function replaceOrThrow(source, needle, replacement, label) {
   return source.replace(needle, replacement);
 }
 
+patch("lib/asympta-semantic-kernel.ts", (source) => {
+  const needle = 'valueType: typeof requirement.value,';
+  const matches = source.split(needle).length - 1;
+  if (matches !== 2) throw new Error(`Expected two CanonicalFact valueType sites, found ${matches}`);
+  return source.replaceAll(needle, 'valueType: typeof requirement.value as "string" | "number" | "boolean",');
+});
+
 patch("lib/asympta-task-kernel-types.ts", (source) => {
   source = replaceOrThrow(
     source,
@@ -47,6 +54,7 @@ patch("lib/asympta-requirement-contracts.ts", (source) => {
 });
 
 patch("lib/asympta-task-kernel-core-impl.ts", (source) => {
+  source = source.replace('  AsymptaTaskAnswerValue,\n', '');
   source = replaceOrThrow(
     source,
     '} from "./asympta-task-policy.ts";\n',
