@@ -1,7 +1,6 @@
 import { createAsymptaTask as createCoreAsymptaTask } from "./asympta-task-kernel-core-impl.ts";
 import { requirementSemantic } from "./asympta-requirement-contracts.ts";
 import { taskRequiresApproval } from "./asympta-task-policy.ts";
-import { runUniversalTask } from "./asympta-universal-task-protocol.ts";
 
 export type AsymptaKernelHoldoutFamily =
   | "multi_fact_binding"
@@ -382,27 +381,26 @@ function evaluateScenario(scenario: AsymptaKernelHoldoutScenario): AsymptaKernel
   }
 
   if (scenario.family === "compound_truthfulness") {
-    const run = runUniversalTask({
-      id: scenario.id,
-      title: scenario.intent,
-      intent: scenario.intent,
+    const task = createCoreAsymptaTask({
+      taskId: scenario.id,
+      rootIntent: scenario.intent,
       locale: scenario.locale,
       domain: scenario.domain,
       actionFamily: scenario.actionFamily,
-      requiredFields: scenario.missingFields ?? [],
-      mode: "benchmark",
-      preauthorized: true,
+      mode: "simulated",
+      risk: "low",
+      missingFields: scenario.missingFields ?? [],
     });
-    const unresolved = run.task.requirements.filter((requirement) => requirement.required
+    const unresolved = task.requirements.filter((requirement) => requirement.required
       && !["resolved", "confirmed", "not_applicable"].includes(requirement.status));
-    const passed = run.task.result?.completed !== true
+    const passed = task.result?.completed !== true
       && unresolved.some((requirement) => requirement.key.includes("novel_constraint"));
     return {
       id: scenario.id,
       family: scenario.family,
       passed,
       expected: scenario.expected,
-      observed: `phase=${run.task.phase}, completed=${run.task.result?.completed ?? false}, unresolved=${unresolved.map((requirement) => requirement.key).join(",")}`,
+      observed: `phase=${task.phase}, completed=${task.result?.completed ?? false}, unresolved=${unresolved.map((requirement) => requirement.key).join(",")}`,
     };
   }
 
