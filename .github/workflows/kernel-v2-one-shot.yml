@@ -41,3 +41,5 @@ jobs:
           git add lib/asympta-semantic-kernel.ts lib/asympta-task-kernel-types.ts lib/asympta-task-kernel-core-impl.ts lib/asympta-task-policy.ts lib/asympta-requirement-contracts.ts tests/universal-benchmark.test.mjs scripts/apply-kernel-v2.mjs .github/workflows/kernel-v2-one-shot.yml
           git commit -m "feat: add canonical semantic kernel v2"
           git push origin HEAD:kernel/canonical-semantic-v2
+
+# One-shot validation worker; removed from the feature branch after a green run.
