@@ -67,7 +67,7 @@ function vehicleMatch(text: string): DurableProductMatch | null {
   return null;
 }
 
-function systemFact(key: string, value: string, requestId: string): ContextFact {
+function systemFact(key: string, value: string): ContextFact {
   return {
     key,
     value,
@@ -116,12 +116,12 @@ function patchVehicleGoal(goal: MarketplaceGoal, match: DurableProductMatch, req
 
   facts.push(
     explicitFact("product_class", match.productClass, requestId, match.evidence),
-    systemFact("handling_class", "vehicle_transport", requestId),
-    systemFact("market_selection", "simulated_vehicle_dealer", requestId),
+    systemFact("handling_class", "vehicle_transport"),
+    systemFact("market_selection", "simulated_vehicle_dealer"),
     // A personal/animal agent cannot physically carry a vehicle. Vehicle
     // purchases therefore default to the logistics/transport lane; payment
     // still remains human-gated by the existing marketplace contract.
-    systemFact("fulfilment_mode", "courier_delivery", requestId),
+    systemFact("fulfilment_mode", "courier_delivery"),
   );
 
   return {
