@@ -19,22 +19,15 @@ import {
 } from "@/lib/asympta-purchase-feasibility";
 
 type Locale = "en" | "zh-Hant" | "ja";
-type DemoBridge = { snapshot: () => unknown };
+type WindowWithDemo = Window & { __ASYMPTA_DEMO__?: { snapshot: () => unknown } };
 type DecisionState =
   | { kind: "product"; intent: string; requestId: string; source: AsymptaCurrentRequestSource; decision: ExactProductDecision }
   | { kind: "feasibility"; intent: string; requestId: string; source: AsymptaCurrentRequestSource; feasibility: PurchaseFeasibility };
-
-declare global {
-  interface Window {
-    __ASYMPTA_DEMO__?: DemoBridge;
-  }
-}
 
 const COPY: Record<Locale, {
   productEyebrow: string;
   productTitle: string;
   productNote: string;
-  choose: string;
   manufacturer: string;
   feasibilityEyebrow: string;
   feasibilityTitle: string;
@@ -48,7 +41,6 @@ const COPY: Record<Locale, {
     productEyebrow: "Exact product required",
     productTitle: "Choose the real product before the agents continue",
     productNote: "These are verified manufacturer-reference products. Price is a reference only; stock and final quotes are not live until a real seller connector verifies them.",
-    choose: "Choose",
     manufacturer: "Manufacturer reference",
     feasibilityEyebrow: "Real-world feasibility preflight",
     feasibilityTitle: "This request should not enter a purchase workflow yet",
@@ -62,7 +54,6 @@ const COPY: Record<Locale, {
     productEyebrow: "必須確認確實商品",
     productTitle: "先選擇真實存在的產品，代理才會繼續",
     productNote: "以下為已核實的製造商參考產品。價格只作參考；在真實商戶連接器驗證前，不會聲稱即時庫存或最終報價。",
-    choose: "選擇",
     manufacturer: "製造商參考",
     feasibilityEyebrow: "真實世界可行性預檢",
     feasibilityTitle: "這個要求目前不應直接進入購買流程",
@@ -76,7 +67,6 @@ const COPY: Record<Locale, {
     productEyebrow: "正確な製品の確認が必要",
     productTitle: "実在する製品を選んでからエージェントが続行します",
     productNote: "メーカー情報で確認した参照製品です。価格は参照値であり、実在販売者の接続で検証されるまで在庫や最終見積もりを主張しません。",
-    choose: "選択",
     manufacturer: "メーカー参照",
     feasibilityEyebrow: "現実世界の実行可能性チェック",
     feasibilityTitle: "この依頼はまだ購入フローへ進めません",
@@ -142,7 +132,7 @@ export function AsymptaPurchaseDecisionGate() {
       const source = requestSource(intent);
       const requestId = createRequestId();
       let snapshot: unknown = null;
-      try { snapshot = window.__ASYMPTA_DEMO__?.snapshot(); } catch {}
+      try { snapshot = (window as WindowWithDemo).__ASYMPTA_DEMO__?.snapshot(); } catch {}
       const feasibility = evaluatePurchaseFeasibility(intent, userFundsFromWorldSnapshot(snapshot));
 
       if (feasibility && !feasibility.canProceed) {
@@ -246,7 +236,7 @@ export function AsymptaPurchaseDecisionGate() {
             <span className={styles.candidateTop}><strong>{candidate.exactName}</strong><span className={styles.price}>{candidate.referencePrice.label}</span></span>
             <small>{candidate.summary}</small>
             <span className={styles.specs}>{candidate.keySpecs.slice(0, 4).map((spec) => <span key={spec}>{spec}</span>)}</span>
-            <a className={styles.source} href={candidate.manufacturerUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>{copy.manufacturer} · {candidate.verifiedAt}</a>
+            <span className={styles.source}>{copy.manufacturer} · {candidate.brand} · {candidate.verifiedAt}</span>
           </button>
         ))}
       </div>
