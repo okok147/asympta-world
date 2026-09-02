@@ -6,9 +6,9 @@ import {
   runKernelAdversarialBenchmark,
 } from "../lib/asympta-kernel-adversarial-benchmark.ts";
 import {
-  generateKernelExtremeRealWorldScenarios,
-  runKernelExtremeRealWorldBenchmark,
-} from "../lib/asympta-kernel-extreme-realworld-benchmark.ts";
+  generateKernelExtremeRealWorldV3Scenarios,
+  runKernelExtremeRealWorldV3Benchmark,
+} from "../lib/asympta-kernel-extreme-realworld-v3-benchmark.ts";
 import {
   generateKernelHoldoutScenarios,
   runKernelHoldoutBenchmark,
@@ -131,9 +131,9 @@ test("a fresh 1,000-case semantic holdout attacks composition, contradiction, au
   assert.equal(report.failed, 0, `Fresh semantic holdout must be fully green: ${JSON.stringify(report.failures.slice(0, 10), null, 2)}`);
 });
 
-test("10,000 extreme but realistic malformed, contradictory, noisy, revoked, and absurd requests attack the frozen kernel without changing the old suites", () => {
-  const scenarios = generateKernelExtremeRealWorldScenarios();
-  const report = runKernelExtremeRealWorldBenchmark();
+test("10,000 independently unique extreme real-world inputs attack malformed, contradictory, noisy, revoked, and absurd requests", () => {
+  const scenarios = generateKernelExtremeRealWorldV3Scenarios();
+  const report = runKernelExtremeRealWorldV3Benchmark();
 
   assert.equal(scenarios.length, 10_000);
   assert.equal(new Set(scenarios.map((scenario) => scenario.id)).size, 10_000);
