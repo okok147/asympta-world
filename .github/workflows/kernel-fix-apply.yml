@@ -53,7 +53,8 @@ jobs:
                   repaired.append('    const brand = brands.find((candidate) => cleanIntent.toLowerCase().split(/[^a-z0-9]+/u).includes(candidate.toLowerCase()));')
                   seen["brand"] = True
               elif 'if ((input.mode ?? "benchmark") === "benchmark" && requirement.semantic === "generic") {' in line:
-                  repaired.append('  if ((input.mode ?? "benchmark") === "benchmark" && requirement.semantic === "generic" && !input.profile) {')
+                  prefix = '    `' if line.lstrip().startswith('`') else ''
+                  repaired.append(prefix + '  if ((input.mode ?? "benchmark") === "benchmark" && requirement.semantic === "generic" && !input.profile) {')
                   seen["truth"] = True
               else:
                   repaired.append(line)
