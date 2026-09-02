@@ -66,8 +66,8 @@ const ROLE: Record<StakeholderSide, string> = {
   finance: "Finance agent",
   logistics: "Logistics agent",
   support: "Support agent",
-  quality: "Quality verifier",
-  market: "Market intelligence agent",
+  quality: "Quality agent",
+  market: "Market agent",
 };
 
 const ORG: Record<StakeholderSide, string> = {
