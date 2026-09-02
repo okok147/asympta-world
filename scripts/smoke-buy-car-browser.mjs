@@ -213,19 +213,28 @@ async function run() {
         receipt: completed?.receipt ?? null,
         executionStatus: execution?.status ?? null,
         packetKinds: execution?.packets?.map((packet) => packet.kind) ?? [],
-        transactionStatuses: execution?.transactions?.map((transaction) => transaction.status) ?? [],
+        transactionStates: execution?.transactions?.map((transaction) => ({ status: transaction.status, payment: transaction.payment })) ?? [],
+        inventory: execution?.ledger?.map((line) => ({ userInventory: line.userInventory, quantity: line.quantity, reserved: line.marketReserved, cargo: line.carrierCargo })) ?? [],
         profileQuestionShown: Boolean(document.querySelector('.asympta-marketplace-progressive-question')),
       };
     })())`));
-    if (!proof.receipt?.verified) throw new Error("Vehicle workflow completion receipt was not verified.");
+    if (proof.receipt?.verification !== "verified" || proof.receipt?.provenance !== "marketplace_execution") {
+      throw new Error(`Vehicle workflow completion receipt is not canonical marketplace verification: ${JSON.stringify(proof.receipt)}`);
+    }
     if (proof.executionStatus !== "completed") throw new Error(`Vehicle execution did not complete: ${proof.executionStatus}`);
-    if (!proof.packetKinds.includes("goods_handoff") || !proof.packetKinds.includes("delivery_receipt")) {
-      throw new Error(`Vehicle workflow lacks handoff/delivery evidence: ${proof.packetKinds.join(", ")}`);
+    if (!proof.transactionStates.length || proof.transactionStates.some((transaction) => transaction.status !== "completed" || transaction.payment !== "authorized")) {
+      throw new Error(`Vehicle transaction proof is incomplete: ${JSON.stringify(proof.transactionStates)}`);
+    }
+    if (!proof.inventory.length || proof.inventory.some((line) => line.userInventory < line.quantity || line.reserved !== 0 || line.cargo !== 0)) {
+      throw new Error(`Vehicle inventory proof is incomplete: ${JSON.stringify(proof.inventory)}`);
+    }
+    if (!proof.packetKinds.includes("goods_handoff") || !proof.packetKinds.includes("delivery_receipt") || !proof.packetKinds.includes("verification")) {
+      throw new Error(`Vehicle workflow lacks handoff/delivery/verification evidence: ${proof.packetKinds.join(", ")}`);
     }
     if (proof.profileQuestionShown) throw new Error("Generic marketplace profile question appeared during vehicle workflow.");
     if (exceptions.length) throw new Error(`Browser exceptions during Buy a car: ${exceptions.join(" | ")}`);
 
-    console.log("Buy-car browser smoke passed: no generic profile questions, agents reached dealer/approval/transport, and receipt-backed delivery completed.");
+    console.log("Buy-car browser smoke passed: no generic profile questions, agents reached dealer/approval/transport, and canonical receipt-backed delivery completed.");
     socket.close();
   } catch (error) {
     if (chromeStderr.trim()) console.error(chromeStderr.trim());
