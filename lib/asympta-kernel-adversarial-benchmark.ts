@@ -235,7 +235,7 @@ function benchmarkFalsePassScenarios(): AsymptaKernelAttackScenario[] {
     actionFamily: "coordinate",
     intent: `Coordinate novel requirement case ${index + 1}.`,
     field: `novel_required_fact_${index + 1}`,
-    expected: "A benchmark must not count a task as semantically solved solely because an unknown required fact was invented by the simulator.",
+    expected: "A benchmark must not count a task as semantically solved solely because an unknown required fact was invented by policy, simulated-world, or simulator defaults.",
   }));
 }
 
@@ -267,7 +267,7 @@ function positiveExplicitControlScenarios(): AsymptaKernelAttackScenario[] {
   const variants = [
     { field: "budget", intent: "My budget is HK$1200." },
     { field: "screen size", intent: "I want a 55 inch television." },
-    { field: "brand preference", intent: "I prefer Sony." },
+    { field: "brand", intent: "I prefer Sony." },
     { field: "purpose", intent: "This is mainly for gaming." },
     { field: "purpose", intent: "This is mainly for movies and streaming." },
     { field: "purpose", intent: "This is mainly for sports." },
@@ -455,14 +455,15 @@ function evaluateScenario(scenario: AsymptaKernelAttackScenario): AsymptaKernelA
       mode: "benchmark",
       preauthorized: true,
     });
-    const invented = envelope.requirements.filter((requirement) => requirement.source === "simulation");
-    const falsePass = envelope.status === "completed" && invented.length > 0;
+    const unsupported = envelope.requirements.filter((requirement) =>
+      requirement.source !== "explicit" && requirement.source !== "profile");
+    const falsePass = envelope.status === "completed" && unsupported.length > 0;
     return {
       id: scenario.id,
       family: scenario.family,
       passed: !falsePass,
       expected: scenario.expected,
-      observed: `status=${envelope.status}, simulationResolved=${invented.length}`,
+      observed: `status=${envelope.status}, unsupportedResolved=${unsupported.length}, sources=${unsupported.map((requirement) => requirement.source ?? "none").join(",") || "none"}`,
     };
   }
 
