@@ -1,3 +1,4 @@
+import { classifyTaskEffect } from "./asympta-semantic-kernel.ts";
 import type {
   AsymptaTaskCompletionContract,
   AsymptaTaskMode,
@@ -9,8 +10,6 @@ const EVENT_PATTERN = /(?:concert|show|performance|ticket|演唱會|演唱会|�
 const CINEMA_PATTERN = /(?:\bmovies?\b|\bfilms?\b|\bcinema\b|movie\s*tickets?|電影|电影|戲院|戏院|影院|映画|映画館)/iu;
 const PURCHASE_PATTERN = /(?:buy|purchase|order|procure|購買|购买|訂購|订购|購入|注文)/iu;
 const BOOKING_PATTERN = /(?:buy|purchase|book|reserve|ticket|購買|购买|買票|买票|訂票|订票|預訂|预订|予約|チケット)/iu;
-const WRITE_PATTERN = /(?:buy|purchase|order|procure|book|reserve|send|submit|publish|delete|cancel|pay|transfer|hire|sign|approve|apply|refund|withdraw|renew|register|enroll|schedule|dispatch|ship|accept|claim|subscribe|unsubscribe|create|update|購買|购买|訂購|订购|預訂|预订|發送|发送|提交|發布|发布|刪除|删除|取消|付款|轉帳|转账|僱用|雇用|簽署|签署|申請|申请|退款|提款|續期|续期|註冊|注册|報名|报名|安排|派送|寄送|接受|索償|索赔|購入|注文|予約|送信|提出|公開|削除|支払|振込|申請|返金|引出|更新|登録|発送|受諾)/iu;
-const CONSEQUENT_ACTION_FAMILY = /(?:purchase|payment|transfer|booking|reservation|delete|cancel|publish|submit|send|hire|sign|commit|write|execute|apply|refund|withdraw|renew|register|enroll|schedule|dispatch|ship|accept|claim|subscribe|create|update)/iu;
 
 export function inferTaskClassification(intent: string) {
   if (TV_PATTERN.test(intent)) return { domain: "commerce.consumer_electronics", actionFamily: "purchase" };
@@ -19,7 +18,8 @@ export function inferTaskClassification(intent: string) {
   if (PURCHASE_PATTERN.test(intent)) return { domain: "commerce", actionFamily: "purchase" };
   if (/(?:weather|forecast|天氣|天气|天気)/iu.test(intent)) return { domain: "weather", actionFamily: "read" };
   if (/(?:find|search|compare|research|尋找|搜集|比較|查找|検索|比較)/iu.test(intent)) return { domain: "information", actionFamily: "research" };
-  return { domain: "general", actionFamily: WRITE_PATTERN.test(intent) ? "execute" : "coordinate" };
+  const effect = classifyTaskEffect({ intent, actionFamily: "coordinate" });
+  return { domain: "general", actionFamily: effect.externalWrite ? "execute" : "coordinate" };
 }
 
 export function taskRiskRank(risk: AsymptaTaskRisk) {
@@ -33,7 +33,7 @@ export function taskRiskRank(risk: AsymptaTaskRisk) {
 }
 
 export function taskIsWriteIntent(input: { actionFamily: string; intent: string }) {
-  return CONSEQUENT_ACTION_FAMILY.test(input.actionFamily) || WRITE_PATTERN.test(input.intent);
+  return classifyTaskEffect(input).externalWrite;
 }
 
 export function taskRequiresApproval(input: {
@@ -44,7 +44,7 @@ export function taskRequiresApproval(input: {
 }) {
   return input.confirmationRequired === true
     || taskRiskRank(input.risk) >= taskRiskRank("high")
-    || taskIsWriteIntent(input);
+    || classifyTaskEffect(input).requiresApproval;
 }
 
 export function createTaskCompletionContract(input: {
@@ -54,8 +54,11 @@ export function createTaskCompletionContract(input: {
   risk: AsymptaTaskRisk;
   confirmationRequired?: boolean;
 }): AsymptaTaskCompletionContract {
-  const write = taskIsWriteIntent(input);
-  const requiresApproval = taskRequiresApproval(input);
+  const effect = classifyTaskEffect(input);
+  const write = effect.externalWrite;
+  const requiresApproval = input.confirmationRequired === true
+    || taskRiskRank(input.risk) >= taskRiskRank("high")
+    || effect.requiresApproval;
   return {
     requiresVerifiedOutcome: true,
     requiresApproval,
