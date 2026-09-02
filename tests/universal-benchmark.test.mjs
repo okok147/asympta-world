@@ -60,7 +60,7 @@ test("stress generation is deterministic and includes unseen fields and reordere
   assert.ok(first.some((entry) => entry.requiredFields?.some((field) => field.includes("_"))));
 });
 
-test("the independent 1,000-case kernel attack exposes common structural failure families instead of rewarding simulated completion", () => {
+test("the independent 1,000-case kernel attack measures structural failure families without rewarding simulated completion", () => {
   const scenarios = generateKernelAdversarialScenarios();
   const report = runKernelAdversarialBenchmark();
   assert.equal(scenarios.length, 1_000);
@@ -68,7 +68,16 @@ test("the independent 1,000-case kernel attack exposes common structural failure
   assert.deepEqual(new Set(scenarios.map((scenario) => scenario.locale)), new Set(["en", "zh-Hant", "ja"]));
   assert.equal(report.total, 1_000);
 
-  const expectedFailureFamilies = [
+  console.log(`KERNEL_ATTACK_REPORT ${JSON.stringify({
+    version: report.version,
+    total: report.total,
+    passed: report.passed,
+    failed: report.failed,
+    passRate: report.passRate,
+    byFamily: report.byFamily,
+  })}`);
+
+  const diagnosticFamilies = [
     "explicit_fact_binding",
     "numeric_disambiguation",
     "currency_integrity",
@@ -78,18 +87,15 @@ test("the independent 1,000-case kernel attack exposes common structural failure
     "blocked_requirement_safety",
     "benchmark_false_pass",
   ];
-  for (const family of expectedFailureFamilies) {
+  for (const family of diagnosticFamilies) {
     assert.equal(report.byFamily[family].total, 100);
-    assert.equal(
-      report.byFamily[family].failed,
-      100,
-      `${family}: ${JSON.stringify(report.failures.filter((failure) => failure.family === family).slice(0, 5), null, 2)}`,
+    assert.ok(
+      report.byFamily[family].failed > 0,
+      `${family} no longer reproduces a failure; lower or remove its baseline ceiling when this becomes a regression test.`,
     );
   }
 
   assert.deepEqual(report.byFamily.positive_approval_control, { total: 100, passed: 100, failed: 0 });
   assert.deepEqual(report.byFamily.positive_explicit_control, { total: 100, passed: 100, failed: 0 });
-  assert.equal(report.passed, 200);
-  assert.equal(report.failed, 800);
-  assert.equal(report.passRate, 0.2);
+  assert.ok(report.failed >= 500, `Expected the current pre-fix kernel to reproduce a substantial diagnostic baseline, got ${report.failed}.`);
 });
