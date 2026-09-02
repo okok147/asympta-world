@@ -66,8 +66,8 @@ const ROLE: Record<StakeholderSide, string> = {
   finance: "Finance agent",
   logistics: "Logistics agent",
   support: "Support agent",
-  quality: "Quality agent",
-  market: "Market agent",
+  quality: "Quality verifier",
+  market: "Market intelligence agent",
 };
 
 const ORG: Record<StakeholderSide, string> = {
@@ -175,9 +175,11 @@ function forceFreshActiveTasksToTravel(world: AtlasWorldState) {
 let resetNextDemoWorldToIdle = false;
 
 /**
- * The landing demo still starts with visible activity, but a verified completed
- * user workflow must not silently spawn that demo again. The runtime boundary
- * arms exactly one clean idle world for the completion remount.
+ * A completed workflow can arm an explicit clean reset. The landing world is
+ * also intentionally idle: background synthetic city actors provide visual life,
+ * but no foreground business workflow may run until a human/WebMCP request
+ * actually starts one. This prevents hidden demo work from reaching an approval
+ * checkpoint and surfacing a seemingly random approval card.
  */
 export function prepareAtlasDemoWorkflowReset() {
   resetNextDemoWorldToIdle = true;
@@ -189,11 +191,8 @@ export function startAtlasDemoWorkflow(current: AtlasWorldState, workflowId: Wor
 }
 
 export function createAtlasDemoWorld(now = Date.now()) {
-  if (resetNextDemoWorldToIdle) {
-    resetNextDemoWorldToIdle = false;
-    return createAtlasWorld(now);
-  }
-  return startAtlasDemoWorkflow(createAtlasWorld(now), "custom-order");
+  if (resetNextDemoWorldToIdle) resetNextDemoWorldToIdle = false;
+  return createAtlasWorld(now);
 }
 
 export function resolveAtlasDemoApproval(current: AtlasWorldState, approvalId: string, approved: boolean) {
