@@ -6,6 +6,10 @@ import {
   runKernelAdversarialBenchmark,
 } from "../lib/asympta-kernel-adversarial-benchmark.ts";
 import {
+  generateKernelExtremeRealWorldScenarios,
+  runKernelExtremeRealWorldBenchmark,
+} from "../lib/asympta-kernel-extreme-realworld-benchmark.ts";
+import {
   generateKernelHoldoutScenarios,
   runKernelHoldoutBenchmark,
 } from "../lib/asympta-kernel-holdout-benchmark.ts";
@@ -125,4 +129,28 @@ test("a fresh 1,000-case semantic holdout attacks composition, contradiction, au
   })}`);
 
   assert.equal(report.failed, 0, `Fresh semantic holdout must be fully green: ${JSON.stringify(report.failures.slice(0, 10), null, 2)}`);
+});
+
+test("10,000 extreme but realistic malformed, contradictory, noisy, revoked, and absurd requests attack the frozen kernel without changing the old suites", () => {
+  const scenarios = generateKernelExtremeRealWorldScenarios();
+  const report = runKernelExtremeRealWorldBenchmark();
+
+  assert.equal(scenarios.length, 10_000);
+  assert.equal(new Set(scenarios.map((scenario) => scenario.id)).size, 10_000);
+  assert.equal(new Set(scenarios.map((scenario) => scenario.intent)).size, 10_000);
+  assert.deepEqual(new Set(scenarios.map((scenario) => scenario.locale)), new Set(["en", "zh-Hant", "ja"]));
+  assert.equal(Object.keys(report.byFamily).length, 20);
+  for (const family of Object.values(report.byFamily)) assert.equal(family.total, 500);
+  assert.equal(report.total, 10_000);
+  assert.equal(report.passed + report.failed, 10_000);
+
+  console.log(`KERNEL_EXTREME_REALWORLD_V3_REPORT ${JSON.stringify({
+    version: report.version,
+    total: report.total,
+    passed: report.passed,
+    failed: report.failed,
+    passRate: report.passRate,
+    byFamily: report.byFamily,
+    failureSample: report.failures.slice(0, 20),
+  })}`);
 });
