@@ -1,0 +1,147 @@
+name: Kernel Recursive Research Loop
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "lib/asympta-kernel-recursive-lab.ts"
+      - "scripts/run-kernel-recursive-loop.mjs"
+      - "tests/kernel-recursive-loop.test.mjs"
+      - ".github/workflows/kernel-recursive-loop.yml"
+      - "docs/KERNEL_RECURSIVE_CLOUD_LOOP.md"
+  schedule:
+    - cron: "17,47 * * * *"
+  workflow_dispatch:
+    inputs:
+      cases:
+        description: "Number of recursive kernel cases"
+        required: false
+        default: "320"
+
+permissions:
+  contents: write
+  issues: write
+  actions: read
+
+concurrency:
+  group: kernel-recursive-research
+  cancel-in-progress: false
+
+jobs:
+  self-play:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      STATE_BRANCH: kernel-lab-state
+      OUTPUT_DIR: /tmp/asympta-kernel-loop
+    steps:
+      - name: Checkout kernel
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Restore recursive state
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin "${STATE_BRANCH}:refs/remotes/origin/${STATE_BRANCH}" || true
+          if git show "origin/${STATE_BRANCH}:kernel-lab/state.json" > /tmp/kernel-loop-state.json 2>/dev/null; then
+            echo "KERNEL_LOOP_STATE_PATH=/tmp/kernel-loop-state.json" >> "$GITHUB_ENV"
+          fi
+
+      - name: Verify recursive lab invariants
+        run: node --experimental-loader ./scripts/cloudflare-node-loader.mjs --test tests/kernel-recursive-loop.test.mjs
+
+      - name: Generate, replay and score fresh trajectories
+        shell: bash
+        run: |
+          set -euo pipefail
+          CASES="${{ inputs.cases || '320' }}"
+          SEED="$(( ${{ github.run_id }} % 2147483647 ))"
+          rm -rf "${OUTPUT_DIR}"
+          node --experimental-loader ./scripts/cloudflare-node-loader.mjs \
+            scripts/run-kernel-recursive-loop.mjs \
+            "--count=${CASES}" \
+            "--seed=${SEED}" \
+            "--out=${OUTPUT_DIR}"
+          cat "${OUTPUT_DIR}/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          cat "${OUTPUT_DIR}/metrics.env" >> "$GITHUB_ENV"
+
+      - name: Publish trajectory artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-recursive-${{ github.run_id }}
+          path: /tmp/asympta-kernel-loop
+          retention-days: 30
+
+      - name: Persist weighted curriculum and latest trajectories
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_SHA="$(git rev-parse HEAD)"
+          git config user.name "asympta-kernel-loop"
+          git config user.email "kernel-loop@users.noreply.github.com"
+
+          git fetch origin "${STATE_BRANCH}:refs/remotes/origin/${STATE_BRANCH}" || true
+          if git show-ref --verify --quiet "refs/remotes/origin/${STATE_BRANCH}"; then
+            git switch -C "${STATE_BRANCH}" "origin/${STATE_BRANCH}"
+          else
+            git switch --orphan "${STATE_BRANCH}"
+            git rm -rf . || true
+          fi
+
+          mkdir -p kernel-lab
+          cp "${OUTPUT_DIR}/state.json" kernel-lab/state.json
+          cp "${OUTPUT_DIR}/summary.md" kernel-lab/LATEST.md
+          cp "${OUTPUT_DIR}/report.json" kernel-lab/latest-report.json
+          head -n 160 "${OUTPUT_DIR}/trajectories.jsonl" > kernel-lab/latest-trajectories.jsonl
+
+          git add kernel-lab
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: advance recursive kernel generation ${GITHUB_RUN_ID} [skip ci]"
+            git push origin "HEAD:${STATE_BRANCH}"
+          fi
+
+          git switch --detach "${BASE_SHA}"
+
+      - name: Surface uncontrolled process-integrity failures
+        if: github.event_name != 'pull_request' && env.KERNEL_LOOP_UNCONTROLLED_FAILURES != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TITLE="Kernel recursive loop: uncontrolled process-integrity failures"
+          BODY="${OUTPUT_DIR}/summary.md"
+          EXISTING="$(gh issue list --state open --search "\"${TITLE}\" in:title" --json number --jq '.[0].number // empty')"
+          if [ -n "${EXISTING}" ]; then
+            gh issue edit "${EXISTING}" --body-file "${BODY}"
+            gh issue comment "${EXISTING}" --body "New uncontrolled trajectories were reproduced in generation ${KERNEL_LOOP_GENERATION}. Latest weighted state is on \`${STATE_BRANCH}\`."
+          else
+            gh issue create --title "${TITLE}" --body-file "${BODY}"
+          fi
+
+      - name: Close stale uncontrolled-failure issue when integrity is restored
+        if: github.event_name != 'pull_request' && env.KERNEL_LOOP_UNCONTROLLED_FAILURES == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TITLE="Kernel recursive loop: uncontrolled process-integrity failures"
+          EXISTING="$(gh issue list --state open --search "\"${TITLE}\" in:title" --json number --jq '.[0].number // empty')"
+          if [ -n "${EXISTING}" ]; then
+            gh issue comment "${EXISTING}" --body "Generation ${KERNEL_LOOP_GENERATION} reproduced zero uncontrolled failures. Closing this incident; the recursive lab continues running."
+            gh issue close "${EXISTING}"
+          fi
