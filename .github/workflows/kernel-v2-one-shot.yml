@@ -3,7 +3,7 @@ name: Kernel v2 one-shot patch
 on:
   push:
     branches:
-      - kernel/canonical-semantic-v2
+      - main
 
 permissions:
   contents: write
@@ -22,18 +22,22 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Apply compile repair
-        run: node scripts/patch-holdout-compile.mjs
-      - name: Validate benchmark compiles
+      - name: Apply semantic kernel integration
+        run: node scripts/apply-kernel-v2.mjs
+      - name: Validate structural kernel leap
         run: |
+          npm run lint
           npm run typecheck
           npm run test:engine
-      - name: Commit validated repair
+          npm run test:public-agent
+          npm run build
+          npm run test:rendered
+      - name: Commit only validated kernel changes
         run: |
-          rm scripts/patch-holdout-compile.mjs
+          rm scripts/apply-kernel-v2.mjs
           rm .github/workflows/kernel-v2-one-shot.yml
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add lib/asympta-kernel-holdout-benchmark.ts scripts/patch-holdout-compile.mjs .github/workflows/kernel-v2-one-shot.yml
-          git commit -m "test: repair semantic holdout harness"
+          git add lib/asympta-semantic-kernel.ts lib/asympta-task-kernel-types.ts lib/asympta-task-kernel-core-impl.ts lib/asympta-task-policy.ts lib/asympta-requirement-contracts.ts tests/universal-benchmark.test.mjs scripts/apply-kernel-v2.mjs .github/workflows/kernel-v2-one-shot.yml
+          git commit -m "feat: add canonical semantic kernel v2"
           git push origin HEAD:kernel/canonical-semantic-v2
