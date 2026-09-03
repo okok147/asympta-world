@@ -222,9 +222,6 @@ async function run() {
       new Promise((_, reject) => setTimeout(() => reject(new Error("Timed out waiting for page load.")), 12_000)),
     ]);
 
-    // Match the proven Business smoke readiness boundary: the mode switch alone can
-    // exist before React has attached its click handler. The main intent composer is
-    // our hydration proof, while the pressed state proves the Business control is live.
     await waitFor(
       `(() => {
         const nav = document.querySelector('nav[aria-label="Asympta World mode"]');
@@ -239,15 +236,20 @@ async function run() {
       "hydrated English global controls",
     );
 
-    await evaluate(`(() => {
-      const nav = document.querySelector('nav[aria-label="Asympta World mode"]');
-      const button = [...(nav?.querySelectorAll('button') ?? [])].find((item) => item.textContent?.trim() === 'Business');
-      if (!button) throw new Error('Business mode button is unavailable.');
-      button.click();
-      return true;
-    })()`);
+    // A click issued at the hydration boundary may be ignored before React has attached
+    // the handler. Retry the native user action only while the app is still in Users.
+    // Success still requires the real React state + Business workspace to appear.
     await waitFor(
-      `document.documentElement.dataset.asymptaAudience === 'business' && Boolean(document.querySelector('[data-asympta-business-world="true"]'))`,
+      `(() => {
+        const ready = document.documentElement.dataset.asymptaAudience === 'business'
+          && Boolean(document.querySelector('[data-asympta-business-world="true"]'));
+        if (ready) return true;
+        const nav = document.querySelector('nav[aria-label="Asympta World mode"]');
+        const button = [...(nav?.querySelectorAll('button') ?? [])]
+          .find((item) => item.textContent?.trim() === 'Business');
+        if (button?.getAttribute('aria-pressed') === 'false') button.click();
+        return false;
+      })()`,
       8_000,
       "Business workspace",
     );
