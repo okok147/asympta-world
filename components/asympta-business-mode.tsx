@@ -84,7 +84,6 @@ export function AsymptaBusinessMode() {
     document.documentElement.dataset.asymptaAudience = mode;
     window.localStorage.setItem(MODE_KEY, mode);
     emit("asympta:audience-mode", { mode });
-    if (mode === "users") setWorkspaceOpen(false);
     return () => {
       delete document.documentElement.dataset.asymptaAudience;
     };
@@ -206,7 +205,10 @@ export function AsymptaBusinessMode() {
           type="button"
           className={mode === "users" ? styles.modeActive : ""}
           aria-pressed={mode === "users"}
-          onClick={() => setMode("users")}
+          onClick={() => {
+            setWorkspaceOpen(false);
+            setMode("users");
+          }}
         >
           <Users aria-hidden="true" />
           <span>Users</span>
