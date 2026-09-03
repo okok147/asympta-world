@@ -52,8 +52,9 @@ const STATIC_ROWS: LocaleRow[] = [
 const KNOWN = new Map<string, LocaleRow>();
 for (const row of STATIC_ROWS) for (const value of row) KNOWN.set(value, row);
 const SOURCE_BY_NODE = new WeakMap<Text, string>();
+const SOURCE_BY_ATTRIBUTE = new WeakMap<Element, Map<string, string>>();
 const ROOT_SELECTORS = [
-  'nav[aria-label="Asympta World mode"]',
+  'nav[aria-label="Asympta World mode"], nav[aria-label="Asympta World 模式"], nav[aria-label="Asympta World モード"]',
   '[data-asympta-business-world="true"]',
 ];
 
@@ -66,6 +67,14 @@ function localeFromDocument(): Locale {
 
 function localeIndex(locale: Locale) {
   return locale === "en" ? 0 : locale === "zh-Hant" ? 1 : 2;
+}
+
+function rememberAttributeSource(node: Element, name: string, raw: string, row: LocaleRow) {
+  const knownSource = KNOWN.get(raw)?.[0] ?? row[0];
+  const sources = SOURCE_BY_ATTRIBUTE.get(node) ?? new Map<string, string>();
+  sources.set(name, knownSource);
+  SOURCE_BY_ATTRIBUTE.set(node, sources);
+  return knownSource;
 }
 
 function translateStatic(locale: Locale) {
@@ -90,8 +99,13 @@ function translateStatic(locale: Locale) {
       root.querySelectorAll<HTMLElement>("[aria-label], [title], [placeholder]").forEach((node) => {
         for (const name of ["aria-label", "title", "placeholder"] as const) {
           const raw = node.getAttribute(name)?.trim();
+          const remembered = SOURCE_BY_ATTRIBUTE.get(node)?.get(name);
           const row = raw ? KNOWN.get(raw) : undefined;
-          if (row && node.getAttribute(name) !== row[index]) node.setAttribute(name, row[index]);
+          const sourceRow = remembered ? KNOWN.get(remembered) : undefined;
+          const translation = row ?? sourceRow;
+          if (!translation) continue;
+          rememberAttributeSource(node, name, raw ?? translation[0], translation);
+          if (node.getAttribute(name) !== translation[index]) node.setAttribute(name, translation[index]);
         }
       });
     });
@@ -154,15 +168,18 @@ function translateDynamicBusiness(locale: Locale) {
     const raw = subtitle.textContent?.trim() ?? "";
     if (raw.startsWith("Business lens · same living world ·")) subtitle.dataset.asymptaBusinessSource = raw;
     const source = subtitle.dataset.asymptaBusinessSource ?? raw;
-    const match = source.match(/^Business lens · same living world · (\d+) available$/);
-    if (match) {
+    const countMatch = raw.match(/(\d+)/);
+    const sourceMatch = source.match(/^Business lens · same living world · (\d+) available$/);
+    const count = countMatch?.[1] ?? sourceMatch?.[1];
+    if (count) {
+      subtitle.dataset.asymptaBusinessSource = `Business lens · same living world · ${count} available`;
       const translated = locale === "zh-Hant"
-        ? `商業視角 · 同一個協作世界 · ${match[1]} 項可供應`
+        ? `商業視角 · 同一個協作世界 · ${count} 項可供應`
         : locale === "ja"
-          ? `ビジネス視点 · 同じ協調世界 · ${match[1]} 件利用可能`
-          : source;
+          ? `ビジネス視点 · 同じ協調世界 · ${count} 件利用可能`
+          : `Business lens · same living world · ${count} available`;
       if (subtitle.textContent !== translated) subtitle.textContent = translated;
-      subtitle.lang = locale;
+      if (subtitle.lang !== locale) subtitle.lang = locale;
     }
   }
 
@@ -174,7 +191,7 @@ function translateDynamicBusiness(locale: Locale) {
         ? availability === "available" ? "在庫あり" : availability === "unavailable" ? "在庫なし" : "未確認"
         : availability ?? "unknown";
     if (node.textContent !== translated) node.textContent = translated;
-    node.lang = locale;
+    if (node.lang !== locale) node.lang = locale;
   });
 
   root.querySelectorAll<HTMLElement>('article[class*="businessMessage"] p').forEach((node) => {
@@ -185,7 +202,7 @@ function translateDynamicBusiness(locale: Locale) {
     const source = node.dataset.asymptaBusinessSource ?? raw;
     const translated = translateBusinessReply(source, locale);
     if (node.textContent !== translated) node.textContent = translated;
-    node.lang = locale;
+    if (node.lang !== locale) node.lang = locale;
   });
 }
 
@@ -204,19 +221,23 @@ export function AsymptaFeatureLocale() {
     };
 
     queueMicrotask(sync);
-    const timer = window.setInterval(sync, 240);
+    const timer = window.setInterval(sync, 500);
     const observer = new MutationObserver(schedule);
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ["lang"] });
-    observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["aria-label", "title", "placeholder", "data-availability"] });
-    window.addEventListener("asympta:business-agent-message", schedule);
-    window.addEventListener("asympta:audience-mode", schedule);
+
+    const events = [
+      "asympta:audience-mode",
+      "asympta:business-profile-updated",
+      "asympta:business-catalog-updated",
+      "asympta:business-agent-message",
+    ] as const;
+    events.forEach((name) => window.addEventListener(name, schedule));
 
     return () => {
       if (frame) window.cancelAnimationFrame(frame);
       window.clearInterval(timer);
       observer.disconnect();
-      window.removeEventListener("asympta:business-agent-message", schedule);
-      window.removeEventListener("asympta:audience-mode", schedule);
+      events.forEach((name) => window.removeEventListener(name, schedule));
     };
   }, []);
 
