@@ -127,6 +127,23 @@ Instead, interpret the direction as:
 
 ---
 
+## Mandatory global localization contract — 2026-09-03
+
+Read `LOCALIZATION_CONTRACT.md` before adding or adjusting any visible feature or UI/UX.
+
+**Every current and future user-visible feature must always inherit the language selected by the existing global language control.** The source of truth is `document.documentElement.lang`.
+
+This requirement includes static text and dynamic content: buttons, tabs, menus, cards, labels, placeholders, empty states, errors, validation, ARIA labels, titles, agent dialogue, approval text, statuses, and responsive/mobile variants.
+
+- Do not add isolated feature-specific language state.
+- Do not ship English-only UI while `zh-Hant` or `ja` is selected.
+- New or adjusted features must switch language without a page reload.
+- User/imported source data such as business names and product names should remain intact unless explicit translation is requested.
+- Extend the shared Asympta localization runtime (`AsymptaCompleteLocale` / `AsymptaFeatureLocale`) and add regression coverage for the feature.
+- A feature is **not complete** if its language can disagree with the global language selector.
+
+---
+
 ## Required implementation outcome
 The next visible iteration should make a person feel:
 
