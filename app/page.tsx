@@ -10,6 +10,7 @@ import { AsymptaCompletionCoordinator } from "@/components/asympta-completion-co
 import { AsymptaCuteAgentVisibility } from "@/components/asympta-cute-agent-visibility";
 import { AsymptaEscalationGuard } from "@/components/asympta-escalation-guard";
 import { AsymptaEstimatedProgress } from "@/components/asympta-estimated-progress";
+import { AsymptaFeatureLocale } from "@/components/asympta-feature-locale";
 import { AsymptaGlobalLocale } from "@/components/asympta-global-locale";
 import { AsymptaGlobalWorld } from "@/components/asympta-global-world";
 import { AsymptaIntentComposer } from "@/components/asympta-intent-composer";
@@ -82,6 +83,7 @@ export default function HomePage() {
       <AsymptaAgentCardLocale />
       <AsymptaGlobalLocale />
       <AsymptaCompleteLocale />
+      <AsymptaFeatureLocale />
       <AsymptaTaskKernelLocale />
       <AsymptaBusinessMode />
     </>
