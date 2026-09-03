@@ -87,3 +87,15 @@ test("home keeps the existing user world and mounts the business mode as an addi
   assert.match(component, /asympta:business-catalog-updated/);
   assert.match(component, /asympta:business-agent-message/);
 });
+
+test("business workspace stays compact, collapsed by default, and away from top menus", async () => {
+  const component = await readFile(new URL("../components/asympta-business-mode.tsx", import.meta.url), "utf8");
+
+  assert.match(component, /const \[workspaceOpen, setWorkspaceOpen\] = useState\(false\)/);
+  assert.match(component, /data-business-workspace-open=\{workspaceOpen \? "true" : "false"\}/);
+  assert.match(component, /top: "auto"/);
+  assert.match(component, /bottom: "max\(18px, env\(safe-area-inset-bottom\)\)"/);
+  assert.match(component, /width: workspaceOpen \? "min\(356px, calc\(100vw - 24px\)\)" : "min\(206px, calc\(100vw - 24px\)\)"/);
+  assert.match(component, /maxHeight: workspaceOpen \? "min\(58dvh, 520px\)" : "56px"/);
+  assert.match(component, /<div hidden=\{!workspaceOpen\}>/);
+});
