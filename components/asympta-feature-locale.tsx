@@ -219,12 +219,22 @@ function translateDynamicBusiness(locale: Locale) {
 export function AsymptaFeatureLocale() {
   useEffect(() => {
     let frame = 0;
+    let hasAppliedNonEnglish = false;
+
     const sync = () => {
       frame = 0;
       if (document.hidden) return;
       const locale = localeFromDocument();
+
+      // English is the React source language. Stay completely inert in the default
+      // English state so localization never competes with ordinary feature renders.
+      // After another locale has been applied, English runs exactly once to restore
+      // translated nodes and then becomes inert again.
+      if (locale === "en" && !hasAppliedNonEnglish) return;
+
       translateStatic(locale);
       translateDynamicBusiness(locale);
+      hasAppliedNonEnglish = locale !== "en";
     };
     const schedule = () => {
       if (!frame) frame = window.requestAnimationFrame(sync);
