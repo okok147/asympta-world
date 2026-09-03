@@ -59,6 +59,9 @@ jobs:
       - name: Validate Business mode imports and agent communication
         run: node scripts/smoke-business-mode-browser.mjs
 
+      - name: Validate Business follows global language selection
+        run: node scripts/smoke-business-locale-browser.mjs
+
       - name: Validate Buy some food through delivery and celebration
         run: node scripts/smoke-buy-food-browser.mjs
 
