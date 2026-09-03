@@ -2,6 +2,7 @@ import { AsymptaActivityEventContract } from "@/components/asympta-activity-even
 import { AsymptaAdaptiveInteraction } from "@/components/asympta-adaptive-interaction";
 import { AsymptaAgentCardLocale } from "@/components/asympta-agent-card-locale";
 import { AsymptaBlockActivity } from "@/components/asympta-block-activity";
+import { AsymptaBusinessMode } from "@/components/asympta-business-mode";
 import { AsymptaCalmDefaults } from "@/components/asympta-calm-defaults";
 import { AsymptaCameraFollowControl } from "@/components/asympta-camera-follow-control";
 import { AsymptaCompleteLocale } from "@/components/asympta-complete-locale";
@@ -82,6 +83,7 @@ export default function HomePage() {
       <AsymptaGlobalLocale />
       <AsymptaCompleteLocale />
       <AsymptaTaskKernelLocale />
+      <AsymptaBusinessMode />
     </>
   );
 }

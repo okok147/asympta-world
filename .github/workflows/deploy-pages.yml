@@ -56,6 +56,9 @@ jobs:
       - name: Validate browser hydration
         run: node scripts/smoke-pages-browser.mjs
 
+      - name: Validate Business mode imports and agent communication
+        run: node scripts/smoke-business-mode-browser.mjs
+
       - name: Validate Buy some food through delivery and celebration
         run: node scripts/smoke-buy-food-browser.mjs
 
