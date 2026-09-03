@@ -99,3 +99,29 @@ test("business workspace stays compact, collapsed by default, and away from top 
   assert.match(component, /maxHeight: workspaceOpen \? "min\(58dvh, 520px\)" : "56px"/);
   assert.match(component, /<div hidden=\{!workspaceOpen\}>/);
 });
+
+test("business and future feature UI inherit the global language selector contract", async () => {
+  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const localeRuntime = await readFile(new URL("../components/asympta-feature-locale.tsx", import.meta.url), "utf8");
+  const contract = await readFile(new URL("../LOCALIZATION_CONTRACT.md", import.meta.url), "utf8");
+  const mustRead = await readFile(new URL("../MUST_READ_ME.md", import.meta.url), "utf8");
+
+  assert.match(page, /<AsymptaFeatureLocale \/>/);
+  assert.match(localeRuntime, /document\.documentElement\.lang/);
+  assert.match(localeRuntime, /type Locale = "en" \| "zh-Hant" \| "ja"/);
+  assert.match(localeRuntime, /\["Business", "商業", "ビジネス"\]/);
+  assert.match(localeRuntime, /\["Business Agent ↔ Customer Agent", "商業代理 ↔ 客戶代理", "ビジネスエージェント ↔ 顧客エージェント"\]/);
+  assert.match(localeRuntime, /\["aria-label", "title", "placeholder"\]/);
+  assert.match(localeRuntime, /translateDynamicBusiness/);
+  assert.match(localeRuntime, /translateBusinessReply/);
+  assert.match(localeRuntime, /data-availability/);
+  assert.match(localeRuntime, /asympta:business-agent-message/);
+  assert.match(localeRuntime, /MutationObserver/);
+
+  assert.match(contract, /Every user-visible feature in Asympta World must inherit the language selected by the existing global language control/);
+  assert.match(contract, /without a page reload/);
+  assert.match(contract, /ARIA labels and titles/);
+  assert.match(contract, /agent dialogue and dynamically generated status copy/);
+  assert.match(mustRead, /Mandatory global localization contract/);
+  assert.match(mustRead, /A feature is \*\*not complete\*\* if its language can disagree with the global language selector/);
+});
