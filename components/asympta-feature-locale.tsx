@@ -57,6 +57,8 @@ const ROOT_SELECTORS = [
   'nav[aria-label="Asympta World mode"], nav[aria-label="Asympta World 模式"], nav[aria-label="Asympta World モード"]',
   '[data-asympta-business-world="true"]',
 ];
+const TRANSLATABLE_ATTRIBUTE_SELECTOR = "[aria-label], [title], [placeholder]";
+const TRANSLATABLE_ATTRIBUTES = ["aria-label", "title", "placeholder"] as const;
 
 function localeFromDocument(): Locale {
   const value = document.documentElement.lang.toLowerCase();
@@ -75,6 +77,25 @@ function rememberAttributeSource(node: Element, name: string, raw: string, row: 
   sources.set(name, knownSource);
   SOURCE_BY_ATTRIBUTE.set(node, sources);
   return knownSource;
+}
+
+function translateAttributes(root: Element, index: number) {
+  const nodes: Element[] = [];
+  if (root.matches(TRANSLATABLE_ATTRIBUTE_SELECTOR)) nodes.push(root);
+  root.querySelectorAll<HTMLElement>(TRANSLATABLE_ATTRIBUTE_SELECTOR).forEach((node) => nodes.push(node));
+
+  nodes.forEach((node) => {
+    for (const name of TRANSLATABLE_ATTRIBUTES) {
+      const raw = node.getAttribute(name)?.trim();
+      const remembered = SOURCE_BY_ATTRIBUTE.get(node)?.get(name);
+      const row = raw ? KNOWN.get(raw) : undefined;
+      const sourceRow = remembered ? KNOWN.get(remembered) : undefined;
+      const translation = row ?? sourceRow;
+      if (!translation) continue;
+      rememberAttributeSource(node, name, raw ?? translation[0], translation);
+      if (node.getAttribute(name) !== translation[index]) node.setAttribute(name, translation[index]);
+    }
+  });
 }
 
 function translateStatic(locale: Locale) {
@@ -96,18 +117,7 @@ function translateStatic(locale: Locale) {
         if (node.nodeValue !== next) node.nodeValue = next;
       }
 
-      root.querySelectorAll<HTMLElement>("[aria-label], [title], [placeholder]").forEach((node) => {
-        for (const name of ["aria-label", "title", "placeholder"] as const) {
-          const raw = node.getAttribute(name)?.trim();
-          const remembered = SOURCE_BY_ATTRIBUTE.get(node)?.get(name);
-          const row = raw ? KNOWN.get(raw) : undefined;
-          const sourceRow = remembered ? KNOWN.get(remembered) : undefined;
-          const translation = row ?? sourceRow;
-          if (!translation) continue;
-          rememberAttributeSource(node, name, raw ?? translation[0], translation);
-          if (node.getAttribute(name) !== translation[index]) node.setAttribute(name, translation[index]);
-        }
-      });
+      translateAttributes(root, index);
     });
   }
 }
