@@ -1,27 +1,27 @@
 {
   "version": "asympta.kernel-recursive-state/0.1",
-  "generation": 11,
-  "totalCases": 3520,
+  "generation": 12,
+  "totalCases": 3840,
   "attackWeights": {
-    "baseline_success": 0.6382393305518408,
-    "controlled_no_capability": 1.5394540563150785,
-    "controlled_human_input": 1.5394540563150785,
-    "controlled_approval": 1.5394540563150785,
-    "multilingual_noise": 0.6382393305518408,
-    "novel_requirement": 1.5394540563150785,
-    "step_pressure": 1.5394540563150785,
-    "fallback_route": 0.6382393305518408,
-    "reordered_requirements": 0.6382393305518408,
-    "compound_noise": 0.6382393305518408
+    "baseline_success": 0.6127097573297672,
+    "controlled_no_capability": 1.6010322185676817,
+    "controlled_human_input": 1.6010322185676817,
+    "controlled_approval": 1.6010322185676817,
+    "multilingual_noise": 0.6127097573297672,
+    "novel_requirement": 1.6010322185676817,
+    "step_pressure": 1.6010322185676817,
+    "fallback_route": 0.6127097573297672,
+    "reordered_requirements": 0.6127097573297672,
+    "compound_noise": 0.6127097573297672
   },
   "repairWeights": {
-    "semantic": 0.946354579813443,
-    "capability": 0.946354579813443,
-    "liveness": 0.946354579813443,
-    "approval": 0.946354579813443,
-    "handoff": 0.946354579813443,
-    "verification": 0.946354579813443
+    "semantic": 0.9416228069143757,
+    "capability": 0.9416228069143757,
+    "liveness": 0.9416228069143757,
+    "approval": 0.9416228069143757,
+    "handoff": 0.9416228069143757,
+    "verification": 0.9416228069143757
   },
   "uncontrolledFingerprints": [],
-  "lastRunAt": "2026-09-03T11:23:50.205Z"
+  "lastRunAt": "2026-09-03T11:25:25.091Z"
 }
