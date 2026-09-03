@@ -1,12 +1,12 @@
-# Asympta Kernel Recursive Lab — generation 5
+# Asympta Kernel Recursive Lab — generation 6
 
-Seed: `1484155075`
+Seed: `1485768747`
 
 ## Process integrity
 
 - Cases: **320**
-- Completed: **153**
-- Controlled / predictable failures: **167**
+- Completed: **139**
+- Controlled / predictable failures: **181**
 - Uncontrolled failures: **0**
 - Process integrity rate: **100.00%**
 - Deterministic replay rate: **100.00%**
@@ -18,22 +18,22 @@ A controlled failure is a valid terminal result. The lab only treats hangs, non-
 
 | Family | Total | Completed | Controlled failure | Uncontrolled |
 | --- | ---: | ---: | ---: | ---: |
-| baseline_success | 32 | 32 | 0 | 0 |
-| controlled_no_capability | 32 | 0 | 32 | 0 |
-| controlled_human_input | 37 | 0 | 37 | 0 |
-| controlled_approval | 40 | 8 | 32 | 0 |
-| multilingual_noise | 33 | 33 | 0 | 0 |
-| novel_requirement | 29 | 0 | 29 | 0 |
-| step_pressure | 37 | 0 | 37 | 0 |
-| fallback_route | 29 | 29 | 0 | 0 |
-| reordered_requirements | 24 | 24 | 0 | 0 |
-| compound_noise | 27 | 27 | 0 | 0 |
+| baseline_success | 24 | 24 | 0 | 0 |
+| controlled_no_capability | 44 | 0 | 44 | 0 |
+| controlled_human_input | 38 | 0 | 38 | 0 |
+| controlled_approval | 37 | 11 | 26 | 0 |
+| multilingual_noise | 28 | 28 | 0 | 0 |
+| novel_requirement | 27 | 0 | 27 | 0 |
+| step_pressure | 46 | 0 | 46 | 0 |
+| fallback_route | 26 | 26 | 0 | 0 |
+| reordered_requirements | 28 | 28 | 0 | 0 |
+| compound_noise | 22 | 22 | 0 | 0 |
 
 ## Adaptive weights
 
-Attack curriculum: controlled_no_capability=1.217, controlled_human_input=1.217, controlled_approval=1.217, novel_requirement=1.217, step_pressure=1.217, baseline_success=0.815, multilingual_noise=0.815, fallback_route=0.815, reordered_requirements=0.815, compound_noise=0.815
+Attack curriculum: controlled_no_capability=1.265, controlled_human_input=1.265, controlled_approval=1.265, novel_requirement=1.265, step_pressure=1.265, baseline_success=0.783, multilingual_noise=0.783, fallback_route=0.783, reordered_requirements=0.783, compound_noise=0.783
 
-Repair priority: semantic=0.975, capability=0.975, liveness=0.975, approval=0.975, handoff=0.975, verification=0.975
+Repair priority: semantic=0.970, capability=0.970, liveness=0.970, approval=0.970, handoff=0.970, verification=0.970
 
 ## Repair contract
 
