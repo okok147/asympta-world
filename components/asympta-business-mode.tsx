@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import {
   Briefcase,
   Building2,
@@ -162,11 +162,12 @@ export function AsymptaBusinessMode() {
     });
   };
 
-  const tabButton = (tab: BusinessWorkspaceTab, label: string, icon: React.ReactNode) => (
+  const tabButton = (tab: BusinessWorkspaceTab, label: string, icon: ReactNode) => (
     <button
       type="button"
+      role="tab"
       className={styles.importButton}
-      aria-pressed={workspaceTab === tab}
+      aria-selected={workspaceTab === tab}
       onClick={() => setWorkspaceTab(tab)}
       style={workspaceTab === tab ? {
         borderColor: BUSINESS_ACCENT,
@@ -182,6 +183,13 @@ export function AsymptaBusinessMode() {
       {label}
     </button>
   );
+
+  const panelCardStyle = {
+    padding: "16px",
+    borderColor: "rgba(197, 111, 74, 0.16)",
+    boxShadow: "none",
+    background: "rgba(247, 243, 233, 0.78)",
+  } as const;
 
   return (
     <>
@@ -298,176 +306,158 @@ export function AsymptaBusinessMode() {
               >
                 {importError ? <div className={styles.error} role="alert">{importError}</div> : null}
 
-                {workspaceTab === "agent" ? (
-                  <section
-                    className={`${styles.card} ${styles.communicationCard}`}
-                    aria-labelledby="communication-title"
-                    style={{
-                      padding: "16px",
-                      borderColor: "rgba(197, 111, 74, 0.16)",
-                      boxShadow: "none",
-                      background: "rgba(247, 243, 233, 0.78)",
-                    }}
-                  >
-                    <div className={styles.cardHeading}>
-                      <div>
-                        <p style={{ color: "#a55539" }}>LIVE</p>
-                        <h2 id="communication-title">Business Agent ↔ Customer Agent</h2>
-                      </div>
-                      <span className={styles.localBadge} style={{ color: "#8a513d", background: BUSINESS_ACCENT_SOFT }}>
-                        <MessageSquare aria-hidden="true" /> Local simulation
-                      </span>
+                <section
+                  hidden={workspaceTab !== "agent"}
+                  className={`${styles.card} ${styles.communicationCard}`}
+                  aria-labelledby="communication-title"
+                  style={panelCardStyle}
+                >
+                  <div className={styles.cardHeading}>
+                    <div>
+                      <p style={{ color: "#a55539" }}>LIVE</p>
+                      <h2 id="communication-title">Business Agent ↔ Customer Agent</h2>
                     </div>
+                    <span className={styles.localBadge} style={{ color: "#8a513d", background: BUSINESS_ACCENT_SOFT }}>
+                      <MessageSquare aria-hidden="true" /> Local simulation
+                    </span>
+                  </div>
 
-                    <div className={styles.thread} aria-live="polite" style={{ minHeight: "180px", maxHeight: "310px" }}>
-                      {thread.length ? thread.map((message) => (
-                        <article
-                          key={message.id}
-                          className={message.role === "business_agent" ? styles.businessMessage : styles.customerMessage}
-                          style={message.role === "business_agent" ? { background: BUSINESS_ACCENT, color: "#fff9f3" } : undefined}
-                        >
-                          <span>{message.role === "business_agent" ? "Business agent" : "Customer agent"}</span>
-                          <p>{message.text}</p>
-                          {message.status === "needs_business_confirmation" ? <small>Needs business confirmation</small> : null}
-                        </article>
-                      )) : (
-                        <div className={styles.threadEmpty}>
-                          The map stays alive while this business agent answers customer agents from imported facts only.
-                        </div>
-                      )}
-                    </div>
-
-                    <div className={styles.composer}>
-                      <textarea
-                        value={inquiry}
-                        onChange={(event) => setInquiry(event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter" && !event.shiftKey) {
-                            event.preventDefault();
-                            runBusinessAgent();
-                          }
-                        }}
-                        placeholder="Customer agent: Do you have the sourdough loaf in stock?"
-                      />
-                      <button
-                        type="button"
-                        onClick={runBusinessAgent}
-                        disabled={!inquiry.trim()}
-                        style={{ borderColor: BUSINESS_ACCENT, background: BUSINESS_ACCENT, color: "#fff8f2" }}
+                  <div className={styles.thread} aria-live="polite" style={{ minHeight: "180px", maxHeight: "310px" }}>
+                    {thread.length ? thread.map((message) => (
+                      <article
+                        key={message.id}
+                        className={message.role === "business_agent" ? styles.businessMessage : styles.customerMessage}
+                        style={message.role === "business_agent" ? { background: BUSINESS_ACCENT, color: "#fff9f3" } : undefined}
                       >
-                        <Send aria-hidden="true" /> Run communication
-                      </button>
-                    </div>
-                  </section>
-                ) : null}
-
-                {workspaceTab === "profile" ? (
-                  <section
-                    className={styles.card}
-                    aria-labelledby="business-info-title"
-                    style={{
-                      padding: "16px",
-                      borderColor: "rgba(197, 111, 74, 0.16)",
-                      boxShadow: "none",
-                      background: "rgba(247, 243, 233, 0.78)",
-                    }}
-                  >
-                    <div className={styles.cardHeading}>
-                      <div>
-                        <p style={{ color: "#a55539" }}>BUSINESS</p>
-                        <h2 id="business-info-title">Business information</h2>
-                      </div>
-                      <button
-                        type="button"
-                        className={styles.importButton}
-                        onClick={() => businessFileRef.current?.click()}
-                        style={{ color: "#7a4a39", borderColor: "rgba(197, 111, 74, 0.2)" }}
-                      >
-                        <Upload aria-hidden="true" /> Import JSON / CSV
-                      </button>
-                      <input ref={businessFileRef} className={styles.hiddenInput} type="file" accept=".json,.csv,text/csv,application/json" onChange={importBusiness} />
-                    </div>
-
-                    <div className={styles.formGrid}>
-                      <label>
-                        <span>Business name</span>
-                        <input value={profile.name} onChange={(event) => updateProfile("name", event.target.value)} placeholder="Example: Harbour Bakery" />
-                      </label>
-                      <label>
-                        <span>Category</span>
-                        <input value={profile.category} onChange={(event) => updateProfile("category", event.target.value)} placeholder="Bakery, retail, services…" />
-                      </label>
-                      <label className={styles.wideField}>
-                        <span>Description</span>
-                        <textarea value={profile.description} onChange={(event) => updateProfile("description", event.target.value)} placeholder="What the business does and what customers should know." />
-                      </label>
-                      <label>
-                        <span>Location</span>
-                        <input value={profile.location} onChange={(event) => updateProfile("location", event.target.value)} placeholder="Shop / service location" />
-                      </label>
-                      <label>
-                        <span>Contact</span>
-                        <input value={profile.contact} onChange={(event) => updateProfile("contact", event.target.value)} placeholder="Phone or public contact" />
-                      </label>
-                      <label className={styles.wideField}>
-                        <span>Opening hours</span>
-                        <input value={profile.hours} onChange={(event) => updateProfile("hours", event.target.value)} placeholder="Mon–Fri 09:00–18:00" />
-                      </label>
-                    </div>
-                  </section>
-                ) : null}
-
-                {workspaceTab === "catalog" ? (
-                  <section
-                    className={styles.card}
-                    aria-labelledby="catalog-title"
-                    style={{
-                      padding: "16px",
-                      borderColor: "rgba(197, 111, 74, 0.16)",
-                      boxShadow: "none",
-                      background: "rgba(247, 243, 233, 0.78)",
-                    }}
-                  >
-                    <div className={styles.cardHeading}>
-                      <div>
-                        <p style={{ color: "#a55539" }}>CATALOG</p>
-                        <h2 id="catalog-title">Products</h2>
-                      </div>
-                      <button
-                        type="button"
-                        className={styles.importButton}
-                        onClick={() => productFileRef.current?.click()}
-                        style={{ color: "#7a4a39", borderColor: "rgba(197, 111, 74, 0.2)" }}
-                      >
-                        <Upload aria-hidden="true" /> Import JSON / CSV
-                      </button>
-                      <input ref={productFileRef} className={styles.hiddenInput} type="file" accept=".json,.csv,text/csv,application/json" onChange={importProducts} />
-                    </div>
-
-                    {products.length ? (
-                      <div className={styles.productList} style={{ maxHeight: "430px" }}>
-                        {products.slice(0, 24).map((product) => (
-                          <article key={product.id} className={styles.productRow}>
-                            <div>
-                              <strong>{product.name}</strong>
-                              <span>{product.description || "No description imported"}</span>
-                            </div>
-                            <div className={styles.productMeta}>
-                              <span>{product.price === null ? "Price unknown" : `${product.currency ? `${product.currency} ` : ""}${product.price}`}</span>
-                              <span data-availability={product.availability}>{product.availability}</span>
-                            </div>
-                          </article>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className={styles.emptyState} style={{ minHeight: "220px" }}>
-                        <Package aria-hidden="true" />
-                        <strong>No catalog imported yet</strong>
-                        <span>Use JSON or CSV with name, description, price, currency and availability fields.</span>
+                        <span>{message.role === "business_agent" ? "Business agent" : "Customer agent"}</span>
+                        <p>{message.text}</p>
+                        {message.status === "needs_business_confirmation" ? <small>Needs business confirmation</small> : null}
+                      </article>
+                    )) : (
+                      <div className={styles.threadEmpty}>
+                        The map stays alive while this business agent answers customer agents from imported facts only.
                       </div>
                     )}
-                  </section>
-                ) : null}
+                  </div>
+
+                  <div className={styles.composer}>
+                    <textarea
+                      value={inquiry}
+                      onChange={(event) => setInquiry(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" && !event.shiftKey) {
+                          event.preventDefault();
+                          runBusinessAgent();
+                        }
+                      }}
+                      placeholder="Customer agent: Do you have the sourdough loaf in stock?"
+                    />
+                    <button
+                      type="button"
+                      onClick={runBusinessAgent}
+                      disabled={!inquiry.trim()}
+                      style={{ borderColor: BUSINESS_ACCENT, background: BUSINESS_ACCENT, color: "#fff8f2" }}
+                    >
+                      <Send aria-hidden="true" /> Run communication
+                    </button>
+                  </div>
+                </section>
+
+                <section
+                  hidden={workspaceTab !== "profile"}
+                  className={styles.card}
+                  aria-labelledby="business-info-title"
+                  style={panelCardStyle}
+                >
+                  <div className={styles.cardHeading}>
+                    <div>
+                      <p style={{ color: "#a55539" }}>BUSINESS</p>
+                      <h2 id="business-info-title">Business information</h2>
+                    </div>
+                    <button
+                      type="button"
+                      className={styles.importButton}
+                      onClick={() => businessFileRef.current?.click()}
+                      style={{ color: "#7a4a39", borderColor: "rgba(197, 111, 74, 0.2)" }}
+                    >
+                      <Upload aria-hidden="true" /> Import JSON / CSV
+                    </button>
+                    <input ref={businessFileRef} className={styles.hiddenInput} type="file" accept=".json,.csv,text/csv,application/json" onChange={importBusiness} />
+                  </div>
+
+                  <div className={styles.formGrid}>
+                    <label>
+                      <span>Business name</span>
+                      <input value={profile.name} onChange={(event) => updateProfile("name", event.target.value)} placeholder="Example: Harbour Bakery" />
+                    </label>
+                    <label>
+                      <span>Category</span>
+                      <input value={profile.category} onChange={(event) => updateProfile("category", event.target.value)} placeholder="Bakery, retail, services…" />
+                    </label>
+                    <label className={styles.wideField}>
+                      <span>Description</span>
+                      <textarea value={profile.description} onChange={(event) => updateProfile("description", event.target.value)} placeholder="What the business does and what customers should know." />
+                    </label>
+                    <label>
+                      <span>Location</span>
+                      <input value={profile.location} onChange={(event) => updateProfile("location", event.target.value)} placeholder="Shop / service location" />
+                    </label>
+                    <label>
+                      <span>Contact</span>
+                      <input value={profile.contact} onChange={(event) => updateProfile("contact", event.target.value)} placeholder="Phone or public contact" />
+                    </label>
+                    <label className={styles.wideField}>
+                      <span>Opening hours</span>
+                      <input value={profile.hours} onChange={(event) => updateProfile("hours", event.target.value)} placeholder="Mon–Fri 09:00–18:00" />
+                    </label>
+                  </div>
+                </section>
+
+                <section
+                  hidden={workspaceTab !== "catalog"}
+                  className={styles.card}
+                  aria-labelledby="catalog-title"
+                  style={panelCardStyle}
+                >
+                  <div className={styles.cardHeading}>
+                    <div>
+                      <p style={{ color: "#a55539" }}>CATALOG</p>
+                      <h2 id="catalog-title">Products</h2>
+                    </div>
+                    <button
+                      type="button"
+                      className={styles.importButton}
+                      onClick={() => productFileRef.current?.click()}
+                      style={{ color: "#7a4a39", borderColor: "rgba(197, 111, 74, 0.2)" }}
+                    >
+                      <Upload aria-hidden="true" /> Import JSON / CSV
+                    </button>
+                    <input ref={productFileRef} className={styles.hiddenInput} type="file" accept=".json,.csv,text/csv,application/json" onChange={importProducts} />
+                  </div>
+
+                  {products.length ? (
+                    <div className={styles.productList} style={{ maxHeight: "430px" }}>
+                      {products.slice(0, 24).map((product) => (
+                        <article key={product.id} className={styles.productRow}>
+                          <div>
+                            <strong>{product.name}</strong>
+                            <span>{product.description || "No description imported"}</span>
+                          </div>
+                          <div className={styles.productMeta}>
+                            <span>{product.price === null ? "Price unknown" : `${product.currency ? `${product.currency} ` : ""}${product.price}`}</span>
+                            <span data-availability={product.availability}>{product.availability}</span>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className={styles.emptyState} style={{ minHeight: "220px" }}>
+                      <Package aria-hidden="true" />
+                      <strong>No catalog imported yet</strong>
+                      <span>Use JSON or CSV with name, description, price, currency and availability fields.</span>
+                    </div>
+                  )}
+                </section>
               </div>
 
               <div
