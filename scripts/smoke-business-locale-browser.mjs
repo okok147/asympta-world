@@ -222,10 +222,21 @@ async function run() {
       new Promise((_, reject) => setTimeout(() => reject(new Error("Timed out waiting for page load.")), 12_000)),
     ]);
 
+    // Match the proven Business smoke readiness boundary: the mode switch alone can
+    // exist before React has attached its click handler. The main intent composer is
+    // our hydration proof, while the pressed state proves the Business control is live.
     await waitFor(
-      `document.readyState === 'complete' && Boolean(document.querySelector('nav[aria-label="Asympta World mode"]')) && Boolean(document.querySelector('button[aria-label="Language"]'))`,
+      `(() => {
+        const nav = document.querySelector('nav[aria-label="Asympta World mode"]');
+        const business = [...(nav?.querySelectorAll('button') ?? [])]
+          .find((item) => item.textContent?.trim() === 'Business');
+        return document.readyState === 'complete'
+          && Boolean(document.querySelector('form.asympta-intent-composer'))
+          && Boolean(document.querySelector('button[aria-label="Language"]'))
+          && business?.getAttribute('aria-pressed') === 'false';
+      })()`,
       15_000,
-      "English global language control",
+      "hydrated English global controls",
     );
 
     await evaluate(`(() => {
@@ -235,7 +246,11 @@ async function run() {
       button.click();
       return true;
     })()`);
-    await waitFor(`Boolean(document.querySelector('[data-asympta-business-world="true"]'))`, 8_000, "Business workspace");
+    await waitFor(
+      `document.documentElement.dataset.asymptaAudience === 'business' && Boolean(document.querySelector('[data-asympta-business-world="true"]'))`,
+      8_000,
+      "Business workspace",
+    );
 
     await evaluate(`(() => {
       const root = document.querySelector('[data-asympta-business-world="true"]');
