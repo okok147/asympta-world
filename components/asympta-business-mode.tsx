@@ -63,7 +63,7 @@ async function readFile(file: File) {
 export function AsymptaBusinessMode() {
   const [mode, setMode] = useState<AudienceMode>("users");
   const [workspaceTab, setWorkspaceTab] = useState<BusinessWorkspaceTab>("agent");
-  const [workspaceOpen, setWorkspaceOpen] = useState(true);
+  const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [profile, setProfile] = useState<AsymptaBusinessProfile>(() =>
     typeof window === "undefined"
       ? { ...EMPTY_ASYMPTA_BUSINESS_PROFILE }
@@ -84,6 +84,7 @@ export function AsymptaBusinessMode() {
     document.documentElement.dataset.asymptaAudience = mode;
     window.localStorage.setItem(MODE_KEY, mode);
     emit("asympta:audience-mode", { mode });
+    if (mode === "users") setWorkspaceOpen(false);
     return () => {
       delete document.documentElement.dataset.asymptaAudience;
     };
@@ -170,13 +171,19 @@ export function AsymptaBusinessMode() {
       aria-selected={workspaceTab === tab}
       onClick={() => setWorkspaceTab(tab)}
       style={workspaceTab === tab ? {
+        minHeight: 32,
+        padding: "0 9px",
         borderColor: BUSINESS_ACCENT,
         background: BUSINESS_ACCENT,
         color: "#fff8f2",
+        fontSize: 11,
       } : {
+        minHeight: 32,
+        padding: "0 9px",
         borderColor: "rgba(197, 111, 74, 0.18)",
         color: "#6c4335",
         background: "rgba(255,255,255,0.58)",
+        fontSize: 11,
       }}
     >
       {icon}
@@ -185,8 +192,9 @@ export function AsymptaBusinessMode() {
   );
 
   const panelCardStyle = {
-    padding: "16px",
-    borderColor: "rgba(197, 111, 74, 0.16)",
+    padding: "12px",
+    borderRadius: "14px",
+    borderColor: "rgba(197, 111, 74, 0.14)",
     boxShadow: "none",
     background: "rgba(247, 243, 233, 0.78)",
   } as const;
@@ -207,10 +215,7 @@ export function AsymptaBusinessMode() {
           type="button"
           className={mode === "business" ? styles.modeActive : ""}
           aria-pressed={mode === "business"}
-          onClick={() => {
-            setMode("business");
-            setWorkspaceOpen(true);
-          }}
+          onClick={() => setMode("business")}
           style={mode === "business" ? { background: BUSINESS_ACCENT, color: "#fff8f2" } : undefined}
         >
           <Briefcase aria-hidden="true" />
@@ -223,28 +228,35 @@ export function AsymptaBusinessMode() {
           className="atlas-agent-card"
           data-asympta-business-world="true"
           data-asympta-business-lens="living-world"
+          data-business-workspace-open={workspaceOpen ? "true" : "false"}
           aria-label="Business agent workspace"
           style={{
             position: "fixed",
-            zIndex: 2147483400,
-            top: "82px",
-            right: "18px",
-            bottom: "auto",
+            zIndex: 1150,
+            top: "auto",
+            right: "max(14px, env(safe-area-inset-right))",
+            bottom: "max(18px, env(safe-area-inset-bottom))",
             left: "auto",
-            width: "min(440px, calc(100vw - 28px))",
-            maxHeight: "calc(100dvh - 104px)",
+            width: workspaceOpen ? "min(356px, calc(100vw - 24px))" : "min(206px, calc(100vw - 24px))",
+            maxHeight: workspaceOpen ? "min(58dvh, 520px)" : "56px",
             overflow: "hidden",
-            borderColor: "rgba(197, 111, 74, 0.3)",
+            borderRadius: "18px",
+            borderColor: "rgba(197, 111, 74, 0.24)",
             background: "rgba(250, 247, 239, 0.96)",
-            boxShadow: "0 18px 54px rgba(63, 45, 36, 0.16)",
+            boxShadow: workspaceOpen
+              ? "0 16px 46px rgba(63, 45, 36, 0.15)"
+              : "0 8px 24px rgba(63, 45, 36, 0.11)",
             backdropFilter: "blur(18px)",
+            transition: "width 180ms ease, max-height 180ms ease, box-shadow 180ms ease",
           }}
         >
           <div
             className="atlas-agent-card__top"
             style={{
-              borderBottom: workspaceOpen ? "1px solid rgba(197, 111, 74, 0.14)" : "0",
-              paddingBottom: workspaceOpen ? "12px" : undefined,
+              minHeight: 54,
+              gap: 9,
+              padding: "8px 9px",
+              borderBottom: workspaceOpen ? "1px solid rgba(197, 111, 74, 0.12)" : "0",
             }}
           >
             <span
@@ -252,241 +264,228 @@ export function AsymptaBusinessMode() {
               style={{
                 display: "grid",
                 placeItems: "center",
-                width: "42px",
-                height: "42px",
+                width: 34,
+                height: 34,
                 flex: "0 0 auto",
-                borderRadius: "14px",
+                borderRadius: 11,
                 color: "#fff8f2",
                 background: BUSINESS_ACCENT,
-                boxShadow: `0 8px 22px ${BUSINESS_ACCENT_SOFT}`,
+                boxShadow: `0 5px 16px ${BUSINESS_ACCENT_SOFT}`,
               }}
             >
-              <Building2 size={20} strokeWidth={1.8} />
+              <Building2 size={17} strokeWidth={1.8} />
             </span>
             <div style={{ minWidth: 0, flex: 1 }}>
-              <strong>{profile.name || "Business agent"}</strong>
-              <small>Business lens · same living world · {availableCount} available</small>
+              <strong style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12 }}>
+                {profile.name || "Business agent"}
+              </strong>
+              <small
+                style={{
+                  display: workspaceOpen ? "block" : "none",
+                  marginTop: 2,
+                  overflow: "hidden",
+                  color: "#786a64",
+                  fontSize: 9.5,
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Same living world · {availableCount} available
+              </small>
             </div>
             <button
               type="button"
               className="atlas-card-close"
-              aria-label={workspaceOpen ? "Collapse business workspace" : "Expand business workspace"}
+              aria-label={workspaceOpen ? "Collapse business workspace" : "Open business workspace"}
               aria-expanded={workspaceOpen}
               onClick={() => setWorkspaceOpen((current) => !current)}
-              style={{ color: "#7a4a39" }}
+              style={{ width: 30, height: 30, minWidth: 30, color: "#7a4a39" }}
             >
-              {workspaceOpen ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
+              {workspaceOpen ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
             </button>
           </div>
 
-          {workspaceOpen ? (
-            <>
-              <div
-                role="tablist"
-                aria-label="Business workspace sections"
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-                  gap: "7px",
-                  padding: "12px 12px 0",
-                }}
+          <div hidden={!workspaceOpen}>
+            <div
+              role="tablist"
+              aria-label="Business workspace sections"
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                gap: 6,
+                padding: "8px 8px 0",
+              }}
+            >
+              {tabButton("agent", "Agent", <MessageSquare size={13} aria-hidden="true" />)}
+              {tabButton("profile", "Business", <Building2 size={13} aria-hidden="true" />)}
+              {tabButton("catalog", "Products", <Package size={13} aria-hidden="true" />)}
+            </div>
+
+            <div
+              style={{
+                maxHeight: "min(44dvh, 390px)",
+                padding: 8,
+                overflow: "auto",
+                overscrollBehavior: "contain",
+              }}
+            >
+              {importError ? <div className={styles.error} role="alert">{importError}</div> : null}
+
+              <section
+                hidden={workspaceTab !== "agent"}
+                className={`${styles.card} ${styles.communicationCard}`}
+                aria-labelledby="communication-title"
+                style={panelCardStyle}
               >
-                {tabButton("agent", "Agent", <MessageSquare size={14} aria-hidden="true" />)}
-                {tabButton("profile", "Business", <Building2 size={14} aria-hidden="true" />)}
-                {tabButton("catalog", "Products", <Package size={14} aria-hidden="true" />)}
-              </div>
-
-              <div
-                style={{
-                  maxHeight: "calc(100dvh - 245px)",
-                  padding: "12px",
-                  overflow: "auto",
-                  overscrollBehavior: "contain",
-                }}
-              >
-                {importError ? <div className={styles.error} role="alert">{importError}</div> : null}
-
-                <section
-                  hidden={workspaceTab !== "agent"}
-                  className={`${styles.card} ${styles.communicationCard}`}
-                  aria-labelledby="communication-title"
-                  style={panelCardStyle}
-                >
-                  <div className={styles.cardHeading}>
-                    <div>
-                      <p style={{ color: "#a55539" }}>LIVE</p>
-                      <h2 id="communication-title">Business Agent ↔ Customer Agent</h2>
-                    </div>
-                    <span className={styles.localBadge} style={{ color: "#8a513d", background: BUSINESS_ACCENT_SOFT }}>
-                      <MessageSquare aria-hidden="true" /> Local simulation
-                    </span>
+                <div className={styles.cardHeading} style={{ marginBottom: 10 }}>
+                  <div>
+                    <p style={{ color: "#a55539" }}>LIVE</p>
+                    <h2 id="communication-title" style={{ fontSize: 15 }}>Business Agent ↔ Customer Agent</h2>
                   </div>
+                  <span className={styles.localBadge} style={{ color: "#8a513d", background: BUSINESS_ACCENT_SOFT, fontSize: 9 }}>
+                    <MessageSquare aria-hidden="true" /> Local
+                  </span>
+                </div>
 
-                  <div className={styles.thread} aria-live="polite" style={{ minHeight: "180px", maxHeight: "310px" }}>
-                    {thread.length ? thread.map((message) => (
-                      <article
-                        key={message.id}
-                        className={message.role === "business_agent" ? styles.businessMessage : styles.customerMessage}
-                        style={message.role === "business_agent" ? { background: BUSINESS_ACCENT, color: "#fff9f3" } : undefined}
-                      >
-                        <span>{message.role === "business_agent" ? "Business agent" : "Customer agent"}</span>
-                        <p>{message.text}</p>
-                        {message.status === "needs_business_confirmation" ? <small>Needs business confirmation</small> : null}
-                      </article>
-                    )) : (
-                      <div className={styles.threadEmpty}>
-                        The map stays alive while this business agent answers customer agents from imported facts only.
-                      </div>
-                    )}
-                  </div>
-
-                  <div className={styles.composer}>
-                    <textarea
-                      value={inquiry}
-                      onChange={(event) => setInquiry(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" && !event.shiftKey) {
-                          event.preventDefault();
-                          runBusinessAgent();
-                        }
-                      }}
-                      placeholder="Customer agent: Do you have the sourdough loaf in stock?"
-                    />
-                    <button
-                      type="button"
-                      onClick={runBusinessAgent}
-                      disabled={!inquiry.trim()}
-                      style={{ borderColor: BUSINESS_ACCENT, background: BUSINESS_ACCENT, color: "#fff8f2" }}
+                <div className={styles.thread} aria-live="polite" style={{ minHeight: 128, maxHeight: 210, padding: 10 }}>
+                  {thread.length ? thread.map((message) => (
+                    <article
+                      key={message.id}
+                      className={message.role === "business_agent" ? styles.businessMessage : styles.customerMessage}
+                      style={message.role === "business_agent" ? { background: BUSINESS_ACCENT, color: "#fff9f3" } : undefined}
                     >
-                      <Send aria-hidden="true" /> Run communication
-                    </button>
-                  </div>
-                </section>
-
-                <section
-                  hidden={workspaceTab !== "profile"}
-                  className={styles.card}
-                  aria-labelledby="business-info-title"
-                  style={panelCardStyle}
-                >
-                  <div className={styles.cardHeading}>
-                    <div>
-                      <p style={{ color: "#a55539" }}>BUSINESS</p>
-                      <h2 id="business-info-title">Business information</h2>
-                    </div>
-                    <button
-                      type="button"
-                      className={styles.importButton}
-                      onClick={() => businessFileRef.current?.click()}
-                      style={{ color: "#7a4a39", borderColor: "rgba(197, 111, 74, 0.2)" }}
-                    >
-                      <Upload aria-hidden="true" /> Import JSON / CSV
-                    </button>
-                    <input ref={businessFileRef} className={styles.hiddenInput} type="file" accept=".json,.csv,text/csv,application/json" onChange={importBusiness} />
-                  </div>
-
-                  <div className={styles.formGrid}>
-                    <label>
-                      <span>Business name</span>
-                      <input value={profile.name} onChange={(event) => updateProfile("name", event.target.value)} placeholder="Example: Harbour Bakery" />
-                    </label>
-                    <label>
-                      <span>Category</span>
-                      <input value={profile.category} onChange={(event) => updateProfile("category", event.target.value)} placeholder="Bakery, retail, services…" />
-                    </label>
-                    <label className={styles.wideField}>
-                      <span>Description</span>
-                      <textarea value={profile.description} onChange={(event) => updateProfile("description", event.target.value)} placeholder="What the business does and what customers should know." />
-                    </label>
-                    <label>
-                      <span>Location</span>
-                      <input value={profile.location} onChange={(event) => updateProfile("location", event.target.value)} placeholder="Shop / service location" />
-                    </label>
-                    <label>
-                      <span>Contact</span>
-                      <input value={profile.contact} onChange={(event) => updateProfile("contact", event.target.value)} placeholder="Phone or public contact" />
-                    </label>
-                    <label className={styles.wideField}>
-                      <span>Opening hours</span>
-                      <input value={profile.hours} onChange={(event) => updateProfile("hours", event.target.value)} placeholder="Mon–Fri 09:00–18:00" />
-                    </label>
-                  </div>
-                </section>
-
-                <section
-                  hidden={workspaceTab !== "catalog"}
-                  className={styles.card}
-                  aria-labelledby="catalog-title"
-                  style={panelCardStyle}
-                >
-                  <div className={styles.cardHeading}>
-                    <div>
-                      <p style={{ color: "#a55539" }}>CATALOG</p>
-                      <h2 id="catalog-title">Products</h2>
-                    </div>
-                    <button
-                      type="button"
-                      className={styles.importButton}
-                      onClick={() => productFileRef.current?.click()}
-                      style={{ color: "#7a4a39", borderColor: "rgba(197, 111, 74, 0.2)" }}
-                    >
-                      <Upload aria-hidden="true" /> Import JSON / CSV
-                    </button>
-                    <input ref={productFileRef} className={styles.hiddenInput} type="file" accept=".json,.csv,text/csv,application/json" onChange={importProducts} />
-                  </div>
-
-                  {products.length ? (
-                    <div className={styles.productList} style={{ maxHeight: "430px" }}>
-                      {products.slice(0, 24).map((product) => (
-                        <article key={product.id} className={styles.productRow}>
-                          <div>
-                            <strong>{product.name}</strong>
-                            <span>{product.description || "No description imported"}</span>
-                          </div>
-                          <div className={styles.productMeta}>
-                            <span>{product.price === null ? "Price unknown" : `${product.currency ? `${product.currency} ` : ""}${product.price}`}</span>
-                            <span data-availability={product.availability}>{product.availability}</span>
-                          </div>
-                        </article>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className={styles.emptyState} style={{ minHeight: "220px" }}>
-                      <Package aria-hidden="true" />
-                      <strong>No catalog imported yet</strong>
-                      <span>Use JSON or CSV with name, description, price, currency and availability fields.</span>
+                      <span>{message.role === "business_agent" ? "Business agent" : "Customer agent"}</span>
+                      <p>{message.text}</p>
+                      {message.status === "needs_business_confirmation" ? <small>Needs business confirmation</small> : null}
+                    </article>
+                  )) : (
+                    <div className={styles.threadEmpty} style={{ padding: 16 }}>
+                      Customer agents can ask about imported business information and products.
                     </div>
                   )}
-                </section>
-              </div>
+                </div>
 
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  padding: "10px 14px 12px",
-                  borderTop: "1px solid rgba(197, 111, 74, 0.12)",
-                  color: "#76665f",
-                  fontSize: "10px",
-                  lineHeight: 1.45,
-                }}
+                <div className={styles.composer} style={{ gridTemplateColumns: "1fr", gap: 7, marginTop: 8 }}>
+                  <textarea
+                    value={inquiry}
+                    onChange={(event) => setInquiry(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && !event.shiftKey) {
+                        event.preventDefault();
+                        runBusinessAgent();
+                      }
+                    }}
+                    placeholder="Customer agent: Do you have the sourdough loaf in stock?"
+                    style={{ minHeight: 44, maxHeight: 88 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={runBusinessAgent}
+                    disabled={!inquiry.trim()}
+                    style={{ minWidth: 0, minHeight: 36, borderColor: BUSINESS_ACCENT, background: BUSINESS_ACCENT, color: "#fff8f2" }}
+                  >
+                    <Send aria-hidden="true" /> Run communication
+                  </button>
+                </div>
+              </section>
+
+              <section
+                hidden={workspaceTab !== "profile"}
+                className={styles.card}
+                aria-labelledby="business-info-title"
+                style={panelCardStyle}
               >
-                <span
-                  aria-hidden="true"
-                  style={{
-                    width: "7px",
-                    height: "7px",
-                    flex: "0 0 auto",
-                    borderRadius: "50%",
-                    background: BUSINESS_ACCENT,
-                    boxShadow: `0 0 0 4px ${BUSINESS_ACCENT_SOFT}`,
-                  }}
-                />
-                Same world, same movement and interaction language. Business is a warm-colour lens, not a separate dashboard.
-              </div>
-            </>
-          ) : null}
+                <div className={styles.cardHeading} style={{ marginBottom: 10 }}>
+                  <div>
+                    <p style={{ color: "#a55539" }}>BUSINESS</p>
+                    <h2 id="business-info-title" style={{ fontSize: 15 }}>Business information</h2>
+                  </div>
+                  <button
+                    type="button"
+                    className={styles.importButton}
+                    onClick={() => businessFileRef.current?.click()}
+                    style={{ minHeight: 32, padding: "0 9px", color: "#7a4a39", borderColor: "rgba(197, 111, 74, 0.2)", fontSize: 10 }}
+                  >
+                    <Upload aria-hidden="true" /> Import JSON / CSV
+                  </button>
+                  <input ref={businessFileRef} className={styles.hiddenInput} type="file" accept=".json,.csv,text/csv,application/json" onChange={importBusiness} />
+                </div>
+
+                <div className={styles.formGrid}>
+                  <label>
+                    <span>Business name</span>
+                    <input value={profile.name} onChange={(event) => updateProfile("name", event.target.value)} placeholder="Example: Harbour Bakery" />
+                  </label>
+                  <label>
+                    <span>Category</span>
+                    <input value={profile.category} onChange={(event) => updateProfile("category", event.target.value)} placeholder="Bakery, retail, services…" />
+                  </label>
+                  <label className={styles.wideField}>
+                    <span>Description</span>
+                    <textarea value={profile.description} onChange={(event) => updateProfile("description", event.target.value)} placeholder="What the business does and what customers should know." />
+                  </label>
+                  <label>
+                    <span>Location</span>
+                    <input value={profile.location} onChange={(event) => updateProfile("location", event.target.value)} placeholder="Shop / service location" />
+                  </label>
+                  <label>
+                    <span>Contact</span>
+                    <input value={profile.contact} onChange={(event) => updateProfile("contact", event.target.value)} placeholder="Phone or public contact" />
+                  </label>
+                  <label className={styles.wideField}>
+                    <span>Opening hours</span>
+                    <input value={profile.hours} onChange={(event) => updateProfile("hours", event.target.value)} placeholder="Mon–Fri 09:00–18:00" />
+                  </label>
+                </div>
+              </section>
+
+              <section
+                hidden={workspaceTab !== "catalog"}
+                className={styles.card}
+                aria-labelledby="catalog-title"
+                style={panelCardStyle}
+              >
+                <div className={styles.cardHeading} style={{ marginBottom: 10 }}>
+                  <div>
+                    <p style={{ color: "#a55539" }}>CATALOG</p>
+                    <h2 id="catalog-title" style={{ fontSize: 15 }}>Products</h2>
+                  </div>
+                  <button
+                    type="button"
+                    className={styles.importButton}
+                    onClick={() => productFileRef.current?.click()}
+                    style={{ minHeight: 32, padding: "0 9px", color: "#7a4a39", borderColor: "rgba(197, 111, 74, 0.2)", fontSize: 10 }}
+                  >
+                    <Upload aria-hidden="true" /> Import JSON / CSV
+                  </button>
+                  <input ref={productFileRef} className={styles.hiddenInput} type="file" accept=".json,.csv,text/csv,application/json" onChange={importProducts} />
+                </div>
+
+                {products.length ? (
+                  <div className={styles.productList} style={{ maxHeight: 280 }}>
+                    {products.slice(0, 24).map((product) => (
+                      <article key={product.id} className={styles.productRow}>
+                        <div>
+                          <strong>{product.name}</strong>
+                          <span>{product.description || "No description imported"}</span>
+                        </div>
+                        <div className={styles.productMeta}>
+                          <span>{product.price === null ? "Price unknown" : `${product.currency ? `${product.currency} ` : ""}${product.price}`}</span>
+                          <span data-availability={product.availability}>{product.availability}</span>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <div className={styles.emptyState} style={{ minHeight: 155, padding: 16 }}>
+                    <Package aria-hidden="true" />
+                    <strong>No catalog imported yet</strong>
+                    <span>Import JSON or CSV when needed.</span>
+                  </div>
+                )}
+              </section>
+            </div>
+          </div>
         </aside>
       ) : null}
     </>
