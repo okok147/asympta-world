@@ -1,6 +1,6 @@
 import type { AtlasTaskState, AtlasWorldState } from "../atlas-simulation.ts";
 import { profileForAgent } from "./profiles.ts";
-import type { AgentContextTask, AgentRuntimeContext } from "./types.ts";
+import type { AgentContextTask, AgentRuntimeContext, AgentRuntimeEvent } from "./types.ts";
 
 const ACTIVE_STATUS_ORDER: Record<AtlasTaskState["status"], number> = {
   waiting_approval: 0,
@@ -26,7 +26,11 @@ function contextTask(task: AtlasTaskState): AgentContextTask {
   };
 }
 
-export function buildAgentContext(world: AtlasWorldState, agentId: string): AgentRuntimeContext {
+export function buildAgentContext(
+  world: AtlasWorldState,
+  agentId: string,
+  triggerEvents: readonly AgentRuntimeEvent[] = [],
+): AgentRuntimeContext {
   const profile = profileForAgent(agentId);
   const agent = world.agents.find((candidate) => candidate.id === agentId);
   if (!agent) throw new Error(`Agent is not present in world: ${agentId}`);
@@ -80,6 +84,7 @@ export function buildAgentContext(world: AtlasWorldState, agentId: string): Agen
       goals: profile.goals,
       instructions: profile.instructions,
     },
+    triggerEvents: triggerEvents.slice(-profile.context.maxEvents),
     activeTask,
     dependencies,
     recentMessages,

@@ -2,6 +2,7 @@ import type {
   AtlasApproval,
   AtlasMessage,
   AtlasTaskState,
+  AtlasWorldState,
   StakeholderSide,
   WorkflowId,
   WorldPhase,
@@ -9,6 +10,28 @@ import type {
 
 export type AgentRuntimeMode = "deterministic" | "ai";
 export type AgentRuntimeAction = "send_message" | "request_tool" | "complete_task" | "wait" | "delegate";
+export type AgentEventKind = "workflow" | "task" | "message" | "approval";
+
+export type AgentEventSubscription = {
+  kinds: readonly AgentEventKind[];
+};
+
+export type AgentRuntimeEvent = {
+  id: string;
+  kind: AgentEventKind;
+  createdAt: number;
+  worldRevision: number;
+  title: string;
+  detail: string;
+  sourceAgentId: string | null;
+  targetAgentIds: readonly string[];
+  taskId: string | null;
+};
+
+export type AgentEventCursor = {
+  version: 1;
+  seenByAgent: Record<string, readonly string[]>;
+};
 
 export type AgentProfile = {
   id: string;
@@ -20,8 +43,10 @@ export type AgentProfile = {
   instructions: readonly string[];
   allowedActions: readonly AgentRuntimeAction[];
   allowedTools: readonly string[];
+  subscriptions: AgentEventSubscription;
   context: {
     maxMessages: number;
+    maxEvents: number;
   };
 };
 
@@ -57,6 +82,7 @@ export type AgentRuntimeContext = {
     goals: readonly string[];
     instructions: readonly string[];
   };
+  triggerEvents: readonly AgentRuntimeEvent[];
   activeTask: AgentContextTask | null;
   dependencies: readonly AgentContextTask[];
   recentMessages: readonly AgentContextMessage[];
@@ -104,4 +130,28 @@ export type AgentTurnResult = {
   providerModel: string | null;
   fallbackUsed: boolean;
   validationError: string | null;
+};
+
+export type AgentEventDelivery = {
+  agentId: string;
+  eventIds: readonly string[];
+  turn: AgentTurnResult;
+};
+
+export type AgentEventDispatchResult = {
+  cursor: AgentEventCursor;
+  deliveries: readonly AgentEventDelivery[];
+  observedEventIds: readonly string[];
+};
+
+export type AgentProposalCommitter = (input: {
+  world: AtlasWorldState;
+  delivery: AgentEventDelivery;
+}) => AtlasWorldState | Promise<AtlasWorldState>;
+
+export type AgentEventCycleResult = {
+  world: AtlasWorldState;
+  cursor: AgentEventCursor;
+  rounds: number;
+  deliveries: readonly AgentEventDelivery[];
 };

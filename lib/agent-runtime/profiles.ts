@@ -1,5 +1,5 @@
 import { ATLAS_AGENTS, type StakeholderSide } from "../atlas-simulation.ts";
-import type { AgentProfile, AgentRuntimeAction } from "./types.ts";
+import type { AgentEventSubscription, AgentProfile, AgentRuntimeAction } from "./types.ts";
 
 const GOALS: Record<StakeholderSide, readonly string[]> = {
   user: ["Preserve the user's intent", "Reduce unnecessary coordination burden", "Escalate consequential choices to the human"],
@@ -34,6 +34,19 @@ const TOOL_ACCESS: Record<string, readonly string[]> = {
   "agent-support": ["send_customer_update"],
 };
 
+const SUBSCRIPTIONS: Record<StakeholderSide, AgentEventSubscription> = {
+  user: { kinds: ["workflow", "task", "message", "approval"] },
+  customer: { kinds: ["task", "message", "approval"] },
+  business: { kinds: ["task", "message", "approval"] },
+  supplier: { kinds: ["task", "message", "approval"] },
+  operations: { kinds: ["task", "message", "approval"] },
+  finance: { kinds: ["task", "message", "approval"] },
+  logistics: { kinds: ["task", "message", "approval"] },
+  support: { kinds: ["task", "message", "approval"] },
+  quality: { kinds: ["task", "message", "approval"] },
+  market: { kinds: ["task", "message", "approval"] },
+};
+
 const BASE_ACTIONS: readonly AgentRuntimeAction[] = ["send_message", "complete_task", "wait", "delegate"];
 
 export const AGENT_PROFILES: Readonly<Record<string, AgentProfile>> = Object.freeze(Object.fromEntries(
@@ -52,7 +65,8 @@ export const AGENT_PROFILES: Readonly<Record<string, AgentProfile>> = Object.fre
       instructions: INSTRUCTIONS[agent.side],
       allowedActions,
       allowedTools,
-      context: { maxMessages: 8 },
+      subscriptions: SUBSCRIPTIONS[agent.side],
+      context: { maxMessages: 8, maxEvents: 8 },
     };
     return [agent.id, Object.freeze(profile)];
   }),
