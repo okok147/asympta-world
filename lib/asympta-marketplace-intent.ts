@@ -26,6 +26,7 @@ export function compileAsymptaContext(
 export * from "./asympta-context-compiler.ts";
 export * from "./asympta-durable-product.ts";
 export * from "./asympta-marketplace-profile.ts";
+export * from "./asympta-marketplace-selection-gate.ts";
 export * from "./asympta-marketplace-task-protocol.ts";
 export * from "./asympta-marketplace-workflow-routing.ts";
 export * from "./asympta-marketplace-execution.ts";

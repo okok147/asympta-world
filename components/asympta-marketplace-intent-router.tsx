@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import styles from "./asympta-marketplace-intent-router.module.css";
@@ -12,7 +12,10 @@ import {
 import {
   MARKETPLACE_EXECUTION_EVENT,
   MARKETPLACE_PROFILE_REQUIRED_EVENT,
+  MARKETPLACE_SELECTION_FIELD,
+  buildMarketplaceTaskProtocol,
   compileAsymptaContext,
+  marketplaceSelectionConfirmationIntent,
   patchMarketplaceProfile,
   type AsymptaMarketplaceProfile,
   type ContextCompilation,
@@ -51,6 +54,16 @@ type ClaimedIntent = {
   compilation: ContextCompilation & { envelope: NonNullable<ContextCompilation["envelope"]> };
 };
 
+type MarketplaceSelectionQuestion = NonNullable<ReturnType<typeof buildMarketplaceTaskProtocol>["readiness"]["nextQuestion"]>;
+
+type PendingMarketplaceSelection = {
+  intent: string;
+  source: AsymptaCurrentRequestSource;
+  compilation: ClaimedIntent["compilation"];
+  goalId: string;
+  question: MarketplaceSelectionQuestion;
+};
+
 const BRIDGE_WAIT_FRAMES = 180;
 const DUPLICATE_WINDOW_MS = 500;
 const FOOD_OPTIONS: MarketplaceFoodPreference[] = [
@@ -69,6 +82,32 @@ const PAYMENT_OPTIONS: MarketplacePaymentMethod[] = [
   "card_on_file",
   "pay_on_delivery",
 ];
+
+const SELECTION_COPY: Record<MarketplaceRequestLocale, {
+  eyebrow: string;
+  confirm: string;
+  safety: string;
+  error: string;
+}> = {
+  en: {
+    eyebrow: "Choose before agents start",
+    confirm: "Confirm choice and start agents",
+    safety: "Demo offers only. Selecting an option starts the simulated workflow; the later purchase/payment checkpoint still requires separate human approval.",
+    error: "The selected option could not be confirmed. Nothing was executed.",
+  },
+  "zh-Hant": {
+    eyebrow: "代理啟動前先選擇",
+    confirm: "確認選擇並啟動代理",
+    safety: "只屬示範方案。確認後才會啟動模擬流程；之後真正到購買／付款關口時，仍須另一次人工批准。",
+    error: "未能確認所選方案；沒有執行任何行動。",
+  },
+  ja: {
+    eyebrow: "エージェント開始前に選択",
+    confirm: "選択を確認してエージェントを開始",
+    safety: "デモ候補のみです。選択確認後にシミュレーションを開始し、購入・支払いの段階では別途人の承認が必要です。",
+    error: "選択を確認できませんでした。何も実行されていません。",
+  },
+};
 
 function localeFromDocument(): MarketplaceRequestLocale {
   const value = document.documentElement.lang.toLowerCase();
@@ -99,6 +138,24 @@ function compileMarketplaceIntent(intent: string): ClaimedIntent["compilation"] 
   return compilation.supported && compilation.envelope
     ? compilation as ClaimedIntent["compilation"]
     : null;
+}
+
+function pendingSelectionFor(claimed: ClaimedIntent): PendingMarketplaceSelection | null {
+  const protocol = buildMarketplaceTaskProtocol(claimed.compilation.envelope);
+  const question = protocol.readiness.nextQuestion;
+  if (
+    protocol.readiness.status !== "needs_information"
+    || question?.field !== MARKETPLACE_SELECTION_FIELD
+    || !question.options.length
+    || !protocol.readiness.nextTaskId
+  ) return null;
+  return {
+    intent: claimed.intent,
+    source: claimed.source,
+    compilation: claimed.compilation,
+    goalId: protocol.readiness.nextTaskId,
+    question,
+  };
 }
 
 function requestSource(intent: string): AsymptaCurrentRequestSource {
@@ -161,13 +218,33 @@ function activeFieldsetIndex(field: MarketplaceProfileField) {
 
 export function AsymptaMarketplaceIntentRouter() {
   const [profileHost, setProfileHost] = useState<HTMLElement | null>(null);
+  const [selectionHost, setSelectionHost] = useState<HTMLElement | null>(null);
   const [profilePrompt, setProfilePrompt] = useState<MarketplaceProfilePrompt | null>(null);
+  const [pendingSelection, setPendingSelection] = useState<PendingMarketplaceSelection | null>(null);
+  const [selectedOfferId, setSelectedOfferId] = useState<string | null>(null);
+  const [selectionBusy, setSelectionBusy] = useState(false);
+  const [selectionError, setSelectionError] = useState<string | null>(null);
   const activeRequestIdRef = useRef<string | null>(null);
   const sourceByRequestRef = useRef(new Map<string, AsymptaCurrentRequestSource>());
   const lastClaimRef = useRef<{ requestId: string; at: number } | null>(null);
   const pendingProfileRef = useRef<MarketplaceProfileRequiredDetail | null>(null);
   const profilePromptRef = useRef<MarketplaceProfilePrompt | null>(null);
   const profileChoiceInFlightRef = useRef(false);
+  const pendingSelectionRef = useRef<PendingMarketplaceSelection | null>(null);
+  const mountedRef = useRef(true);
+
+  const clearSelection = useCallback(() => {
+    pendingSelectionRef.current = null;
+    setPendingSelection(null);
+    setSelectedOfferId(null);
+    setSelectionBusy(false);
+    setSelectionError(null);
+    delete document.documentElement.dataset.asymptaMarketplaceSelection;
+  }, []);
+
+  useEffect(() => () => {
+    mountedRef.current = false;
+  }, []);
 
   useEffect(() => {
     const syncProfileHost = () => {
@@ -176,6 +253,18 @@ export function AsymptaMarketplaceIntentRouter() {
     };
     syncProfileHost();
     const observer = new MutationObserver(syncProfileHost);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const syncSelectionHost = () => {
+      const next = document.querySelector<HTMLElement>(".atlas-safe-schedule.asympta-request-card")
+        ?? document.querySelector<HTMLElement>(".asympta-intent-composer-shell");
+      setSelectionHost((current) => current === next ? current : next);
+    };
+    syncSelectionHost();
+    const observer = new MutationObserver(syncSelectionHost);
     observer.observe(document.body, { childList: true, subtree: true });
     return () => observer.disconnect();
   }, []);
@@ -197,9 +286,11 @@ export function AsymptaMarketplaceIntentRouter() {
       delete document.documentElement.dataset.asymptaIntentOwner;
       delete document.documentElement.dataset.asymptaMarketplaceRequest;
       clearProfileQuestion();
+      clearSelection();
     };
 
-    const claim = async ({ intent, source, compilation }: ClaimedIntent) => {
+    const claim = async (claimed: ClaimedIntent) => {
+      const { intent, source, compilation } = claimed;
       const envelope = compilation.envelope;
       const duplicate = lastClaimRef.current;
       if (duplicate?.requestId === envelope.requestId && performance.now() - duplicate.at < DUPLICATE_WINDOW_MS) return;
@@ -209,6 +300,29 @@ export function AsymptaMarketplaceIntentRouter() {
       document.documentElement.dataset.asymptaIntentOwner = "marketplace";
       document.documentElement.dataset.asymptaMarketplaceRequest = envelope.requestId;
       clearProfileQuestion();
+      clearSelection();
+
+      const selection = pendingSelectionFor(claimed);
+      if (selection) {
+        pendingSelectionRef.current = selection;
+        setPendingSelection(selection);
+        setSelectedOfferId(null);
+        setSelectionBusy(false);
+        setSelectionError(null);
+        document.documentElement.dataset.asymptaMarketplaceSelection = "required";
+        const waiting = marketplaceCurrentRequestForStart(envelope, source, localeFromDocument());
+        publishAsymptaCurrentRequest({
+          ...waiting,
+          status: "waiting_input",
+          actor: "Asympta",
+          step: selection.question.prompt,
+          destination: "selection",
+          events: [selection.question.reason],
+          updatedAt: new Date().toISOString(),
+        });
+        return;
+      }
+
       publishAsymptaCurrentRequest(marketplaceCurrentRequestForStart(envelope, source, localeFromDocument()));
 
       try {
@@ -266,6 +380,7 @@ export function AsymptaMarketplaceIntentRouter() {
       const source = sourceByRequestRef.current.get(execution.envelope.requestId) ?? "human";
       document.documentElement.dataset.asymptaIntentOwner = "marketplace";
       clearProfileQuestion();
+      clearSelection();
       publishAsymptaCurrentRequest(marketplaceCurrentRequestFromExecution(
         execution,
         source,
@@ -279,6 +394,7 @@ export function AsymptaMarketplaceIntentRouter() {
       const prompt = marketplaceProfilePrompt(detail.missing, localeFromDocument());
       if (!prompt) return;
       const source = sourceByRequestRef.current.get(detail.requestId) ?? "human";
+      clearSelection();
       pendingProfileRef.current = detail;
       profilePromptRef.current = prompt;
       profileChoiceInFlightRef.current = false;
@@ -362,7 +478,53 @@ export function AsymptaMarketplaceIntentRouter() {
       window.removeEventListener(MARKETPLACE_PROFILE_REQUIRED_EVENT, onProfileRequired);
       releaseOwnership();
     };
-  }, []);
+  }, [clearSelection]);
+
+  const confirmSelection = useCallback(async () => {
+    const pending = pendingSelectionRef.current;
+    const offerId = selectedOfferId;
+    if (!pending || !offerId || selectionBusy) return;
+    const goal = pending.compilation.envelope.goals.find((candidate) => candidate.id === pending.goalId);
+    if (!goal) return;
+    setSelectionBusy(true);
+    setSelectionError(null);
+    const locale = localeFromDocument();
+
+    let confirmedCompilation: ContextCompilation | null = null;
+    try {
+      const confirmationIntent = marketplaceSelectionConfirmationIntent(pending.intent, goal, offerId);
+      confirmedCompilation = compileAsymptaContext(confirmationIntent, {
+        requestId: pending.compilation.envelope.requestId,
+        conversationId: pending.compilation.envelope.conversationId,
+        locale,
+        now: Date.now(),
+        profile: readAsymptaMarketplaceProfile(),
+      });
+      if (!confirmedCompilation.supported || !confirmedCompilation.envelope) {
+        throw new Error("Selection confirmation did not compile.");
+      }
+      const protocol = buildMarketplaceTaskProtocol(confirmedCompilation.envelope);
+      if (protocol.readiness.status !== "ready") {
+        throw new Error(`Selection confirmation remained blocked by ${protocol.readiness.nextQuestion?.field ?? "an unknown requirement"}.`);
+      }
+      const bridge = await waitForMarketplaceBridge(() => !mountedRef.current || activeRequestIdRef.current !== pending.compilation.envelope.requestId);
+      await bridge.runIntent(confirmationIntent, pending.compilation.envelope.requestId);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      if (activeRequestIdRef.current !== pending.compilation.envelope.requestId) return;
+      setSelectionError(SELECTION_COPY[locale].error);
+      if (confirmedCompilation?.envelope) {
+        publishAsymptaCurrentRequest(marketplaceCurrentRequestForFailure(
+          confirmedCompilation.envelope,
+          pending.source,
+          locale,
+          SELECTION_COPY[locale].error,
+        ));
+      }
+    } finally {
+      if (mountedRef.current) setSelectionBusy(false);
+    }
+  }, [selectedOfferId, selectionBusy]);
 
   const promptPortal = profilePrompt && profileHost
     ? createPortal(
@@ -380,10 +542,67 @@ export function AsymptaMarketplaceIntentRouter() {
     )
     : null;
 
+  const selectionPortal = pendingSelection && selectionHost
+    ? createPortal((() => {
+      const copy = SELECTION_COPY[localeFromDocument()];
+      return (
+        <section
+          className="asympta-marketplace-selection-gate"
+          data-selection-field={pendingSelection.question.field}
+          data-busy={selectionBusy ? "true" : "false"}
+          aria-label={pendingSelection.question.prompt}
+        >
+          <small>{copy.eyebrow}</small>
+          <strong>{pendingSelection.question.prompt}</strong>
+          <p>{pendingSelection.question.reason}</p>
+          <div
+            className="asympta-marketplace-selection-gate__options"
+            role="radiogroup"
+            aria-label={pendingSelection.question.prompt}
+          >
+            {pendingSelection.question.options.map((option) => {
+              const value = typeof option.value === "string" ? option.value : JSON.stringify(option.value);
+              const selected = selectedOfferId === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  className={selected ? "is-selected" : ""}
+                  disabled={selectionBusy}
+                  onClick={() => {
+                    setSelectedOfferId(value);
+                    setSelectionError(null);
+                  }}
+                >
+                  <b>{option.label}</b>
+                  {option.description ? <span>{option.description}</span> : null}
+                </button>
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            className="asympta-marketplace-selection-gate__confirm"
+            disabled={!selectedOfferId || selectionBusy}
+            aria-busy={selectionBusy || undefined}
+            onClick={() => { void confirmSelection(); }}
+          >
+            {selectionBusy ? `${copy.confirm}…` : copy.confirm}
+          </button>
+          <span className="asympta-marketplace-selection-gate__safety">{copy.safety}</span>
+          {selectionError ? <span className="asympta-marketplace-selection-gate__error" role="alert">{selectionError}</span> : null}
+        </section>
+      );
+    })(), selectionHost)
+    : null;
+
   return (
     <>
       <span className={styles.router} data-asympta-marketplace-intent-router="true" aria-hidden="true" />
       {promptPortal}
+      {selectionPortal}
     </>
   );
 }

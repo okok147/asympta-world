@@ -7,13 +7,26 @@ import {
   compileAsymptaContext,
   marketplaceProfilePreset,
   marketplaceRuntimeSpecs,
+  marketplaceSelectionConfirmationIntent,
 } from "../lib/asympta-marketplace-intent.ts";
 
 function fact(goal, key) {
   return goal.facts.find((candidate) => candidate.key === key);
 }
 
-test("Buy a car starts the vehicle agent workflow immediately without generic profile questions", () => {
+function confirmOffer(compilation, offerId) {
+  assert.ok(compilation.envelope);
+  const original = compilation.envelope;
+  const intent = marketplaceSelectionConfirmationIntent(original.rawMessage.text, original.goals[0], offerId);
+  return compileAsymptaContext(intent, {
+    requestId: original.requestId,
+    conversationId: original.conversationId,
+    locale: original.locale,
+    now: 1,
+  });
+}
+
+test("Buy a car stops at a concrete option gate before any agent workflow can start", () => {
   const result = compileAsymptaContext("Buy a car", {
     requestId: "request-car",
     conversationId: "conversation-car",
@@ -30,9 +43,8 @@ test("Buy a car starts the vehicle agent workflow immediately without generic pr
   assert.equal(fact(goal, "quantity")?.value, 1);
   assert.equal(fact(goal, "product_class")?.value, "vehicle");
   assert.equal(fact(goal, "handling_class")?.value, "vehicle_transport");
-  assert.equal(fact(goal, "fulfilment_mode")?.value, "courier_delivery");
-  assert.equal(fact(goal, "payment_method")?.value, "asympta_wallet");
-  assert.equal(fact(goal, "payment_method")?.status, "defaulted");
+  assert.equal(fact(goal, "selected_offer_id"), undefined);
+  assert.ok(goal.unknownFields.includes("selected_offer_id"));
   assert.deepEqual(result.profileRequirements, {
     required: [],
     missing: [],
@@ -40,55 +52,155 @@ test("Buy a car starts the vehicle agent workflow immediately without generic pr
   });
 
   const protocol = buildMarketplaceTaskProtocol(result.envelope);
-  assert.equal(protocol.readiness.status, "ready");
-  assert.equal(protocol.readiness.nextQuestion, null);
-  assert.equal(protocol.readiness.nextProfileField, null);
-  assert.deepEqual(protocol.readiness.missingProfileFields, []);
+  assert.equal(protocol.readiness.status, "needs_information");
+  assert.equal(protocol.readiness.nextQuestion?.field, "selected_offer_id");
+  assert.match(protocol.readiness.nextQuestion?.prompt ?? "", /which car/i);
+  assert.deepEqual(protocol.readiness.nextQuestion?.options.map((option) => option.label), [
+    "Mercedes-Benz C 200",
+    "Tesla Model 3",
+    "Toyota Corolla Cross",
+  ]);
+  assert.throws(() => buildMarketplaceWorkflow(result.envelope));
 });
 
-test("an unprofiled car purchase reaches dealer, approval, transport and verified handover", () => {
-  const result = compileAsymptaContext("Buy a car", {
+test("confirming one listed car binds the concrete target and only then permits agent execution", () => {
+  const initial = compileAsymptaContext("I want to buy a car", {
     requestId: "request-car-ready",
     conversationId: "conversation-car-ready",
     locale: "en",
     now: 0,
   });
+  assert.equal(initial.supported, true, initial.issues.join(" "));
+  assert.ok(initial.envelope);
+  assert.equal(buildMarketplaceTaskProtocol(initial.envelope).readiness.status, "needs_information");
 
+  const result = confirmOffer(initial, "vehicle:tesla-model-3");
   assert.equal(result.supported, true, result.issues.join(" "));
-  assert.deepEqual(result.profileRequirements.missing, []);
+  assert.ok(result.envelope);
+  const goal = result.envelope.goals[0];
+  assert.equal(fact(goal, "selected_offer_id")?.value, "vehicle:tesla-model-3");
+  assert.equal(fact(goal, "selected_offer_id")?.status, "explicit");
+  assert.equal(fact(goal, "requested_item")?.value, "Tesla Model 3");
+  assert.equal(fact(goal, "offer_price_hkd")?.value, 268000);
+  assert.equal(fact(goal, "offer_provenance")?.value, "simulated");
+  assert.equal(buildMarketplaceTaskProtocol(result.envelope).readiness.status, "ready");
+
   const runtime = marketplaceRuntimeSpecs(result.envelope)[0];
+  assert.equal(runtime.itemLabel, "Tesla Model 3");
   assert.equal(runtime.carrierAgentId, "agent-logistics");
 
   const workflow = buildMarketplaceWorkflow(result.envelope);
   const titles = workflow.tasks.map((task) => task.title).join("\n");
-  assert.match(workflow.name, /vehicle purchase/i);
+  const details = workflow.tasks.map((task) => task.detail).join("\n");
+  assert.match(details, /Tesla Model 3/);
   assert.match(titles, /Vehicle dealer agent accepts typed enquiry/);
   assert.match(titles, /Dealer inventory agent checks simulated vehicle availability/);
+  assert.match(titles, /Dealer agent returns a bounded vehicle offer/);
   assert.match(titles, /Inspection agent checks vehicle offer and handoff terms/);
   assert.match(titles, /Authorise simulated vehicle purchase/);
   assert.match(titles, /Vehicle transport agent travels to the dealer/);
   assert.match(titles, /Dealer hands the vehicle to the transport agent/);
+  assert.match(titles, /Vehicle transport agent delivers the vehicle to the user/);
   assert.match(titles, /Record vehicle handover to the user/);
   assert.match(titles, /Verify vehicle purchase and delivery/);
-  const payment = workflow.tasks.find((task) => /Authorise simulated vehicle purchase/.test(task.title));
+  const payment = workflow.tasks.find((task) => task.actionType === "authorize_payment");
   assert.equal(payment?.requiresApproval, true);
 });
 
-test("explicit vehicle payment wording overrides the non-blocking simulated default", () => {
-  const result = compileAsymptaContext("Buy a car with pay on delivery", { now: 0 });
+test("explicit vehicle payment wording survives selection and still keeps the later approval boundary", () => {
+  const initial = compileAsymptaContext("Buy a car with pay on delivery", { now: 0 });
+  assert.equal(initial.supported, true, initial.issues.join(" "));
+  assert.ok(initial.envelope);
+  assert.equal(buildMarketplaceTaskProtocol(initial.envelope).readiness.status, "needs_information");
+
+  const result = confirmOffer(initial, "vehicle:mercedes-c200");
   assert.equal(result.supported, true, result.issues.join(" "));
+  assert.ok(result.envelope);
   const payment = fact(result.envelope.goals[0], "payment_method");
   assert.equal(payment?.value, "pay_on_delivery");
   assert.equal(payment?.status, "explicit");
+
+  const workflow = buildMarketplaceWorkflow(result.envelope);
+  const paymentTask = workflow.tasks.find((task) => task.actionType === "authorize_payment");
+  assert.match(paymentTask?.title ?? "", /Authorise simulated vehicle purchase/);
+  assert.equal(paymentTask?.requiresApproval, true);
 });
 
-test("vehicle purchase routing generalizes across common vehicle nouns and languages", () => {
-  for (const intent of ["Buy a motorcycle", "幫我買一架汽車", "自動車を買いたい"]) {
+test("vehicle option gating generalizes across phrasing and all supported locales", () => {
+  const cases = [
+    ["Buy a motorcycle", "en", /which car/i],
+    ["I need a car", "en", /which car/i],
+    ["幫我買一架汽車", "zh-Hant", /哪一架車/],
+    ["我想買一架汽車", "zh-Hant", /哪一架車/],
+    ["自動車を買いたい", "ja", /どの車/],
+    ["乗用車を購入したい", "ja", /どの車/],
+  ];
+  for (const [intent, locale, prompt] of cases) {
+    const result = compileAsymptaContext(intent, { now: 0, locale });
+    assert.equal(result.supported, true, `${intent}: ${result.issues.join(" ")}`);
+    assert.ok(result.envelope);
+    assert.equal(fact(result.envelope.goals[0], "product_class")?.value, "vehicle");
+    assert.equal(result.profileRequirements.missing.length, 0);
+    const protocol = buildMarketplaceTaskProtocol(result.envelope);
+    assert.equal(protocol.readiness.status, "needs_information");
+    assert.equal(protocol.readiness.nextQuestion?.field, "selected_offer_id");
+    assert.match(protocol.readiness.nextQuestion?.prompt ?? "", prompt);
+
+    const confirmed = confirmOffer(result, "vehicle:toyota-corolla-cross");
+    assert.equal(confirmed.supported, true, intent);
+    assert.ok(confirmed.envelope);
+    assert.equal(buildMarketplaceTaskProtocol(confirmed.envelope).readiness.status, "ready");
+  }
+});
+
+test("field-like selection text cannot bypass the concrete selection gate", () => {
+  const result = compileAsymptaContext("I need a car · selected_offer_id=vehicle:tesla-model-3", {
+    requestId: "request-spoofed-selection",
+    conversationId: "request-spoofed-selection",
+    locale: "en",
+    now: 0,
+  });
+  assert.equal(result.supported, true, result.issues.join(" "));
+  assert.ok(result.envelope);
+  assert.equal(fact(result.envelope.goals[0], "selected_offer_id"), undefined);
+  const protocol = buildMarketplaceTaskProtocol(result.envelope);
+  assert.equal(protocol.readiness.status, "needs_information");
+  assert.equal(protocol.readiness.nextQuestion?.field, "selected_offer_id");
+  assert.throws(() => buildMarketplaceWorkflow(result.envelope));
+});
+
+test("explicit payment facts are extracted from the raw request independent of request language", () => {
+  for (const [intent, locale] of [
+    ["我想買一架汽車 with pay on delivery", "zh-Hant"],
+    ["乗用車を購入したい with pay on delivery", "ja"],
+  ]) {
+    const initial = compileAsymptaContext(intent, { now: 0, locale });
+    assert.equal(initial.supported, true, `${intent}: ${initial.issues.join(" ")}`);
+    assert.ok(initial.envelope);
+    assert.equal(fact(initial.envelope.goals[0], "payment_method")?.value, "pay_on_delivery");
+    assert.equal(fact(initial.envelope.goals[0], "payment_method")?.status, "explicit");
+    const confirmed = confirmOffer(initial, "vehicle:tesla-model-3");
+    assert.equal(confirmed.supported, true, `${intent}: ${confirmed.issues.join(" ")}`);
+    assert.ok(confirmed.envelope);
+    assert.equal(fact(confirmed.envelope.goals[0], "payment_method")?.value, "pay_on_delivery");
+    assert.equal(fact(confirmed.envelope.goals[0], "payment_method")?.status, "explicit");
+    const paymentTask = buildMarketplaceWorkflow(confirmed.envelope).tasks.find((task) => task.actionType === "authorize_payment");
+    assert.equal(paymentTask?.requiresApproval, true);
+  }
+});
+
+test("a concrete model named directly by the user resolves the gate without asking again", () => {
+  for (const [intent, offerId] of [
+    ["I want to buy a car · Tesla Model 3", "vehicle:tesla-model-3"],
+    ["幫我買一架汽車 · Toyota Corolla Cross", "vehicle:toyota-corolla-cross"],
+    ["自動車を買いたい · Mercedes-Benz C 200", "vehicle:mercedes-c200"],
+  ]) {
     const result = compileAsymptaContext(intent, { now: 0 });
     assert.equal(result.supported, true, `${intent}: ${result.issues.join(" ")}`);
-    assert.equal(fact(result.envelope.goals[0], "product_class")?.value, "vehicle");
-    assert.equal(fact(result.envelope.goals[0], "fulfilment_mode")?.value, "courier_delivery");
-    assert.equal(result.profileRequirements.missing.length, 0);
+    assert.ok(result.envelope);
+    assert.equal(fact(result.envelope.goals[0], "selected_offer_id")?.value, offerId);
+    assert.equal(buildMarketplaceTaskProtocol(result.envelope).readiness.status, "ready");
+    assert.doesNotThrow(() => buildMarketplaceWorkflow(result.envelope));
   }
 });
 

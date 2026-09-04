@@ -16,6 +16,7 @@ import type {
   MarketplaceGoal,
 } from "./asympta-context-compiler.ts";
 import type { MarketplaceProfileField } from "./asympta-marketplace-profile.ts";
+import { marketplaceSelectionRequirement } from "./asympta-marketplace-selection-gate.ts";
 
 export const MARKETPLACE_REQUIREMENT_CONTRACT_VERSION = "asympta.marketplace-requirements.v1" as const;
 
@@ -89,6 +90,8 @@ function option(value: string, label: { en: string; "zh-Hant": string; ja: strin
 function marketplaceRequirements(goal: MarketplaceGoal): AsymptaTaskRequirement[] {
   const prefix = goal.id;
   const requirements: AsymptaTaskRequirement[] = [];
+  const selectionRequirement = marketplaceSelectionRequirement(goal);
+  if (selectionRequirement) requirements.push(selectionRequirement);
 
   if (goal.domain === "food") {
     requirements.push({
