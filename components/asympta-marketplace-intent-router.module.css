@@ -89,15 +89,137 @@
   content: "…";
 }
 
+:global(.asympta-marketplace-selection-gate) {
+  order: -20;
+  display: grid;
+  gap: 8px;
+  margin: 8px 10px 10px;
+  padding: 11px;
+  border: 1px solid rgba(68, 91, 77, 0.14);
+  border-radius: 14px;
+  background:
+    linear-gradient(124deg, rgba(255, 255, 255, 0.42), transparent 56%),
+    rgba(245, 242, 233, 0.94);
+  box-shadow: 0 8px 24px rgba(57, 53, 47, 0.06);
+}
+
+:global(.asympta-marketplace-selection-gate > small) {
+  color: rgba(61, 86, 73, 0.58);
+  font-size: 7px;
+  font-weight: 780;
+  letter-spacing: 0.075em;
+  text-transform: uppercase;
+}
+
+:global(.asympta-marketplace-selection-gate > strong) {
+  color: rgba(42, 47, 43, 0.92);
+  font-size: 11px;
+  font-weight: 740;
+  line-height: 1.35;
+}
+
+:global(.asympta-marketplace-selection-gate > p) {
+  margin: 0;
+  color: rgba(63, 65, 58, 0.62);
+  font-size: 8.2px;
+  line-height: 1.5;
+}
+
+:global(.asympta-marketplace-selection-gate__options) {
+  display: grid;
+  gap: 6px;
+}
+
+:global(.asympta-marketplace-selection-gate__options > button) {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  padding: 9px 10px;
+  border: 1px solid rgba(67, 63, 56, 0.1);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.34);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+:global(.asympta-marketplace-selection-gate__options > button:hover),
+:global(.asympta-marketplace-selection-gate__options > button:focus-visible),
+:global(.asympta-marketplace-selection-gate__options > button.is-selected) {
+  border-color: rgba(75, 118, 94, 0.36);
+  background: rgba(91, 128, 105, 0.1);
+  outline: none;
+}
+
+:global(.asympta-marketplace-selection-gate__options > button.is-selected) {
+  box-shadow: inset 0 0 0 1px rgba(75, 118, 94, 0.13);
+}
+
+:global(.asympta-marketplace-selection-gate__options b) {
+  overflow: hidden;
+  color: rgba(48, 49, 44, 0.9);
+  font-size: 9px;
+  font-weight: 710;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:global(.asympta-marketplace-selection-gate__options span) {
+  color: rgba(68, 65, 58, 0.56);
+  font-size: 7.2px;
+  line-height: 1.35;
+}
+
+:global(.asympta-marketplace-selection-gate__confirm) {
+  min-height: 34px;
+  border: 1px solid rgba(69, 105, 83, 0.26);
+  border-radius: 10px;
+  background: rgba(84, 119, 96, 0.13);
+  color: rgba(48, 70, 56, 0.92);
+  font-size: 8.5px;
+  font-weight: 730;
+  cursor: pointer;
+}
+
+:global(.asympta-marketplace-selection-gate__confirm:disabled) {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+:global(.asympta-marketplace-selection-gate__safety),
+:global(.asympta-marketplace-selection-gate__error) {
+  font-size: 6.9px;
+  line-height: 1.45;
+}
+
+:global(.asympta-marketplace-selection-gate__safety) {
+  color: rgba(70, 66, 58, 0.52);
+}
+
+:global(.asympta-marketplace-selection-gate__error) {
+  color: rgba(126, 67, 58, 0.86);
+}
+
+:global(.asympta-marketplace-selection-gate[data-busy="true"] .asympta-marketplace-selection-gate__options) {
+  pointer-events: none;
+  opacity: 0.64;
+}
+
 @media (max-width: 430px) {
   :global(html[data-asympta-marketplace-next-field] .asympta-marketplace-profile__options) {
     grid-template-columns: 1fr;
+  }
+
+  :global(.asympta-marketplace-selection-gate) {
+    margin-inline: 8px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   :global(.asympta-marketplace-progressive-question),
-  :global(.asympta-marketplace-progressive-question *) {
+  :global(.asympta-marketplace-progressive-question *),
+  :global(.asympta-marketplace-selection-gate),
+  :global(.asympta-marketplace-selection-gate *) {
     animation: none !important;
     transition: none !important;
   }
