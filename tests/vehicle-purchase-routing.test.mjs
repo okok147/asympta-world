@@ -93,13 +93,17 @@ test("confirming one listed car binds the concrete target and only then permits 
   const titles = workflow.tasks.map((task) => task.title).join("\n");
   const details = workflow.tasks.map((task) => task.detail).join("\n");
   assert.match(details, /Tesla Model 3/);
-  assert.match(titles, /Marketplace agent accepts typed enquiry/);
-  assert.match(titles, /Supplier agent checks and reserves simulated stock/);
-  assert.match(titles, /Authorise simulated payment/);
-  assert.match(titles, /Courier agent travels to the marketplace/);
-  assert.match(titles, /Transfer the item into user inventory/);
-  assert.match(titles, /Verify delivery and close the goal/);
-  const payment = workflow.tasks.find((task) => /Authorise simulated payment/.test(task.title));
+  assert.match(titles, /Vehicle dealer agent accepts typed enquiry/);
+  assert.match(titles, /Dealer inventory agent checks simulated vehicle availability/);
+  assert.match(titles, /Dealer agent returns a bounded vehicle offer/);
+  assert.match(titles, /Inspection agent checks vehicle offer and handoff terms/);
+  assert.match(titles, /Authorise simulated vehicle purchase/);
+  assert.match(titles, /Vehicle transport agent travels to the dealer/);
+  assert.match(titles, /Dealer hands the vehicle to the transport agent/);
+  assert.match(titles, /Vehicle transport agent delivers the vehicle to the user/);
+  assert.match(titles, /Record vehicle handover to the user/);
+  assert.match(titles, /Verify vehicle purchase and delivery/);
+  const payment = workflow.tasks.find((task) => task.actionType === "authorize_payment");
   assert.equal(payment?.requiresApproval, true);
 });
 
@@ -117,7 +121,8 @@ test("explicit vehicle payment wording survives selection and still keeps the la
   assert.equal(payment?.status, "explicit");
 
   const workflow = buildMarketplaceWorkflow(result.envelope);
-  const paymentTask = workflow.tasks.find((task) => /pay-on-delivery settlement/i.test(task.title));
+  const paymentTask = workflow.tasks.find((task) => task.actionType === "authorize_payment");
+  assert.match(paymentTask?.title ?? "", /Authorise simulated vehicle purchase/);
   assert.equal(paymentTask?.requiresApproval, true);
 });
 
