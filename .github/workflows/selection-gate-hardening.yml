@@ -1,0 +1,112 @@
+name: Selection Gate Hardening
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "lib/asympta-durable-product.ts"
+      - "lib/asympta-marketplace-selection-gate.ts"
+      - "lib/asympta-marketplace-task-protocol.ts"
+      - "lib/asympta-marketplace-intent.ts"
+      - "components/asympta-marketplace-intent-router.tsx"
+      - "components/asympta-marketplace-intent-router.module.css"
+      - "tests/vehicle-purchase-routing.test.mjs"
+      - "scripts/run-kernel-100k-holdout.mjs"
+      - ".github/workflows/selection-gate-hardening.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "lib/asympta-durable-product.ts"
+      - "lib/asympta-marketplace-selection-gate.ts"
+      - "lib/asympta-marketplace-task-protocol.ts"
+      - "lib/asympta-marketplace-intent.ts"
+      - "components/asympta-marketplace-intent-router.tsx"
+      - "components/asympta-marketplace-intent-router.module.css"
+      - "tests/vehicle-purchase-routing.test.mjs"
+      - "scripts/run-kernel-100k-holdout.mjs"
+      - ".github/workflows/selection-gate-hardening.yml"
+  workflow_dispatch:
+    inputs:
+      cases:
+        description: "Total adversarial holdout cases (minimum 100000)"
+        required: false
+        default: "100000"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: selection-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    name: Selection contract + types
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Vehicle selection contract
+        run: node --experimental-loader ./scripts/cloudflare-node-loader.mjs --test tests/vehicle-purchase-routing.test.mjs
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+
+  universal-regression:
+    name: Engine + build regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Engine regression
+        run: npm run test:engine
+      - name: Production build
+        run: npm run build
+      - name: Rendered-world regression
+        run: npm run test:rendered
+      - name: Static export verification
+        run: npm run export:pages
+
+  holdout-100k:
+    name: 100k adversarial holdout
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Attack universal kernel + selection gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          CASES="${{ inputs.cases || '100000' }}"
+          node --experimental-loader ./scripts/cloudflare-node-loader.mjs \
+            scripts/run-kernel-100k-holdout.mjs \
+            "--count=${CASES}" \
+            "--seed=20260905" \
+            "--minimum=0.999" \
+            "--out=.kernel-100k-output"
+          cat .kernel-100k-output/summary.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish compact holdout report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-100k-holdout-${{ github.run_id }}
+          path: .kernel-100k-output
+          retention-days: 30
