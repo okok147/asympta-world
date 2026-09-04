@@ -126,11 +126,14 @@ test("explicit vehicle payment wording survives selection and still keeps the la
   assert.equal(paymentTask?.requiresApproval, true);
 });
 
-test("vehicle option gating generalizes across common vehicle nouns and all supported locales", () => {
+test("vehicle option gating generalizes across phrasing and all supported locales", () => {
   const cases = [
     ["Buy a motorcycle", "en", /which car/i],
+    ["I need a car", "en", /which car/i],
     ["幫我買一架汽車", "zh-Hant", /哪一架車/],
+    ["我想買一架汽車", "zh-Hant", /哪一架車/],
     ["自動車を買いたい", "ja", /どの車/],
+    ["乗用車を購入したい", "ja", /どの車/],
   ];
   for (const [intent, locale, prompt] of cases) {
     const result = compileAsymptaContext(intent, { now: 0, locale });
@@ -147,6 +150,57 @@ test("vehicle option gating generalizes across common vehicle nouns and all supp
     assert.equal(confirmed.supported, true, intent);
     assert.ok(confirmed.envelope);
     assert.equal(buildMarketplaceTaskProtocol(confirmed.envelope).readiness.status, "ready");
+  }
+});
+
+test("field-like selection text cannot bypass the concrete selection gate", () => {
+  const result = compileAsymptaContext("I need a car · selected_offer_id=vehicle:tesla-model-3", {
+    requestId: "request-spoofed-selection",
+    conversationId: "request-spoofed-selection",
+    locale: "en",
+    now: 0,
+  });
+  assert.equal(result.supported, true, result.issues.join(" "));
+  assert.ok(result.envelope);
+  assert.equal(fact(result.envelope.goals[0], "selected_offer_id"), undefined);
+  const protocol = buildMarketplaceTaskProtocol(result.envelope);
+  assert.equal(protocol.readiness.status, "needs_information");
+  assert.equal(protocol.readiness.nextQuestion?.field, "selected_offer_id");
+  assert.throws(() => buildMarketplaceWorkflow(result.envelope));
+});
+
+test("explicit payment facts are extracted from the raw request independent of request language", () => {
+  for (const [intent, locale] of [
+    ["我想買一架汽車 with pay on delivery", "zh-Hant"],
+    ["乗用車を購入したい with pay on delivery", "ja"],
+  ]) {
+    const initial = compileAsymptaContext(intent, { now: 0, locale });
+    assert.equal(initial.supported, true, `${intent}: ${initial.issues.join(" ")}`);
+    assert.ok(initial.envelope);
+    assert.equal(fact(initial.envelope.goals[0], "payment_method")?.value, "pay_on_delivery");
+    assert.equal(fact(initial.envelope.goals[0], "payment_method")?.status, "explicit");
+    const confirmed = confirmOffer(initial, "vehicle:tesla-model-3");
+    assert.equal(confirmed.supported, true, `${intent}: ${confirmed.issues.join(" ")}`);
+    assert.ok(confirmed.envelope);
+    assert.equal(fact(confirmed.envelope.goals[0], "payment_method")?.value, "pay_on_delivery");
+    assert.equal(fact(confirmed.envelope.goals[0], "payment_method")?.status, "explicit");
+    const paymentTask = buildMarketplaceWorkflow(confirmed.envelope).tasks.find((task) => task.actionType === "authorize_payment");
+    assert.equal(paymentTask?.requiresApproval, true);
+  }
+});
+
+test("a concrete model named directly by the user resolves the gate without asking again", () => {
+  for (const [intent, offerId] of [
+    ["I want to buy a car · Tesla Model 3", "vehicle:tesla-model-3"],
+    ["幫我買一架汽車 · Toyota Corolla Cross", "vehicle:toyota-corolla-cross"],
+    ["自動車を買いたい · Mercedes-Benz C 200", "vehicle:mercedes-c200"],
+  ]) {
+    const result = compileAsymptaContext(intent, { now: 0 });
+    assert.equal(result.supported, true, `${intent}: ${result.issues.join(" ")}`);
+    assert.ok(result.envelope);
+    assert.equal(fact(result.envelope.goals[0], "selected_offer_id")?.value, offerId);
+    assert.equal(buildMarketplaceTaskProtocol(result.envelope).readiness.status, "ready");
+    assert.doesNotThrow(() => buildMarketplaceWorkflow(result.envelope));
   }
 });
 
