@@ -163,14 +163,59 @@ async function run() {
       return true;
     })()`, true);
 
-    await waitFor("Boolean(window.__ASYMPTA_MARKETPLACE__?.snapshot?.()?.executionId)", 15_000, "vehicle marketplace execution start");
+    await waitFor("Boolean(document.querySelector('.asympta-marketplace-selection-gate'))", 10_000, "vehicle concrete-selection gate");
+    const preSelection = JSON.parse(await evaluate(`JSON.stringify((() => {
+      const gate = document.querySelector('.asympta-marketplace-selection-gate');
+      const options = [...(gate?.querySelectorAll('[role="radio"]') ?? [])].map((button) => button.textContent?.replace(/\\s+/g, ' ').trim() ?? '');
+      const confirm = gate?.querySelector('.asympta-marketplace-selection-gate__confirm');
+      return {
+        executionStarted: Boolean(window.__ASYMPTA_MARKETPLACE__?.snapshot?.()?.executionId),
+        selectionState: document.documentElement.dataset.asymptaMarketplaceSelection ?? null,
+        options,
+        confirmDisabled: Boolean(confirm?.disabled),
+        profileQuestionShown: Boolean(document.querySelector('.asympta-marketplace-progressive-question')) || Boolean(document.documentElement.dataset.asymptaMarketplaceNextField),
+      };
+    })())`));
+    if (preSelection.executionStarted) throw new Error("Buy a car started agents before the user selected a concrete vehicle.");
+    if (preSelection.selectionState !== "required") throw new Error(`Vehicle selection gate did not expose required state: ${preSelection.selectionState}`);
+    if (preSelection.profileQuestionShown) throw new Error("Buy a car incorrectly opened the generic marketplace profile question before selection.");
+    if (preSelection.options.length < 3 || !preSelection.options.some((label) => /Tesla Model 3/i.test(label))) {
+      throw new Error(`Vehicle selection gate did not provide the expected concrete options: ${JSON.stringify(preSelection.options)}`);
+    }
+    if (!preSelection.confirmDisabled) throw new Error("Vehicle confirmation was enabled before an option was selected.");
+
+    await evaluate(`(() => {
+      const gate = document.querySelector('.asympta-marketplace-selection-gate');
+      const option = [...(gate?.querySelectorAll('[role="radio"]') ?? [])]
+        .find((button) => /Tesla Model 3/i.test(button.textContent ?? ''));
+      if (!option) throw new Error('Tesla Model 3 selection option is unavailable.');
+      option.click();
+      return true;
+    })()`);
+    await waitFor("Boolean(document.querySelector('.asympta-marketplace-selection-gate [role=\"radio\"][aria-checked=\"true\"]'))", 4_000, "vehicle option selection state");
+    await waitFor("document.querySelector('.asympta-marketplace-selection-gate__confirm')?.disabled === false", 4_000, "vehicle confirmation enablement");
+    const executionAfterOptionClick = await evaluate("Boolean(window.__ASYMPTA_MARKETPLACE__?.snapshot?.()?.executionId)");
+    if (executionAfterOptionClick) throw new Error("Selecting a vehicle option started agents before the separate confirmation action.");
+
+    await evaluate(`(() => {
+      const confirm = document.querySelector('.asympta-marketplace-selection-gate__confirm');
+      if (!confirm || confirm.disabled) throw new Error('Vehicle selection confirmation button is unavailable.');
+      confirm.click();
+      return true;
+    })()`);
+
+    await waitFor("Boolean(window.__ASYMPTA_MARKETPLACE__?.snapshot?.()?.executionId)", 15_000, "vehicle marketplace execution after confirmation");
+    await waitFor("!Boolean(document.querySelector('.asympta-marketplace-selection-gate'))", 8_000, "selection gate dismissal after execution starts");
     const profileQuestionShown = await evaluate("Boolean(document.querySelector('.asympta-marketplace-progressive-question')) || Boolean(document.documentElement.dataset.asymptaMarketplaceNextField)");
-    if (profileQuestionShown) throw new Error("Buy a car incorrectly opened the generic marketplace profile question before agents started.");
+    if (profileQuestionShown) throw new Error("Buy a car incorrectly opened the generic marketplace profile question after confirmation.");
     const initial = JSON.parse(await evaluate("JSON.stringify(window.__ASYMPTA_MARKETPLACE__?.snapshot?.() ?? null)"));
     const goal = initial?.envelope?.goals?.[0];
     const facts = new Map((goal?.facts ?? []).map((fact) => [fact.key, fact]));
     if (facts.get("product_class")?.value !== "vehicle") throw new Error("Buy a car did not compile as a vehicle.");
     if (facts.get("handling_class")?.value !== "vehicle_transport") throw new Error("Vehicle transport handling was not preserved.");
+    if (facts.get("selected_offer_id")?.value !== "vehicle:tesla-model-3") throw new Error(`Confirmed vehicle selection was not bound: ${facts.get("selected_offer_id")?.value ?? "missing"}`);
+    if (facts.get("requested_item")?.value !== "Tesla Model 3") throw new Error(`Confirmed concrete vehicle was not preserved: ${facts.get("requested_item")?.value ?? "missing"}`);
+    if (facts.get("offer_provenance")?.value !== "simulated") throw new Error("Vehicle offer provenance was not marked simulated.");
 
     await evaluate(`(async () => {
       const demo = window.__ASYMPTA_DEMO__;
@@ -216,6 +261,7 @@ async function run() {
         transactionStates: execution?.transactions?.map((transaction) => ({ status: transaction.status, payment: transaction.payment })) ?? [],
         inventory: execution?.ledger?.map((line) => ({ userInventory: line.userInventory, quantity: line.quantity, reserved: line.marketReserved, cargo: line.carrierCargo })) ?? [],
         profileQuestionShown: Boolean(document.querySelector('.asympta-marketplace-progressive-question')),
+        selectionGateShown: Boolean(document.querySelector('.asympta-marketplace-selection-gate')),
       };
     })())`));
     if (proof.receipt?.verification !== "verified" || proof.receipt?.provenance !== "marketplace_execution") {
@@ -232,9 +278,10 @@ async function run() {
       throw new Error(`Vehicle workflow lacks handoff/delivery/verification evidence: ${proof.packetKinds.join(", ")}`);
     }
     if (proof.profileQuestionShown) throw new Error("Generic marketplace profile question appeared during vehicle workflow.");
+    if (proof.selectionGateShown) throw new Error("Vehicle selection gate remained visible after confirmed execution.");
     if (exceptions.length) throw new Error(`Browser exceptions during Buy a car: ${exceptions.join(" | ")}`);
 
-    console.log("Buy-car browser smoke passed: no generic profile questions, agents reached dealer/approval/transport, and canonical receipt-backed delivery completed.");
+    console.log("Buy-car browser smoke passed: selection blocked pre-confirm execution, confirmation started agents, payment stayed separately approval-gated, and receipt-backed delivery completed.");
     socket.close();
   } catch (error) {
     if (chromeStderr.trim()) console.error(chromeStderr.trim());
