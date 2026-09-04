@@ -31,6 +31,18 @@ const BASE_INTENTS = {
   "zh-Hant": ["幫我買一架汽車", "我想買一架汽車", "我要買一部私家車"],
   ja: ["自動車を買いたい", "乗用車を購入したい"],
 };
+const SELECTION_FAMILY_NAMES = [
+  "generic-gate",
+  "valid-confirmation",
+  "spoofed-selection-token",
+  "direct-concrete-target",
+  "payment-boundary",
+  "direct-target-noise",
+  "deterministic-replay",
+  "cross-locale-confirmation",
+  "workflow-bypass-attack",
+  "adjacent-product-boundary",
+];
 
 function argument(name, fallback = null) {
   const prefix = `--${name}=`;
@@ -156,7 +168,7 @@ function runSelectionCase(index, seed) {
   const { confirmed, workflow } = confirmSelection(initial, offerId, locale);
   if (family === 4) {
     requireCondition(fact(confirmed.envelope.goals[0], "payment_method")?.value === "pay_on_delivery", "explicit pay-on-delivery fact was lost after selection");
-    requireCondition(workflow.tasks.some((task) => /pay-on-delivery/i.test(task.title) && task.requiresApproval), "pay-on-delivery approval boundary disappeared");
+    requireCondition(workflow.tasks.some((task) => task.actionType === "authorize_payment" && task.requiresApproval), "pay-on-delivery approval boundary disappeared");
     return "payment-boundary";
   }
   if (family === 7) {
@@ -181,27 +193,23 @@ async function main() {
   const selectionCount = Math.floor(total / 2);
   const universalCount = total - selectionCount;
   const failures = [];
-  const selectionFamilies = {};
+  const selectionFamilies = Object.fromEntries(SELECTION_FAMILY_NAMES.map((family) => [family, emptyFamilyRecord()]));
   let selectionPassed = 0;
 
   for (let index = 0; index < selectionCount; index += 1) {
-    let family = "unknown";
+    const family = SELECTION_FAMILY_NAMES[index % 10];
+    selectionFamilies[family].total += 1;
     try {
-      family = runSelectionCase(index, seed);
+      runSelectionCase(index, seed);
       selectionPassed += 1;
-      selectionFamilies[family] ??= emptyFamilyRecord();
-      selectionFamilies[family].total += 1;
       selectionFamilies[family].passed += 1;
     } catch (error) {
-      const guessedFamily = `selection-family-${index % 10}`;
-      selectionFamilies[guessedFamily] ??= emptyFamilyRecord();
-      selectionFamilies[guessedFamily].total += 1;
-      selectionFamilies[guessedFamily].failed += 1;
+      selectionFamilies[family].failed += 1;
       if (failures.length < 50) {
         failures.push({
           suite: "selection",
           index,
-          family: guessedFamily,
+          family,
           message: error instanceof Error ? error.message : String(error),
         });
       }
@@ -267,7 +275,10 @@ async function main() {
     caveat: "This deterministic synthetic/adversarial holdout measures kernel process integrity. It is not statistical proof that 99.9% of all real-life tasks are covered.",
   };
 
-  const summary = `# Asympta Kernel 100,000-Case Holdout\n\n- Total cases: **${total.toLocaleString("en-US")}**\n- Selection/confirmation attacks: **${selectionCount.toLocaleString("en-US")}** · ${percent(selectionRate)} integrity\n- Universal kernel attacks: **${universalCount.toLocaleString("en-US")}** · ${percent(universalRate)} integrity\n- Combined process integrity: **${percent(integrityRate)}**\n- Acceptance threshold: **${percent(minimum)}**\n- Failures: **${total - passed}**\n\nThe holdout measures deterministic synthetic/adversarial process integrity. It does **not** prove that ${percent(minimum)} of the real world is covered.\n`;
+  const familyLines = Object.entries(selectionFamilies)
+    .map(([family, value]) => `- ${family}: **${value.passed}/${value.total}** passed`)
+    .join("\n");
+  const summary = `# Asympta Kernel 100,000-Case Holdout\n\n- Total cases: **${total.toLocaleString("en-US")}**\n- Selection/confirmation attacks: **${selectionCount.toLocaleString("en-US")}** · ${percent(selectionRate)} integrity\n- Universal kernel attacks: **${universalCount.toLocaleString("en-US")}** · ${percent(universalRate)} integrity\n- Combined process integrity: **${percent(integrityRate)}**\n- Acceptance threshold: **${percent(minimum)}**\n- Failures: **${total - passed}**\n\n## Selection families\n\n${familyLines}\n\nThe holdout measures deterministic synthetic/adversarial process integrity. It does **not** prove that ${percent(minimum)} of the real world is covered.\n`;
 
   const outputArg = argument("out", null);
   if (outputArg) {
@@ -277,7 +288,9 @@ async function main() {
     await writeFile(path.join(output, "summary.md"), summary, "utf8");
   }
 
-  console.log(JSON.stringify({
+  console.log("KERNEL_100K_SELECTION_FAMILIES", JSON.stringify(selectionFamilies));
+  if (failures.length) console.log("KERNEL_100K_FAILURE_SAMPLE", JSON.stringify(failures));
+  console.log("KERNEL_100K_RESULT", JSON.stringify({
     total,
     passed,
     failed: total - passed,
