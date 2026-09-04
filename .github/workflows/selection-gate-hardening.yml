@@ -101,12 +101,18 @@ jobs:
             "--count=${CASES}" \
             "--seed=20260905" \
             "--minimum=0.999" \
-            "--out=.kernel-100k-output"
-          cat .kernel-100k-output/summary.md >> "$GITHUB_STEP_SUMMARY"
+            "--out=kernel-100k-output"
+      - name: Add holdout summary
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f kernel-100k-output/summary.md ]]; then
+            cat kernel-100k-output/summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: Publish compact holdout report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: kernel-100k-holdout-${{ github.run_id }}
-          path: .kernel-100k-output
+          path: kernel-100k-output
           retention-days: 30
