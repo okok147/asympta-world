@@ -13,6 +13,7 @@ on:
       - "components/asympta-marketplace-intent-router.module.css"
       - "tests/vehicle-purchase-routing.test.mjs"
       - "scripts/run-kernel-100k-holdout.mjs"
+      - "scripts/smoke-buy-car-browser.mjs"
       - ".github/workflows/selection-gate-hardening.yml"
   push:
     branches:
@@ -26,6 +27,7 @@ on:
       - "components/asympta-marketplace-intent-router.module.css"
       - "tests/vehicle-purchase-routing.test.mjs"
       - "scripts/run-kernel-100k-holdout.mjs"
+      - "scripts/smoke-buy-car-browser.mjs"
       - ".github/workflows/selection-gate-hardening.yml"
   workflow_dispatch:
     inputs:
@@ -79,6 +81,8 @@ jobs:
         run: npm run test:rendered
       - name: Static export verification
         run: npm run export:pages
+      - name: Browser selection-confirmation workflow
+        run: node scripts/smoke-buy-car-browser.mjs
 
   holdout-100k:
     name: 100k adversarial holdout
