@@ -28,6 +28,7 @@ const ENGLISH_VEHICLE_PURCHASE = /\b(?:buy|purchase|order|get\s+me|bring\s+me|wa
 const CJK_VEHICLE_PURCHASE = /(?:幫我買|帮我买|想買|想买|要買|要买|我要買|我要买)\s*(?:一\s*(?:架|輛|辆|部|台|臺)?\s*)?(汽車|汽车|私家車|私家车|電單車|电单车|摩托車|摩托车)/u;
 const JAPANESE_VEHICLE_PURCHASE = /(自動車|乗用車|バイク|オートバイ)を(?:買いたい|購入したい)/u;
 const VEHICLE_ADD_ON_AFTER_ITEM = /^\s+(?:insurance|loan|finance|financing|shares?|stock|parts?|tires?|tyres?|licen[cs]e|registration)\b/iu;
+const GENERATED_SELECTION_MARKER = /\s*·\s*Selected option:\s*[^·]+$/iu;
 
 const VEHICLE_LABELS: Record<string, string> = {
   car: "car",
@@ -119,6 +120,21 @@ function restoreVehicleEvidence(fact: ContextFact, match: DurableProductMatch, r
   };
 }
 
+function durableScaffoldText(text: string, selection: DurableProductSelection | null) {
+  if (!selection) return text;
+  const normalized = text.replace(GENERATED_SELECTION_MARKER, "").trim();
+  if (normalized !== text.trim()) return normalized;
+
+  // A concrete model is evidence for the selection gate, not a second product
+  // for the generic product parser. Remove it only from the temporary scaffold;
+  // the original message remains authoritative and is restored below.
+  return text
+    .replace(selection.evidence, "")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s*[·—,:;/|-]\s*$/u, "")
+    .trim();
+}
+
 function patchVehicleGoal(
   goal: MarketplaceGoal,
   match: DurableProductMatch,
@@ -207,10 +223,12 @@ export function compileDurableProductContext(
   if (!match) return null;
   const selection = matchMarketplaceSelection(clean, match.productClass);
 
-  // Reuse the proven generic physical-product compiler as the syntactic
-  // scaffold, then restore the real durable item and attach a handling class.
-  // This keeps one marketplace protocol instead of adding a car-only workflow.
-  const surrogate = `${clean.slice(0, match.index)}guitar${clean.slice(match.index + match.evidence.length)}`;
+  // Reuse the proven generic physical-product compiler as a temporary syntax
+  // scaffold. Concrete offer evidence is deliberately removed from that
+  // scaffold so it cannot be mistaken for a second product goal.
+  const scaffoldText = durableScaffoldText(clean, selection);
+  const scaffoldMatch = vehicleMatch(scaffoldText) ?? match;
+  const surrogate = `${scaffoldText.slice(0, scaffoldMatch.index)}guitar${scaffoldText.slice(scaffoldMatch.index + scaffoldMatch.evidence.length)}`;
   const compiled = compileSimpleProductContext(surrogate, options);
   if (!compiled?.supported || !compiled.envelope) return null;
 
