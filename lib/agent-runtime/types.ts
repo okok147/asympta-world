@@ -12,6 +12,39 @@ export type AgentRuntimeMode = "deterministic" | "ai";
 export type AgentRuntimeAction = "send_message" | "request_tool" | "complete_task" | "wait" | "delegate";
 export type AgentEventKind = "workflow" | "task" | "message" | "approval";
 
+export type CanonicalDomainEventType =
+  | "workflow.observed"
+  | "task.observed"
+  | "message.sent"
+  | "approval.requested"
+  | "approval.approved"
+  | "approval.declined";
+
+/**
+ * Stable, language-independent event envelope for replay, causal inspection,
+ * graph/trajectory datasets, and future server-owned kernels.
+ *
+ * The current browser demo still derives these envelopes from Atlas records.
+ * A production kernel should emit the same shape at commit time so revision,
+ * causation, and evidence metadata are authoritative rather than reconstructed.
+ */
+export type CanonicalDomainEvent = {
+  version: 1;
+  eventId: string;
+  type: CanonicalDomainEventType;
+  runtimeKind: AgentEventKind;
+  worldRevision: number;
+  occurredAt: number;
+  causationId: string | null;
+  correlationId: string | null;
+  actorId: string | null;
+  targetAgentIds: readonly string[];
+  workflowId: WorkflowId | null;
+  taskId: string | null;
+  evidenceRef: string;
+  payload: Readonly<Record<string, unknown>>;
+};
+
 export type AgentEventSubscription = {
   kinds: readonly AgentEventKind[];
 };
@@ -26,6 +59,7 @@ export type AgentRuntimeEvent = {
   sourceAgentId: string | null;
   targetAgentIds: readonly string[];
   taskId: string | null;
+  canonical: CanonicalDomainEvent;
 };
 
 export type AgentEventCursor = {

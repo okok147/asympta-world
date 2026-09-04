@@ -1,5 +1,6 @@
 export { buildAgentContext } from "./context.ts";
 export {
+  collectCanonicalDomainEvents,
   collectCommittedAgentEvents,
   createAgentEventCursor,
   markAgentEventsSeen,
@@ -9,6 +10,12 @@ export { AGENT_PROFILES, profileForAgent } from "./profiles.ts";
 export { createAiAgentProvider, createDeterministicAgentProvider, type AiInferenceTransport } from "./provider.ts";
 export { createAgentRuntime, DEFAULT_AGENT_RUNTIME_MODE } from "./runtime.ts";
 export { decisionSchemaForContext } from "./schema.ts";
+export {
+  buildCanonicalEventTrajectory,
+  type CanonicalEventTrajectory,
+  type CanonicalTrajectoryEdge,
+  type CanonicalTrajectoryNode,
+} from "./trajectory.ts";
 export type {
   AgentDecision,
   AgentEventCursor,
@@ -26,5 +33,7 @@ export type {
   AgentRuntimeEvent,
   AgentRuntimeMode,
   AgentTurnResult,
+  CanonicalDomainEvent,
+  CanonicalDomainEventType,
 } from "./types.ts";
 export { validateAgentDecision } from "./validator.ts";
