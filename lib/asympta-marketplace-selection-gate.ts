@@ -35,6 +35,8 @@ export type MarketplaceSelectionGateSpec = {
   provenance: "simulated";
 };
 
+const INTERNAL_SELECTION_ASSIGNMENT = /(?:^|[\s{[,;·])["']?(?:selected_offer_id|selectedOfferId)["']?\s*[:=]\s*["']?[^,;}\]·\n]+["']?/giu;
+
 const VEHICLE_OFFERS: MarketplaceSelectionOffer[] = [
   {
     id: "vehicle:mercedes-c200",
@@ -114,6 +116,20 @@ function factString(goal: MarketplaceGoal, key: string) {
   return typeof fact?.value === "string" ? fact.value : null;
 }
 
+function selectionEvidenceText(text: string) {
+  INTERNAL_SELECTION_ASSIGNMENT.lastIndex = 0;
+  return text.replace(INTERNAL_SELECTION_ASSIGNMENT, " ").replace(/\s+/g, " ").trim();
+}
+
+function aliasMatch(text: string, offer: MarketplaceSelectionOffer) {
+  for (const alias of offer.aliases) {
+    alias.lastIndex = 0;
+    const match = alias.exec(text);
+    if (match) return match[0];
+  }
+  return null;
+}
+
 function selectionGateCopy(productClass: string) {
   if (productClass === "vehicle") {
     return {
@@ -167,13 +183,11 @@ export function marketplaceSelectionOfferById(goal: MarketplaceGoal, offerId: st
 }
 
 export function matchMarketplaceSelection(text: string, productClass: string) {
+  const evidenceText = selectionEvidenceText(text);
   const offers = CATALOGUES[productClass] ?? [];
   for (const offer of offers) {
-    for (const alias of offer.aliases) {
-      alias.lastIndex = 0;
-      const match = alias.exec(text);
-      if (match) return { offer, evidence: match[0] };
-    }
+    const evidence = aliasMatch(evidenceText, offer);
+    if (evidence) return { offer, evidence };
   }
   return null;
 }
@@ -213,13 +227,10 @@ export function marketplaceSelectionConfirmationIntent(
   const offer = marketplaceSelectionOfferById(goal, offerId);
   if (!offer) throw new Error(`Unknown marketplace selection: ${offerId}.`);
   const clean = originalIntent.replace(/\s+/g, " ").trim();
-  if (offer.aliases.some((alias) => {
-    alias.lastIndex = 0;
-    return alias.test(clean);
-  })) return clean;
+  if (aliasMatch(selectionEvidenceText(clean), offer)) return clean;
   // A click/tap confirmation is normalized into the same evidence-bearing input
-  // channel as typed text. This keeps the compiler deterministic and lets the
-  // selected concrete target carry user evidence without creating UI-only state.
+  // channel as typed text. Internal field-like text is deliberately excluded
+  // from evidence so serialized state can never grant authority by itself.
   return `${clean} · Selected option: ${offer.itemLabel}`;
 }
 
