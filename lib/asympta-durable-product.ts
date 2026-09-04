@@ -5,6 +5,11 @@ import {
   type ContextFact,
   type MarketplaceGoal,
 } from "./asympta-context-compiler.ts";
+import {
+  MARKETPLACE_SELECTION_FIELD,
+  matchMarketplaceSelection,
+  type MarketplaceSelectionOffer,
+} from "./asympta-marketplace-selection-gate.ts";
 import { compileSimpleProductContext } from "./asympta-simple-product.ts";
 
 export type DurableProductMatch = {
@@ -14,7 +19,12 @@ export type DurableProductMatch = {
   productClass: "vehicle";
 };
 
-const ENGLISH_VEHICLE_PURCHASE = /\b(?:buy|purchase|order|get\s+me|bring\s+me)\s+(?:me\s+)?(?:(?:a|an|one|1)\s+)?(car|vehicle|automobile|motorcycle|motorbike|scooter|van|truck)\b/iu;
+type DurableProductSelection = {
+  offer: MarketplaceSelectionOffer;
+  evidence: string;
+};
+
+const ENGLISH_VEHICLE_PURCHASE = /\b(?:buy|purchase|order|get\s+me|bring\s+me|want|need|would\s+like)\s+(?:me\s+)?(?:(?:a|an|one|1)\s+)?(car|vehicle|automobile|motorcycle|motorbike|scooter|van|truck)\b/iu;
 const CJK_VEHICLE_PURCHASE = /(?:幫我買|帮我买|想買|想买|要買|要买|我要買|我要买)\s*(?:一\s*(?:架|輛|辆|部|台|臺)?\s*)?(汽車|汽车|私家車|私家车|電單車|电单车|摩托車|摩托车)/u;
 const JAPANESE_VEHICLE_PURCHASE = /(自動車|乗用車|バイク|オートバイ)を(?:買いたい|購入したい)/u;
 const VEHICLE_ADD_ON_AFTER_ITEM = /^\s+(?:insurance|loan|finance|financing|shares?|stock|parts?|tires?|tyres?|licen[cs]e|registration)\b/iu;
@@ -67,14 +77,14 @@ function vehicleMatch(text: string): DurableProductMatch | null {
   return null;
 }
 
-function systemFact(key: string, value: string): ContextFact {
+function systemFact(key: string, value: string | number): ContextFact {
   return {
     key,
     value,
     status: "defaulted",
     source: {
       type: "system_default",
-      ref: "system:durable-product-fulfilment/v2",
+      ref: "system:durable-product-fulfilment/v3",
     },
     confidence: 1,
     scope: "task",
@@ -109,20 +119,36 @@ function restoreVehicleEvidence(fact: ContextFact, match: DurableProductMatch, r
   };
 }
 
-function patchVehicleGoal(goal: MarketplaceGoal, match: DurableProductMatch, requestId: string): MarketplaceGoal {
+function patchVehicleGoal(
+  goal: MarketplaceGoal,
+  match: DurableProductMatch,
+  requestId: string,
+  selection: DurableProductSelection | null,
+): MarketplaceGoal {
   const facts = goal.facts
-    .filter((fact) => !["product_class", "handling_class", "fulfilment_mode", "market_selection"].includes(fact.key))
+    .filter((fact) => ![
+      "product_class",
+      "handling_class",
+      "fulfilment_mode",
+      "market_selection",
+      MARKETPLACE_SELECTION_FIELD,
+      "selected_offer_label",
+      "offer_price_hkd",
+      "offer_seller_id",
+      "offer_provenance",
+    ].includes(fact.key))
     .map((fact) => restoreVehicleEvidence(fact, match, requestId))
     .map((fact) => {
       if (fact.key !== "requested_item") return fact;
+      const evidence = selection?.evidence ?? match.evidence;
       return {
         ...fact,
-        value: match.label,
+        value: selection?.offer.itemLabel ?? match.label,
         status: "explicit" as const,
         source: {
           type: "user_message" as const,
           ref: requestId,
-          evidence: match.evidence,
+          evidence,
         },
         confidence: 1,
       };
@@ -131,25 +157,39 @@ function patchVehicleGoal(goal: MarketplaceGoal, match: DurableProductMatch, req
   facts.push(
     explicitFact("product_class", match.productClass, requestId, match.evidence),
     systemFact("handling_class", "vehicle_transport"),
-    systemFact("market_selection", "simulated_vehicle_dealer"),
-    // Vehicle requests should enter the agent workflow immediately instead of
-    // opening the generic grocery/retail profile editor. The transport lane and
-    // simulated payment rail are execution mechanics, not user preferences.
-    // Consequential settlement remains separately human-gated by the existing
-    // approval checkpoint, and any explicit payment wording above still wins.
+    // Fulfilment/payment here are execution mechanics, not a substitute for
+    // choosing the thing itself. The concrete-selection requirement in the
+    // task protocol remains blocking until a user-confirmed offer is present.
     systemFact("fulfilment_mode", "courier_delivery"),
   );
   if (!facts.some((fact) => fact.key === "payment_method")) {
     facts.push(systemFact("payment_method", "asympta_wallet"));
   }
 
+  if (selection) {
+    facts.push(
+      explicitFact(MARKETPLACE_SELECTION_FIELD, selection.offer.id, requestId, selection.evidence),
+      explicitFact("selected_offer_label", selection.offer.itemLabel, requestId, selection.evidence),
+      systemFact("market_selection", selection.offer.sellerId),
+      systemFact("offer_price_hkd", selection.offer.price.amount),
+      systemFact("offer_seller_id", selection.offer.sellerId),
+      systemFact("offer_provenance", selection.offer.provenance),
+    );
+  } else {
+    facts.push(systemFact("market_selection", "simulated_vehicle_market"));
+  }
+
+  const unknownFields = goal.unknownFields.filter((field) => !["fulfilment_mode", "payment_method", MARKETPLACE_SELECTION_FIELD].includes(field));
+  if (!selection) unknownFields.unshift(MARKETPLACE_SELECTION_FIELD);
+
   return {
     ...goal,
     domain: "retail",
     facts,
-    unknownFields: goal.unknownFields.filter((field) => !["fulfilment_mode", "payment_method"].includes(field)),
+    unknownFields: [...new Set(unknownFields)],
     successCriteria: [
-      "A simulated dealer confirms a bounded vehicle offer.",
+      "A user-confirmed concrete vehicle offer is bound before commitment or execution starts.",
+      "A simulated dealer confirms the bounded selected vehicle offer.",
       "A human approves the consequential simulated purchase before settlement.",
       "Vehicle handoff and transport are recorded with simulated provenance.",
       "A delivery receipt verifies the vehicle reached the user-side handoff state.",
@@ -165,6 +205,7 @@ export function compileDurableProductContext(
   if (!clean || clean.length > 600) return null;
   const match = vehicleMatch(clean);
   if (!match) return null;
+  const selection = matchMarketplaceSelection(clean, match.productClass);
 
   // Reuse the proven generic physical-product compiler as the syntactic
   // scaffold, then restore the real durable item and attach a handling class.
@@ -181,7 +222,7 @@ export function compileDurableProductContext(
       text: clean,
       sourceRef: requestId,
     },
-    goals: compiled.envelope.goals.map((goal) => patchVehicleGoal(goal, match, requestId)),
+    goals: compiled.envelope.goals.map((goal) => patchVehicleGoal(goal, match, requestId, selection)),
   };
   const validation = validateContextEnvelope(envelope);
   if (!validation.valid) {
@@ -197,9 +238,9 @@ export function compileDurableProductContext(
     supported: true,
     envelope,
     issues: [],
-    // A vehicle request no longer depends on the global marketplace profile.
-    // This is deliberately task-scoped: explicit request wording can still
-    // override payment facts, while approval remains mandatory at commitment.
+    // Vehicle requests do not depend on global marketplace preferences. Their
+    // own concrete-selection gate is task-scoped and is evaluated separately
+    // by buildMarketplaceTaskProtocol before any workflow can be constructed.
     profileRequirements: {
       required: [],
       missing: [],
