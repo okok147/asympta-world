@@ -21,6 +21,7 @@ import {
   type AsymptaBusinessProfile,
 } from "@/lib/asympta-business-workspace";
 import styles from "./asympta-business-mode.module.css";
+import { AsymptaSimulationWorkspace } from "./asympta-simulation-workspace";
 
 type AudienceMode = "users" | "business";
 type BusinessWorkspaceTab = "agent" | "profile" | "catalog";
@@ -200,7 +201,8 @@ export function AsymptaBusinessMode() {
 
   return (
     <>
-      <nav className={styles.modeSwitch} aria-label="Asympta World mode">
+      <AsymptaSimulationWorkspace side={mode} />
+      <nav data-asympta-mode-switch="true" className={styles.modeSwitch} aria-label="Asympta World mode">
         <button
           type="button"
           className={mode === "users" ? styles.modeActive : ""}

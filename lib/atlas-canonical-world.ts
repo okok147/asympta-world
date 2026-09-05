@@ -77,7 +77,7 @@ function freshRuntimeForWorkflow(seed: number, workflowId: string | undefined, n
   // Marketplace payments are already modelled by the typed marketplace ledger.
   // Seeding the generic 12-unit custom-order runtime here creates a second,
   // unrelated charge and can reject a payment the human explicitly accepted.
-  if (!workflowId || workflowId === "marketplace-intent") return base;
+  if (!workflowId || workflowId === "marketplace-intent" || workflowId === "context-simulation") return base;
   return prepareRuntimeForWorkflow(base, workflowId, now);
 }
 
