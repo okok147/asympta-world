@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 
 type Locale = "en" | "zh-Hant" | "ja";
 type LocaleRow = [string, string, string];
@@ -262,4 +262,14 @@ export function AsymptaFeatureLocale() {
   }, []);
 
   return null;
+}
+
+// Shared React access to the same document language used by every existing feature.
+function subscribeLocale(listener: () => void) {
+  const observer = new MutationObserver(listener);
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ["lang"] });
+  return () => observer.disconnect();
+}
+export function useAsymptaGlobalLocale() {
+  return useSyncExternalStore(subscribeLocale, localeFromDocument, (): Locale => "en");
 }

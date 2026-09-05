@@ -35,6 +35,7 @@ export type AtlasAgentBlueprint = {
 
 export type AtlasTaskBlueprint = {
   id: string;
+  agentInput?: Record<string, unknown>;
   title: string;
   detail: string;
   agentId: string;
@@ -613,6 +614,7 @@ export function atlasSnapshot(world: AtlasWorldState) {
       progress: Number(taskState.progress.toFixed(3)),
       dependencies: taskState.dependsOn,
       actionType: taskState.actionType ?? null,
+      packetRef: typeof taskState.agentInput?.packetId === "string" ? taskState.agentInput.packetId : null,
     })),
     agents: world.agents.map((agent) => ({
       id: agent.id,

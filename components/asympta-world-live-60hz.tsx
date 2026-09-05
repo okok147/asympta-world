@@ -16,6 +16,9 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { simulationText } from "@/lib/asympta-simulation-copy";
+import { SIMULATION_STAGES, SIMULATION_WORKFLOW_ID, type SimulationStage } from "@/lib/asympta-simulation-compiler";
+import { WorkflowClock } from "@/lib/asympta-workflow-clock";
 import { AnimalPortrait, animalSvgMarkup } from "@/components/asympta-animal-art";
 import {
   ATLAS_AGENTS,
@@ -394,6 +397,7 @@ export function AsymptaWorldLive60Hz() {
 
   const [world, setWorld] = useState<AtlasWorldState>(() => createAtlasDemoWorld());
   const worldRef = useRef(world);
+  const kernelClockRef = useRef<WorkflowClock | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const [webMcpState, setWebMcpState] = useState<"checking" | "ready" | "unavailable">("checking");
@@ -532,6 +536,7 @@ export function AsymptaWorldLive60Hz() {
   }, []);
 
   const syncImmediate = useCallback((next: AtlasWorldState) => {
+    kernelClockRef.current?.reset(Date.now());
     worldRef.current = next;
     setWorld(next);
     updateForegroundMeta(next);
@@ -632,62 +637,111 @@ export function AsymptaWorldLive60Hz() {
     };
   }, [mountForegroundMarkers, reconcileAmbientMarkers]);
 
-  // 60Hz target: marker coordinates are updated on every display frame; simulation, sources and React stay throttled.
+  useEffect(() => {
+    const translateSimulation = () => {
+      const current = worldRef.current;
+      if (current.workflowId !== SIMULATION_WORKFLOW_ID) return;
+      const lang = document.documentElement.lang;
+      const selectedLocale = lang.startsWith("zh") ? "zh-Hant" : lang.startsWith("ja") ? "ja" : "en";
+      const tasks = current.tasks.map(task => {
+        const stage = task.id.split(":").at(-1) as SimulationStage;
+        if (!SIMULATION_STAGES.includes(stage)) return task;
+        const title = simulationText(stage, selectedLocale);
+        return { ...task, title, detail: title, ...(task.requiresApproval ? { approvalLabel: title } : {}) };
+      });
+      worldRef.current = { ...current, tasks, approvals: current.approvals.map(approval => {
+        const task = tasks.find(task => task.id === approval.taskId);
+        return task ? { ...approval, title: task.title, detail: task.detail, consequence: simulationText("approvalNote", selectedLocale) } : approval;
+      }) };
+      setWorld(worldRef.current);
+    };
+    window.addEventListener("asympta:simulation-locale", translateSimulation);
+    return () => window.removeEventListener("asympta:simulation-locale", translateSimulation);
+  }, []);
+
+  // One wall-clock scheduler owns state, including while requestAnimationFrame is suspended.
+  useEffect(() => {
+    const clock = new WorkflowClock(Date.now());
+    kernelClockRef.current = clock;
+    let timer = 0;
+    let disposed = false;
+    let lastPublished = 0;
+    const catchUp = new MessageChannel();
+    let catchUpQueued = false;
+    const tick = () => {
+      if (disposed) return;
+      window.clearTimeout(timer);
+      clock.sample(Date.now(), worldRef.current.phase === "running");
+      const slice = clock.take();
+      if (slice > 0) {
+        // Bounded slices preserve transitions without blocking the UI after a long suspension.
+        worldRef.current = advanceAtlasWorld(worldRef.current, slice);
+        if (worldRef.current.phase !== "running") clock.reset(Date.now());
+      }
+      const now = Date.now();
+      if (now - lastPublished >= UI_REFRESH_MS || worldRef.current.phase !== "running") {
+        lastPublished = now;
+        setWorld(worldRef.current);
+        window.dispatchEvent(new CustomEvent("asympta:world-tick", { detail: { workflowId: worldRef.current.workflowId } }));
+      }
+      if (clock.pending > 0) {
+        if (!catchUpQueued) { catchUpQueued = true; catchUp.port2.postMessage(null); }
+      } else {
+        timer = window.setTimeout(tick, document.hidden ? 500 : SIMULATION_STEP_MS);
+      }
+    };
+    catchUp.port1.onmessage = () => { catchUpQueued = false; tick(); };
+    const wake = () => { clock.sample(Date.now(), worldRef.current.phase === "running"); tick(); };
+    timer = window.setTimeout(tick, SIMULATION_STEP_MS);
+    document.addEventListener("visibilitychange", wake);
+    window.addEventListener("focus", wake);
+    window.addEventListener("pageshow", wake);
+    return () => {
+      disposed = true;
+      window.clearTimeout(timer);
+      catchUp.port1.close();
+      catchUp.port2.close();
+      document.removeEventListener("visibilitychange", wake);
+      window.removeEventListener("focus", wake);
+      window.removeEventListener("pageshow", wake);
+      if (kernelClockRef.current === clock) kernelClockRef.current = null;
+    };
+  }, []);
+
+  // Visual work can sleep in hidden tabs; canonical state continues above.
   useEffect(() => {
     let frame = 0;
     let previous = performance.now();
-    let simulationAccumulator = 0;
     let sourceAccumulator = 0;
-    let uiAccumulator = 0;
+    let ambientNow = worldRef.current.now;
     let cullAccumulator = CULL_REFRESH_MS;
-
     const animate = (now: number) => {
       const elapsed = Math.min(120, Math.max(0, now - previous));
       previous = now;
-      if (document.hidden) {
-        frame = window.requestAnimationFrame(animate);
-        return;
+      if (!document.hidden) {
+        sourceAccumulator += elapsed;
+        cullAccumulator += elapsed;
+        ambientNow += elapsed;
+        const visualNow = worldRef.current.phase === "running" ? worldRef.current.now : ambientNow;
+        updateForegroundVisual60Hz(worldRef.current, elapsed);
+        const visibleAmbientActors = updateAmbientVisual60Hz(visualNow);
+        if ((cullRequestedRef.current || cullAccumulator >= CULL_REFRESH_MS) && mapRef.current && mapLibreRef.current) {
+          cullAccumulator = 0;
+          cullRequestedRef.current = false;
+          reconcileAmbientMarkers(visualNow);
+        }
+        if (sourceAccumulator >= MAP_SOURCE_REFRESH_MS) {
+          sourceAccumulator = 0;
+          updateForegroundMeta(worldRef.current);
+          if (mapRef.current) syncMapSources(mapRef.current, worldRef.current, visibleAmbientActors);
+        }
+        if (cameraFollowRef.current && selectedAgentIdRef.current && mapRef.current) {
+          const visual = foregroundVisualRef.current.get(selectedAgentIdRef.current);
+          if (visual) mapRef.current.setCenter([visual.lon, visual.lat]);
+        }
       }
-
-      simulationAccumulator += elapsed;
-      sourceAccumulator += elapsed;
-      uiAccumulator += elapsed;
-      cullAccumulator += elapsed;
-
-      if (simulationAccumulator >= SIMULATION_STEP_MS) {
-        worldRef.current = advanceAtlasWorld(worldRef.current, simulationAccumulator);
-        simulationAccumulator = 0;
-        updateForegroundMeta(worldRef.current);
-      }
-
-      const visualNow = worldRef.current.now + simulationAccumulator;
-      updateForegroundVisual60Hz(worldRef.current, elapsed);
-      const visibleAmbientActors = updateAmbientVisual60Hz(visualNow);
-
-      if ((cullRequestedRef.current || cullAccumulator >= CULL_REFRESH_MS) && mapRef.current && mapLibreRef.current) {
-        cullAccumulator = 0;
-        cullRequestedRef.current = false;
-        reconcileAmbientMarkers(visualNow);
-      }
-
-      if (sourceAccumulator >= MAP_SOURCE_REFRESH_MS && mapRef.current) {
-        sourceAccumulator = 0;
-        syncMapSources(mapRef.current, worldRef.current, visibleAmbientActors);
-      }
-
-      if (cameraFollowRef.current && selectedAgentIdRef.current && mapRef.current) {
-        const visual = foregroundVisualRef.current.get(selectedAgentIdRef.current);
-        if (visual) mapRef.current.setCenter([visual.lon, visual.lat]);
-      }
-
-      if (uiAccumulator >= UI_REFRESH_MS) {
-        uiAccumulator = 0;
-        setWorld(worldRef.current);
-      }
-
       frame = window.requestAnimationFrame(animate);
     };
-
     frame = window.requestAnimationFrame(animate);
     return () => window.cancelAnimationFrame(frame);
   }, [reconcileAmbientMarkers, updateAmbientVisual60Hz, updateForegroundMeta, updateForegroundVisual60Hz]);

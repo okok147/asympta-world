@@ -400,7 +400,7 @@ function waitForDemoBridge(signal: AbortSignal) {
         reject(new Error("Asympta world bridge is unavailable."));
         return;
       }
-      window.requestAnimationFrame(check);
+      window.setTimeout(check, 50);
     };
     check();
   });
