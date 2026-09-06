@@ -85,6 +85,7 @@ export type AgentProfile = {
 };
 
 export type AgentContextTask = {
+  input?: { trust: "untrusted_source_data"; packet: Record<string, unknown> };
   id: string;
   title: string;
   objective: string;

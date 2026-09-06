@@ -22,6 +22,7 @@ import "./asympta-request-cards.css";
 import "./asympta-protocell-pencil.css";
 import "./asympta-product-polish.css";
 import "./asympta-top-panel-alignment.css";
+import "./asympta-simulation-studio.css";
 
 const faviconPath = process.env.ASYMPTA_PAGES_BUILD === "1"
   ? "/asympta-world/favicon-asympta-cat-20260829.svg"
@@ -43,7 +44,6 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
   viewportFit: "cover",
   themeColor: "#f1efe7",
 };

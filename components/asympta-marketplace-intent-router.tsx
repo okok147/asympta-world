@@ -188,7 +188,7 @@ function waitForMarketplaceBridge(isDisposed: () => boolean) {
         reject(new Error("The simulated marketplace bridge is unavailable."));
         return;
       }
-      window.requestAnimationFrame(check);
+      window.setTimeout(check, 50);
     };
     check();
   });

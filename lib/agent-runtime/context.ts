@@ -11,11 +11,12 @@ const ACTIVE_STATUS_ORDER: Record<AtlasTaskState["status"], number> = {
   done: 5,
 };
 
-function contextTask(task: AtlasTaskState): AgentContextTask {
+function contextTask(task: AtlasTaskState, includeInput = false): AgentContextTask {
   return {
     id: task.id,
     title: task.title,
     objective: task.detail,
+    ...(includeInput && task.agentInput ? { input: { trust: "untrusted_source_data" as const, packet: structuredClone(task.agentInput) } } : {}),
     status: task.status,
     progress: Number(task.progress.toFixed(3)),
     agentId: task.agentId,
@@ -39,12 +40,12 @@ export function buildAgentContext(
     .filter((task) => task.agentId === agentId && task.status !== "done")
     .sort((a, b) => ACTIVE_STATUS_ORDER[a.status] - ACTIVE_STATUS_ORDER[b.status]);
   const activeTaskState = ownedTasks[0] ?? null;
-  const activeTask = activeTaskState ? contextTask(activeTaskState) : null;
+  const activeTask = activeTaskState ? contextTask(activeTaskState, true) : null;
   const dependencies = activeTaskState
     ? activeTaskState.dependsOn
       .map((dependencyId) => world.tasks.find((task) => task.id === dependencyId))
       .filter((task): task is AtlasTaskState => Boolean(task))
-      .map(contextTask)
+      .map(task => contextTask(task))
     : [];
 
   const recentMessages = world.messages
