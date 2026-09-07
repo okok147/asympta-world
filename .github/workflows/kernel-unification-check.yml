@@ -10,6 +10,9 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    defaults:
+      run:
+        shell: bash
     env:
       NEXT_PUBLIC_ASYMPTA_AGENT_API_URL: https://asympta-public-intent-agent.asympta-invitation-service.workers.dev
       NEXT_PUBLIC_ASYMPTA_TURNSTILE_SITE_KEY: 0x4AAAAAAEiD_1SGxiCjdi1o
@@ -21,6 +24,7 @@ jobs:
           cache: npm
       - name: Apply reviewed implementation
         run: |
+          set -euo pipefail
           python3 - <<'PY'
           import pathlib,base64,lzma,hashlib
           data=''.join(p.read_text() for p in sorted(pathlib.Path('.github/kernel-patch').glob('part-*')))
@@ -30,6 +34,8 @@ jobs:
           PY
           git apply --check /tmp/coordination.patch
           git apply /tmp/coordination.patch
+          git apply --check .github/kernel-patch/corrections.patch
+          git apply .github/kernel-patch/corrections.patch
           mkdir -p /tmp/kernel-validation
       - name: Install
         run: npm ci
@@ -51,22 +57,22 @@ jobs:
         run: node scripts/smoke-coordination-kernel-browser.mjs 2>&1 | tee /tmp/kernel-validation/browser-kernel.log
       - name: Existing browser regressions
         run: |
-          node scripts/smoke-pages-browser.mjs
-          node scripts/smoke-business-mode-browser.mjs
-          node scripts/smoke-business-locale-browser.mjs
-          node scripts/smoke-buy-food-browser.mjs
-          node scripts/smoke-buy-car-browser.mjs
-          node scripts/verify-universal-browser.mjs
+          node scripts/smoke-pages-browser.mjs 2>&1 | tee /tmp/kernel-validation/browser-pages.log
+          node scripts/smoke-business-mode-browser.mjs 2>&1 | tee /tmp/kernel-validation/browser-business.log
+          node scripts/smoke-business-locale-browser.mjs 2>&1 | tee /tmp/kernel-validation/browser-locale.log
+          node scripts/smoke-buy-food-browser.mjs 2>&1 | tee /tmp/kernel-validation/browser-food.log
+          node scripts/smoke-buy-car-browser.mjs 2>&1 | tee /tmp/kernel-validation/browser-car.log
+          node scripts/verify-universal-browser.mjs 2>&1 | tee /tmp/kernel-validation/browser-universal.log
       - name: Commit verified implementation only to isolation branch
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add .github/workflows/deploy-pages.yml components/asympta-simulation-workspace.tsx docs/SHARED_COORDINATION_KERNEL.md lib/asympta-coordination-kernel.ts lib/asympta-simulation-compiler.ts lib/asympta-simulation-coordination.ts lib/asympta-simulation-copy.ts lib/atlas-canonical-world.ts lib/atlas-simulation.ts package.json scripts/smoke-coordination-kernel-browser.mjs tests/coordination-kernel.test.mjs
+          git add components/asympta-simulation-workspace.tsx docs/SHARED_COORDINATION_KERNEL.md lib/asympta-coordination-kernel.ts lib/asympta-simulation-compiler.ts lib/asympta-simulation-coordination.ts lib/asympta-simulation-copy.ts lib/atlas-canonical-world.ts lib/atlas-simulation.ts package.json scripts/smoke-coordination-kernel-browser.mjs tests/coordination-kernel.test.mjs
           git diff --cached --check
           git commit -m 'feat: verify shared intent action coordination kernel'
-          git push origin HEAD:kernel-unification-20260907
           git rev-parse HEAD > /tmp/kernel-validation/commit.txt
           git ls-tree -r HEAD > /tmp/kernel-validation/tree.txt
+          git push origin HEAD:kernel-unification-20260907
       - name: Save validation diagnostics
         if: always()
         uses: actions/upload-artifact@v4

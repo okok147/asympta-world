@@ -1,0 +1,33 @@
+--- a/components/asympta-simulation-workspace.tsx
++++ b/components/asympta-simulation-workspace.tsx
+@@ -163,7 +163,7 @@
+           {world.coordination && <div className="simulation-studio__note" aria-live="polite" data-coordination-kernel="asympta.coordination/1">
+             <p>{t("kernelEvidence")}: {world.coordination.verifiedActions} / {world.coordination.totalActions}</p>
+             <p>{t("kernelReview")}: {world.coordination.reviewCount}</p>
+-            {world.coordination.blocker && <p role="status">{t(world.coordination.blocker === "precondition_failed" ? "kernelConstraint" : "kernelBlocked")}</p>
++            {world.coordination.blocker && <p role="status">{t(world.coordination.blocker === "precondition_failed" ? "kernelConstraint" : "kernelBlocked")}</p>}
+           </div>}
+           {pending && <div className="simulation-studio__approval"><p>{t("approvalNote")}</p><div><button className="simulation-studio__secondary" type="button" onClick={() => decide(false)}>{t("decline")}</button><button className="simulation-studio__primary" type="button" onClick={() => decide(true)}>{t("approve")}</button></div></div>}
+           {world.phase === "completed" && <p className="simulation-studio__note">{t("verified")}</p>}
+--- a/scripts/smoke-coordination-kernel-browser.mjs
++++ b/scripts/smoke-coordination-kernel-browser.mjs
+@@ -88,7 +88,7 @@
+   });
+ }
+ 
+-async function waitForJson(url, timeoutMs = 10_000) {
++async function waitForJson(url, timeoutMs = 30_000) {
+   const deadline = Date.now() + timeoutMs;
+   let lastError;
+   while (Date.now() < deadline) {
+--- a/docs/SHARED_COORDINATION_KERNEL.md
++++ b/docs/SHARED_COORDINATION_KERNEL.md
+@@ -56,6 +56,8 @@
+ 
+ Its seeded stress test executes **100,000 command checks**, using **128 fixtures and 10 patterns**: 20,000 valid-result/replay checks and 80,000 expected rejections. The extra domain is a tiny lab-sample heating contract with different action vocabulary. This is useful regression evidence, not 100,000 independent real-world scenarios, proof of unseen-domain generalization, a measured 99% real-world success rate, or an LLM benchmark.
+ 
++The existing extreme real-world v3 semantic benchmark remains a separate diagnostic: this run reports 4,800/10,000 passing (48%), including unresolved typo, date, currency, revocation and noisy-input interpretation cases. The engine regression suite passing does not mean those 10,000 semantic cases all pass. This release strengthens execution contracts; it does not claim to solve that language-understanding benchmark.
++
+ ## Design references
+ 
+ The separation of task lifecycle, input-required states and artifacts is consistent with the A2A task lifecycle: https://a2a-protocol.org/latest/topics/life-of-a-task/
