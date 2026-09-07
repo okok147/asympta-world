@@ -1,0 +1,10 @@
+--- a/scripts/smoke-coordination-kernel-browser.mjs
++++ b/scripts/smoke-coordination-kernel-browser.mjs
+@@ -198,6 +198,7 @@
+         if (await evaluate(`Boolean(${expression})`)) return;
+         await sleep(100);
+       }
++      console.error("Browser checkpoint diagnostic:", await evaluate(`JSON.stringify({ lang: document.documentElement.lang, receipts: [...document.querySelectorAll('[data-coordination-kernel]')].map(node => node.textContent), languageMenu: document.querySelector('.atlas-language-menu')?.textContent, phase: window.__ASYMPTA_DEMO__?.snapshot().foreground.phase })`));
+       throw new Error(`Timed out waiting for ${label}.`);
+     };
+ 

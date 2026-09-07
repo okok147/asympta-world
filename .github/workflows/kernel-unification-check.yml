@@ -36,6 +36,7 @@ jobs:
           git apply /tmp/coordination.patch
           git apply --check .github/kernel-patch/corrections.patch
           git apply .github/kernel-patch/corrections.patch
+          git apply .github/kernel-patch/diagnostics.patch
           mkdir -p /tmp/kernel-validation
       - name: Install
         run: npm ci
@@ -52,7 +53,9 @@ jobs:
       - name: Rendered product
         run: npm run test:rendered 2>&1 | tee /tmp/kernel-validation/rendered.log
       - name: Export Pages
-        run: npm run export:pages 2>&1 | tee /tmp/kernel-validation/export.log
+        run: |
+          npm run export:pages 2>&1 | tee /tmp/kernel-validation/export.log
+          tar -czf /tmp/kernel-validation/pages-dist.tar.gz pages-dist
       - name: Browser kernel, approval and languages
         run: node scripts/smoke-coordination-kernel-browser.mjs 2>&1 | tee /tmp/kernel-validation/browser-kernel.log
       - name: Existing browser regressions
