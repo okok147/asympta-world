@@ -31,3 +31,20 @@
  ## Design references
  
  The separation of task lifecycle, input-required states and artifacts is consistent with the A2A task lifecycle: https://a2a-protocol.org/latest/topics/life-of-a-task/
+--- a/scripts/smoke-coordination-kernel-browser.mjs
++++ b/scripts/smoke-coordination-kernel-browser.mjs
+@@ -251,9 +251,11 @@
+       const before = JSON.parse(await evaluate("JSON.stringify(window.__ASYMPTA_DEMO__.snapshot().foreground)"));
+       if (before.coordination.side !== side || before.tasks.find(task => task.id.endsWith(":execute")).status !== "queued" || JSON.stringify(before).includes("PRIVATE_BROWSER_739")) throw new Error(`${side}: invalid authority or privacy projection`);
+       await waitFor("Boolean(document.querySelector('[data-coordination-kernel]'))", 5000, "visible receipt progress");
+-      for (const [lang, copy] of [["zh-Hant", "已驗證的行動回執"], ["ja", "検証済みの行動記録"], ["en", "Verified action receipts"]]) {
+-        await evaluate(`document.documentElement.lang = '${lang}'`);
+-        await waitFor(`document.querySelector('[data-coordination-kernel]')?.textContent.includes(${JSON.stringify(copy)})`, 5000, `live ${lang} kernel copy`);
++      for (const [lang, copy, label, option] of [["zh-Hant", "已驗證的行動回執", "Language", "繁體中文"], ["ja", "検証済みの行動記録", "語言", "日本語"], ["en", "Verified action receipts", "言語", "English"]]) {
++        await evaluate(`document.querySelector('button[aria-label="${label}"]').click()`);
++        await waitFor("Boolean(document.querySelector('.atlas-language-menu.is-open'))", 5000, "open global language menu");
++        await evaluate(`[...document.querySelectorAll('.atlas-language-menu button')].find(button => button.textContent.trim() === ${JSON.stringify(option)}).click()`);
++        await waitFor(`document.documentElement.lang === '${lang}' && document.querySelector('[data-coordination-kernel]')?.textContent.includes(${JSON.stringify(copy)})`, 5000, `live ${lang} kernel copy`);
+       }
+       await waitFor("Boolean(document.querySelector('.simulation-studio__approval button.simulation-studio__primary'))", 5000, "approval button");
+       await evaluate("document.querySelector('.simulation-studio__approval button.simulation-studio__primary').click()");
