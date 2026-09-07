@@ -72,24 +72,37 @@ export function AsymptaUserPreferences() {
 
     restore(readAsymptaUserPreferences());
 
-    const menu = document.querySelector<HTMLElement>(LANGUAGE_SELECTOR);
-    const menuObserver = menu
-      ? new MutationObserver(() => {
-          if (applyingPreference) return;
-          const locale = activeLocaleFromMenu();
-          if (!locale) return;
-          preferredLocale = locale;
-          document.documentElement.lang = locale;
-          const stored = readAsymptaUserPreferences();
-          if (stored.locale !== locale) writeAsymptaUserPreferences({ locale });
-        })
-      : null;
-
-    menuObserver?.observe(menu as HTMLElement, {
-      attributes: true,
-      attributeFilter: ["class"],
-      subtree: true,
+    let observedMenu: HTMLElement | null = null;
+    const menuObserver = new MutationObserver(() => {
+      if (applyingPreference) return;
+      const locale = activeLocaleFromMenu();
+      if (!locale) return;
+      preferredLocale = locale;
+      document.documentElement.lang = locale;
+      const stored = readAsymptaUserPreferences();
+      if (stored.locale !== locale) writeAsymptaUserPreferences({ locale });
     });
+    const bindLanguageMenu = () => {
+      const nextMenu = document.querySelector<HTMLElement>(LANGUAGE_SELECTOR);
+      if (nextMenu === observedMenu) return;
+      menuObserver.disconnect();
+      observedMenu = nextMenu;
+      if (!observedMenu) return;
+      menuObserver.observe(observedMenu, {
+        attributes: true,
+        attributeFilter: ["class"],
+        subtree: true,
+      });
+      restore(readAsymptaUserPreferences());
+    };
+    bindLanguageMenu();
+    // A verified completion remounts the World but not this preference owner.
+    // Reattach to its new menu; otherwise a later selection is restored to the
+    // old preference. The hot path only checks the current node's connectivity.
+    const worldObserver = new MutationObserver(() => {
+      if (!observedMenu?.isConnected) bindLanguageMenu();
+    });
+    worldObserver.observe(document.body, { childList: true, subtree: true });
 
     // The main World component also writes <html lang> from its own React effect.
     // Enforce the saved locale if that older effect briefly writes its default
@@ -112,7 +125,8 @@ export function AsymptaUserPreferences() {
     return () => {
       disposed = true;
       if (retryFrame) window.cancelAnimationFrame(retryFrame);
-      menuObserver?.disconnect();
+      menuObserver.disconnect();
+      worldObserver.disconnect();
       documentObserver.disconnect();
       unsubscribe();
     };

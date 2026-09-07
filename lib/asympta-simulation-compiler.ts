@@ -1,3 +1,5 @@
+import { compileSimulationCoordination } from "./asympta-simulation-coordination.ts";
+import type { CoordinationContract } from "./asympta-coordination-kernel.ts";
 import { classifyTaskEffect, resolveExplicitRequirementValue } from "./asympta-semantic-kernel.ts";
 import { createUniversalTaskEnvelope, type AsymptaUniversalLocale, type AsymptaUniversalTaskEnvelope } from "./asympta-universal-task-protocol.ts";
 import { compileAsymptaContext, buildMarketplaceTaskProtocol, marketplaceSelectionConfirmationIntent } from "./asympta-marketplace-intent.ts";
@@ -8,7 +10,7 @@ export type SimulationSide = "users" | "business";
 export type SimulationFamily = "purchase" | "booking" | "supply" | "service" | "delivery" | "change" | "research" | "coordinate";
 export type SimulationFact = { key: string; value: string; numericValue?: number; source: "explicit" | "answer"; evidence: string };
 export type SimulationQuestion = { key: string; options?: Array<{ value: string; label: string; description?: string }> };
-export type SimulationStage = "intake" | "route" | "check" | "proposal" | "approval" | "execute" | "verify" | "return";
+export type SimulationStage = "intake" | "route" | "check" | "proposal" | "approval" | "replenish" | "execute" | "verify" | "return";
 export type SimulationPacket = {
   schemaVersion: "asympta.simulation/1";
   id: string;
@@ -23,12 +25,13 @@ export type SimulationPacket = {
   requiresApproval: boolean;
   sourceClauses: string[];
   protocol: AsymptaUniversalTaskEnvelope;
+  coordination?: CoordinationContract;
   permissions: { mode: "simulated"; externalTools: false; approvalGranted: false };
 };
 
 export const SIMULATION_LIMIT = 12000;
 export const SIMULATION_WORKFLOW_ID = "context-simulation" as WorkflowId;
-export const SIMULATION_STAGES: SimulationStage[] = ["intake", "route", "check", "proposal", "approval", "execute", "verify", "return"];
+export const SIMULATION_STAGES: SimulationStage[] = ["intake", "check", "route", "proposal", "approval", "replenish", "execute", "verify", "return"];
 
 const FAMILY_RULES: Array<[SimulationFamily, RegExp]> = [
   ["change", /\b(refund|cancel|delay|reschedule|return|change)\b|退款|取消|延遲|延迟|改期|退貨|遅延|変更|返品|返金/iu],
@@ -124,6 +127,16 @@ export function compileSimulation(input: { id: string; text: string; side: Simul
   if (family === "coordinate" && !facts.some(fact => fact.key === "outcome")) questions.push({ key: "outcome" });
   const conflicts = ["budget", "quantity", "deadline", "location", "stock", "capacity"].filter(key => new Set(facts.filter(fact => fact.key === key).map(fact => fact.value)).size > 1);
   for (const key of conflicts) questions.push({ key });
+  // A displayed number is not a validated resource. Keep invalid/conflicting
+  // source values visible and ask for correction instead of silently coercing them.
+  for (const item of facts.filter(item => ["quantity", "stock", "capacity"].includes(item.key))) {
+    const match = /^([+-]?(?:\d+(?:\.\d+)?|\.\d+))\s*(?:[\p{L} ]+)?$/u.exec(item.value.trim());
+    const number = match ? Number(match[1]) : NaN;
+    if (!Number.isFinite(number) || Math.abs(number) > Number.MAX_SAFE_INTEGER || number < 0 || (item.key === "quantity" && number === 0)) {
+      delete item.numericValue;
+      if (!questions.some(question => question.key === item.key)) questions.push({ key: item.key });
+    } else item.numericValue = number;
+  }
   let executionIntent = text;
   if (input.side === "users" && family === "purchase") {
     const compilation = compileAsymptaContext(text, { requestId: input.id, conversationId: input.id, locale, now: 0 });
@@ -150,24 +163,33 @@ export function compileSimulation(input: { id: string; text: string; side: Simul
   const protocol = createUniversalTaskEnvelope({ id: input.id, domain: family, actionFamily: family, intent: raw, locale, mode: "simulated", requiredFields: questions.map(question => question.key), risk: requiresApproval ? "high" : "low" });
   protocol.status = questions.length ? "needs_human" : "planning";
   protocol.packets = [{ id: `${input.id}:intent`, taskId: input.id, sequence: 1, kind: "intent", sender: input.side, recipient: initiator, summary: raw, data: { facts, unresolved: questions.map(question => question.key) }, provenance: { mode: "simulated", simulated: true } }];
-  return { schemaVersion: "asympta.simulation/1", id: input.id, side: input.side, raw, executionIntent, family, interpretation: "rule_based_proposal", facts, questions, agents, requiresApproval, sourceClauses, protocol, permissions: { mode: "simulated", externalTools: false, approvalGranted: false } };
+  const packet: SimulationPacket = { schemaVersion: "asympta.simulation/1", id: input.id, side: input.side, raw, executionIntent, family, interpretation: "rule_based_proposal", facts, questions, agents, requiresApproval, sourceClauses, protocol, permissions: { mode: "simulated", externalTools: false, approvalGranted: false } };
+  if (!questions.length) {
+    packet.coordination = compileSimulationCoordination(packet);
+    packet.agents = [...new Set(packet.coordination.actions.flatMap(action => action.candidates.map(candidate => candidate.agentId)))];
+  }
+  return packet;
 }
 
 export function buildSimulationWorkflow(packet: SimulationPacket, titles: Record<SimulationStage, string>): AtlasWorkflowDefinition {
   if (packet.questions.length) throw new Error("unresolved_requirements");
   if (packet.permissions.mode !== "simulated" || packet.permissions.externalTools || packet.permissions.approvalGranted) throw new Error("invalid_simulation_authority");
-  const stages = SIMULATION_STAGES.filter(stage => stage !== "approval" || packet.requiresApproval);
-  const initiator = packet.side === "business" ? "agent-business" : "agent-user";
-  const partner = packet.side === "business" && PARTNER[packet.family] === "agent-business" ? "agent-customer" : PARTNER[packet.family];
-  const assignments: Record<SimulationStage, string> = { intake: initiator, route: partner, check: "agent-operations", proposal: partner, approval: "agent-finance", execute: partner, verify: "agent-quality", return: initiator };
+  // Imported proposals cannot set their own family, approval policy or graph.
+  // Only original source and explicit answers are reinterpreted; they remain data.
+  packet = compileSimulation({ id: packet.id, text: packet.raw, side: packet.side, locale: packet.protocol.intent.locale,
+    answers: Object.fromEntries(packet.facts.filter(item => item.source === "answer").map(item => [item.key, item.key === "selected_offer_id" ? item.evidence : item.value])) });
+  if (packet.questions.length) throw new Error("unresolved_requirements");
+  // Recompile through the trusted domain adapter; an imported graph is not authority.
+  const coordinationContract = compileSimulationCoordination(packet);
   const workflow: AtlasWorkflowDefinition = {
     id: SIMULATION_WORKFLOW_ID, name: titles.intake, shortName: titles.intake, summary: titles.route, outcome: titles.return,
-    tasks: stages.map((stage, index) => {
-      const agentId = assignments[stage];
-      // Exchange packets at the other organisation before returning to origin.
-      const host = stage === "intake" ? partner : stage === "return" ? initiator : agentId;
-      const locationId = ATLAS_AGENTS.find(agent => agent.id === host)!.homeLocationId;
-      return { id: `${packet.id}:${stage}`, title: titles[stage], detail: titles[stage], agentInput: { packetId: packet.id, stage, mode: "simulated", raw: packet.raw, facts: packet.facts, unresolved: packet.questions, permissions: packet.permissions, requiredOutput: stage === "verify" ? "verify_simulated_handoff_trace" : stage }, agentId, locationId, dependsOn: index ? [`${packet.id}:${stages[index - 1]}`] : [], workMs: 1000, ...(stage === "approval" ? { requiresApproval: true, approvalLabel: titles.approval, actionType: "send_customer_update" as const } : {}) };
+    coordinationContract,
+    tasks: coordinationContract.actions.map(action => {
+      const stage = action.stage as SimulationStage;
+      const agentId = action.candidates[0].agentId;
+      const destination = action.destinationId ?? agentId;
+      const locationId = ATLAS_AGENTS.find(agent => agent.id === destination)!.homeLocationId;
+      return { id: action.id, title: titles[stage], detail: titles[stage], agentInput: { packetId: packet.id, stage, mode: "simulated", raw: packet.raw, facts: packet.facts, unresolved: packet.questions, permissions: packet.permissions, requiredOutput: Object.keys(action.effects), capability: action.capability }, agentId, locationId, dependsOn: [...action.dependsOn], workMs: 1000, ...(action.approvalTargets?.length ? { requiresApproval: true, approvalLabel: titles.approval, actionType: "send_customer_update" as const } : {}) };
     }),
   };
   return assertAsymptaWorkflowContract(workflow, { agentIds: ATLAS_AGENTS.map(agent => agent.id), locationIds: Object.keys(ATLAS_LOCATIONS) });

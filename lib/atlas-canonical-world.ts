@@ -321,6 +321,12 @@ export function advanceAtlasWorld(current: LegacyOrCanonicalWorld, deltaMs: numb
   return after;
 }
 
+export function correctAtlasCoordination(current: LegacyOrCanonicalWorld, changes: Record<string, import("./asympta-coordination-kernel.ts").KernelValue>, principalId: string, commandId: string) {
+  const before = canonicalizeAtlasWorld(current);
+  const next = canonicalizeAtlasWorld(legacy.correctAtlasCoordination(before, changes, principalId, commandId));
+  persistMaybe(next, true); return next;
+}
+
 export function resolveAtlasApproval(current: LegacyOrCanonicalWorld, approvalId: string, approved: boolean) {
   const before = canonicalizeAtlasWorld(current);
   const approval = before.approvals.find((item) => item.id === approvalId && item.status === "pending");
@@ -331,7 +337,7 @@ export function resolveAtlasApproval(current: LegacyOrCanonicalWorld, approvalId
   const marketplacePayment = before.workflowId === ("marketplace-intent" as legacy.WorkflowId)
     && approval.actionType === "authorize_payment"
     && approval.taskId?.startsWith("mp-");
-  if (approved && approval.actionType && approval.agentId && !marketplacePayment) {
+  if (approved && approval.actionType && approval.agentId && !marketplacePayment && !before.coordination) {
     const applied = applyApprovedRuntimeAction(before, approval.actionType, approval.agentId, approval.detail);
     runtimeWorld = applied.world;
     runtimeResult = applied.result;
@@ -387,7 +393,8 @@ export function atlasAgentObservation(current: LegacyOrCanonicalWorld, agentId: 
 }
 
 export function atlasInvariantViolations(current: LegacyOrCanonicalWorld) {
-  return runtimeInvariantViolations(canonicalizeAtlasWorld(current).runtime);
+  const world = canonicalizeAtlasWorld(current);
+  return [...runtimeInvariantViolations(world.runtime), ...legacy.atlasCoordinationViolations(world)];
 }
 
 export function explainAtlasCausality(current: LegacyOrCanonicalWorld, eventId?: string) {
@@ -436,7 +443,7 @@ export function restoreAtlasWorld(serialized: string): AtlasWorldState | null {
     world.seed = Number(raw.seed ?? restoredRuntime.seed);
     world.schemaVersion = 2;
     world.persistedAt = typeof raw.persistedAt === "number" ? raw.persistedAt : undefined;
-    return runtimeInvariantViolations(world.runtime).length ? null : world;
+    return runtimeInvariantViolations(world.runtime).length || legacy.atlasCoordinationViolations(world).length ? null : world;
   } catch {
     return null;
   }

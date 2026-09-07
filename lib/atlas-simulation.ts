@@ -1,3 +1,9 @@
+import {
+  CoordinationError, createCoordinationState, coordinationDirection, reduceCoordination,
+  simulatedCoordinationOutputs, coordinationComplete, coordinationSnapshot, coordinationViolations,
+  type CoordinationContract, type CoordinationState, type KernelValue,
+} from "./asympta-coordination-kernel.ts";
+
 export type StakeholderSide =
   | "user"
   | "customer"
@@ -54,6 +60,7 @@ export type AtlasWorkflowDefinition = {
   summary: string;
   outcome: string;
   tasks: AtlasTaskBlueprint[];
+  coordinationContract?: CoordinationContract;
 };
 
 export type AtlasAgentState = AtlasAgentBlueprint & {
@@ -117,6 +124,7 @@ export type AtlasWorldState = {
   messages: AtlasMessage[];
   events: AtlasEvent[];
   approvals: AtlasApproval[];
+  coordination?: CoordinationState;
 };
 
 const EVENT_LIMIT = 90;
@@ -317,6 +325,7 @@ export function startAtlasWorkflow(current: AtlasWorldState, workflowId: Workflo
   world.revision = current.revision;
   world.workflowId = workflowId;
   world.phase = "running";
+  if (definition.coordinationContract) world.coordination = createCoordinationState(definition.coordinationContract);
   world.tasks = definition.tasks.map((item) => ({
     ...item,
     dependencies: [...item.dependsOn],
@@ -398,10 +407,71 @@ function arriveAtTask(world: AtlasWorldState, taskState: AtlasTaskState, agent: 
   pushEvent(world, taskState.title, `${agent.name} arrived at ${ATLAS_LOCATIONS[taskState.locationId].name} and started work.`, { agentId: agent.id, taskId: taskState.id });
 }
 
+function blockCoordination(world: AtlasWorldState, error: unknown, taskState?: AtlasTaskState) {
+  const code = error instanceof CoordinationError ? error.code : "invalid_kernel_state";
+  if (world.coordination) world.coordination.blocker = { code, ...(taskState ? { actionId: taskState.id } : {}) };
+  world.phase = "blocked";
+  if (taskState) {
+    taskState.status = "blocked";
+    const agent = world.agents.find(item => item.id === taskState.agentId);
+    if (agent) agent.status = "waiting";
+    // Reuse localized task copy; machine reason appears in the safe kernel snapshot.
+    pushEvent(world, taskState.title, taskState.detail, { taskId: taskState.id, agentId: taskState.agentId });
+  }
+}
+
+/** UI task state is a projection, never completion evidence or a routing authority. */
+export function atlasCoordinationViolations(world: AtlasWorldState): string[] {
+  const kernel = world.coordination;
+  if (!kernel) return [];
+  const violations = coordinationViolations(kernel);
+  if (violations.length) return violations;
+  if (world.tasks.length !== kernel.contract.actions.length || new Set(world.tasks.map(task => task.id)).size !== world.tasks.length) return ["projection_mismatch"];
+  for (const task of world.tasks) {
+    const action = kernel.contract.actions.find(item => item.id === task.id);
+    const execution = kernel.executions[task.id];
+    if (!action || !execution || JSON.stringify(task.dependsOn) !== JSON.stringify(action.dependsOn) || Boolean(task.requiresApproval) !== Boolean(action.approvalTargets?.length)) return ["projection_mismatch"];
+    if ((task.status === "done") !== (execution.status === "verified")) return ["unverified_completion"];
+    if (["moving", "working", "waiting_approval"].includes(task.status)) {
+      if (execution.status !== "running") return ["projection_mismatch"];
+      const direction = coordinationDirection(kernel, task.id);
+      if (direction.agentId !== task.agentId || direction.locationId !== task.locationId) return ["unauthorized_direction"];
+    }
+  }
+  if (world.phase === "completed" && !coordinationComplete(kernel)) return ["unverified_completion"];
+  return [];
+}
+
+/** Conservative pre-commit correction. After a consequential result, require
+ * an explicit compensation/new workflow instead of silently undoing effects. */
+export function correctAtlasCoordination(current: AtlasWorldState, changes: Record<string, KernelValue>, principalId: string, commandId: string): AtlasWorldState {
+  if (!current.coordination) throw new CoordinationError("missing_contract");
+  const corrected = reduceCoordination(current.coordination, { type: "correct", changes, principalId, commandId, expectedRevision: current.coordination.revision });
+  if (corrected === current.coordination) return current;
+  const world = cloneWorld(current);
+  world.coordination = corrected; world.phase = "running";
+  world.agents = spawnAgents();
+  // Remove old pending approvals; old approval IDs cannot approve the new plan.
+  world.approvals = world.approvals.filter(approval => approval.status !== "pending");
+  for (const task of world.tasks) {
+    task.status = "queued"; task.progress = 0; task.approvalStatus = task.requiresApproval ? "none" : undefined;
+    delete task.startedAt; delete task.workStartedAt; delete task.completedAt;
+  }
+  beginReadyTasks(world); return world;
+}
+
 function beginReadyTasks(world: AtlasWorldState) {
   if (!world.workflowId || world.phase === "blocked") return;
   for (const taskState of world.tasks) {
-    if (taskState.status !== "queued" || !dependenciesDone(world, taskState) || agentHasActiveTask(world, taskState.agentId)) continue;
+    if (taskState.status !== "queued" || !dependenciesDone(world, taskState)) continue;
+    if (world.coordination) {
+      try {
+        const direction = coordinationDirection(world.coordination, taskState.id);
+        if (agentHasActiveTask(world, direction.agentId)) continue;
+        taskState.agentId = direction.agentId; taskState.locationId = direction.locationId;
+        world.coordination = reduceCoordination(world.coordination, { type: "start", actionId: taskState.id, agentId: direction.agentId, commandId: `start:${world.coordination.epoch}:${taskState.id}`, expectedRevision: world.coordination.revision });
+      } catch (error) { blockCoordination(world, error, taskState); return; }
+    } else if (agentHasActiveTask(world, taskState.agentId)) continue;
     const agent = world.agents.find((candidate) => candidate.id === taskState.agentId);
     if (!agent) continue;
     const destination = ATLAS_LOCATIONS[taskState.locationId].point;
@@ -416,6 +486,12 @@ function beginReadyTasks(world: AtlasWorldState) {
 }
 
 function completeTask(world: AtlasWorldState, taskState: AtlasTaskState, agent: AtlasAgentState) {
+  if (world.coordination) {
+    try {
+      const kernel = world.coordination;
+      world.coordination = reduceCoordination(kernel, { type: "result", actionId: taskState.id, agentId: agent.id, binding: kernel.executions[taskState.id]?.binding ?? "", outputs: simulatedCoordinationOutputs(kernel, taskState.id), commandId: `result:${kernel.epoch}:${taskState.id}`, expectedRevision: kernel.revision });
+    } catch (error) { blockCoordination(world, error, taskState); return; }
+  }
   taskState.status = "done";
   taskState.progress = 1;
   taskState.completedAt = world.now;
@@ -435,6 +511,7 @@ function completeTask(world: AtlasWorldState, taskState: AtlasTaskState, agent: 
 function updatePhase(world: AtlasWorldState) {
   if (!world.workflowId || world.phase === "blocked") return;
   if (world.tasks.length > 0 && world.tasks.every((taskState) => taskState.status === "done")) {
+    if (world.coordination && !coordinationComplete(world.coordination)) { blockCoordination(world, new CoordinationError("unverified_completion")); return; }
     if (world.phase !== "completed") {
       world.phase = "completed";
       const definition = workflowFor(world.workflowId);
@@ -459,6 +536,10 @@ function updatePhase(world: AtlasWorldState) {
 
 export function advanceAtlasWorld(current: AtlasWorldState, deltaMs: number) {
   const world = cloneWorld(current);
+  if (world.coordination && world.phase !== "blocked") {
+    const violation = atlasCoordinationViolations(world)[0];
+    if (violation) { blockCoordination(world, new CoordinationError(violation)); return world; }
+  }
   const safeDelta = Math.min(140, Math.max(0, Number.isFinite(deltaMs) ? deltaMs : 0));
   world.now += safeDelta;
   world.messages = world.messages.filter((message) => message.expiresAt > world.now);
@@ -497,6 +578,12 @@ function approveTask(world: AtlasWorldState, taskId: string, approved: boolean) 
   const taskState = world.tasks.find((candidate) => candidate.id === taskId);
   const agent = taskState ? world.agents.find((candidate) => candidate.id === taskState.agentId) : undefined;
   if (!taskState || !agent) return;
+  if (world.coordination) {
+    try {
+      const kernel = world.coordination;
+      world.coordination = reduceCoordination(kernel, { type: "approve", actionId: taskId, principalId: kernel.contract.principal.id, approved, commandId: `approve:${kernel.epoch}:${taskId}`, expectedRevision: kernel.revision });
+    } catch (error) { blockCoordination(world, error, taskState); return; }
+  }
   if (!approved) {
     taskState.approvalStatus = "declined";
     taskState.status = "blocked";
@@ -516,6 +603,10 @@ export function resolveAtlasApproval(current: AtlasWorldState, approvalId: strin
   const world = cloneWorld(current);
   const approval = world.approvals.find((candidate) => candidate.id === approvalId && candidate.status === "pending");
   if (!approval) return world;
+  if (world.coordination) {
+    const violation = atlasCoordinationViolations(world)[0];
+    if (violation) { blockCoordination(world, new CoordinationError(violation)); return world; }
+  }
   approval.status = approved ? "approved" : "declined";
   approval.resolvedAt = world.now;
 
@@ -601,6 +692,7 @@ export function requestWebMcpAction(current: AtlasWorldState, actionType: Extern
 
 export function atlasSnapshot(world: AtlasWorldState) {
   return {
+    ...(world.coordination ? { coordination: coordinationSnapshot(world.coordination) } : {}),
     phase: world.phase,
     workflowId: world.workflowId ?? null,
     workflow: world.workflowId ? workflowFor(world.workflowId).name : null,
