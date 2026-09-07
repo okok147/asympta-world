@@ -8,7 +8,7 @@ import { buildSimulationWorkflow, compileSimulation, SIMULATION_LIMIT, SIMULATIO
 import { SIMULATION_EXAMPLES, simulationText, type SimulationCopyKey } from "@/lib/asympta-simulation-copy";
 
 type Draft = { text: string; answers: Record<string, string> };
-type Snapshot = { workflowId: string; phase: string; tasks: Array<{ id: string; title: string; status: string; agentId: string }>; approvals: Array<{ id: string; status: string; taskId: string }> };
+type Snapshot = { coordination?: { verifiedActions: number; totalActions: number; reviewCount: number; blocker: string | null }; workflowId: string; phase: string; tasks: Array<{ id: string; title: string; status: string; agentId: string }>; approvals: Array<{ id: string; status: string; taskId: string }> };
 type ActiveSimulation = { packet: SimulationPacket; snapshot: Snapshot | null };
 const KEY = "asympta:simulation-drafts:v1";
 const EMPTY_DRAFTS: Record<SimulationSide, Draft> = { users: { text: "", answers: {} }, business: { text: "", answers: {} } };
@@ -16,7 +16,7 @@ const EMPTY_DRAFTS: Record<SimulationSide, Draft> = { users: { text: "", answers
 function snapshot(): Snapshot | null {
   const value = window.__ASYMPTA_DEMO__?.snapshot() as { foreground?: Snapshot } | undefined;
   const world = value?.foreground as (Snapshot & { pendingApprovals?: Snapshot["approvals"] }) | undefined;
-  return world ? { workflowId: world.workflowId, phase: world.phase, tasks: world.tasks, approvals: (world.pendingApprovals ?? []).map(approval => ({ ...approval, status: "pending" })) } : null;
+  return world ? { coordination: world.coordination, workflowId: world.workflowId, phase: world.phase, tasks: world.tasks, approvals: (world.pendingApprovals ?? []).map(approval => ({ ...approval, status: "pending" })) } : null;
 }
 function id() { return `sim-${crypto.randomUUID()}`; }
 function safeDraft(value: unknown): Draft {
@@ -160,6 +160,11 @@ export function AsymptaSimulationWorkspace({ side }: { side: SimulationSide }) {
         {isCurrent && world && <section className="simulation-studio__journey" aria-label={t("trace")}>
           <h3 aria-live="polite">{t(world.phase === "completed" ? "completed" : world.phase === "waiting_approval" ? "waiting" : world.phase === "blocked" ? "blocked" : "running")}</h3>
           <ol>{world.tasks.map(task => { const stage = task.id.split(":").at(-1) as SimulationStage; return <li key={task.id} data-status={task.status}>{task.status === "done" ? <Check size={15} /> : <Circle size={15} />}<span>{t(stage)}</span></li>; })}</ol>
+          {world.coordination && <div className="simulation-studio__note" aria-live="polite" data-coordination-kernel="asympta.coordination/1">
+            <p>{t("kernelEvidence")}: {world.coordination.verifiedActions} / {world.coordination.totalActions}</p>
+            <p>{t("kernelReview")}: {world.coordination.reviewCount}</p>
+            {world.coordination.blocker && <p role="status">{t(world.coordination.blocker === "precondition_failed" ? "kernelConstraint" : "kernelBlocked")}</p>}
+          </div>}
           {pending && <div className="simulation-studio__approval"><p>{t("approvalNote")}</p><div><button className="simulation-studio__secondary" type="button" onClick={() => decide(false)}>{t("decline")}</button><button className="simulation-studio__primary" type="button" onClick={() => decide(true)}>{t("approve")}</button></div></div>}
           {world.phase === "completed" && <p className="simulation-studio__note">{t("verified")}</p>}
           {["completed", "blocked"].includes(world.phase) && <button type="button" className="simulation-studio__secondary" onClick={fresh}><Plus size={15} />{t("new")}</button>}
