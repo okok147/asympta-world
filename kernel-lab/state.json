@@ -1,7 +1,7 @@
 {
   "version": "asympta.kernel-recursive-state/0.1",
-  "generation": 242,
-  "totalCases": 77440,
+  "generation": 243,
+  "totalCases": 77760,
   "attackWeights": {
     "baseline_success": 0.25,
     "controlled_no_capability": 8,
@@ -15,13 +15,13 @@
     "compound_noise": 0.25
   },
   "repairWeights": {
-    "semantic": 0.29729358661854943,
-    "capability": 0.29729358661854943,
-    "liveness": 0.29729358661854943,
-    "approval": 0.29729358661854943,
-    "handoff": 0.29729358661854943,
-    "verification": 0.29729358661854943
+    "semantic": 0.29580711868545667,
+    "capability": 0.29580711868545667,
+    "liveness": 0.29580711868545667,
+    "approval": 0.29580711868545667,
+    "handoff": 0.29580711868545667,
+    "verification": 0.29580711868545667
   },
   "uncontrolledFingerprints": [],
-  "lastRunAt": "2026-10-09T19:34:36.075Z"
+  "lastRunAt": "2026-10-09T23:35:20.944Z"
 }
