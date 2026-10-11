@@ -1,12 +1,12 @@
-# Asympta Kernel Recursive Lab — generation 251
+# Asympta Kernel Recursive Lab — generation 252
 
-Seed: `1645523800`
+Seed: `1664690433`
 
 ## Process integrity
 
 - Cases: **320**
-- Completed: **25**
-- Controlled / predictable failures: **295**
+- Completed: **33**
+- Controlled / predictable failures: **287**
 - Uncontrolled failures: **0**
 - Process integrity rate: **100.00%**
 - Deterministic replay rate: **100.00%**
@@ -18,22 +18,22 @@ A controlled failure is a valid terminal result. The lab only treats hangs, non-
 
 | Family | Total | Completed | Controlled failure | Uncontrolled |
 | --- | ---: | ---: | ---: | ---: |
-| baseline_success | 1 | 1 | 0 | 0 |
-| controlled_no_capability | 53 | 0 | 53 | 0 |
-| controlled_human_input | 62 | 0 | 62 | 0 |
-| controlled_approval | 59 | 10 | 49 | 0 |
+| baseline_success | 4 | 4 | 0 | 0 |
+| controlled_no_capability | 46 | 0 | 46 | 0 |
+| controlled_human_input | 66 | 0 | 66 | 0 |
+| controlled_approval | 62 | 16 | 46 | 0 |
 | multilingual_noise | 5 | 5 | 0 | 0 |
-| novel_requirement | 68 | 0 | 68 | 0 |
-| step_pressure | 63 | 0 | 63 | 0 |
-| fallback_route | 4 | 4 | 0 | 0 |
-| reordered_requirements | 2 | 2 | 0 | 0 |
+| novel_requirement | 64 | 0 | 64 | 0 |
+| step_pressure | 65 | 0 | 65 | 0 |
+| fallback_route | 2 | 2 | 0 | 0 |
+| reordered_requirements | 3 | 3 | 0 | 0 |
 | compound_noise | 3 | 3 | 0 | 0 |
 
 ## Adaptive weights
 
 Attack curriculum: controlled_no_capability=8.000, controlled_human_input=8.000, controlled_approval=8.000, novel_requirement=8.000, step_pressure=8.000, baseline_success=0.250, multilingual_noise=0.250, fallback_route=0.250, reordered_requirements=0.250, compound_noise=0.250
 
-Repair priority: semantic=0.284, capability=0.284, liveness=0.284, approval=0.284, handoff=0.284, verification=0.284
+Repair priority: semantic=0.283, capability=0.283, liveness=0.283, approval=0.283, handoff=0.283, verification=0.283
 
 ## Repair contract
 
