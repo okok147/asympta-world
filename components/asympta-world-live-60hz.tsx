@@ -619,15 +619,21 @@ export function AsymptaWorldLive60Hz() {
       map.on("zoomstart", stopFollow);
       map.on("moveend", () => { cullRequestedRef.current = true; });
       map.on("zoomend", () => { cullRequestedRef.current = true; });
-      map.on("load", () => {
-        if (disposed) return;
+      let initialized = false;
+      const initializeWorld = () => {
+        if (disposed || initialized) return;
+        initialized = true;
         addMapLayers(map, worldRef.current);
         mountForegroundMarkers(maplibre, map, worldRef.current);
         const ambientActors = reconcileAmbientMarkers(worldRef.current.now);
         syncMapSources(map, worldRef.current, ambientActors);
         setMapReady(true);
         if (window.__ASYMPTA_NATIVE__) stopMobileBase = attachMobileOnlineMap(map);
-      });
+      };
+      // The bundled style is ready for layers at style.load. Native interaction
+      // must not wait for optional cartography or a fully rendered idle frame.
+      // MapLibre's load event includes all source processing and first rendering.
+      map.on(window.__ASYMPTA_NATIVE__ ? "style.load" : "load", initializeWorld);
     }).catch((reason: unknown) => {
       if (disposed) return;
       const language = document.documentElement.lang;
