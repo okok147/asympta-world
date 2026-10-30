@@ -279,6 +279,9 @@ function buildEndpoint(value: string) {
 }
 
 export function getPublicAgentConfig(): PublicAgentConfig | null {
+  // The public browser service authenticates the hosted web origin. An app
+  // bundle has a different origin and must not claim that connection exists.
+  if (typeof window !== "undefined" && (window as Window & { __ASYMPTA_NATIVE__?: boolean }).__ASYMPTA_NATIVE__) return null;
   const apiUrl = process.env.NEXT_PUBLIC_ASYMPTA_AGENT_API_URL?.trim();
   const turnstileSiteKey = process.env.NEXT_PUBLIC_ASYMPTA_TURNSTILE_SITE_KEY?.trim();
   if (!apiUrl || !turnstileSiteKey) return null;

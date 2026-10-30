@@ -19,6 +19,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { simulationText } from "@/lib/asympta-simulation-copy";
 import { SIMULATION_STAGES, SIMULATION_WORKFLOW_ID, type SimulationStage } from "@/lib/asympta-simulation-compiler";
 import { WorkflowClock } from "@/lib/asympta-workflow-clock";
+import { attachMobileOnlineMap, mobileMapStyle, MOBILE_ASSET_ROOT, type NativeMapEvent } from "@/lib/asympta-mobile-map";
 import { AnimalPortrait, animalSvgMarkup } from "@/components/asympta-animal-art";
 import {
   ATLAS_AGENTS,
@@ -54,10 +55,15 @@ type BoundsLike = { getWest(): number; getEast(): number; getSouth(): number; ge
 type CenterLike = { lng: number; lat: number };
 
 type MapLibreMap = {
-  on(event: string, handler: () => void): void;
-  addSource(id: string, source: { type: "geojson"; data: GeoJsonFeatureCollection }): void;
-  addLayer(layer: Record<string, unknown>): void;
+  on(event: string, handler: (event: NativeMapEvent) => void): void;
+  off(event: string, handler: (event: NativeMapEvent) => void): void;
+  addSource(id: string, source: Record<string, unknown>): void;
+  addLayer(layer: Record<string, unknown>, before?: string): void;
   getSource(id: string): GeoJsonSource | undefined;
+  getLayer(id: string): unknown;
+  removeLayer(id: string): void;
+  removeSource(id: string): void;
+  setLayoutProperty(layer: string, property: string, value: unknown): void;
   getBounds(): BoundsLike;
   getCenter(): CenterLike;
   setCenter(coordinates: [number, number]): void;
@@ -192,7 +198,7 @@ function ensureMapLibreCss() {
   if (document.querySelector("link[data-asympta-maplibre='true']")) return;
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = MAPLIBRE_CSS;
+  link.href = window.__ASYMPTA_NATIVE__ ? `${MOBILE_ASSET_ROOT}/maplibre/maplibre-gl.css` : MAPLIBRE_CSS;
   link.dataset.asymptaMaplibre = "true";
   document.head.appendChild(link);
 }
@@ -210,7 +216,7 @@ function loadMapLibre(): Promise<MapLibreNamespace> {
       return;
     }
     const script = document.createElement("script");
-    script.src = MAPLIBRE_JS;
+    script.src = window.__ASYMPTA_NATIVE__ ? `${MOBILE_ASSET_ROOT}/maplibre/maplibre-gl.js` : MAPLIBRE_JS;
     script.async = true;
     script.dataset.asymptaMaplibre = "true";
     script.addEventListener("load", finish, { once: true });
@@ -581,12 +587,13 @@ export function AsymptaWorldLive60Hz() {
 
   useEffect(() => {
     let disposed = false;
+    let stopMobileBase = () => {};
     loadMapLibre().then((maplibre) => {
       if (disposed || !mapContainerRef.current) return;
       mapLibreRef.current = maplibre;
       const map = new maplibre.Map({
         container: mapContainerRef.current,
-        style: OPENFREEMAP_STYLE,
+        style: window.__ASYMPTA_NATIVE__ ? mobileMapStyle() : OPENFREEMAP_STYLE,
         center: TOKYO_CENTER,
         zoom: TOKYO_ZOOM,
         minZoom: 3,
@@ -619,13 +626,18 @@ export function AsymptaWorldLive60Hz() {
         const ambientActors = reconcileAmbientMarkers(worldRef.current.now);
         syncMapSources(map, worldRef.current, ambientActors);
         setMapReady(true);
+        if (window.__ASYMPTA_NATIVE__) stopMobileBase = attachMobileOnlineMap(map);
       });
     }).catch((reason: unknown) => {
-      if (!disposed) setMapError(reason instanceof Error ? reason.message : "The map could not be loaded.");
+      if (disposed) return;
+      const language = document.documentElement.lang;
+      const nativeError = language.startsWith("zh") ? "無法開啟地圖，請重新開啟 App。" : language.startsWith("ja") ? "地図を開けませんでした。App を開き直してください。" : "The map could not open. Please reopen the app.";
+      setMapError(window.__ASYMPTA_NATIVE__ ? nativeError : reason instanceof Error ? reason.message : "The map could not be loaded.");
     });
 
     return () => {
       disposed = true;
+      stopMobileBase();
       for (const marker of foregroundMarkersRef.current.values()) marker.remove();
       for (const marker of cityMarkersRef.current.values()) marker.remove();
       foregroundMarkersRef.current.clear();

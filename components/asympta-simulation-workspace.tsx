@@ -6,6 +6,7 @@ import { useAsymptaGlobalLocale } from "./asympta-feature-locale";
 import { ATLAS_WORKFLOWS } from "@/lib/atlas-simulation";
 import { buildSimulationWorkflow, compileSimulation, SIMULATION_LIMIT, SIMULATION_STAGES, SIMULATION_WORKFLOW_ID, type SimulationPacket, type SimulationSide, type SimulationStage } from "@/lib/asympta-simulation-compiler";
 import { SIMULATION_EXAMPLES, simulationText, type SimulationCopyKey } from "@/lib/asympta-simulation-copy";
+import { asymptaTaskStorage } from "@/lib/asympta-mobile-storage";
 
 type Draft = { text: string; answers: Record<string, string> };
 type Snapshot = { coordination?: { verifiedActions: number; totalActions: number; reviewCount: number; blocker: string | null }; workflowId: string; phase: string; tasks: Array<{ id: string; title: string; status: string; agentId: string }>; approvals: Array<{ id: string; status: string; taskId: string }> };
@@ -49,7 +50,7 @@ export function AsymptaSimulationWorkspace({ side }: { side: SimulationSide }) {
   useEffect(() => {
     queueMicrotask(() => {
       try {
-        const value = JSON.parse(sessionStorage.getItem(KEY) ?? "null");
+        const value = JSON.parse(asymptaTaskStorage()?.getItem(KEY) ?? "null");
         if (value) setDrafts({ users: safeDraft(value.users), business: safeDraft(value.business) });
       } catch { /* Empty local drafts are a valid fallback. */ }
       loaded.current = true;
@@ -57,7 +58,7 @@ export function AsymptaSimulationWorkspace({ side }: { side: SimulationSide }) {
   }, []);
   useEffect(() => {
     if (!loaded.current) return;
-    try { sessionStorage.setItem(KEY, JSON.stringify(drafts)); } catch { /* In-memory editing remains usable. */ }
+    try { asymptaTaskStorage()?.setItem(KEY, JSON.stringify(drafts)); } catch { /* In-memory editing remains usable. */ }
   }, [drafts]);
   useEffect(() => {
     document.documentElement.dataset.asymptaSimulationEditor = String(open);
