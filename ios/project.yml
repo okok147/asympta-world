@@ -33,6 +33,8 @@ targets:
       properties:
         CFBundleDisplayName: Asympta World
         CFBundleDevelopmentRegion: en
+        CFBundleShortVersionString: '$(MARKETING_VERSION)'
+        CFBundleVersion: '$(CURRENT_PROJECT_VERSION)'
         CFBundleLocalizations: [en, zh-Hant, ja]
         LSRequiresIPhoneOS: true
         ITSAppUsesNonExemptEncryption: false
