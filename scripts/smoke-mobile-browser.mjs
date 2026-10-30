@@ -157,9 +157,13 @@ async function run() {
     result.touchTargets.push(...await measureTargets());
     await tapSelector(".simulation-studio__toggle");
     await waitFor("document.querySelector('.simulation-studio__toggle')?.getAttribute('aria-expanded')==='false'", "collapse editor");
+    // Camera transitions and marker placement finish on compositor frames.
+    // Test the visible result after that transition, rather than measuring the
+    // frame in which the editor was collapsed.
+    await waitFor("[...document.querySelectorAll('.animal-map-marker--foreground')].some(node=>{const r=node.getBoundingClientRect();return r.width>0&&r.height>0&&r.right>0&&r.bottom>0&&r.left<innerWidth&&r.top<innerHeight;})", "camera settled with visible actors");
     const mapState = await evaluate(`(() => { const visible=[...document.querySelectorAll('.animal-map-marker--foreground')].filter(node=>{const r=node.getBoundingClientRect();return r.width>0&&r.height>0&&r.right>0&&r.bottom>0&&r.left<innerWidth&&r.top<innerHeight;});return {agents:document.querySelectorAll('.animal-map-marker--foreground').length,visibleAgents:visible.length,localSource:Boolean(window.__ASYMPTA_MAP__?.getSource('asympta-local-geography')),canvasWidth:document.querySelector('.maplibregl-canvas')?.width}; })()`);
-    assert.ok(mapState.visibleAgents > 0 && mapState.localSource && mapState.canvasWidth > 0, `${device.name}: bundled map rendered visible agents`);
     result.map = mapState;
+    assert.ok(mapState.visibleAgents > 0 && mapState.localSource && mapState.canvasWidth > 0, `${device.name}: bundled map rendered visible agents`);
     result.screenshots.push(await screenshot("offline-world"));
 
     for (const [locale, option, shareLabel, connectLabel] of [["zh-Hant", "繁體中文", "分享摘要", "線上服務"], ["ja", "日本語", "概要を共有", "オンラインサービス"], ["en", "English", "Share a summary", "Online services"]]) {

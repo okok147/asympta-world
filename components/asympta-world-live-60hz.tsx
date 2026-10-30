@@ -14,7 +14,8 @@ import {
   Plus,
   ShieldCheck,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 import { simulationText } from "@/lib/asympta-simulation-copy";
 import { SIMULATION_STAGES, SIMULATION_WORKFLOW_ID, type SimulationStage } from "@/lib/asympta-simulation-compiler";
@@ -387,6 +388,19 @@ function activeAgent(world: AtlasWorldState, selectedId: string | null) {
     ?? world.agents.find((agent) => agent.status === "moving")
     ?? world.agents.find((agent) => agent.status !== "idle")
     ?? world.agents[0];
+}
+
+function MapConsoleLayer({ children }: { children: ReactNode }) {
+  const [host, setHost] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!window.__ASYMPTA_NATIVE__) return;
+    let disposed = false;
+    // Keep server and initial hydration markup identical. The packaged console
+    // then joins the other fixed panels outside the map's isolated paint layer.
+    queueMicrotask(() => { if (!disposed) setHost(document.body); });
+    return () => { disposed = true; };
+  }, []);
+  return host ? createPortal(children, host) : children;
 }
 
 export function AsymptaWorldLive60Hz() {
@@ -881,6 +895,7 @@ export function AsymptaWorldLive60Hz() {
       <div className="map-paper-wash" aria-hidden="true" />
       <div className="map-paper-grain" aria-hidden="true" />
 
+      <MapConsoleLayer>
       <section className={`atlas-console asympta-access-card ${menuOpen ? "is-open" : "is-collapsed"}`} aria-label={copy.access}>
         <div className="atlas-menu-bar">
           <button type="button" className="atlas-menu-identity" aria-expanded={menuOpen} aria-label={menuOpen ? copy.closeMenu : copy.menu} onClick={() => setMenuOpen((value) => !value)}>
@@ -934,6 +949,7 @@ export function AsymptaWorldLive60Hz() {
           <p className="asympta-access-safety"><ShieldCheck size={13} strokeWidth={1.8} />{copy.safetyNote}</p>
         </div>
       </section>
+      </MapConsoleLayer>
 
       {selectedAgent && !pendingApproval ? (
         <aside className="atlas-agent-card" aria-live="polite">
