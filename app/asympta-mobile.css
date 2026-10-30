@@ -7,9 +7,9 @@ html[data-asympta-native="true"] :is(input, textarea, select) { font-size: max(1
 html[data-asympta-native="true"] :is(.atlas-quick-icon, .asympta-camera-follow-toggle, .map-zoom button, .map-control, .atlas-card-close, .atlas-language-menu button, .atlas-approval__actions button, .simulation-studio button, .asympta-intent-composer button) { min-width: 44px !important; min-height: 44px !important; }
 html[data-asympta-native="true"] .atlas-menu-bar { grid-template-columns: minmax(0, 1fr) 44px 44px !important; }
 html[data-asympta-native="true"] .atlas-menu-identity { min-height: 44px; }
-html[data-asympta-native="true"] .atlas-console { position: fixed; z-index: 1500; max-width: calc(100vw - 84px) !important; }
+html[data-asympta-native="true"] .atlas-console.asympta-access-card { position: fixed; z-index: 1500 !important; max-width: calc(100vw - 84px) !important; }
 html[data-asympta-native="true"] .asympta-intent-shell { bottom: max(calc(var(--asympta-native-keyboard, 0px) + 8px), calc(env(safe-area-inset-bottom) + 10px)); max-height: calc(100dvh - var(--asympta-native-keyboard, 0px) - 100px); }
-html[data-asympta-native="true"] nav[data-asympta-mode-switch="true"] { top: calc(env(safe-area-inset-top) + 70px) !important; }
+html[data-asympta-native="true"] nav[data-asympta-mode-switch="true"] { top: calc(env(safe-area-inset-top) + 70px) !important; z-index: 1130 !important; }
 html[data-asympta-native="true"] nav[data-asympta-mode-switch="true"] button { min-height: 44px !important; }
 html[data-asympta-native="true"] .simulation-studio { top: calc(env(safe-area-inset-top) + 126px); max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - var(--asympta-native-keyboard, 0px) - 144px); }
 html[data-asympta-native="true"][data-asympta-keyboard="true"] .asympta-mobile-map-note { display: none; }

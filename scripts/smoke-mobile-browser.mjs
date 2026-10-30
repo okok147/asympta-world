@@ -160,8 +160,13 @@ async function run() {
     // Camera transitions and marker placement finish on compositor frames.
     // Test the visible result after that transition, rather than measuring the
     // frame in which the editor was collapsed.
-    await waitFor("[...document.querySelectorAll('.animal-map-marker--foreground')].some(node=>{const r=node.getBoundingClientRect();return r.width>0&&r.height>0&&r.right>0&&r.bottom>0&&r.left<innerWidth&&r.top<innerHeight;})", "camera settled with visible actors");
-    const mapState = await evaluate(`(() => { const visible=[...document.querySelectorAll('.animal-map-marker--foreground')].filter(node=>{const r=node.getBoundingClientRect();return r.width>0&&r.height>0&&r.right>0&&r.bottom>0&&r.left<innerWidth&&r.top<innerHeight;});return {agents:document.querySelectorAll('.animal-map-marker--foreground').length,visibleAgents:visible.length,localSource:Boolean(window.__ASYMPTA_MAP__?.getSource('asympta-local-geography')),canvasWidth:document.querySelector('.maplibregl-canvas')?.width}; })()`);
+    let mapState;
+    const mapDeadline = Date.now() + 15_000;
+    do {
+      mapState = await evaluate(`(() => { const visible=[...document.querySelectorAll('.animal-map-marker--foreground')].filter(node=>{const r=node.getBoundingClientRect();return r.width>0&&r.height>0&&r.right>0&&r.bottom>0&&r.left<innerWidth&&r.top<innerHeight;});return {agents:document.querySelectorAll('.animal-map-marker--foreground').length,visibleAgents:visible.length,localSource:Boolean(window.__ASYMPTA_MAP__?.getSource('asympta-local-geography')),canvasWidth:document.querySelector('.maplibregl-canvas')?.width}; })()`);
+      if (mapState.visibleAgents > 0 && mapState.localSource && mapState.canvasWidth > 0) break;
+      await sleep(100);
+    } while (Date.now() < mapDeadline);
     result.map = mapState;
     assert.ok(mapState.visibleAgents > 0 && mapState.localSource && mapState.canvasWidth > 0, `${device.name}: bundled map rendered visible agents`);
     result.screenshots.push(await screenshot("offline-world"));
