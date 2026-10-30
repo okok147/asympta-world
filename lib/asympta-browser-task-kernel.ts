@@ -31,7 +31,6 @@ import type {
   CreateAsymptaTaskInput,
 } from "./asympta-task-kernel-types.ts";
 import type { AtlasWorkflowDefinition } from "./atlas-simulation.ts";
-import { asymptaTaskStorage } from "./asympta-mobile-storage.ts";
 
 export const ASYMPTA_TASK_KERNEL_EVENT = "asympta:task-kernel" as const;
 const STORAGE_KEY = "asympta.task-kernel.v2";
@@ -133,11 +132,9 @@ export class BrowserAsymptaTaskKernel {
 
   private restore() {
     if (typeof window === "undefined") return;
-    const storage = asymptaTaskStorage();
-    if (!storage) return;
     try {
-      const raw = storage.getItem(STORAGE_KEY)
-        ?? storage.getItem(LEGACY_STORAGE_KEY)
+      const raw = window.sessionStorage.getItem(STORAGE_KEY)
+        ?? window.sessionStorage.getItem(LEGACY_STORAGE_KEY)
         ?? "null";
       const parsed = JSON.parse(raw) as unknown;
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return;
@@ -152,11 +149,11 @@ export class BrowserAsymptaTaskKernel {
       if (typeof record.activeTaskId === "string" && this.tasks.has(record.activeTaskId)) {
         this.activeTaskId = record.activeTaskId;
       }
-      storage.removeItem(LEGACY_STORAGE_KEY);
+      window.sessionStorage.removeItem(LEGACY_STORAGE_KEY);
       this.persist();
     } catch {
-      // Preserve the saved record on storage or migration failure. A transient
-      // WebKit failure must not erase an app user's persistent activity.
+      window.sessionStorage.removeItem(STORAGE_KEY);
+      window.sessionStorage.removeItem(LEGACY_STORAGE_KEY);
     }
   }
 
@@ -166,12 +163,10 @@ export class BrowserAsymptaTaskKernel {
       .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
       .slice(0, MAX_PERSISTED_TASKS)
       .map(cloneTask);
-    try {
-      asymptaTaskStorage()?.setItem(STORAGE_KEY, JSON.stringify({
-        activeTaskId: this.activeTaskId,
-        tasks,
-      }));
-    } catch { /* In-memory activity remains available when storage is full. */ }
+    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
+      activeTaskId: this.activeTaskId,
+      tasks,
+    }));
   }
 
   private notify(reason: AsymptaTaskKernelUpdateReason, task: AsymptaTaskState, previous: AsymptaTaskState | null) {

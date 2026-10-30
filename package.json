@@ -18,8 +18,6 @@
     "build": "bash scripts/build-verified.sh",
     "build:pages": "ASYMPTA_PAGES_BUILD=1 bash scripts/build-verified.sh",
     "export:pages": "npm run build:pages && ASYMPTA_PAGES_BUILD=1 node --experimental-loader ./scripts/cloudflare-node-loader.mjs scripts/export-pages.mjs",
-    "export:mobile": "node scripts/export-mobile.mjs",
-    "test:mobile": "node --test tests/mobile-app.test.mjs",
     "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log NODE_OPTIONS='--experimental-loader ./scripts/cloudflare-node-loader.mjs' vinext start",
     "test": "npm run build && npm run test:all",
     "test:all": "node --experimental-loader ./scripts/cloudflare-node-loader.mjs --test tests/*.test.mjs",

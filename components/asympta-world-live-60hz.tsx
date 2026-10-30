@@ -14,13 +14,11 @@ import {
   Plus,
   ShieldCheck,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { createPortal } from "react-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { simulationText } from "@/lib/asympta-simulation-copy";
 import { SIMULATION_STAGES, SIMULATION_WORKFLOW_ID, type SimulationStage } from "@/lib/asympta-simulation-compiler";
 import { WorkflowClock } from "@/lib/asympta-workflow-clock";
-import { attachMobileOnlineMap, mobileMapStyle, MOBILE_ASSET_ROOT, type NativeMapEvent } from "@/lib/asympta-mobile-map";
 import { AnimalPortrait, animalSvgMarkup } from "@/components/asympta-animal-art";
 import {
   ATLAS_AGENTS,
@@ -56,15 +54,10 @@ type BoundsLike = { getWest(): number; getEast(): number; getSouth(): number; ge
 type CenterLike = { lng: number; lat: number };
 
 type MapLibreMap = {
-  on(event: string, handler: (event: NativeMapEvent) => void): void;
-  off(event: string, handler: (event: NativeMapEvent) => void): void;
-  addSource(id: string, source: Record<string, unknown>): void;
-  addLayer(layer: Record<string, unknown>, before?: string): void;
+  on(event: string, handler: () => void): void;
+  addSource(id: string, source: { type: "geojson"; data: GeoJsonFeatureCollection }): void;
+  addLayer(layer: Record<string, unknown>): void;
   getSource(id: string): GeoJsonSource | undefined;
-  getLayer(id: string): unknown;
-  removeLayer(id: string): void;
-  removeSource(id: string): void;
-  setLayoutProperty(layer: string, property: string, value: unknown): void;
   getBounds(): BoundsLike;
   getCenter(): CenterLike;
   setCenter(coordinates: [number, number]): void;
@@ -199,7 +192,7 @@ function ensureMapLibreCss() {
   if (document.querySelector("link[data-asympta-maplibre='true']")) return;
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = window.__ASYMPTA_NATIVE__ ? `${MOBILE_ASSET_ROOT}/maplibre/maplibre-gl.css` : MAPLIBRE_CSS;
+  link.href = MAPLIBRE_CSS;
   link.dataset.asymptaMaplibre = "true";
   document.head.appendChild(link);
 }
@@ -217,7 +210,7 @@ function loadMapLibre(): Promise<MapLibreNamespace> {
       return;
     }
     const script = document.createElement("script");
-    script.src = window.__ASYMPTA_NATIVE__ ? `${MOBILE_ASSET_ROOT}/maplibre/maplibre-gl.js` : MAPLIBRE_JS;
+    script.src = MAPLIBRE_JS;
     script.async = true;
     script.dataset.asymptaMaplibre = "true";
     script.addEventListener("load", finish, { once: true });
@@ -388,19 +381,6 @@ function activeAgent(world: AtlasWorldState, selectedId: string | null) {
     ?? world.agents.find((agent) => agent.status === "moving")
     ?? world.agents.find((agent) => agent.status !== "idle")
     ?? world.agents[0];
-}
-
-function MapConsoleLayer({ children }: { children: ReactNode }) {
-  const [host, setHost] = useState<HTMLElement | null>(null);
-  useEffect(() => {
-    if (!window.__ASYMPTA_NATIVE__) return;
-    let disposed = false;
-    // Keep server and initial hydration markup identical. The packaged console
-    // then joins the other fixed panels outside the map's isolated paint layer.
-    queueMicrotask(() => { if (!disposed) setHost(document.body); });
-    return () => { disposed = true; };
-  }, []);
-  return host ? createPortal(children, host) : children;
 }
 
 export function AsymptaWorldLive60Hz() {
@@ -601,13 +581,12 @@ export function AsymptaWorldLive60Hz() {
 
   useEffect(() => {
     let disposed = false;
-    let stopMobileBase = () => {};
     loadMapLibre().then((maplibre) => {
       if (disposed || !mapContainerRef.current) return;
       mapLibreRef.current = maplibre;
       const map = new maplibre.Map({
         container: mapContainerRef.current,
-        style: window.__ASYMPTA_NATIVE__ ? mobileMapStyle() : OPENFREEMAP_STYLE,
+        style: OPENFREEMAP_STYLE,
         center: TOKYO_CENTER,
         zoom: TOKYO_ZOOM,
         minZoom: 3,
@@ -633,31 +612,20 @@ export function AsymptaWorldLive60Hz() {
       map.on("zoomstart", stopFollow);
       map.on("moveend", () => { cullRequestedRef.current = true; });
       map.on("zoomend", () => { cullRequestedRef.current = true; });
-      let initialized = false;
-      const initializeWorld = () => {
-        if (disposed || initialized) return;
-        initialized = true;
+      map.on("load", () => {
+        if (disposed) return;
         addMapLayers(map, worldRef.current);
         mountForegroundMarkers(maplibre, map, worldRef.current);
         const ambientActors = reconcileAmbientMarkers(worldRef.current.now);
         syncMapSources(map, worldRef.current, ambientActors);
         setMapReady(true);
-        if (window.__ASYMPTA_NATIVE__) stopMobileBase = attachMobileOnlineMap(map);
-      };
-      // The bundled style is ready for layers at style.load. Native interaction
-      // must not wait for optional cartography or a fully rendered idle frame.
-      // MapLibre's load event includes all source processing and first rendering.
-      map.on(window.__ASYMPTA_NATIVE__ ? "style.load" : "load", initializeWorld);
+      });
     }).catch((reason: unknown) => {
-      if (disposed) return;
-      const language = document.documentElement.lang;
-      const nativeError = language.startsWith("zh") ? "無法開啟地圖，請重新開啟 App。" : language.startsWith("ja") ? "地図を開けませんでした。App を開き直してください。" : "The map could not open. Please reopen the app.";
-      setMapError(window.__ASYMPTA_NATIVE__ ? nativeError : reason instanceof Error ? reason.message : "The map could not be loaded.");
+      if (!disposed) setMapError(reason instanceof Error ? reason.message : "The map could not be loaded.");
     });
 
     return () => {
       disposed = true;
-      stopMobileBase();
       for (const marker of foregroundMarkersRef.current.values()) marker.remove();
       for (const marker of cityMarkersRef.current.values()) marker.remove();
       foregroundMarkersRef.current.clear();
@@ -895,7 +863,6 @@ export function AsymptaWorldLive60Hz() {
       <div className="map-paper-wash" aria-hidden="true" />
       <div className="map-paper-grain" aria-hidden="true" />
 
-      <MapConsoleLayer>
       <section className={`atlas-console asympta-access-card ${menuOpen ? "is-open" : "is-collapsed"}`} aria-label={copy.access}>
         <div className="atlas-menu-bar">
           <button type="button" className="atlas-menu-identity" aria-expanded={menuOpen} aria-label={menuOpen ? copy.closeMenu : copy.menu} onClick={() => setMenuOpen((value) => !value)}>
@@ -949,7 +916,6 @@ export function AsymptaWorldLive60Hz() {
           <p className="asympta-access-safety"><ShieldCheck size={13} strokeWidth={1.8} />{copy.safetyNote}</p>
         </div>
       </section>
-      </MapConsoleLayer>
 
       {selectedAgent && !pendingApproval ? (
         <aside className="atlas-agent-card" aria-live="polite">

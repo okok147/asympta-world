@@ -45,7 +45,7 @@ next-env.d.ts
 /.playwright-cli/
 /work/
 
-# Reproducible native resources and local signing/build products
+# Generated native project and local signing/build products
 /ios/AsymptaWorld/Web/
 /ios/AsymptaWorld.xcodeproj/
 /ios/DerivedData/

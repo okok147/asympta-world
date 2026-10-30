@@ -23,7 +23,6 @@ import "./asympta-protocell-pencil.css";
 import "./asympta-product-polish.css";
 import "./asympta-top-panel-alignment.css";
 import "./asympta-simulation-studio.css";
-import "./asympta-mobile.css";
 
 const faviconPath = process.env.ASYMPTA_PAGES_BUILD === "1"
   ? "/asympta-world/favicon-asympta-cat-20260829.svg"
@@ -84,7 +83,7 @@ const ASYMPTA_MAP_BRIDGE_BOOTSTRAP = `(() => {
         const initialZoom = Number.isFinite(requestedZoom) ? Math.min(20, requestedZoom + 2) : options?.zoom;
         super({
           ...options,
-          style: window.__ASYMPTA_NATIVE__ ? options?.style : reearthPencilStyle,
+          style: reearthPencilStyle,
           zoom: initialZoom,
           pixelRatio: options?.pixelRatio ?? deviceRatio
         });

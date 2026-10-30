@@ -1,0 +1,124 @@
+{
+  "version": 1,
+  "canvas": {
+    "width": 941,
+    "height": 1672
+  },
+  "coordinateSystem": "top-left; x right, y down; original source pixels",
+  "source": {
+    "file": "Whimsical Asympta World Map.png",
+    "sha256": "944096477b24070b5fb215371a23d0ba50a80b34e64769b947dc259c48ae49e3",
+    "bytes": 2129398,
+    "width": 941,
+    "height": 1672
+  },
+  "assets": {
+    "reader": {
+      "file": "reader.png",
+      "width": 122,
+      "height": 89,
+      "sha256": "6b0bb37839a6c14e71018eb9d091b97a94bef49a3d80519b0b801eea722cadc0",
+      "frame": {
+        "x": 524,
+        "y": 404,
+        "width": 122,
+        "height": 89
+      }
+    },
+    "fox": {
+      "file": "fox.png",
+      "width": 85,
+      "height": 96,
+      "sha256": "81a20d143f2021767e45f386053203231c6aae351151373f88ee8d658f9fe054",
+      "frame": {
+        "x": 314,
+        "y": 554,
+        "width": 85,
+        "height": 96
+      }
+    },
+    "tea": {
+      "file": "tea.png",
+      "width": 164,
+      "height": 103,
+      "sha256": "7fffb44d2b45d9cc8ffd3532e311d1988def14d26a3c1311b5609cd4c0345231",
+      "frame": {
+        "x": 601,
+        "y": 745,
+        "width": 164,
+        "height": 103
+      }
+    },
+    "cat": {
+      "file": "cat.png",
+      "width": 142,
+      "height": 108,
+      "sha256": "943e0b88a0371fcbdc579421178a1cf27c0219a9a90f764d1b57a94f6084c8cd",
+      "frame": {
+        "x": 136,
+        "y": 860,
+        "width": 142,
+        "height": 108
+      }
+    },
+    "bear": {
+      "file": "bear.png",
+      "width": 82,
+      "height": 94,
+      "sha256": "422e43216cb0e6d6461f172774d7827fdaadaacda5fec25eef61c2eae016f049",
+      "frame": {
+        "x": 291,
+        "y": 1337,
+        "width": 82,
+        "height": 94
+      }
+    }
+  },
+  "brand": {
+    "file": "brand.png",
+    "width": 320,
+    "height": 111,
+    "sha256": "08aa7bfb2b5ae8066b6272e51e8af2f3f3881c8c847eddfce6eca77144fda2b8",
+    "frame": {
+      "x": 61,
+      "y": 56,
+      "width": 320,
+      "height": 111
+    }
+  },
+  "paper": {
+    "file": "paper.png",
+    "width": 256,
+    "height": 256,
+    "sha256": "5468e8c56b9d727a2ceae94230d8f8ba0de511d579afe1b6560340e2b738e317",
+    "frame": {
+      "x": 400,
+      "y": 24,
+      "width": 128,
+      "height": 128
+    },
+    "tiling": "mirror original crop in both axes; opposing edges match exactly"
+  },
+  "extraction": {
+    "method": "Lossless original RGB crop with hand-traced silhouette alpha; original character faces, bodies, colors, lines and cream interiors unchanged",
+    "maskFeatherPixels": 1.0,
+    "maskCoverage": "4x supersampled original-coordinate polygon silhouette; one-pixel Gaussian edge; enclosed original cream interiors remain opaque"
+  },
+  "terrain": {
+    "kind": "derived-clean-terrain",
+    "originalFile": "Whimsical Asympta World Map.png",
+    "originalSHA256": "944096477b24070b5fb215371a23d0ba50a80b34e64769b947dc259c48ae49e3",
+    "derivation": "Built-in imagegen precise removal of baked wordmark/menu and five character groups; original character pixels preserved separately. Terrain is a derivative, not the immutable original.",
+    "outputFile": "terrain.png",
+    "width": 941,
+    "height": 1672,
+    "sha256": "f78d9a6bd0fa3b910e78a8602c6d40c4e765414fa3ebbb2a12efa7120df08927"
+  },
+  "appIcon": {
+    "source": "Original lower-right leaf/mountain hanging tag; lossless source crop/mask then scale on matching paper. No new character drawing.",
+    "file": "Assets.xcassets/AppIcon.appiconset/AppIcon.png",
+    "width": 1024,
+    "height": 1024,
+    "sha256": "c30d025cd54615d26185f932b7584f0308fba34d0e03363bad090c7abe694170"
+  }
+}

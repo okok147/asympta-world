@@ -37,7 +37,6 @@ import { AsymptaWebMcpToolSurface } from "@/components/asympta-webmcp-tool-surfa
 import { AsymptaWorkflowContinuation } from "@/components/asympta-workflow-continuation";
 import { AsymptaWorkflowRuntimeBoundary } from "@/components/asympta-workflow-runtime-boundary";
 import { AsymptaWorldLive60Hz } from "@/components/asympta-world-live-60hz";
-import { AsymptaMobile } from "@/components/asympta-mobile";
 
 export default function HomePage() {
   return (
@@ -87,7 +86,6 @@ export default function HomePage() {
       <AsymptaFeatureLocale />
       <AsymptaTaskKernelLocale />
       <AsymptaBusinessMode />
-      <AsymptaMobile />
     </>
   );
 }

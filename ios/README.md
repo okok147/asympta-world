@@ -1,28 +1,29 @@
 # Asympta World for iPhone and iPad
 
-The native app runs the repository's actual React world from bundled resources. It does not download a remote app document at launch. The existing deterministic simulation, global English / Traditional Chinese / Japanese control and approval boundaries remain the product source of truth.
+A native, quiet watercolor world based on the user's original **Whimsical Asympta World Map.png**. UIKit renders independent terrain, original character cutouts and paper controls. The app runs fully from bundled resources.
 
-## Build
+## Experience
 
-Use Node.js 22.13+, the current Xcode SDK and XcodeGen. This initial release uses Xcode 27.1.
+- Pan, pinch, return to the whole map, and meet five small groups of residents.
+- The lower-right paper menu unfolds to the left: World, Meet, Aura and Me.
+- Keep favorite residents, choose an Aura, and save a nickname and dated journal locally.
+- English, Traditional Chinese and Japanese; native accessibility, Dynamic Type and reduced motion.
+- Local personal data persists across app launches. No account or network service is required.
 
-1. Install the locked JavaScript dependencies with `npm ci`.
-2. Complete the repository's required checks and freeze the source commit.
-3. Run `npm run export:mobile` to create `AsymptaWorld/Web` with its source and asset manifest.
-4. Run `xcodegen generate --spec ios/project.yml`.
-5. Archive the `AsymptaWorld` scheme for a generic iOS device and export using `ios/ExportOptions.plist` with the existing Apple signing account.
+## Artwork
 
-The generated web directory and build products are ignored. Rebuild from the exact release commit. Do not replace an in-flight archive with different source.
+The immutable reference is a 941 × 1672 PNG, SHA-256 `944096477b24070b5fb215371a23d0ba50a80b34e64769b947dc259c48ae49e3`. Character imagery is extracted from that original, with exterior alpha masks rather than redrawn faces. `Art/manifest.json` records original-canvas placement and extraction provenance. `terrain.png` is a derived background with baked controls and characters removed; its separate provenance explicitly distinguishes it from the original. The original website is not the native app entry point.
 
-## Native boundary
+## Build and distribution
 
-- `asympta://localhost/asympta-world/` serves only packaged files, with canonical path confinement and content types.
-- WebKit's normal persistent website data store preserves local preferences. The web app controls explicit task and draft persistence.
-- The main-frame bridge accepts only `locale`, `share`, `export` and `connect`. Share and JSON export use the native share sheet. Remote frames cannot call it.
-- `connect` opens only the existing fixed GitHub Pages product in a system Safari view. Production public-agent origin and verification checks are preserved. The local app does not impersonate that origin or embed credentials.
-- iOS controls background suspension. Returning uses the existing foreground catch-up behavior; the app does not claim continuous background computation.
-- The icon is rendered from the repository's original cat favicon. No tracking, advertising SDK or model API credential is added.
+1. Finish the native source and asset batch, then complete the required repository checks.
+2. Run `xcodegen generate --spec ios/project.yml`.
+3. Run `node ios/validate-artwork.mjs`, then freeze the source commit and archive the `AsymptaWorld` scheme for a generic iOS device.
+4. Export with `ios/ExportOptions.plist` using the existing signing account.
+5. Upload one distinct build to the existing Internal TestFlight app.
 
-App Store Connect app: `6828764417` · bundle: `com.asympta.world` · version: `1.0` · initial build: `1`.
+XcodeGen and current Xcode are required; JavaScript export is not required for the native target. Generated projects/builds and local signing products remain ignored. Rebuild from the exact release commit.
 
-TestFlight processing, group availability, installation and full physical-device scenes require separate evidence. Compilation alone establishes none of those outcomes. Any eventual public App Review is submitted by the user.
+Existing App Store Connect app: `6828764417` · bundle: `com.asympta.world` · team: `3P7YJW4D3Z` · version: `1.0`. Build 1 belonged to a superseded product candidate; the corrected native candidate starts at build 2, subject to a fresh Apple build-number check.
+
+Processing, tester availability, official TestFlight installation and same-build physical interactions are separately verified. PR #39 can merge only after physical acceptance. Public App Review is outside this delivery.

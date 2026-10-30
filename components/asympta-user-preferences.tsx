@@ -53,10 +53,7 @@ export function AsymptaUserPreferences() {
     let preferredLocale: AsymptaLocale;
 
     if (!hasStoredAsymptaUserPreferences()) {
-      const nativeLocale = window.__ASYMPTA_NATIVE__ ? window.__ASYMPTA_NATIVE_LOCALE__ : null;
-      const initialLocale = nativeLocale === "zh-Hant" || nativeLocale === "ja" || nativeLocale === "en"
-        ? nativeLocale : localeFromDocument();
-      writeAsymptaUserPreferences({ locale: initialLocale });
+      writeAsymptaUserPreferences({ locale: localeFromDocument() });
     }
 
     preferredLocale = readAsymptaUserPreferences().locale;
