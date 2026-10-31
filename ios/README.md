@@ -1,6 +1,6 @@
-# Asympta World for iPhone and iPad
+# Asympta World for iPhone
 
-A native, quiet watercolor world based on the user's original **Whimsical Asympta World Map.png**. UIKit renders independent terrain, original character cutouts and paper controls. The app runs fully from bundled resources.
+A native, quiet watercolor world based on the user's original **Whimsical Asympta World Map.png**. UIKit renders independent terrain, original character cutouts and paper controls. The app runs fully from bundled resources. It targets iPhone only in portrait orientation. On iPad, it uses the system's iPhone compatibility presentation and retains the phone layout.
 
 ## Experience
 
@@ -24,6 +24,6 @@ The immutable reference is a 941 × 1672 PNG, SHA-256 `944096477b24070b5fb215371
 
 XcodeGen and current Xcode are required; JavaScript export is not required for the native target. Generated projects/builds and local signing products remain ignored. Rebuild from the exact release commit.
 
-Existing App Store Connect app: `6828764417` · bundle: `com.asympta.world` · team: `3P7YJW4D3Z` · version: `1.0`. Build 1 belonged to a superseded product candidate; the corrected native candidate starts at build 2, subject to a fresh Apple build-number check.
+Existing App Store Connect app: `6828764417` · bundle: `com.asympta.world` · team: `3P7YJW4D3Z` · version: `1.0`. The iPhone-only portrait candidate uses build 3, subject to a fresh Apple build-number check. Earlier universal build 2 remains historical and does not satisfy the phone-layout requirement.
 
-Processing, tester availability, official TestFlight installation and same-build physical interactions are separately verified. PR #39 can merge only after physical acceptance. Public App Review is outside this delivery.
+Processing, tester availability, official TestFlight installation and same-build physical phone layout and interactions are separately verified. PR #39 can merge only after physical acceptance. Public App Review is outside this delivery.
