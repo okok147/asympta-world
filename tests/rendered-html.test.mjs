@@ -13,38 +13,18 @@ async function renderRoot() {
   return { response, html: await response.text() };
 }
 
-test("server render exposes the collapsed 60Hz living-city shell", async () => {
+test("server renders only blank paper and six representative dots", async () => {
   const { response, html } = await renderRoot();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
-  assert.match(html, /data-map-app="true"/);
-  assert.match(html, /data-map-style="paper-illustrated-animal-living-city-demo"/);
-  assert.match(html, /data-render-mode="raf-60hz-viewport-culling"/);
-  assert.match(html, /illustrated animal stakeholder agents/);
-  assert.match(html, /Open coordination menu/);
-  assert.match(html, /is-collapsed/);
-  assert.match(html, /Agent access/);
-  assert.match(html, /Read current state/);
-  assert.match(html, /Write a request/);
-  assert.match(html, /WEBMCP · READ/);
-  assert.match(html, /WEBMCP · WRITE REQUEST/);
-  assert.match(html, /English/);
-  assert.match(html, /繁體中文/);
-  assert.match(html, /日本語/);
-  assert.match(html, /Zoom in/);
-  assert.match(html, /Zoom out/);
-  assert.match(html, /Recenter map/);
-  assert.doesNotMatch(html, /WebMCP inspector/);
-  assert.doesNotMatch(html, /Custom Order Network/);
-  assert.doesNotMatch(html, /🐱|🐰|🐹|🐶|🦊|🐻|🐯|🐼|🐮|🦝|🐨|🐵|🦉|🐧|🐦/u);
-  assert.doesNotMatch(html, /Interactive pixel city map/);
-  assert.doesNotMatch(html, /tokyo-vector/);
-});
 
-test("legacy demo chrome stays absent", async () => {
-  const { html } = await renderRoot();
-  assert.doesNotMatch(html, /Run the city order/);
-  assert.doesNotMatch(html, /Tell the city/);
-  assert.doesNotMatch(html, /Mori Paper Co\./);
-  assert.doesNotMatch(html, /North Mill/);
+  const surface = html.match(/<main\b[^>]*class="paper-world"[^>]*>[\s\S]*?<\/main>/)?.[0];
+  assert.ok(surface, "the paper is the only app surface");
+  assert.match(surface, /role="img"/);
+  assert.match(surface, /aria-label="[^"]*moving dots[^"]*"/);
+  assert.equal([...surface.matchAll(/class="paper-world__dot paper-world__dot--\d"/g)].length, 6);
+
+  assert.doesNotMatch(surface, /<(?:button|input|nav|header|footer|canvas|svg|form|a)\b/i);
+  assert.equal(surface.replace(/<!--.*?-->/gs, "").replace(/<[^>]*>/g, "").trim(), "");
+  assert.doesNotMatch(surface, /data-map-app|asympta-intent-composer|atlas-console|agent-card|menu/i);
 });
