@@ -155,7 +155,7 @@ async function run() {
         !second.dotsVisible || !second.paperVisible || second.hasOtherUI || second.bodyText) {
       throw new Error(`Paper-only canvas failed: ${JSON.stringify(second)}`);
     }
-    if (!/^rgb\\(248, 245, 237\\)$/.test(second.background)) {
+    if (second.background !== "rgb(248, 245, 237)") {
       throw new Error(`Wrong paper background: ${second.background}`);
     }
     if (!second.reducedMotion) {
