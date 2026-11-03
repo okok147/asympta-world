@@ -28,6 +28,7 @@ enum WorldLanguage: String, Codable, CaseIterable {
 
 struct WorldStrings {
     enum Key: String {
+        case yourLight, returnToLight, personalCorner
         case light, activityExplore, activityLearn, activityCreate, activityConnect, activityRest
         case activityTravelling, activityDoing, activityWaiting, activitySnapshot, simulationDetail, energy, completedActivities, ideas, activityProgress
         case exploreDetail, learnDetail, createDetail, connectDetail, restDetail
@@ -60,6 +61,9 @@ struct WorldStrings {
     }
 
     private static let copy: [Key: [String]] = [
+        .yourLight: ["Your light", "你的光點", "あなたのひかり"],
+        .returnToLight: ["Return to your light", "回到你的光點", "自分のひかりに戻る"],
+        .personalCorner: ["Your space", "你的小角落", "自分の場所"],
         .light: ["Light", "光點", "ひかり"],
         .activityExplore: ["Exploring", "探索", "探索"],
         .activityLearn: ["Learning", "學習", "学び"],
@@ -71,7 +75,7 @@ struct WorldStrings {
         .activityWaiting: ["Waiting for a friend", "等候另一個光點", "仲間を待っています"],
         .activitySnapshot: ["A moment, while you look", "打開時的這一刻", "開いた瞬間のようす"],
         .simulationDetail: ["Activities unfold in a local simulation on this device.", "這個世界的活動在裝置上模擬。", "この端末の中で活動をシミュレーションしています。"],
-        .energy: ["Energy", "能量", "エネルギー"],
+        .energy: ["Simulated energy", "模擬能量", "シミュレーションのエネルギー"],
         .completedActivities: ["Activities completed", "已完成的活動", "完了した活動"],
         .ideas: ["Ideas gathered", "收集的靈感", "集めたアイデア"],
         .activityProgress: ["Progress", "進度", "進み具合"],

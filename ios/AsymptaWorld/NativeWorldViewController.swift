@@ -4,10 +4,10 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
     private let store = WorldStore()
     private var art: WorldArt?
     private var canvas: WorldCanvasView?
-    private var menu: PaperMenuView?
     private var errorStack: UIStackView?
     private let zoomOut = UIButton(type:.system)
     private let zoomIn = UIButton(type:.system)
+    private let returnToUser = UIButton(type:.system)
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -45,12 +45,7 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
             view.addSubview(world)
             canvas = world
 
-            let paperMenu = PaperMenuView(paper: art.paper, strings: store.strings)
-            paperMenu.translatesAutoresizingMaskIntoConstraints = false
-            paperMenu.onSelect = { [weak self] section in self?.select(section) }
-            view.addSubview(paperMenu)
-            menu = paperMenu
-            let zoomRow = UIStackView(arrangedSubviews:[zoomOut,zoomIn])
+            let zoomRow = UIStackView(arrangedSubviews:[zoomOut,zoomIn,returnToUser])
             zoomRow.axis = .horizontal; zoomRow.spacing = 2
             zoomRow.translatesAutoresizingMaskIntoConstraints = false
             for (button,symbol,id,factor) in [(zoomOut,"minus","world.zoom.out",1/1.3),(zoomIn,"plus","world.zoom.in",1.3)] {
@@ -61,6 +56,12 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
                 button.heightAnchor.constraint(equalToConstant:44).isActive = true
                 button.addAction(UIAction { [weak self] _ in self?.canvas?.adjustZoom(factor) },for:.touchUpInside)
             }
+            returnToUser.setImage(UIImage(systemName:"location",withConfiguration:UIImage.SymbolConfiguration(pointSize:17,weight:.light)),for:.normal)
+            returnToUser.tintColor = WorldTheme.blue
+            returnToUser.accessibilityIdentifier = "world.recenter"
+            returnToUser.widthAnchor.constraint(equalToConstant:44).isActive = true
+            returnToUser.heightAnchor.constraint(equalToConstant:44).isActive = true
+            returnToUser.addAction(UIAction { [weak self] _ in self?.canvas?.recenter() },for:.touchUpInside)
             world.onZoomChange = { [weak self] value in
                 self?.zoomOut.isEnabled = value>0.451
                 self?.zoomIn.isEnabled = value<3.499
@@ -69,10 +70,7 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
 
             NSLayoutConstraint.activate([
                 zoomRow.trailingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.trailingAnchor,constant:-20),
-                zoomRow.bottomAnchor.constraint(equalTo:paperMenu.topAnchor,constant:-8),
-                paperMenu.leadingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.leadingAnchor,constant:12),
-                paperMenu.trailingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.trailingAnchor,constant:-12),
-                paperMenu.bottomAnchor.constraint(equalTo:view.safeAreaLayoutGuide.bottomAnchor,constant:-10)
+                zoomRow.topAnchor.constraint(equalTo:view.safeAreaLayoutGuide.topAnchor,constant:10)
             ])
             applyState()
             updateActivity()
@@ -85,34 +83,21 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
         let strings = store.strings
         view.accessibilityLanguage = store.state.language.rawValue
         canvas?.apply(state: store.state, strings: strings)
-        menu?.apply(strings: strings)
         zoomOut.accessibilityLabel = strings[.zoomOut]
         zoomIn.accessibilityLabel = strings[.zoomIn]
-    }
-
-    private func select(_ section: WorldSection) {
-        switch section {
-        case .world:
-            canvas?.recenter()
-            if presentedViewController != nil { dismiss(animated: !UIAccessibility.isReduceMotionEnabled) }
-        case .meet: show(.meet)
-        case .aura: show(.aura)
-        case .me: show(.me)
-        }
+        returnToUser.accessibilityLabel = strings[.returnToLight]
     }
 
     private func show(_ content: WorldPanelsViewController.Content) {
         guard let art, presentedViewController == nil else { return }
-        menu?.collapse()
         let panel = WorldPanelsViewController(content: content, store: store, art: art) { [weak self] resident in
             guard let self else { return }
             self.dismiss(animated: !UIAccessibility.isReduceMotionEnabled) {
-                self.menu?.select(.world)
                 self.canvas?.focus(on: resident)
                 self.canvas?.setCovered(false)
             }
         }
-        panel.onClose = { [weak self] in self?.menu?.select(.world); self?.canvas?.setCovered(false) }
+        panel.onClose = { [weak self] in self?.canvas?.setCovered(false) }
         let navigation = UINavigationController(rootViewController: panel)
         let appearance = UINavigationBarAppearance()
         appearance.configureWithOpaqueBackground()
@@ -136,18 +121,11 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
             sheet.widthFollowsPreferredContentSizeWhenEdgeAttached = true
         }
         navigation.presentationController?.delegate = self
-        switch content {
-        case .meet, .resident: menu?.select(.meet)
-        case .agent: menu?.select(.world)
-        case .aura: menu?.select(.aura)
-        case .me: menu?.select(.me)
-        }
         canvas?.setCovered(true)
         present(navigation, animated: !UIAccessibility.isReduceMotionEnabled)
     }
 
     func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
-        menu?.select(.world)
         canvas?.setCovered(false)
     }
 

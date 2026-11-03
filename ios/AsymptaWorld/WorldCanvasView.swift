@@ -83,7 +83,9 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
     private var shownActivities: [AuraActivity?] = []
     private var elements: [AuraAccessibleElement] = []
     private var camera = CGPoint(x:500,y:700)
-    private var zoom: CGFloat = 1
+    private var zoom: CGFloat = 2.4
+    private var followsUser = true
+    private let userRing = CAShapeLayer()
     private var movement = true, sceneActive = false, covered = false, held = false
     private var panning = false, pinching = false
     private var strings = WorldStrings(language:.deviceDefault)
@@ -98,7 +100,7 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
     var onMapInteraction: (() -> Void)?
     var onZoomChange: ((CGFloat)->Void)?
     var isAtOverview: Bool { zoom<=0.56 }
-    private var viewport: CGRect { bounds.inset(by:UIEdgeInsets(top:safeAreaInsets.top+20,left:14,bottom:safeAreaInsets.bottom+126,right:14)) }
+    private var viewport: CGRect { bounds.inset(by:UIEdgeInsets(top:safeAreaInsets.top+20,left:14,bottom:safeAreaInsets.bottom+26,right:14)) }
     private var fit: CGFloat { max(0.01,min(viewport.width/1000,viewport.height/1400)) }
     init(art: WorldArt) {
         super.init(frame:.zero)
@@ -111,6 +113,13 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
             layer.addSublayer(dot); dots.append(dot); shownActivities.append(nil)
             elements.append(AuraAccessibleElement(canvas:self,id:id))
         }
+        userRing.bounds = CGRect(x:0,y:0,width:16,height:16)
+        userRing.path = UIBezierPath(ovalIn:userRing.bounds).cgPath
+        userRing.fillColor = UIColor.clear.cgColor
+        userRing.strokeColor = WorldTheme.blue.withAlphaComponent(0.5).cgColor
+        userRing.lineWidth = 0.65
+        userRing.actions = ["position":NSNull(),"strokeColor":NSNull()]
+        layer.addSublayer(userRing)
         accessibilityElements = elements
         frameTarget.canvas = self
         let pan = UIPanGestureRecognizer(target:self,action:#selector(panned(_:)))
@@ -135,6 +144,7 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
     private func mapPoint(_ p: CGPoint) -> CGPoint { CGPoint(x:camera.x+(p.x-viewport.midX)/(fit*zoom),y:camera.y+(p.y-viewport.midY)/(fit*zoom)) }
     private func project(geometry: Bool = false) {
         guard bounds.width>0 else { return }
+        if followsUser { camera = simulation.agents[0].point }
         CATransaction.begin(); CATransaction.setDisableActions(true)
         for id in dots.indices {
             let a = simulation.agents[id], dot = dots[id]
@@ -147,10 +157,13 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
             if shownActivities[id] != a.activity {
                 dot.contents = AuraInk.image(a.activity.ink).cgImage
                 shownActivities[id] = a.activity
+                if id==0 { userRing.strokeColor = UIColor(hex:a.activity.ink).withAlphaComponent(0.55).cgColor }
             }
             let moodAlpha: Float = mood == .restful ? 0.72 : mood == .gentle ? 0.86 : 1
             dot.opacity = (a.activity == .rest ? 0.72 : 0.94)*moodAlpha
         }
+        userRing.position = screenPoint(0)
+        userRing.isHidden = dots[0].isHidden
         CATransaction.commit()
     }
     private var mayMove: Bool { movement && sceneActive && !covered && !held && !panning && !pinching && window != nil && !UIAccessibility.isReduceMotionEnabled && !UIAccessibility.isVoiceOverRunning }
@@ -185,17 +198,17 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
         let start = CACurrentMediaTime(); project(geometry:true); cameraWork += CACurrentMediaTime()-start; cameraUpdates += 1
         accessibilityValue = String(format:"%.0f%%",zoom*100); onZoomChange?(zoom)
     }
-    func overview(animated: Bool = true) { onMapInteraction?(); zoom = 0.55; camera = CGPoint(x:500,y:700); cameraChanged() }
-    func recenter() { onMapInteraction?(); camera = CGPoint(x:500,y:700); zoom = 1; cameraChanged() }
+    func overview(animated: Bool = true) { onMapInteraction?(); followsUser = false; zoom = 0.55; camera = CGPoint(x:500,y:700); cameraChanged() }
+    func recenter() { onMapInteraction?(); followsUser = true; camera = simulation.agents[0].point; zoom = 2.4; cameraChanged() }
     func adjustZoom(_ factor: CGFloat) { onMapInteraction?(); zoomAt(factor,anchor:CGPoint(x:viewport.midX,y:viewport.midY)) }
     private func zoomAt(_ factor: CGFloat, anchor: CGPoint) {
         let origin = mapPoint(anchor); zoom = min(3.5,max(0.45,zoom*factor))
         camera = CGPoint(x:origin.x-(anchor.x-viewport.midX)/(fit*zoom),y:origin.y-(anchor.y-viewport.midY)/(fit*zoom)); cameraChanged()
     }
     func focus(on resident: WorldResident) { focus(agent:WorldResident.allCases.firstIndex(of:resident) ?? 0) }
-    fileprivate func focus(agent id: Int) { camera = simulation.agents[id].point; zoom = max(1.8,zoom); cameraChanged() }
+    fileprivate func focus(agent id: Int) { followsUser = id==0; camera = simulation.agents[id].point; zoom = max(2.4,zoom); cameraChanged() }
     func snapshot(_ id: Int) -> AuraAgentSnapshot? { simulation.snapshot(id) }
-    fileprivate func agentLabel(_ id: Int) -> String { strings[.light]+String(format:" %02d",id+1) }
+    fileprivate func agentLabel(_ id: Int) -> String { id==0 ? strings[.yourLight] : strings[.light]+String(format:" %02d",id+1) }
     fileprivate func agentValue(_ id: Int) -> String {
         guard let a = snapshot(id) else { return "" }
         return strings[a.activity.titleKey]+" · "+strings[a.waitingForPartner ? .activityWaiting : a.travelling ? .activityTravelling : .activityDoing]
@@ -222,7 +235,7 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
     private func gestureState(_ gesture: UIGestureRecognizer,pinch: Bool) {
         let active = gesture.state == .began || gesture.state == .changed
         if pinch { pinching = active } else { panning = active }
-        if gesture.state == .began { onMapInteraction?() }
+        if gesture.state == .began { followsUser = false; onMapInteraction?() }
         syncClock(); if !active { recordMetrics() }
     }
     @objc private func panned(_ gesture: UIPanGestureRecognizer) {
@@ -232,7 +245,7 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
         gesture.setTranslation(.zero,in:self); cameraChanged()
     }
     @objc private func pinched(_ gesture: UIPinchGestureRecognizer) { gestureState(gesture,pinch:true); zoomAt(gesture.scale,anchor:gesture.location(in:self)); gesture.scale = 1 }
-    @objc private func doubleTapped(_ gesture: UITapGestureRecognizer) { if zoom>2.5 { recenter() } else { zoomAt(1.6,anchor:gesture.location(in:self)) } }
+    @objc private func doubleTapped(_ gesture: UITapGestureRecognizer) { followsUser = false; if zoom>2.5 { recenter() } else { zoomAt(1.6,anchor:gesture.location(in:self)) } }
     @objc private func tapped(_ gesture: UITapGestureRecognizer) {
         let p = gesture.location(in:self)
         guard let id = simulation.agents.indices.min(by:{ hypot(screenPoint($0).x-p.x,screenPoint($0).y-p.y)<hypot(screenPoint($1).x-p.x,screenPoint($1).y-p.y) }), hypot(screenPoint(id).x-p.x,screenPoint(id).y-p.y)<=max(22,18*zoom) else { return }

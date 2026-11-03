@@ -83,7 +83,7 @@ final class WorldPanelsViewController: UIViewController, UITextFieldDelegate {
             title = s[.me]
             profile()
         case .agent(let agent):
-            title = s[.light]+String(format:" %02d",agent.id+1)
+            title = agent.id==0 ? s[.yourLight] : s[.light]+String(format:" %02d",agent.id+1)
             agentDetail(agent)
         case .resident(let resident):
             title = s[resident.nameKey]
@@ -116,6 +116,12 @@ final class WorldPanelsViewController: UIViewController, UITextFieldDelegate {
         stack.addArrangedSubview(WorldTheme.label("\(s[.energy]): \(agent.energy)%",style:.footnote,muted:true))
         stack.addArrangedSubview(WorldTheme.label("\(s[.completedActivities]): \(agent.completed) · \(s[.ideas]): \(agent.ideas)",style:.footnote,muted:true))
         stack.addArrangedSubview(WorldTheme.label(s[.simulationDetail],style:.footnote,muted:true))
+        if agent.id==0 {
+            let personal = WorldTheme.button(s[.personalCorner],symbol:"circle")
+            personal.accessibilityIdentifier = "world.agent.profile"
+            personal.addAction(UIAction { [weak self] _ in self?.openPersonal(.me) },for:.touchUpInside)
+            stack.addArrangedSubview(personal)
+        }
         if WorldResident.allCases.indices.contains(agent.id) { stack.addArrangedSubview(favoriteButton(WorldResident.allCases[agent.id])) }
     }
 
@@ -231,6 +237,12 @@ final class WorldPanelsViewController: UIViewController, UITextFieldDelegate {
         stack.addArrangedSubview(button)
     }
 
+    private func openPersonal(_ content: Content) {
+        let panel = WorldPanelsViewController(content:content,store:store,art:art,onVisit:onVisit)
+        panel.onClose = onClose
+        navigationController?.pushViewController(panel,animated:!UIAccessibility.isReduceMotionEnabled)
+    }
+
     private func profile() {
         let s = store.strings
         stack.addArrangedSubview(WorldTheme.label(store.state.nickname.isEmpty ? s[.meTitle] : store.state.nickname, style: .title1))
@@ -270,6 +282,10 @@ final class WorldPanelsViewController: UIViewController, UITextFieldDelegate {
             }
         })
         stack.addArrangedSubview(language)
+        let familiar = WorldTheme.button(s[.meetTitle],symbol:"circle.grid.2x2")
+        familiar.accessibilityIdentifier = "world.profile.familiar"
+        familiar.addAction(UIAction { [weak self] _ in self?.openPersonal(.meet) },for:.touchUpInside)
+        stack.addArrangedSubview(familiar)
         let aura = WorldTheme.button(s[.aura], symbol: "sparkles")
         aura.accessibilityIdentifier = "world.profile.aura"
         aura.addAction(UIAction { [weak self] _ in

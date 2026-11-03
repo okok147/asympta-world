@@ -45,7 +45,7 @@ final class AuraWorldSimulation {
     private var seed: UInt64 = 7919731
     static let extent = CGSize(width:1000,height:1400)
     init(count: Int = 72) {
-        let anchors = [CGPoint(x:180,y:950),CGPoint(x:500,y:690),CGPoint(x:790,y:540),CGPoint(x:250,y:420),CGPoint(x:800,y:830)]
+        let anchors = [CGPoint(x:500,y:700),CGPoint(x:660,y:520),CGPoint(x:790,y:840),CGPoint(x:280,y:450),CGPoint(x:330,y:950)]
         for id in 0..<count {
             let p = id<anchors.count ? anchors[id] : CGPoint(x:80+random()*840,y:120+random()*1160)
             agents.append(Agent(id:id,point:p,source:p,target:p,bend:p,activity:AuraActivity(rawValue:id%5)!,energy:0.35+random()*0.6))
