@@ -34,7 +34,7 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Validate paper-only experience and preserved coordination engine
+      - name: Validate minimal real-map experience and preserved coordination engine
         run: |
           npm run lint
           npm run typecheck
@@ -44,13 +44,13 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Validate rendered paper and dots
+      - name: Validate rendered real-map shell
         run: npm run test:rendered
 
       - name: Export static Pages site
         run: npm run export:pages
 
-      - name: Validate real browser rendering and CSS movement
+      - name: Validate rendered map, creature markers and opt-in location
         run: node scripts/smoke-paper-world-browser.mjs
 
       - name: Configure Pages
