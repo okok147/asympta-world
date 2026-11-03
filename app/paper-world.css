@@ -1,0 +1,177 @@
+/*
+ * Real geography via OpenFreeMap / OpenStreetMap.
+ * No fictitious rivers, mountains, roads, buildings or scenery added.
+ */
+:root { color-scheme: light; --paper: #f8f5ed; --ink: #5f5a51; }
+* { box-sizing: border-box; }
+html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: Georgia, "Iowan Old Style", "Baskerville", serif;
+  -webkit-font-smoothing: antialiased;
+}
+.asympta-map-world {
+  position: fixed;
+  isolation: isolate;
+  inset: 0;
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--paper);
+}
+.asympta-real-map {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--paper);
+}
+.asympta-real-map .maplibregl-canvas { outline: none; }
+.asympta-creature-marker {
+  display: block;
+  width: 63px;
+  height: 69px;
+  cursor: default;
+  pointer-events: none;
+}
+.asympta-creature-marker__drawing {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-origin: center bottom;
+  animation: asympta-creature-breathe 5.2s ease-in-out infinite alternate;
+}
+.asympta-creature-marker__drawing svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.asympta-creature-marker--bear { width: 66px; height: 70px; }
+.asympta-creature-marker--bunny { width: 55px; height: 65px; }
+.asympta-creature-marker--otter { width: 59px; height: 67px; }
+@keyframes asympta-creature-breathe {
+  0%   { transform: translate3d(0, 0, 0) rotate(-1deg); }
+  100% { transform: translate3d(2px, -4px, 0) rotate(1deg); }
+}
+.asympta-you-marker {
+  display: block;
+  position: relative;
+  width: 30px;
+  height: 30px;
+  pointer-events: none;
+}
+.asympta-you-marker__halo {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(100, 133, 148, .18);
+  border: 1px solid rgba(78, 107, 120, .3);
+}
+.asympta-you-marker__center {
+  position: absolute;
+  left: 9px;
+  top: 9px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #507b8e;
+  border: 2px solid #fffdf6;
+  box-shadow: 0 0 0 1px rgba(60, 91, 101, .45);
+}
+.asympta-locate-button {
+  position: absolute;
+  z-index: 10;
+  top: max(18px, env(safe-area-inset-top));
+  right: max(18px, env(safe-area-inset-right));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 46px;
+  padding: 10px 15px;
+  border: 1px solid rgba(138, 124, 103, .31);
+  border-radius: 23px;
+  background: rgba(253, 250, 241, .94);
+  box-shadow: 0 2px 12px rgba(82, 74, 65, .08);
+  color: #675f55;
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: .01em;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.asympta-locate-button:hover:not(:disabled) { background: #fffdf7; }
+.asympta-locate-button:disabled { opacity: .5; cursor: wait; }
+.asympta-locate-button:focus-visible {
+  outline: 2px solid #668e9b;
+  outline-offset: 3px;
+}
+.asympta-location-feedback {
+  position: absolute;
+  z-index: 9;
+  top: calc(max(18px, env(safe-area-inset-top)) + 56px);
+  right: max(18px, env(safe-area-inset-right));
+  max-width: min(270px, calc(100vw - 36px));
+  padding: 8px 11px;
+  border-radius: 8px;
+  background: rgba(253, 250, 241, .95);
+  color: #776f66;
+  text-align: right;
+  font-family: Georgia, "Iowan Old Style", serif;
+  font-size: 12px;
+}
+.asympta-map-message {
+  position: absolute;
+  z-index: 5;
+  top: 50%;
+  left: 50%;
+  margin: 0;
+  transform: translate(-50%, -50%);
+  font-size: 13px;
+  font-style: italic;
+  color: #918879;
+  pointer-events: none;
+}
+.asympta-map-message--error { max-width: 260px; text-align: center; }
+.asympta-map-disclosure {
+  position: absolute;
+  z-index: 8;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  left: max(14px, env(safe-area-inset-left));
+  margin: 0;
+  padding: 3px 5px;
+  border-radius: 3px;
+  background: rgba(248, 245, 237, .78);
+  color: #867f73;
+  font: 10px/1.4 Georgia, "Iowan Old Style", serif;
+  pointer-events: none;
+  user-select: none;
+}
+.asympta-map-world .maplibregl-ctrl-bottom-right {
+  bottom: max(4px, env(safe-area-inset-bottom));
+}
+.asympta-map-world .maplibregl-ctrl-attrib {
+  font-family: system-ui, sans-serif;
+  font-size: 9px;
+  color: #6e6d65;
+}
+@media (max-width: 530px) {
+  .asympta-creature-marker { width: 49px; height: 57px; }
+  .asympta-creature-marker--bear { width: 53px; height: 57px; }
+  .asympta-creature-marker--bunny { width: 47px; height: 55px; }
+  .asympta-creature-marker--otter { width: 51px; height: 56px; }
+  .asympta-locate-button {
+    top: max(12px, env(safe-area-inset-top));
+    right: max(12px, env(safe-area-inset-right));
+    padding: 10px 13px;
+  }
+  .asympta-location-feedback {
+    top: calc(max(12px, env(safe-area-inset-top)) + 55px);
+    right: max(12px, env(safe-area-inset-right));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .asympta-creature-marker__drawing { animation: none; }
+}

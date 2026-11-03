@@ -21,9 +21,6 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      NEXT_PUBLIC_ASYMPTA_AGENT_API_URL: https://asympta-public-intent-agent.asympta-invitation-service.workers.dev
-      NEXT_PUBLIC_ASYMPTA_TURNSTILE_SITE_KEY: 0x4AAAAAAEiD_1SGxiCjdi1o
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -37,42 +34,24 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Validate product and engine invariants
+      - name: Validate minimal real-map experience and preserved coordination engine
         run: |
           npm run lint
           npm run typecheck
-          npm run test:engine
-          npm run test:public-agent
+          node --test tests/paper-world-source.test.mjs
+          node --experimental-loader ./scripts/cloudflare-node-loader.mjs --test tests/coordination-kernel.test.mjs
 
       - name: Build
         run: npm run build
 
-      - name: Validate rendered product
+      - name: Validate rendered real-map shell
         run: npm run test:rendered
 
       - name: Export static Pages site
         run: npm run export:pages
 
-      - name: Validate browser hydration
-        run: node scripts/smoke-pages-browser.mjs
-
-      - name: Validate shared user/business coordination kernel
-        run: node scripts/smoke-coordination-kernel-browser.mjs
-
-      - name: Validate Business mode imports and agent communication
-        run: node scripts/smoke-business-mode-browser.mjs
-
-      - name: Validate Business follows global language selection
-        run: node scripts/smoke-business-locale-browser.mjs
-
-      - name: Validate Buy some food through delivery and celebration
-        run: node scripts/smoke-buy-food-browser.mjs
-
-      - name: Validate Buy a car through dealer, approval and delivery
-        run: node scripts/smoke-buy-car-browser.mjs
-
-      - name: Validate 100 real-life cases and stress mutations in browser
-        run: node scripts/verify-universal-browser.mjs
+      - name: Validate rendered map, creature markers and opt-in location
+        run: node scripts/smoke-paper-world-browser.mjs
 
       - name: Configure Pages
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
