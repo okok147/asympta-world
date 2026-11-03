@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CREATURES, creatureSvg, type CreatureKind } from "@/lib/world-creatures";
+import { creatureSvg, type CreatureKind } from "@/lib/world-creatures";
 
 type Coordinates = [number, number];
 type MapMarker = {
