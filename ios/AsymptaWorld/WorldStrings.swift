@@ -38,6 +38,7 @@ struct WorldStrings {
         case deleteNoteTitle, deleteNoteMessage, localOnly, saved, saveErrorTitle
         case saveErrorDetail, loadErrorDetail, artMissingTitle, artMissingDetail
         case retry, favoriteCount, noteCount, notNow, localWorld
+        case zoomIn, zoomOut, recenter, glimmerField, inkBank, slowHill, seaEdge, eveningWay, paperRiver, littlePath, farAway
     }
 
     let language: WorldLanguage
@@ -55,6 +56,17 @@ struct WorldStrings {
     }
 
     private static let copy: [Key: [String]] = [
+        .zoomIn: ["Zoom in", "放大地圖", "地図を拡大"],
+        .zoomOut: ["Zoom out", "縮小地圖", "地図を縮小"],
+        .recenter: ["Return to your world", "回到你的小世界", "自分の世界に戻る"],
+        .glimmerField: ["Glimmer Field", "微光原", "ほの光の原"],
+        .inkBank: ["Ink Bank", "墨岸", "墨の岸"],
+        .slowHill: ["Slow Hill", "慢慢丘", "ゆっくり丘"],
+        .seaEdge: ["By the Sea", "海的邊緣", "海のほとり"],
+        .eveningWay: ["Evening Way", "晚風道", "夕風の道"],
+        .paperRiver: ["Paper River", "紙河", "紙の川"],
+        .littlePath: ["Little Path", "小路", "小道"],
+        .farAway: ["Far Away", "遠方", "遠く"],
         .world: ["World", "世界", "世界"],
         .meet: ["Meet", "相遇", "出会い"],
         .aura: ["Aura", "氛圍", "雰囲気"],
@@ -70,10 +82,10 @@ struct WorldStrings {
         .readerDetail: ["One more page, then perhaps a wander. A quiet corner is a world of its own.", "再讀一頁，也許就去散步。一個安靜的角落，也是自己的小世界。", "あと一ページ読んだら、お散歩へ。静かな片隅にも、ひとつの世界がある。"],
         .foxName: ["The curious explorer", "好奇的探險家", "好奇心いっぱいの探検家"],
         .foxDetail: ["A small backpack, a winding path, and no need to hurry.", "背著小背包，沿著彎彎的小路，不必趕時間。", "小さなリュックと曲がり道。急がなくても大丈夫。"],
-        .teaName: ["The tea-time friends", "茶桌旁的朋友", "お茶の時間の友だち"],
+        .teaName: ["The quiet coffee friend", "喝咖啡的朋友", "コーヒーの友だち"],
         .teaDetail: ["There is always room for a pause, a warm cup, and a friend.", "停一停，喝杯暖茶，留一點時間給朋友。", "ひと休みと温かい一杯。友だちと過ごす時間を少し。"],
-        .catName: ["The cloud-soft cat", "睡得軟綿綿的貓", "雲みたいに眠るねこ"],
-        .catDetail: ["Today, a patch of shade is quite enough. Rest is part of the journey.", "今天，有一小片樹蔭就很好。休息，也是旅程的一部分。", "今日は木陰が少しあれば十分。休むことも、旅の一部。"],
+        .catName: ["The little photographer", "拍照的小旅伴", "小さな写真家"],
+        .catDetail: ["Keeping a little piece of today, one quiet photograph at a time.", "拍下今天的小事，留住一點安靜的光。", "今日の小さな出来事を、一枚の写真に残して。"],
         .bearName: ["The gentle traveler", "慢慢走的旅人", "やさしい旅人"],
         .bearDetail: ["Collecting little moments, one unhurried step at a time.", "一步一步慢慢走，收集沿路的小片刻。", "ゆっくり一歩ずつ、小さなひとときを集めている。"],
         .favorite: ["Keep close", "放在心上", "お気に入りに"],
@@ -120,23 +132,21 @@ struct WorldStrings {
 }
 
 enum WorldTheme {
-    static let paper = UIColor(red: 0.978, green: 0.961, blue: 0.925, alpha: 1)
-    static let ink = UIColor(red: 0.39, green: 0.32, blue: 0.27, alpha: 1)
-    static let muted = UIColor(red: 0.48, green: 0.43, blue: 0.36, alpha: 1)
-    static let leaf = UIColor(red: 0.45, green: 0.53, blue: 0.37, alpha: 1)
-    static let line = UIColor(red: 0.70, green: 0.62, blue: 0.51, alpha: 0.25)
+    static let paper = UIColor(hex: 0xfaf8f2)
+    static let ink = UIColor(hex: 0x48463f)
+    static let muted = UIColor(hex: 0x79746a)
+    static let leaf = UIColor(hex: 0x9a9a85)
+    static let line = UIColor(hex: 0xdfd9cc)
 
     static func font(_ style: UIFont.TextStyle = .body, handwritten: Bool = false) -> UIFont {
-        let base = UIFont.preferredFont(forTextStyle: style)
-        if handwritten {
-            let unscaled = UIFont.preferredFont(forTextStyle: style,
-                                                compatibleWith: UITraitCollection(preferredContentSizeCategory: .large))
-            if let note = UIFont(name: "Noteworthy-Light", size: unscaled.pointSize) {
-                return UIFontMetrics(forTextStyle: style).scaledFont(for: note)
-            }
-        }
-        if let serif = base.fontDescriptor.withDesign(.serif) { return UIFont(descriptor: serif, size: 0) }
-        return base
+        let sizes: [UIFont.TextStyle: CGFloat] = [.largeTitle:30,.title1:27,.title2:23,.title3:20,.headline:14,.body:14,.callout:13,.subheadline:12,.footnote:11,.caption1:10,.caption2:9]
+        let size = sizes[style] ?? 14
+        let hand = handwritten || [.largeTitle,.title1,.title2].contains(style)
+        let base: UIFont
+        if hand {
+            base = UIFont(name:"KaitiTC-Regular",size:size) ?? UIFont(name:"BradleyHandITCTT-Bold",size:size) ?? UIFont.italicSystemFont(ofSize:size)
+        } else { base = UIFont.systemFont(ofSize:size,weight:style == .headline ? .semibold : .regular) }
+        return UIFontMetrics(forTextStyle:style).scaledFont(for:base)
     }
 
     static func label(_ text: String, style: UIFont.TextStyle = .body, muted: Bool = false) -> UILabel {
@@ -155,7 +165,7 @@ enum WorldTheme {
         if let symbol { configuration.image = UIImage(systemName: symbol) }
         configuration.imagePadding = 9
         configuration.baseForegroundColor = filled ? paper : ink
-        configuration.baseBackgroundColor = filled ? leaf : .clear
+        configuration.baseBackgroundColor = filled ? ink : .clear
         configuration.cornerStyle = .medium
         configuration.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 14, bottom: 12, trailing: 14)
         let button = UIButton(configuration: configuration)
@@ -164,5 +174,11 @@ enum WorldTheme {
         button.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
         button.accessibilityTraits.insert(.button)
         return button
+    }
+}
+
+extension UIColor {
+    convenience init(hex: UInt32) {
+        self.init(red:CGFloat((hex >> 16) & 255)/255,green:CGFloat((hex >> 8) & 255)/255,blue:CGFloat(hex & 255)/255,alpha:1)
     }
 }

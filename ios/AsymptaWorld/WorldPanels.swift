@@ -27,7 +27,7 @@ final class WorldPanelsViewController: UIViewController, UITextFieldDelegate {
         view.backgroundColor = WorldTheme.paper
         let texture = UIImageView(image: art.paper)
         texture.contentMode = .scaleToFill
-        texture.alpha = 0.55
+        texture.alpha = 0.20
         texture.translatesAutoresizingMaskIntoConstraints = false
         texture.isAccessibilityElement = false
         view.addSubview(texture)
@@ -36,7 +36,7 @@ final class WorldPanelsViewController: UIViewController, UITextFieldDelegate {
         scroll.alwaysBounceVertical = true
         view.addSubview(scroll)
         stack.axis = .vertical
-        stack.spacing = 18
+        stack.spacing = 12
         stack.translatesAutoresizingMaskIntoConstraints = false
         scroll.addSubview(stack)
         NSLayoutConstraint.activate([
@@ -48,11 +48,11 @@ final class WorldPanelsViewController: UIViewController, UITextFieldDelegate {
             scroll.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor),
             scroll.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             scroll.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor),
-            stack.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 24),
-            stack.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -24),
+            stack.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 20),
+            stack.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -20),
             stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: 20),
             stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -32),
-            stack.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -48)
+            stack.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -40)
         ])
         observer = NotificationCenter.default.addObserver(forName: .watercolorWorldDidChange, object: store, queue: .main) { [weak self] _ in
             Task { @MainActor [weak self] in self?.rebuild() }
@@ -100,43 +100,43 @@ final class WorldPanelsViewController: UIViewController, UITextFieldDelegate {
     private func heading(_ title: String, detail: String) {
         stack.addArrangedSubview(WorldTheme.label(title, style: .title1))
         stack.addArrangedSubview(WorldTheme.label(detail, muted: true))
-        stack.setCustomSpacing(28, after: stack.arrangedSubviews.last!)
+        stack.setCustomSpacing(16, after: stack.arrangedSubviews.last!)
     }
 
     private func residentCard(_ resident: WorldResident) {
         let s = store.strings
         let container = card()
-        let body = UIStackView()
-        body.axis = .vertical
-        body.spacing = 10
-        inset(body, in: container, padding: 16)
         let row = UIStackView()
-        row.axis = .horizontal
-        row.spacing = 14
-        row.alignment = .center
-        let image = UIImageView(image: art.portraits[resident])
+        row.axis = .horizontal; row.spacing = 8; row.alignment = .center
+        inset(row,in:container,padding:10)
+        let image = UIImageView(image:art.portraits[resident])
         image.contentMode = .scaleAspectFit
-        image.isAccessibilityElement = false
-        image.widthAnchor.constraint(equalToConstant: 82).isActive = true
-        image.heightAnchor.constraint(equalToConstant: 82).isActive = true
+        image.widthAnchor.constraint(equalToConstant:46).isActive = true
+        image.heightAnchor.constraint(equalToConstant:50).isActive = true
         row.addArrangedSubview(image)
-        let labels = UIStackView()
-        labels.axis = .vertical
-        labels.spacing = 6
-        labels.addArrangedSubview(WorldTheme.label(s[resident.nameKey], style: .headline))
-        labels.addArrangedSubview(WorldTheme.label(s[resident.detailKey], style: .subheadline, muted: true))
-        row.addArrangedSubview(labels)
-        body.addArrangedSubview(row)
-        let actions = UIStackView()
-        actions.axis = traitCollection.preferredContentSizeCategory.isAccessibilityCategory ? .vertical : .horizontal
-        actions.spacing = 8
+        let labels = UIStackView(); labels.axis = .vertical; labels.spacing = 5
+        labels.addArrangedSubview(WorldTheme.label(s[resident.nameKey],style:.headline))
+        let detail = WorldTheme.label(s[resident.detailKey],style:.footnote,muted:true)
+        detail.numberOfLines = traitCollection.preferredContentSizeCategory.isAccessibilityCategory ? 0 : 2
+        labels.addArrangedSubview(detail); row.addArrangedSubview(labels)
         let favorite = favoriteButton(resident)
-        let visit = WorldTheme.button(s[.visit], symbol: "location")
+        var favoriteConfig = favorite.configuration
+        favoriteConfig?.title = nil; favoriteConfig?.contentInsets = .zero
+        favorite.configuration = favoriteConfig
+        favorite.accessibilityLabel = s[store.state.favorites.contains(resident) ? .favorited : .favorite] + " · " + s[resident.nameKey]
+        favorite.widthAnchor.constraint(equalToConstant:44).isActive = true
+        let visit = UIButton(type:.system)
+        visit.setImage(UIImage(systemName:"arrow.up.right",withConfiguration:UIImage.SymbolConfiguration(pointSize:16,weight:.light)),for:.normal)
+        visit.tintColor = WorldTheme.muted
+        visit.accessibilityLabel = s[.visit] + " · " + s[resident.nameKey]
         visit.accessibilityIdentifier = "world.visit.\(resident.rawValue)"
-        visit.addAction(UIAction { [weak self] _ in self?.onVisit(resident) }, for: .touchUpInside)
-        actions.addArrangedSubview(favorite)
-        actions.addArrangedSubview(visit)
-        body.addArrangedSubview(actions)
+        visit.widthAnchor.constraint(equalToConstant:44).isActive = true
+        visit.heightAnchor.constraint(equalToConstant:44).isActive = true
+        visit.addAction(UIAction { [weak self] _ in self?.onVisit(resident) },for:.touchUpInside)
+        if traitCollection.preferredContentSizeCategory.isAccessibilityCategory {
+            row.axis = .vertical; row.alignment = .fill
+        }
+        row.addArrangedSubview(favorite); row.addArrangedSubview(visit)
         stack.addArrangedSubview(container)
     }
 
@@ -144,7 +144,7 @@ final class WorldPanelsViewController: UIViewController, UITextFieldDelegate {
         let s = store.strings
         let image = UIImageView(image: art.portraits[resident])
         image.contentMode = .scaleAspectFit
-        image.heightAnchor.constraint(equalToConstant: 156).isActive = true
+        image.heightAnchor.constraint(equalToConstant: 90).isActive = true
         image.isAccessibilityElement = false
         stack.addArrangedSubview(image)
         heading(s[resident.nameKey], detail: s[resident.detailKey])
@@ -410,8 +410,8 @@ private final class WorldJournalEditorViewController: UIViewController, UITextVi
             texture.topAnchor.constraint(equalTo: view.topAnchor),
             texture.bottomAnchor.constraint(equalTo: view.bottomAnchor),
             date.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 16),
-            date.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 24),
-            date.trailingAnchor.constraint(lessThanOrEqualTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -24),
+            date.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 20),
+            date.trailingAnchor.constraint(lessThanOrEqualTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -20),
             textView.topAnchor.constraint(equalTo: date.bottomAnchor, constant: 8),
             textView.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor),
             textView.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor),

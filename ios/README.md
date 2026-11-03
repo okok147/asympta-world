@@ -1,29 +1,20 @@
 # Asympta World for iPhone
 
-A native, quiet watercolor world based on the user's original **Whimsical Asympta World Map.png**. UIKit renders independent terrain, original character cutouts and paper controls. The app runs fully from bundled resources. It targets iPhone only in portrait orientation. On iPad, it uses the system's iPhone compatibility presentation and retains the phone layout.
+A native, offline pencil-sketch world matching the user-designated [living sketch reference](https://asympta-world-sketch.vercel.app/). UIKit draws pale graphite paths over warm paper, with small hand-drawn companions, a floating menu unfolding to the left and coordinated paper panels. iPhone-only portrait; iPad uses the system's phone compatibility presentation.
 
-## Experience
+## Experience and preserved state
 
-- Pan, pinch, return to the whole map, and meet five small groups of residents.
-- The lower-right paper menu unfolds to the left: World, Meet, Aura and Me.
-- Keep favorite residents, choose an Aura, and save a nickname and dated journal locally.
-- English, Traditional Chinese and Japanese; native accessibility, Dynamic Type and reduced motion.
-- Local personal data persists across app launches. No account or network service is required.
+- Drag, pinch, zoom, recenter, see the whole world and meet five companions.
+- The lower-right menu unfolds World, Meet, Aura and Me vertically, with map actions underneath.
+- Favorites, Aura, nickname, dated local notes, three languages and reduced motion remain supported.
+- The existing version1 personal-world file and resident identifiers are unchanged. No account, network, location or messaging service is added.
 
-## Artwork
+## Artwork and architecture
 
-The immutable reference is a 941 × 1672 PNG, SHA-256 `944096477b24070b5fb215371a23d0ba50a80b34e64769b947dc259c48ae49e3`. Character imagery is extracted from that original, with exterior alpha masks rather than redrawn faces. `Art/manifest.json` records original-canvas placement and extraction provenance. `terrain.png` is a derived background with baked controls and characters removed; its separate provenance explicitly distinguishes it from the original. The original website is not the native app entry point.
+`Art/Sketch` contains the exact reference route knots, original SVG creature paths, their rasterized copies and reference paper grain. `provenance.json` records the retrieval/hash and stable resident mapping. Original watercolor assets are preserved as history; the native entry point now loads Sketch resources. The shared [architecture map](../docs/WORLD_RUNTIME_ARCHITECTURE.md#native-iphone-app-independent-of-web-runtime) describes ownership, camera/rendering and persistence boundaries.
 
-## Build and distribution
+## Distribution
 
-1. Finish the native source and asset batch, then complete the required repository checks.
-2. Run `xcodegen generate --spec ios/project.yml`.
-3. Run `node ios/validate-artwork.mjs`, then freeze the source commit and archive the `AsymptaWorld` scheme for a generic iOS device.
-4. Export with `ios/ExportOptions.plist` using the existing signing account.
-5. Upload one distinct build to the existing Internal TestFlight app.
+Generate with `xcodegen generate --spec ios/project.yml`, archive/sign `AsymptaWorld` for generic iOS, export with `ios/ExportOptions.plist`, then distribute the exact frozen commit to existing Internal TestFlight. Compile/sign/package are distribution steps; functional and visual acceptance use the same official installed build on a connected physical iPad. Do not substitute Simulator or a sideloaded product.
 
-XcodeGen and current Xcode are required; JavaScript export is not required for the native target. Generated projects/builds and local signing products remain ignored. Rebuild from the exact release commit.
-
-Existing App Store Connect app: `6828764417` · bundle: `com.asympta.world` · team: `3P7YJW4D3Z` · version: `1.0`. The iPhone-only portrait candidate uses build 3, subject to a fresh Apple build-number check. Earlier universal build 2 remains historical and does not satisfy the phone-layout requirement.
-
-Processing, tester availability, official TestFlight installation and same-build physical phone layout and interactions are separately verified. PR #39 can merge only after physical acceptance. Public App Review is outside this delivery.
+Existing ASC app `6828764417` · bundle `com.asympta.world` · team `3P7YJW4D3Z` · candidate **1.0 (4)**. Fresh provider state is checked before publishing. Physical outcome is pending until evidence is recorded. Public App Review is outside this request.

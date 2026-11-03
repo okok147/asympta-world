@@ -5,8 +5,6 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
     private var art: WorldArt?
     private var canvas: WorldCanvasView?
     private var menu: PaperMenuView?
-    private var hint: UILabel?
-    private var overviewButton: UIButton?
     private var errorStack: UIStackView?
 
     override func viewDidLoad() {
@@ -42,59 +40,44 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
             view.addSubview(world)
             canvas = world
 
-            let brand = UIImageView(image: art.brand)
-            brand.contentMode = .scaleAspectFit
+            let brand = UIStackView()
+            brand.axis = .vertical; brand.spacing = 1
             brand.translatesAutoresizingMaskIntoConstraints = false
+            brand.isUserInteractionEnabled = false
             brand.isAccessibilityElement = true
             brand.accessibilityLabel = "Asympta World"
             brand.accessibilityTraits = .header
+            let word = UILabel()
+            word.text = "Asympta ☼"
+            word.textColor = WorldTheme.ink
+            word.font = UIFont(name:"BradleyHandITCTT-Bold",size:32) ?? UIFont.italicSystemFont(ofSize:32)
+            let subtitle = UILabel()
+            subtitle.attributedText = NSAttributedString(string:"WORLD",attributes:[.font:UIFont.systemFont(ofSize:9,weight:.medium),.kern:3,.foregroundColor:WorldTheme.muted])
+            brand.addArrangedSubview(word); brand.addArrangedSubview(subtitle)
             view.addSubview(brand)
-
-            let note = WorldTheme.label(store.strings[.mapHint], style: .caption1, muted: true)
-            note.translatesAutoresizingMaskIntoConstraints = false
-            note.accessibilityIdentifier = "world.welcome"
-            view.addSubview(note)
-            hint = note
-
-            var configuration = UIButton.Configuration.plain()
-            configuration.image = UIImage(systemName: "arrow.up.left.and.arrow.down.right",
-                                          withConfiguration: UIImage.SymbolConfiguration(pointSize: 17, weight: .light))
-            configuration.baseForegroundColor = WorldTheme.ink
-            configuration.background.backgroundColor = WorldTheme.paper.withAlphaComponent(0.9)
-            configuration.background.cornerRadius = 14
-            configuration.background.strokeColor = WorldTheme.line
-            configuration.background.strokeWidth = 0.7
-            let overview = UIButton(configuration: configuration)
-            overview.translatesAutoresizingMaskIntoConstraints = false
-            overview.accessibilityIdentifier = "world.overview"
-            overview.addAction(UIAction { [weak self] _ in self?.canvas?.overview() }, for: .touchUpInside)
-            view.addSubview(overview)
-            overviewButton = overview
 
             let paperMenu = PaperMenuView(paper: art.paper, strings: store.strings)
             paperMenu.translatesAutoresizingMaskIntoConstraints = false
             paperMenu.onSelect = { [weak self] section in self?.select(section) }
+            paperMenu.onMapAction = { [weak self] action in
+                switch action {
+                case 0: self?.canvas?.adjustZoom(1/1.3)
+                case 1: self?.canvas?.recenter()
+                case 2: self?.canvas?.adjustZoom(1.3)
+                default: self?.canvas?.overview()
+                }
+            }
+            world.onMapInteraction = { [weak paperMenu] in paperMenu?.collapse() }
             view.addSubview(paperMenu)
             menu = paperMenu
 
             NSLayoutConstraint.activate([
-                brand.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
-                brand.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 22),
-                brand.widthAnchor.constraint(equalToConstant: 174),
-                brand.heightAnchor.constraint(equalTo: brand.widthAnchor, multiplier: art.brand.size.height / max(1, art.brand.size.width)),
-                note.topAnchor.constraint(equalTo: brand.bottomAnchor, constant: 6),
-                note.leadingAnchor.constraint(equalTo: brand.leadingAnchor),
-                note.widthAnchor.constraint(lessThanOrEqualToConstant: 230),
-                note.trailingAnchor.constraint(lessThanOrEqualTo: overview.leadingAnchor, constant: -12),
-                overview.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 14),
-                overview.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -18),
-                overview.widthAnchor.constraint(equalToConstant: 44),
-                overview.heightAnchor.constraint(equalToConstant: 44),
-                paperMenu.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -16),
-                paperMenu.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -12),
-                paperMenu.leadingAnchor.constraint(greaterThanOrEqualTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 16),
-                paperMenu.widthAnchor.constraint(greaterThanOrEqualToConstant: 56),
-                paperMenu.heightAnchor.constraint(equalToConstant: 68)
+                brand.topAnchor.constraint(equalTo:view.safeAreaLayoutGuide.topAnchor,constant:18),
+                brand.leadingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.leadingAnchor,constant:25),
+                brand.widthAnchor.constraint(equalToConstant:190),
+                paperMenu.trailingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.trailingAnchor,constant:-24),
+                paperMenu.bottomAnchor.constraint(equalTo:view.safeAreaLayoutGuide.bottomAnchor,constant:-23),
+                paperMenu.leadingAnchor.constraint(greaterThanOrEqualTo:view.safeAreaLayoutGuide.leadingAnchor,constant:12)
             ])
             applyState()
             updateActivity()
@@ -108,9 +91,6 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
         view.accessibilityLanguage = store.state.language.rawValue
         canvas?.apply(state: store.state, strings: strings)
         menu?.apply(strings: strings)
-        hint?.text = strings[.mapHint]
-        hint?.font = WorldTheme.font(.caption1)
-        overviewButton?.accessibilityLabel = strings[.overview]
     }
 
     private func select(_ section: WorldSection) {
@@ -126,6 +106,7 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
 
     private func show(_ content: WorldPanelsViewController.Content) {
         guard let art, presentedViewController == nil else { return }
+        menu?.collapse()
         let panel = WorldPanelsViewController(content: content, store: store, art: art) { [weak self] resident in
             guard let self else { return }
             self.dismiss(animated: !UIAccessibility.isReduceMotionEnabled) {
@@ -146,13 +127,13 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
         navigation.modalPresentationStyle = .pageSheet
         navigation.preferredContentSize = CGSize(width: 500, height: 700)
         if let sheet = navigation.sheetPresentationController {
-            sheet.detents = [.medium(), .large()]
+            sheet.detents = [.custom(identifier:.init("paper")) { context in context.maximumDetentValue * 0.78 }, .large()]
             switch content {
             case .me: sheet.selectedDetentIdentifier = .large
-            default: sheet.selectedDetentIdentifier = .medium
+            default: sheet.selectedDetentIdentifier = .init("paper")
             }
             sheet.prefersGrabberVisible = true
-            sheet.preferredCornerRadius = 25
+            sheet.preferredCornerRadius = 24
             sheet.prefersEdgeAttachedInCompactHeight = true
             sheet.widthFollowsPreferredContentSizeWhenEdgeAttached = true
         }

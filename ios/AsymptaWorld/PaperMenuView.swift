@@ -2,7 +2,6 @@ import UIKit
 
 enum WorldSection: Int, CaseIterable {
     case world, meet, aura, me
-
     var titleKey: WorldStrings.Key {
         switch self { case .world: return .world; case .meet: return .meet; case .aura: return .aura; case .me: return .me }
     }
@@ -11,221 +10,127 @@ enum WorldSection: Int, CaseIterable {
     }
 }
 
-private final class PaperSurface: UIView {
-    private let texture: UIImageView
-    private let edge = CAShapeLayer()
-
-    init(image: UIImage) {
-        texture = UIImageView(image: image)
-        super.init(frame: .zero)
-        texture.contentMode = .scaleToFill
-        texture.isUserInteractionEnabled = false
-        addSubview(texture)
-        layer.shadowColor = WorldTheme.ink.cgColor
-        layer.shadowOpacity = 0.13
-        layer.shadowOffset = CGSize(width: 0, height: 3)
-        layer.shadowRadius = 9
-        edge.fillColor = UIColor.clear.cgColor
-        edge.strokeColor = WorldTheme.line.cgColor
-        edge.lineWidth = 0.7
-        layer.addSublayer(edge)
-    }
-
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        texture.frame = bounds
-        guard bounds.width > 8, bounds.height > 8 else { return }
-        // A restrained, deterministic paper edge. Real controls remain separate.
-        let path = UIBezierPath()
-        path.move(to: CGPoint(x: 7, y: 3))
-        path.addLine(to: CGPoint(x: bounds.width * 0.23, y: 2))
-        path.addLine(to: CGPoint(x: bounds.width * 0.46, y: 4))
-        path.addLine(to: CGPoint(x: bounds.width * 0.74, y: 1))
-        path.addLine(to: CGPoint(x: bounds.width - 6, y: 4))
-        path.addQuadCurve(to: CGPoint(x: bounds.width - 2, y: 10), controlPoint: CGPoint(x: bounds.width, y: 3))
-        path.addLine(to: CGPoint(x: bounds.width - 3, y: bounds.height * 0.55))
-        path.addLine(to: CGPoint(x: bounds.width - 1, y: bounds.height - 8))
-        path.addQuadCurve(to: CGPoint(x: bounds.width - 8, y: bounds.height - 2), controlPoint: CGPoint(x: bounds.width, y: bounds.height))
-        path.addLine(to: CGPoint(x: bounds.width * 0.62, y: bounds.height - 3))
-        path.addLine(to: CGPoint(x: bounds.width * 0.33, y: bounds.height - 1))
-        path.addLine(to: CGPoint(x: 7, y: bounds.height - 4))
-        path.addQuadCurve(to: CGPoint(x: 2, y: bounds.height - 10), controlPoint: CGPoint(x: 0, y: bounds.height))
-        path.addLine(to: CGPoint(x: 3, y: bounds.height * 0.55))
-        path.addLine(to: CGPoint(x: 1, y: 9))
-        path.addQuadCurve(to: CGPoint(x: 7, y: 3), controlPoint: CGPoint(x: 1, y: 2))
-        path.close()
-        let mask = CAShapeLayer()
-        mask.path = path.cgPath
-        texture.layer.mask = mask
-        edge.path = path.cgPath
-        layer.shadowPath = path.cgPath
-    }
-}
-
-private final class SproutView: UIView {
-    override func draw(_ rect: CGRect) {
-        let stem = UIBezierPath()
-        stem.move(to: CGPoint(x: rect.midX, y: rect.height - 8))
-        stem.addCurve(to: CGPoint(x: rect.midX + 2, y: 9),
-                      controlPoint1: CGPoint(x: rect.midX - 4, y: rect.height * 0.6),
-                      controlPoint2: CGPoint(x: rect.midX + 5, y: rect.height * 0.5))
-        WorldTheme.ink.withAlphaComponent(0.78).setStroke()
-        stem.lineWidth = 1.8
-        stem.lineCapStyle = .round
-        stem.stroke()
-        let leaf = UIBezierPath()
-        leaf.move(to: CGPoint(x: rect.midX + 1, y: 25))
-        leaf.addQuadCurve(to: CGPoint(x: rect.width - 4, y: 5), controlPoint: CGPoint(x: rect.midX + 2, y: 6))
-        leaf.addQuadCurve(to: CGPoint(x: rect.midX + 1, y: 25), controlPoint: CGPoint(x: rect.width - 2, y: 22))
-        leaf.close()
-        WorldTheme.leaf.withAlphaComponent(0.9).setFill()
-        leaf.fill()
-        let other = UIBezierPath()
-        other.move(to: CGPoint(x: rect.midX, y: 30))
-        other.addQuadCurve(to: CGPoint(x: 4, y: 14), controlPoint: CGPoint(x: 3, y: 29))
-        other.addQuadCurve(to: CGPoint(x: rect.midX, y: 30), controlPoint: CGPoint(x: rect.midX - 2, y: 15))
-        other.close()
-        WorldTheme.leaf.withAlphaComponent(0.7).setFill()
-        other.fill()
-        let ground = UIBezierPath(ovalIn: CGRect(x: rect.midX - 8, y: rect.height - 10, width: 16, height: 4))
-        WorldTheme.ink.withAlphaComponent(0.15).setFill()
-        ground.fill()
-    }
-}
-
 final class PaperMenuView: UIView {
-    private let paper: PaperSurface
-    private let toggle = UIButton(type: .custom)
-    private let sprout = SproutView()
+    private let paper = UIView()
+    private let toggle = UIButton(type: .system)
+    private let divider = UIView()
     private var buttons: [WorldSection: UIButton] = [:]
+    private var mapButtons: [UIButton] = []
     private var strings: WorldStrings
     private(set) var isExpanded = false
     private var selected = WorldSection.world
     var onSelect: ((WorldSection) -> Void)?
+    var onMapAction: ((Int) -> Void)?
     var onExpansionChanged: ((Bool) -> Void)?
 
     init(paper image: UIImage, strings: WorldStrings) {
-        paper = PaperSurface(image: image)
         self.strings = strings
-        super.init(frame: .zero)
+        super.init(frame:.zero)
         accessibilityIdentifier = "world.paper-menu"
-        setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        addSubview(paper)
-        paper.isHidden = true
+        paper.backgroundColor = UIColor(hex:0xfdfbf6).withAlphaComponent(0.98)
+        paper.layer.cornerRadius = 22
+        paper.layer.borderColor = WorldTheme.line.cgColor
+        paper.layer.borderWidth = 0.7
+        paper.layer.shadowColor = WorldTheme.ink.cgColor
+        paper.layer.shadowOffset = CGSize(width:0,height:5)
+        paper.layer.shadowRadius = 13; paper.layer.shadowOpacity = 0.07
+        addSubview(paper); paper.isHidden = true
         for section in WorldSection.allCases {
-            let button = UIButton(type: .system)
+            let button = UIButton(type:.system)
             button.tag = section.rawValue
             button.accessibilityIdentifier = "world.menu.\(section)"
-            button.addTarget(self, action: #selector(sectionTapped(_:)), for: .touchUpInside)
-            button.tintColor = WorldTheme.ink
-            paper.addSubview(button)
-            buttons[section] = button
+            button.contentHorizontalAlignment = .leading
+            button.addTarget(self,action:#selector(sectionTapped(_:)),for:.touchUpInside)
+            paper.addSubview(button); buttons[section] = button
+        }
+        divider.backgroundColor = WorldTheme.line
+        paper.addSubview(divider)
+        for (i,symbol) in ["minus","location","plus","arrow.up.left.and.arrow.down.right"].enumerated() {
+            let button = UIButton(type:.system)
+            button.tag = i
+            button.tintColor = WorldTheme.muted
+            button.setImage(UIImage(systemName:symbol,withConfiguration:UIImage.SymbolConfiguration(pointSize:16,weight:.light)),for:.normal)
+            button.accessibilityIdentifier = ["world.zoom.out","world.recenter","world.zoom.in","world.overview"][i]
+            button.addTarget(self,action:#selector(mapTapped(_:)),for:.touchUpInside)
+            paper.addSubview(button); mapButtons.append(button)
         }
         toggle.accessibilityIdentifier = "world.menu.toggle"
-        toggle.addTarget(self, action: #selector(toggleMenu), for: .touchUpInside)
-        toggle.backgroundColor = WorldTheme.paper.withAlphaComponent(0.92)
-        toggle.layer.cornerRadius = 18
-        toggle.layer.borderColor = WorldTheme.line.cgColor
+        toggle.addTarget(self,action:#selector(toggleMenu),for:.touchUpInside)
+        toggle.backgroundColor = UIColor(hex:0xfffcf7).withAlphaComponent(0.96)
+        toggle.tintColor = WorldTheme.ink
+        toggle.layer.cornerRadius = 17
         toggle.layer.borderWidth = 0.7
+        toggle.layer.borderColor = WorldTheme.line.cgColor
         toggle.layer.shadowColor = WorldTheme.ink.cgColor
-        toggle.layer.shadowOpacity = 0.08
-        toggle.layer.shadowRadius = 8
-        toggle.layer.shadowOffset = CGSize(width: 0, height: 2)
-        sprout.backgroundColor = .clear
-        sprout.isUserInteractionEnabled = false
-        toggle.addSubview(sprout)
+        toggle.layer.shadowOpacity = 0.05; toggle.layer.shadowRadius = 5
+        toggle.layer.shadowOffset = CGSize(width:0,height:2)
         addSubview(toggle)
         updateLabels()
     }
-
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-
-    override var intrinsicContentSize: CGSize {
-        CGSize(width: isExpanded ? 326 : 56, height: 68)
-    }
-
+    required init?(coder:NSCoder) { fatalError("init(coder:) has not been implemented") }
+    private var rowHeight: CGFloat { traitCollection.preferredContentSizeCategory.isAccessibilityCategory ? 54 : 44 }
+    private var cardWidth: CGFloat { traitCollection.preferredContentSizeCategory.isAccessibilityCategory ? 205 : 184 }
+    override var intrinsicContentSize: CGSize { CGSize(width:isExpanded ? cardWidth+63 : 48,height:isExpanded ? rowHeight*4+70 : 48) }
     override func layoutSubviews() {
         super.layoutSubviews()
-        toggle.frame = CGRect(x: max(0, bounds.width - 56), y: 4, width: 56, height: 60)
-        sprout.frame = CGRect(x: 9, y: 5, width: 38, height: 48)
-        paper.frame = CGRect(x: 0, y: 0, width: max(0, bounds.width - 64), height: bounds.height)
-        let cell = max(0, (paper.bounds.width - 12) / 4)
-        for section in WorldSection.allCases {
-            buttons[section]?.frame = CGRect(x: 6 + CGFloat(section.rawValue) * cell, y: 7,
-                                              width: cell, height: max(44, bounds.height - 14))
-        }
+        toggle.frame = CGRect(x:bounds.width-48,y:bounds.height-48,width:48,height:48)
+        paper.frame = CGRect(x:0,y:0,width:bounds.width-63,height:bounds.height)
+        for section in WorldSection.allCases { buttons[section]?.frame = CGRect(x:8,y:8+CGFloat(section.rawValue)*rowHeight,width:paper.bounds.width-16,height:rowHeight) }
+        divider.frame = CGRect(x:16,y:rowHeight*4+15,width:paper.bounds.width-32,height:0.7)
+        let width = (paper.bounds.width-8)/4
+        for (i,button) in mapButtons.enumerated() { button.frame = CGRect(x:4+CGFloat(i)*width,y:rowHeight*4+21,width:width,height:44) }
+        paper.layer.shadowPath = UIBezierPath(roundedRect:paper.bounds,cornerRadius:22).cgPath
     }
-
-    func apply(strings: WorldStrings) {
-        self.strings = strings
-        updateLabels()
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        toggle.frame.contains(point) || (isExpanded && paper.frame.contains(point))
     }
-
-    func select(_ section: WorldSection) {
-        selected = section
-        updateLabels()
-    }
-
-    func collapse() {
-        setExpanded(false)
-    }
-
+    func apply(strings:WorldStrings) { self.strings = strings; updateLabels() }
+    func select(_ section:WorldSection) { selected = section; updateLabels() }
+    func collapse() { setExpanded(false) }
     private func updateLabels() {
         for section in WorldSection.allCases {
             guard let button = buttons[section] else { continue }
-            var configuration = UIButton.Configuration.plain()
-            configuration.image = UIImage(systemName: section.symbol,
-                                          withConfiguration: UIImage.SymbolConfiguration(pointSize: 20, weight: .light))
-            configuration.imagePlacement = .top
-            configuration.imagePadding = 3
-            configuration.title = traitCollection.preferredContentSizeCategory.isAccessibilityCategory ? nil : strings[section.titleKey]
-            configuration.baseForegroundColor = WorldTheme.ink
-            configuration.background.backgroundColor = selected == section ? WorldTheme.leaf.withAlphaComponent(0.09) : .clear
-            configuration.background.cornerRadius = 8
-            configuration.contentInsets = NSDirectionalEdgeInsets(top: 4, leading: 2, bottom: 4, trailing: 2)
-            button.configuration = configuration
-            button.titleLabel?.font = WorldTheme.font(.caption1, handwritten: true)
-            button.titleLabel?.adjustsFontForContentSizeCategory = true
+            var config = UIButton.Configuration.plain()
+            config.image = UIImage(systemName:section.symbol,withConfiguration:UIImage.SymbolConfiguration(pointSize:18,weight:.light))
+            config.imagePadding = 11
+            config.title = strings[section.titleKey]
+            config.baseForegroundColor = WorldTheme.ink
+            config.background.backgroundColor = section == selected ? UIColor(hex:0xede9e0).withAlphaComponent(0.6) : .clear
+            config.background.cornerRadius = 13
+            config.contentInsets = NSDirectionalEdgeInsets(top:6,leading:11,bottom:6,trailing:5)
+            config.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
+                var result = incoming; result.font = WorldTheme.font(.subheadline,handwritten:true); return result
+            }
+            button.configuration = config
             button.accessibilityLabel = strings[section.titleKey]
-            button.accessibilityTraits = selected == section ? [.button, .selected] : .button
+            button.accessibilityTraits = section == selected ? [.button,.selected] : .button
         }
+        toggle.setImage(UIImage(systemName:isExpanded ? "xmark" : "line.3.horizontal.decrease",withConfiguration:UIImage.SymbolConfiguration(pointSize:19,weight:.light)),for:.normal)
         toggle.accessibilityLabel = strings[isExpanded ? .closeMenu : .openMenu]
         toggle.accessibilityValue = isExpanded ? strings[selected.titleKey] : nil
+        let labels:[WorldStrings.Key] = [.zoomOut,.recenter,.zoomIn,.overview]
+        for (i,button) in mapButtons.enumerated() { button.accessibilityLabel = strings[labels[i]] }
     }
-
-    private func setExpanded(_ expanded: Bool) {
+    private func setExpanded(_ expanded:Bool) {
         guard expanded != isExpanded else { return }
         isExpanded = expanded
         paper.isHidden = !expanded
-        invalidateIntrinsicContentSize()
-        setNeedsLayout()
-        updateLabels()
+        invalidateIntrinsicContentSize(); superview?.layoutIfNeeded(); updateLabels()
         onExpansionChanged?(expanded)
-        if !UIAccessibility.isReduceMotionEnabled {
-            UIView.animate(withDuration: 0.2, delay: 0, options: [.beginFromCurrentState, .curveEaseOut]) {
-                self.superview?.layoutIfNeeded()
-            }
-        } else {
-            superview?.layoutIfNeeded()
-        }
-        if expanded { UIAccessibility.post(notification: .layoutChanged, argument: buttons[selected]) }
+        if expanded && !UIAccessibility.isReduceMotionEnabled {
+            paper.alpha = 0; paper.transform = CGAffineTransform(translationX:17,y:7).scaledBy(x:0.92,y:0.92)
+            UIView.animate(withDuration:0.28,delay:0,options:[.beginFromCurrentState,.curveEaseOut]) { self.paper.alpha = 1; self.paper.transform = .identity }
+        } else { paper.alpha = 1; paper.transform = .identity }
+        if expanded { UIAccessibility.post(notification:.layoutChanged,argument:buttons[selected]) }
     }
-
-    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
-        super.traitCollectionDidChange(previousTraitCollection)
-        if previousTraitCollection?.preferredContentSizeCategory != traitCollection.preferredContentSizeCategory {
-            updateLabels()
-        }
+    override func traitCollectionDidChange(_ previous:UITraitCollection?) {
+        super.traitCollectionDidChange(previous)
+        if previous?.preferredContentSizeCategory != traitCollection.preferredContentSizeCategory { invalidateIntrinsicContentSize(); setNeedsLayout(); updateLabels() }
     }
-
     @objc private func toggleMenu() { setExpanded(!isExpanded) }
-
-    @objc private func sectionTapped(_ sender: UIButton) {
-        guard let section = WorldSection(rawValue: sender.tag) else { return }
-        select(section)
-        onSelect?(section)
-        if section == .world { collapse() }
+    @objc private func sectionTapped(_ sender:UIButton) {
+        guard let section = WorldSection(rawValue:sender.tag) else { return }
+        select(section); collapse(); onSelect?(section)
     }
+    @objc private func mapTapped(_ sender:UIButton) { collapse(); onMapAction?(sender.tag) }
 }
