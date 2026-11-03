@@ -150,7 +150,7 @@ The product UI remains calm and map-first; canonical state is available through 
 
 ## Native iPhone app (independent of web runtime)
 
-`ios/AsymptaWorld/AppDelegate.swift` → `NativeWorldViewController` owns `WorldCanvasView`, small top-corner zoom/recenter controls, and native `WorldPanels`. The iOS app does not load the web runtime. `WorldStore` retains the version1 atomic personal file at `Application Support/AsymptaWorld/personal-world-v1.json`; nickname, favorites, journal, language, Aura and movement contracts do not change.
+`ios/AsymptaWorld/AppDelegate.swift` → `NativeWorldViewController` owns `WorldCanvasView`, gesture-based camera control and native `WorldPanels`. The iOS app does not load the web runtime. `WorldStore` retains the version1 atomic personal file at `Application Support/AsymptaWorld/personal-world-v1.json`; nickname, favorites, journal, language, Aura and movement contracts do not change.
 
 ### Paper and halftone design — build6, 2026-11-03
 
@@ -176,8 +176,10 @@ Caches/WorldSceneMetrics.json retains only bounded aggregate actual-scene callba
 
 Reference: [Apple CADisplayLink](https://developer.apple.com/documentation/quartzcore/cadisplaylink) / targetTimestamp / preferredFrameRateRange. The native source, Apple build, device scenes and scope must be reconciled before delivery.
 
-### User-centered camera and no bottom menu — build8 candidate
+### User-centered camera and no visible controls — build9 candidate
 
-Agent0 is the device-local user's light, initially centered in the world. This is a local presentation identity, not an account/location claim or a save migration. The initial camera follows its current simulation point at2.4×; a thin pale ring identifies it. Panning/pinching release follow and preserve the focal world point. Top-corner44pt −/+ and return-to-light controls replace permanent navigation. Recenter returns2.4× follow; accessibility overview remains available. The world viewport uses the newly freed bottom space. `PaperMenuView.swift` is removed; there is no hidden bottom menu instance.
+Agent0 is the device-local user's light, initially centered in the world. This is a local presentation identity, not an account/location claim or a save migration. The initial camera follows its current simulation point at2.4×; a thin pale ring identifies it. Panning/pinching release follow and preserve the focal world point. No top/bottom menu or permanent zoom/location control is created. Pinch zooms and drag explores; double-tap paper returns2.4× follow. Zoom/overview/return accessibility actions are attached to each native light element. The world viewport uses the newly freed bottom space. `PaperMenuView.swift` is removed; there is no hidden bottom menu instance.
 
 Tapping light0 opens the real activity snapshot with localized Your Light title and a Your Space button. This pushes the existing personal panel; Aura, language, motion, familiar-light favorites and journal remain reachable there. Familiar-light visits focus the current corresponding agent and turn off follow for other lights. Closing a sheet resumes the world without changing personal state. New labels inherit WorldStrings; simulation energy is explicitly labeled as simulated. Historical build6 imagery and release evidence are retained, while current native surfaces never load character art.
+
+Build8 source18edd8f3f0bb74b9a1d725da8479be765da4386a / Apple879e4569-4cf5-464e-b06f-d96a03af789e installed on Dev; real motion/zoom/default camera scene ran and raw images were inspected. The latest removal of all top controls supersedes its remaining scenes. Original8 receipts are retained; no complete8 acceptance is claimed. Build9 additionally keeps zero-callback launch snapshots from overwriting real scene metrics; initial8 post-background metrics were zero despite visible activity, so they are not performance evidence. Full9 acceptance is pending.

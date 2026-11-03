@@ -5,9 +5,6 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
     private var art: WorldArt?
     private var canvas: WorldCanvasView?
     private var errorStack: UIStackView?
-    private let zoomOut = UIButton(type:.system)
-    private let zoomIn = UIButton(type:.system)
-    private let returnToUser = UIButton(type:.system)
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -45,33 +42,6 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
             view.addSubview(world)
             canvas = world
 
-            let zoomRow = UIStackView(arrangedSubviews:[zoomOut,zoomIn,returnToUser])
-            zoomRow.axis = .horizontal; zoomRow.spacing = 2
-            zoomRow.translatesAutoresizingMaskIntoConstraints = false
-            for (button,symbol,id,factor) in [(zoomOut,"minus","world.zoom.out",1/1.3),(zoomIn,"plus","world.zoom.in",1.3)] {
-                button.setImage(UIImage(systemName:symbol,withConfiguration:UIImage.SymbolConfiguration(pointSize:17,weight:.light)),for:.normal)
-                button.tintColor = WorldTheme.blue
-                button.accessibilityIdentifier = id
-                button.widthAnchor.constraint(equalToConstant:44).isActive = true
-                button.heightAnchor.constraint(equalToConstant:44).isActive = true
-                button.addAction(UIAction { [weak self] _ in self?.canvas?.adjustZoom(factor) },for:.touchUpInside)
-            }
-            returnToUser.setImage(UIImage(systemName:"location",withConfiguration:UIImage.SymbolConfiguration(pointSize:17,weight:.light)),for:.normal)
-            returnToUser.tintColor = WorldTheme.blue
-            returnToUser.accessibilityIdentifier = "world.recenter"
-            returnToUser.widthAnchor.constraint(equalToConstant:44).isActive = true
-            returnToUser.heightAnchor.constraint(equalToConstant:44).isActive = true
-            returnToUser.addAction(UIAction { [weak self] _ in self?.canvas?.recenter() },for:.touchUpInside)
-            world.onZoomChange = { [weak self] value in
-                self?.zoomOut.isEnabled = value>0.451
-                self?.zoomIn.isEnabled = value<3.499
-            }
-            view.addSubview(zoomRow)
-
-            NSLayoutConstraint.activate([
-                zoomRow.trailingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.trailingAnchor,constant:-20),
-                zoomRow.topAnchor.constraint(equalTo:view.safeAreaLayoutGuide.topAnchor,constant:10)
-            ])
             applyState()
             updateActivity()
         } catch {
@@ -83,9 +53,6 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
         let strings = store.strings
         view.accessibilityLanguage = store.state.language.rawValue
         canvas?.apply(state: store.state, strings: strings)
-        zoomOut.accessibilityLabel = strings[.zoomOut]
-        zoomIn.accessibilityLabel = strings[.zoomIn]
-        returnToUser.accessibilityLabel = strings[.returnToLight]
     }
 
     private func show(_ content: WorldPanelsViewController.Content) {

@@ -189,6 +189,8 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
         frameWork += CACurrentMediaTime()-start
     }
     private func recordMetrics() {
+        // Do not erase a real scene sample with a fresh launch that has not drawn a frame.
+        guard frameCount>0 else { return }
         let counts = Dictionary(uniqueKeysWithValues:AuraActivity.allCases.map { activity in (String(activity.rawValue),simulation.agents.filter { $0.activity == activity }.count) })
         let snapshot: [String:Any] = ["build":Bundle.main.object(forInfoDictionaryKey:"CFBundleVersion") as? String ?? "?","agents":simulation.agents.count,"activities":counts,"completed_activities":simulation.completedActivities,"completed_encounters":simulation.completedEncounters,"travelling":simulation.agents.filter(\.travelling).count,"motion_callbacks":frameCount,"active_seconds":elapsedIntervals,"mean_callback_interval_ms":frameCount>0 ? elapsedIntervals/Double(frameCount)*1000 : 0,"intervals_over_25ms":longIntervals,"worst_interval_ms":worstInterval*1000,"mean_motion_work_ms":frameCount>0 ? frameWork/Double(frameCount)*1000 : 0,"camera_updates":cameraUpdates,"mean_camera_work_ms":cameraUpdates>0 ? cameraWork/Double(cameraUpdates)*1000 : 0,"cached_ink_textures":5,"scope":"actual simulation callback cadence and CPU work; not measured displayed FPS or matched baseline"]
         let url = FileManager.default.urls(for:.cachesDirectory,in:.userDomainMask)[0].appendingPathComponent("WorldSceneMetrics.json")
@@ -217,7 +219,8 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
     func apply(state: WorldState, strings: WorldStrings) {
         self.strings = strings; movement = state.movement; mood = state.aura
         accessibilityLabel = strings[.world]; accessibilityValue = String(format:"%.0f%%",zoom*100)
-        accessibilityCustomActions = [UIAccessibilityCustomAction(name:strings[.zoomIn],target:self,selector:#selector(accessibleZoomIn)),UIAccessibilityCustomAction(name:strings[.zoomOut],target:self,selector:#selector(accessibleZoomOut)),UIAccessibilityCustomAction(name:strings[.overview],target:self,selector:#selector(accessibleOverview)),UIAccessibilityCustomAction(name:strings[.recenter],target:self,selector:#selector(accessibleRecenter))]
+        accessibilityCustomActions = [UIAccessibilityCustomAction(name:strings[.zoomIn],target:self,selector:#selector(accessibleZoomIn)),UIAccessibilityCustomAction(name:strings[.zoomOut],target:self,selector:#selector(accessibleZoomOut)),UIAccessibilityCustomAction(name:strings[.overview],target:self,selector:#selector(accessibleOverview)),UIAccessibilityCustomAction(name:strings[.returnToLight],target:self,selector:#selector(accessibleRecenter))]
+        for element in elements { element.accessibilityCustomActions = accessibilityCustomActions }
         cameraChanged(); syncClock()
     }
     func setSceneActive(_ active: Bool) { sceneActive = active; if !active { recordMetrics() }; syncClock() }
@@ -245,7 +248,7 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
         gesture.setTranslation(.zero,in:self); cameraChanged()
     }
     @objc private func pinched(_ gesture: UIPinchGestureRecognizer) { gestureState(gesture,pinch:true); zoomAt(gesture.scale,anchor:gesture.location(in:self)); gesture.scale = 1 }
-    @objc private func doubleTapped(_ gesture: UITapGestureRecognizer) { followsUser = false; if zoom>2.5 { recenter() } else { zoomAt(1.6,anchor:gesture.location(in:self)) } }
+    @objc private func doubleTapped(_ gesture: UITapGestureRecognizer) { recenter() }
     @objc private func tapped(_ gesture: UITapGestureRecognizer) {
         let p = gesture.location(in:self)
         guard let id = simulation.agents.indices.min(by:{ hypot(screenPoint($0).x-p.x,screenPoint($0).y-p.y)<hypot(screenPoint($1).x-p.x,screenPoint($1).y-p.y) }), hypot(screenPoint(id).x-p.x,screenPoint(id).y-p.y)<=max(22,18*zoom) else { return }
