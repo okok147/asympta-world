@@ -1,22 +1,29 @@
 # Native iOS living-sketch update — 2026-11-03
 
-Requested outcome: update the existing Asympta World iOS app to match https://asympta-world-sketch.vercel.app/ while retaining its iPhone-only portrait presentation and local personal data.
+The existing Asympta World iOS app now uses the visual language of https://asympta-world-sketch.vercel.app/: warm paper, pale graphite routes, tiny original doodle companions and a floating paper menu that unfolds to the left. It retains iPhone-only portrait presentation and the existing local personal data format.
 
-## Active progress checkpoint
+## Delivered version
 
-The native source is on `codex/ios-testflight`, PR #39. Existing app `com.asympta.world` / ASC `6828764417` and Internal Testers are reused. Web product code is not part of this visual update.
+- Version1.0(5), product source `eb4410ec70d99071e9b7d1b8d3efdf911987c9df`.
+- Existing bundle `com.asympta.world`, ASC app `6828764417`, Internal Testers group `03c11663-f390-47ae-8c72-797473d1cfd8`.
+- Apple build `3d45f4a2-fdd7-40f8-b38b-24d4e20ec634`: VALID / IN_BETA_TESTING; en-US and zh-Hant test notes read back.
+- Signed IPA SHA256 `7de6dbddca1645c2b0ddb35ea4a4f1c8ce983a0a344acfb64e05950f31340877`; exported family[1], portrait-only;24 art resources match frozen source.
+- Official TestFlight Update/Open/two actual notices completed on Dev iPad; CoreDevice independently confirmed1.0(5). Actual phone compatibility window375×667.
 
-- Build4 source `b81afbf7094774c29a51705cae53399e350c3242` is distributed and physically installed via TestFlight on Dev iPad. Apple `3527ac2e-bfb3-4d00-bc24-ba0732f39525` is VALID / IN_BETA_TESTING.
-- Actual scenes cover pencil map/left-unfolding menu, native pan/pinch and zoom controls, resident/favorites/Meet, Aura, three languages, movement preference and background/cold reopen. Private personal state before/after is byte-identical; no state values or raw private records are committed here.
-- A visible gap remains: target-OS `.done` Close uses a saturated system-blue pill. Full style completion was withheld despite functional success.
-- Build5 source `eb4410ec70d99071e9b7d1b8d3efdf911987c9df` replaces the shared Close with a custom native graphite circle, sets window ink tint and uses a plain journal Save. The map, gesture implementation, assets and persistence layer are unchanged. This source is pushed; compilation succeeded and distribution is underway. Same-build affected-panel/editor/dismissal/data verification is pending.
+## Physical evidence and scope
 
-## Packaging lesson retained
+Build4 (`b81afbf7094774c29a51705cae53399e350c3242`, Apple `3527ac2e-bfb3-4d00-bc24-ba0732f39525`) established actual map/menu appearance, pan/pinch and zoom/recenter/overview, resident favorite/restore, Meet visit, Aura alternative/restore, all3language switch/restore, movement preference and background/cold reopen. A saturated system-blue Close pill remained a visible mismatch and was retained as a failure, rather than accepted from functional success.
 
-The first build4 export inherited XcodeGen's universal target family despite project-level iPhone-only settings. It was rejected locally before upload. Explicit target-level `TARGETED_DEVICE_FAMILY: 1` corrected the exported IPA; actual build4 phone compatibility was verified. Do not infer target family from project-level intent.
+Build5 changes only shared bar-control appearance/window tint/version. Unchanged canvas, menu, storage and art evidence from4 is reused. On the actual build5, Meet/Aura/Me/resident circular graphite Close controls were visibly inspected and dismissed to a usable map/menu. The empty journal editor showed a neutral disabled Save and returned through Back without writing. Native language menu remained neutral and retained selection; background return and one cold reopen were normal. Root independently viewed the raw corrected Meet/Aura/editor images.
 
-## Remaining delivery
+Private state before/after each update/interaction batch was byte-identical. Nickname, favorites, Aura, language, movement and journal fields were preserved; no private state contents are committed. Dev ownership was released and independently observed idle with no owner/operation at04:21:03UTC. Other device owners were preserved.
 
-Finish the existing build5 distribution, install the exact official TestFlight build on an exclusively owned Dev iPad, inspect corrected panels and native close/editor flow, compare preserved personal data and release device ownership. Reuse unchanged build4 evidence without extra regression rounds. Then integrate native source into current main and update this record. Public App Review is outside this request; user artistic approval, every device/accessibility size and long-duration stability are not claimed.
+Local evidence is retained under this task's `outputs/build4`, `outputs/build5` and versioned private work folders, with source/IPA/Apple/installed-build identities in each handoff. The final screenshot and redacted physical-result JSON are user deliverables. There is no remaining observed gap against this requested style update.
 
-This checkpoint preserves unfinished work honestly. It is not a completion claim.
+## Retained packaging correction
+
+The first build4 export inherited XcodeGen's universal target family despite project-level iPhone-only settings. It was stopped before upload. Explicit target-level `TARGETED_DEVICE_FAMILY: 1` corrected the exported IPA; physical phone compatibility was verified. Build4's blue prominent Close was separately corrected by `WorldTheme.closeItem`, an ink window tint and plain journal Save. See the canonical [native architecture map](WORLD_RUNTIME_ARCHITECTURE.md#native-iphone-app-independent-of-web-runtime).
+
+## Limits
+
+Public App Store submission/release was not performed. Human artistic approval, every device/accessibility size, journal writing/deletion and long-duration stability are not claimed. Packaging and launch alone were not used as functional acceptance. Later documentation/main integration does not alter the frozen delivered iOS product files.
