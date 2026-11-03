@@ -159,6 +159,26 @@ enum WorldTheme {
         return label
     }
 
+    static func closeItem(title: String, target: Any, action: Selector) -> UIBarButtonItem {
+        // A custom native control avoids OS-specific prominent Done styling.
+        let close = UIButton(type: .custom)
+        close.frame = CGRect(x:0,y:0,width:44,height:44)
+        close.setImage(UIImage(systemName:"xmark",withConfiguration:UIImage.SymbolConfiguration(pointSize:14,weight:.light)),for:.normal)
+        close.tintColor = ink
+        close.backgroundColor = paper
+        close.layer.borderColor = line.cgColor
+        close.layer.borderWidth = 0.7
+        close.layer.cornerRadius = 22
+        close.accessibilityLabel = title
+        close.accessibilityIdentifier = "world.panel.close"
+        close.addTarget(target,action:action,for:.touchUpInside)
+        close.widthAnchor.constraint(equalToConstant:44).isActive = true
+        close.heightAnchor.constraint(equalToConstant:44).isActive = true
+        let item = UIBarButtonItem(customView:close)
+        if #available(iOS 26.0, *) { item.hidesSharedBackground = true }
+        return item
+    }
+
     static func button(_ title: String, symbol: String? = nil, filled: Bool = false) -> UIButton {
         var configuration = filled ? UIButton.Configuration.filled() : .plain()
         configuration.title = title

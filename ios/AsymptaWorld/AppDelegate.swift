@@ -16,6 +16,7 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
                options connectionOptions: UIScene.ConnectionOptions) {
         guard let windowScene = scene as? UIWindowScene else { return }
         let window = UIWindow(windowScene: windowScene)
+        window.tintColor = WorldTheme.ink
         window.rootViewController = NativeWorldViewController()
         window.makeKeyAndVisible()
         self.window = window

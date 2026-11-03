@@ -66,7 +66,7 @@ final class WorldPanelsViewController: UIViewController, UITextFieldDelegate {
         let s = store.strings
         let oldOffset = scroll.contentOffset
         for arranged in stack.arrangedSubviews { stack.removeArrangedSubview(arranged); arranged.removeFromSuperview() }
-        navigationItem.rightBarButtonItem = UIBarButtonItem(title: s[.close], style: .done, target: self, action: #selector(close))
+        navigationItem.rightBarButtonItem = WorldTheme.closeItem(title:s[.close],target:self,action:#selector(close))
         navigationItem.rightBarButtonItem?.accessibilityIdentifier = "world.panel.close"
         navigationItem.backButtonTitle = s[.me]
         switch content {
@@ -377,7 +377,9 @@ private final class WorldJournalEditorViewController: UIViewController, UITextVi
         texture.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(texture)
         title = s[entry == nil ? .newNote : .editNote]
-        saveItem = UIBarButtonItem(title: s[.save], style: .done, target: self, action: #selector(save))
+        saveItem = UIBarButtonItem(title: s[.save], style: .plain, target: self, action: #selector(save))
+        saveItem.tintColor = WorldTheme.ink
+        if #available(iOS 26.0, *) { saveItem.hidesSharedBackground = true }
         saveItem.accessibilityIdentifier = "world.journal.save"
         navigationItem.rightBarButtonItem = saveItem
         textView.text = entry?.text ?? ""

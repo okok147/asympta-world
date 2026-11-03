@@ -17,4 +17,4 @@ A native, offline pencil-sketch world matching the user-designated [living sketc
 
 Generate with `xcodegen generate --spec ios/project.yml`, archive/sign `AsymptaWorld` for generic iOS, export with `ios/ExportOptions.plist`, then distribute the exact frozen commit to existing Internal TestFlight. Compile/sign/package are distribution steps; functional and visual acceptance use the same official installed build on a connected physical iPad. Do not substitute Simulator or a sideloaded product.
 
-Existing ASC app `6828764417` · bundle `com.asympta.world` · team `3P7YJW4D3Z` · candidate **1.0 (4)**. Fresh provider state is checked before publishing. Physical outcome is pending until evidence is recorded. Public App Review is outside this request.
+Existing ASC app `6828764417` · bundle `com.asympta.world` · team `3P7YJW4D3Z` · candidate **1.0 (5)**. Fresh provider state is checked before publishing. Build4 functional and data-preservation evidence is recorded; build5 corrects the actual system-blue panel Close treatment, with affected-panel physical verification pending. Public App Review is outside this request.
