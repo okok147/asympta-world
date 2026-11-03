@@ -19,12 +19,6 @@ type MapLibrary = {
   Marker: new (options: { element: HTMLElement; anchor: "bottom" | "center" }) => MapMarker;
 };
 
-declare global {
-  interface Window {
-    maplibregl?: MapLibrary;
-  }
-}
-
 const MAPLIBRE_JS = "https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.js";
 const MAPLIBRE_CSS = "https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.css";
 const OPENFREEMAP_STYLE = "https://tiles.openfreemap.org/styles/positron";
@@ -38,7 +32,8 @@ const COMPANION_OFFSETS: readonly { kind: CreatureKind; eastKm: number; northKm:
 
 let libraryPromise: Promise<MapLibrary> | null = null;
 function loadMapLibrary(): Promise<MapLibrary> {
-  if (window.maplibregl) return Promise.resolve(window.maplibregl);
+  const mapGlobal = window as unknown as { maplibregl?: MapLibrary };
+  if (mapGlobal.maplibregl) return Promise.resolve(mapGlobal.maplibregl);
   if (libraryPromise) return libraryPromise;
 
   libraryPromise = new Promise<MapLibrary>((resolve, reject) => {
@@ -55,7 +50,7 @@ function loadMapLibrary(): Promise<MapLibrary> {
     script.src = MAPLIBRE_JS;
     script.dataset.asymptaMapJs = "true";
     script.onload = () => {
-      if (window.maplibregl) resolve(window.maplibregl);
+      if (mapGlobal.maplibregl) resolve(mapGlobal.maplibregl);
       else reject(new Error("Map library did not initialize."));
     };
     script.onerror = () => reject(new Error("Map library could not be downloaded."));
