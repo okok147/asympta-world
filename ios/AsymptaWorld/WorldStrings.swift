@@ -28,6 +28,9 @@ enum WorldLanguage: String, Codable, CaseIterable {
 
 struct WorldStrings {
     enum Key: String {
+        case light, activityExplore, activityLearn, activityCreate, activityConnect, activityRest
+        case activityTravelling, activityDoing, activityWaiting, activitySnapshot, simulationDetail, energy, completedActivities, ideas, activityProgress
+        case exploreDetail, learnDetail, createDetail, connectDetail, restDetail
         case home, explore, friends
         case world, meet, aura, me, overview, close, openMenu, closeMenu, mapHint
         case meetTitle, meetSubtitle, readerName, readerDetail, foxName, foxDetail
@@ -57,6 +60,26 @@ struct WorldStrings {
     }
 
     private static let copy: [Key: [String]] = [
+        .light: ["Light", "光點", "ひかり"],
+        .activityExplore: ["Exploring", "探索", "探索"],
+        .activityLearn: ["Learning", "學習", "学び"],
+        .activityCreate: ["Creating", "創作", "創作"],
+        .activityConnect: ["Meeting", "相遇", "交流"],
+        .activityRest: ["Resting", "休息", "休息"],
+        .activityTravelling: ["On the way", "正在前往", "移動中"],
+        .activityDoing: ["Here for a while", "正在停留", "滞在中"],
+        .activityWaiting: ["Waiting for a friend", "等候另一個光點", "仲間を待っています"],
+        .activitySnapshot: ["A moment, while you look", "打開時的這一刻", "開いた瞬間のようす"],
+        .simulationDetail: ["Activities unfold in a local simulation on this device.", "這個世界的活動在裝置上模擬。", "この端末の中で活動をシミュレーションしています。"],
+        .energy: ["Energy", "能量", "エネルギー"],
+        .completedActivities: ["Activities completed", "已完成的活動", "完了した活動"],
+        .ideas: ["Ideas gathered", "收集的靈感", "集めたアイデア"],
+        .activityProgress: ["Progress", "進度", "進み具合"],
+        .exploreDetail: ["Wandering to a new place, then choosing what comes next.", "前往新的地方，停一停，再選擇下一項活動。", "新しい場所へ向かい、ひと休みして次の活動を選びます。"],
+        .learnDetail: ["Joining a quiet learning circle and gathering an idea.", "走到學習聚落，停留並收集一點靈感。", "学びの集まりに向かい、アイデアをひとつ集めます。"],
+        .createDetail: ["Gathering near other makers and shaping a new idea.", "靠近其他創作中的光點，停留並產生新靈感。", "創作する仲間の近くで、新しいアイデアを形にします。"],
+        .connectDetail: ["Approaching a waiting friend, spending time together and sharing ideas.", "前往等候中的光點，相聚一會，交換靈感後再出發。", "待っている仲間のもとへ行き、アイデアを分かち合って再び出発します。"],
+        .restDetail: ["Finding a nearby quiet spot and restoring energy before moving on.", "找附近安靜的位置休息，恢復能量後再出發。", "近くの静かな場所でエネルギーを回復し、再び出発します。"],
         .home: ["Home", "小屋", "ホーム"],
         .explore: ["Explore", "探索", "探索"],
         .friends: ["Friends", "朋友", "仲間"],
@@ -80,18 +103,18 @@ struct WorldStrings {
         .openMenu: ["Open your paper menu", "打開紙片選單", "紙のメニューを開く"],
         .closeMenu: ["Fold the paper menu", "收起紙片選單", "紙のメニューを閉じる"],
         .mapHint: ["A little world, at your own pace.", "一個小世界，照自己的步調走。", "自分のペースで、小さな世界を。"],
-        .meetTitle: ["Small encounters", "小小的相遇", "小さな出会い"],
-        .meetSubtitle: ["A few quiet companions to find along the way.", "沿路走走，認識幾位安靜的旅伴。", "道の途中で、静かな仲間を見つけよう。"],
-        .readerName: ["The little hedgehog", "小刺蝟", "小さなハリネズミ"],
-        .readerDetail: ["One more page, then perhaps a wander. A quiet corner is a world of its own.", "再讀一頁，也許就去散步。一個安靜的角落，也是自己的小世界。", "あと一ページ読んだら、お散歩へ。静かな片隅にも、ひとつの世界がある。"],
-        .foxName: ["The curious explorer", "好奇的探險家", "好奇心いっぱいの探検家"],
-        .foxDetail: ["A small backpack, a winding path, and no need to hurry.", "背著小背包，沿著彎彎的小路，不必趕時間。", "小さなリュックと曲がり道。急がなくても大丈夫。"],
-        .teaName: ["The quiet rabbit", "安靜的小兔", "静かなウサギ"],
-        .teaDetail: ["There is always room for a pause, a warm cup, and a friend.", "停一停，喝杯暖茶，留一點時間給朋友。", "ひと休みと温かい一杯。友だちと過ごす時間を少し。"],
-        .catName: ["The little cat", "小貓旅伴", "小さなネコ"],
-        .catDetail: ["Keeping a little piece of today, one quiet photograph at a time.", "拍下今天的小事，留住一點安靜的光。", "今日の小さな出来事を、一枚の写真に残して。"],
-        .bearName: ["The gentle sheep", "慢慢走的小羊", "やさしいヒツジ"],
-        .bearDetail: ["Collecting little moments, one unhurried step at a time.", "一步一步慢慢走，收集沿路的小片刻。", "ゆっくり一歩ずつ、小さなひとときを集めている。"],
+        .meetTitle: ["Familiar lights", "熟悉的光點", "なじみの光"],
+        .meetSubtitle: ["Keep a few familiar lights close as the world unfolds.", "世界流動的時候，留幾個熟悉的光點在心上。", "流れる世界の中で、なじみの光をそばに。"],
+        .readerName: ["Light 01", "光點 01", "ひかり 01"],
+        .readerDetail: ["A familiar light in your simulated world. Find it on the paper to see its activity.", "小世界裏熟悉的光點，到紙面上看看它正在做甚麼。", "小さな世界のなじみの光。紙の上で、今の活動を見てみましょう。"],
+        .foxName: ["Light 02", "光點 02", "ひかり 02"],
+        .foxDetail: ["A familiar light in your simulated world. Find it on the paper to see its activity.", "小世界裏熟悉的光點，到紙面上看看它正在做甚麼。", "小さな世界のなじみの光。紙の上で、今の活動を見てみましょう。"],
+        .teaName: ["Light 03", "光點 03", "ひかり 03"],
+        .teaDetail: ["A familiar light in your simulated world. Find it on the paper to see its activity.", "小世界裏熟悉的光點，到紙面上看看它正在做甚麼。", "小さな世界のなじみの光。紙の上で、今の活動を見てみましょう。"],
+        .catName: ["Light 04", "光點 04", "ひかり 04"],
+        .catDetail: ["A familiar light in your simulated world. Find it on the paper to see its activity.", "小世界裏熟悉的光點，到紙面上看看它正在做甚麼。", "小さな世界のなじみの光。紙の上で、今の活動を見てみましょう。"],
+        .bearName: ["Light 05", "光點 05", "ひかり 05"],
+        .bearDetail: ["A familiar light in your simulated world. Find it on the paper to see its activity.", "小世界裏熟悉的光點，到紙面上看看它正在做甚麼。", "小さな世界のなじみの光。紙の上で、今の活動を見てみましょう。"],
         .favorite: ["Keep close", "放在心上", "お気に入りに"],
         .favorited: ["Kept close", "已放在心上", "お気に入り"],
         .visit: ["Find on the map", "到地圖上看看", "地図で会う"],

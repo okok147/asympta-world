@@ -1,0 +1,155 @@
+import Foundation
+import CoreGraphics
+
+enum AuraActivity: Int, CaseIterable {
+    case explore, learn, create, connect, rest
+    var titleKey: WorldStrings.Key {
+        switch self { case .explore:return .activityExplore; case .learn:return .activityLearn; case .create:return .activityCreate; case .connect:return .activityConnect; case .rest:return .activityRest }
+    }
+    var ink: UInt32 {
+        switch self { case .explore:return 0x7296aa; case .learn:return 0xb0a2cb; case .create:return 0xdca37b; case .connect:return 0x96bbaa; case .rest:return 0xe5bd79 }
+    }
+}
+
+struct AuraAgentSnapshot {
+    let id: Int
+    let activity: AuraActivity
+    let travelling: Bool
+    let waitingForPartner: Bool
+    let energy: Int
+    let completed: Int
+    let ideas: Int
+    let progress: Int
+}
+
+/// Local, explicit simulation: no external work, messages, accounts or network effects.
+final class AuraWorldSimulation {
+    struct Agent {
+        let id: Int
+        var point: CGPoint
+        var source: CGPoint
+        var target: CGPoint
+        var bend: CGPoint
+        var activity: AuraActivity
+        var travelling = true
+        var elapsed: Double = 0
+        var duration: Double = 1
+        var energy: Double
+        var completed = 0
+        var ideas = 0
+        var partner: Int?
+    }
+    private(set) var agents: [Agent] = []
+    private(set) var completedActivities = 0
+    private(set) var completedEncounters = 0
+    private var seed: UInt64 = 7919731
+    static let extent = CGSize(width:1000,height:1400)
+    init(count: Int = 72) {
+        let anchors = [CGPoint(x:180,y:950),CGPoint(x:500,y:690),CGPoint(x:790,y:540),CGPoint(x:250,y:420),CGPoint(x:800,y:830)]
+        for id in 0..<count {
+            let p = id<anchors.count ? anchors[id] : CGPoint(x:80+random()*840,y:120+random()*1160)
+            agents.append(Agent(id:id,point:p,source:p,target:p,bend:p,activity:AuraActivity(rawValue:id%5)!,energy:0.35+random()*0.6))
+        }
+        for id in agents.indices { plan(id,activity:agents[id].activity) }
+    }
+    private func random() -> Double {
+        seed = seed &* 6364136223846793005 &+ 1442695040888963407
+        return Double((seed >> 32) % 10000)/10000
+    }
+    private func distance(_ a: CGPoint,_ b: CGPoint) -> CGFloat { hypot(a.x-b.x,a.y-b.y) }
+    private func bounded(_ p: CGPoint) -> CGPoint { CGPoint(x:min(920,max(80,p.x)),y:min(1280,max(120,p.y))) }
+    private func plan(_ id: Int, activity requested: AuraActivity? = nil) {
+        guard agents.indices.contains(id) else { return }
+        var activity = requested ?? (agents[id].energy<0.24 ? .rest : AuraActivity(rawValue:Int(random()*5))!)
+        var destination: CGPoint
+        let p = agents[id].point
+        switch activity {
+        case .explore:
+            destination = bounded(CGPoint(x:p.x+(random()-0.5)*650,y:p.y+(random()-0.5)*650))
+        case .learn:
+            let centers = [CGPoint(x:240,y:360),CGPoint(x:740,y:660),CGPoint(x:400,y:1060)]
+            let hub = centers[id%centers.count]
+            destination = bounded(CGPoint(x:hub.x+(random()-0.5)*140,y:hub.y+(random()-0.5)*140))
+        case .create:
+            let centers = [CGPoint(x:650,y:390),CGPoint(x:300,y:800),CGPoint(x:730,y:1110)]
+            let hub = centers[id%centers.count]
+            destination = bounded(CGPoint(x:hub.x+(random()-0.5)*160,y:hub.y+(random()-0.5)*160))
+        case .rest:
+            // Rest nearby, rather than crossing the entire paper when tired.
+            destination = bounded(CGPoint(x:p.x+(random()-0.5)*130,y:p.y+(random()-0.5)*130))
+        case .connect:
+            let candidate = agents.filter { $0.id != id && $0.partner == nil && !$0.travelling && $0.activity == .rest }
+                .min { distance($0.point,p)<distance($1.point,p) }
+            if let peer = candidate {
+                agents[id].partner = peer.id; agents[peer.id].partner = id
+                destination = bounded(CGPoint(x:peer.point.x+32,y:peer.point.y+12))
+            } else {
+                activity = .explore
+                destination = bounded(CGPoint(x:p.x+(random()-0.5)*550,y:p.y+(random()-0.5)*550))
+            }
+        }
+        agents[id].source = p; agents[id].target = destination
+        let dx = destination.x-p.x, dy = destination.y-p.y, curve = (random()-0.5)*0.4
+        agents[id].bend = bounded(CGPoint(x:(p.x+destination.x)/2-dy*curve,y:(p.y+destination.y)/2+dx*curve))
+        agents[id].activity = activity; agents[id].travelling = true; agents[id].elapsed = 0
+        agents[id].duration = max(3,Double(distance(p,destination))/(activity == .rest ? 40 : 55))
+    }
+    func advance(_ delta: Double) {
+        let dt = min(0.05,max(0,delta))
+        for id in agents.indices {
+            // A resting recipient holds its position until its partner actually arrives.
+            if let peer = agents[id].partner, !agents[id].travelling, agents[id].activity == .rest, agents[peer].travelling { continue }
+            agents[id].elapsed += dt
+            if agents[id].travelling {
+                let t = CGFloat(min(1,agents[id].elapsed/agents[id].duration))
+                let u = t*t*(3-2*t), v = 1-u
+                let a = agents[id]
+                agents[id].point = CGPoint(x:v*v*a.source.x+2*v*u*a.bend.x+u*u*a.target.x,y:v*v*a.source.y+2*v*u*a.bend.y+u*u*a.target.y)
+                agents[id].energy = max(0,agents[id].energy-dt*0.003)
+                if t>=1 {
+                    agents[id].travelling = false; agents[id].elapsed = 0
+                    switch agents[id].activity {
+                    case .rest: agents[id].duration = 7+random()*5
+                    case .learn: agents[id].duration = 5+random()*5
+                    case .create: agents[id].duration = 5+random()*6
+                    case .explore: agents[id].duration = 1+random()*2
+                    case .connect:
+                        agents[id].duration = 5
+                        if let peer = agents[id].partner, distance(agents[id].point,agents[peer].point)<65 {
+                            agents[peer].activity = .connect; agents[peer].elapsed = 0; agents[peer].duration = 5
+                        }
+                    }
+                }
+            } else {
+                if agents[id].activity == .rest { agents[id].energy = min(1,agents[id].energy+dt*0.065) }
+                if agents[id].elapsed>=agents[id].duration { complete(id) }
+            }
+        }
+    }
+    private func complete(_ id: Int) {
+        let activity = agents[id].activity
+        if activity == .create || activity == .learn { agents[id].ideas += 1 }
+        if activity == .connect, let peer = agents[id].partner {
+            // Exchange only after both dots reached the actual encounter, never at a distance.
+            if distance(agents[id].point,agents[peer].point)<65 {
+                if agents[id].ideas>agents[peer].ideas { agents[peer].ideas += 1 }
+                else if agents[peer].ideas>agents[id].ideas { agents[id].ideas += 1 }
+                completedEncounters += 1
+            }
+            agents[peer].partner = nil
+            // Finish the reciprocal participant as one shared encounter, without double-counting.
+            agents[peer].completed += 1; completedActivities += 1
+            agents[peer].energy = max(0.1,agents[peer].energy-0.035)
+            agents[id].partner = nil
+            plan(peer)
+        }
+        agents[id].completed += 1; completedActivities += 1
+        if activity != .rest { agents[id].energy = max(0,agents[id].energy-0.06) }
+        plan(id)
+    }
+    func snapshot(_ id: Int) -> AuraAgentSnapshot? {
+        guard agents.indices.contains(id) else { return nil }
+        let a = agents[id]
+        return AuraAgentSnapshot(id:id,activity:a.activity,travelling:a.travelling,waitingForPartner:a.activity == .rest && a.partner != nil,energy:Int(a.energy*100),completed:a.completed,ideas:a.ideas,progress:Int(min(1,a.elapsed/a.duration)*100))
+    }
+}

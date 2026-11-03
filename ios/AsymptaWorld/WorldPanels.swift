@@ -1,7 +1,7 @@
 import UIKit
 
 final class WorldPanelsViewController: UIViewController, UITextFieldDelegate {
-    enum Content { case meet, aura, me, resident(WorldResident) }
+    enum Content { case meet, aura, me, resident(WorldResident), agent(AuraAgentSnapshot) }
 
     let content: Content
     private let store: WorldStore
@@ -82,6 +82,9 @@ final class WorldPanelsViewController: UIViewController, UITextFieldDelegate {
         case .me:
             title = s[.me]
             profile()
+        case .agent(let agent):
+            title = s[.light]+String(format:" %02d",agent.id+1)
+            agentDetail(agent)
         case .resident(let resident):
             title = s[resident.nameKey]
             residentDetail(resident)
@@ -95,6 +98,25 @@ final class WorldPanelsViewController: UIViewController, UITextFieldDelegate {
         view.layoutIfNeeded()
         let maximum = max(-scroll.adjustedContentInset.top, scroll.contentSize.height - scroll.bounds.height + scroll.adjustedContentInset.bottom)
         scroll.contentOffset = CGPoint(x: 0, y: min(max(oldOffset.y, -scroll.adjustedContentInset.top), maximum))
+    }
+
+    private func agentDetail(_ agent: AuraAgentSnapshot) {
+        let s = store.strings
+        let image = UIImageView(image:AuraInk.image(agent.activity.ink))
+        image.contentMode = .scaleAspectFit
+        image.heightAnchor.constraint(equalToConstant:96).isActive = true
+        stack.addArrangedSubview(image)
+        heading(s[agent.activity.titleKey],detail:s[.activitySnapshot])
+        let details: [AuraActivity:WorldStrings.Key] = [.explore:.exploreDetail,.learn:.learnDetail,.create:.createDetail,.connect:.connectDetail,.rest:.restDetail]
+        stack.addArrangedSubview(WorldTheme.label(s[details[agent.activity]!]))
+        let phase = s[agent.waitingForPartner ? .activityWaiting : agent.travelling ? .activityTravelling : .activityDoing]
+        let status = WorldTheme.label(phase+" · \(s[.activityProgress]) \(agent.progress)%",style:.subheadline,muted:true)
+        status.accessibilityIdentifier = "world.agent.status"
+        stack.addArrangedSubview(status)
+        stack.addArrangedSubview(WorldTheme.label("\(s[.energy]): \(agent.energy)%",style:.footnote,muted:true))
+        stack.addArrangedSubview(WorldTheme.label("\(s[.completedActivities]): \(agent.completed) · \(s[.ideas]): \(agent.ideas)",style:.footnote,muted:true))
+        stack.addArrangedSubview(WorldTheme.label(s[.simulationDetail],style:.footnote,muted:true))
+        if WorldResident.allCases.indices.contains(agent.id) { stack.addArrangedSubview(favoriteButton(WorldResident.allCases[agent.id])) }
     }
 
     private func heading(_ title: String, detail: String) {
