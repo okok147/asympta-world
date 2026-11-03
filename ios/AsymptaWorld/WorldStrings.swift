@@ -28,6 +28,7 @@ enum WorldLanguage: String, Codable, CaseIterable {
 
 struct WorldStrings {
     enum Key: String {
+        case home, explore, friends
         case world, meet, aura, me, overview, close, openMenu, closeMenu, mapHint
         case meetTitle, meetSubtitle, readerName, readerDetail, foxName, foxDetail
         case teaName, teaDetail, catName, catDetail, bearName, bearDetail
@@ -56,6 +57,9 @@ struct WorldStrings {
     }
 
     private static let copy: [Key: [String]] = [
+        .home: ["Home", "小屋", "ホーム"],
+        .explore: ["Explore", "探索", "探索"],
+        .friends: ["Friends", "朋友", "仲間"],
         .zoomIn: ["Zoom in", "放大地圖", "地図を拡大"],
         .zoomOut: ["Zoom out", "縮小地圖", "地図を縮小"],
         .recenter: ["Return to your world", "回到你的小世界", "自分の世界に戻る"],
@@ -78,15 +82,15 @@ struct WorldStrings {
         .mapHint: ["A little world, at your own pace.", "一個小世界，照自己的步調走。", "自分のペースで、小さな世界を。"],
         .meetTitle: ["Small encounters", "小小的相遇", "小さな出会い"],
         .meetSubtitle: ["A few quiet companions to find along the way.", "沿路走走，認識幾位安靜的旅伴。", "道の途中で、静かな仲間を見つけよう。"],
-        .readerName: ["The little reader", "小小讀書人", "小さな読書家"],
+        .readerName: ["The little hedgehog", "小刺蝟", "小さなハリネズミ"],
         .readerDetail: ["One more page, then perhaps a wander. A quiet corner is a world of its own.", "再讀一頁，也許就去散步。一個安靜的角落，也是自己的小世界。", "あと一ページ読んだら、お散歩へ。静かな片隅にも、ひとつの世界がある。"],
         .foxName: ["The curious explorer", "好奇的探險家", "好奇心いっぱいの探検家"],
         .foxDetail: ["A small backpack, a winding path, and no need to hurry.", "背著小背包，沿著彎彎的小路，不必趕時間。", "小さなリュックと曲がり道。急がなくても大丈夫。"],
-        .teaName: ["The quiet coffee friend", "喝咖啡的朋友", "コーヒーの友だち"],
+        .teaName: ["The quiet rabbit", "安靜的小兔", "静かなウサギ"],
         .teaDetail: ["There is always room for a pause, a warm cup, and a friend.", "停一停，喝杯暖茶，留一點時間給朋友。", "ひと休みと温かい一杯。友だちと過ごす時間を少し。"],
-        .catName: ["The little photographer", "拍照的小旅伴", "小さな写真家"],
+        .catName: ["The little cat", "小貓旅伴", "小さなネコ"],
         .catDetail: ["Keeping a little piece of today, one quiet photograph at a time.", "拍下今天的小事，留住一點安靜的光。", "今日の小さな出来事を、一枚の写真に残して。"],
-        .bearName: ["The gentle traveler", "慢慢走的旅人", "やさしい旅人"],
+        .bearName: ["The gentle sheep", "慢慢走的小羊", "やさしいヒツジ"],
         .bearDetail: ["Collecting little moments, one unhurried step at a time.", "一步一步慢慢走，收集沿路的小片刻。", "ゆっくり一歩ずつ、小さなひとときを集めている。"],
         .favorite: ["Keep close", "放在心上", "お気に入りに"],
         .favorited: ["Kept close", "已放在心上", "お気に入り"],
@@ -132,20 +136,19 @@ struct WorldStrings {
 }
 
 enum WorldTheme {
-    static let paper = UIColor(hex: 0xfaf8f2)
-    static let ink = UIColor(hex: 0x48463f)
-    static let muted = UIColor(hex: 0x79746a)
-    static let leaf = UIColor(hex: 0x9a9a85)
-    static let line = UIColor(hex: 0xdfd9cc)
+    static let blue = UIColor(hex: 0x7296aa)
+    static let coral = UIColor(hex: 0xdca37b)
+    static let straw = UIColor(hex: 0xe5bd79)
+    static let paper = UIColor(hex: 0xfdfcf9)
+    static let ink = UIColor(hex: 0x596f7e)
+    static let muted = UIColor(hex: 0x7e8789)
+    static let leaf = UIColor(hex: 0xb5a57c)
+    static let line = UIColor(hex: 0xe8e6df)
 
     static func font(_ style: UIFont.TextStyle = .body, handwritten: Bool = false) -> UIFont {
         let sizes: [UIFont.TextStyle: CGFloat] = [.largeTitle:30,.title1:27,.title2:23,.title3:20,.headline:14,.body:14,.callout:13,.subheadline:12,.footnote:11,.caption1:10,.caption2:9]
         let size = sizes[style] ?? 14
-        let hand = handwritten || [.largeTitle,.title1,.title2].contains(style)
-        let base: UIFont
-        if hand {
-            base = UIFont(name:"KaitiTC-Regular",size:size) ?? UIFont(name:"BradleyHandITCTT-Bold",size:size) ?? UIFont.italicSystemFont(ofSize:size)
-        } else { base = UIFont.systemFont(ofSize:size,weight:style == .headline ? .semibold : .regular) }
+        let base = UIFont(name:"AmericanTypewriter",size:size) ?? UIFont.monospacedSystemFont(ofSize:size,weight:style == .headline ? .semibold : .regular)
         return UIFontMetrics(forTextStyle:style).scaledFont(for:base)
     }
 

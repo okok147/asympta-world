@@ -34,7 +34,7 @@ enum AuraMood: String, Codable, CaseIterable {
     }
     var color: UIColor {
         switch self {
-        case .gentle: return UIColor(red: 0.93, green: 0.76, blue: 0.44, alpha: 1)
+        case .gentle: return WorldTheme.coral
         case .curious: return UIColor(red: 0.62, green: 0.76, blue: 0.70, alpha: 1)
         case .restful: return UIColor(red: 0.67, green: 0.68, blue: 0.78, alpha: 1)
         }

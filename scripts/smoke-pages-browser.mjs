@@ -1,7 +1,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { createServer } from "node:http";
-import { readFile, stat, mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readFile, stat } from "node:fs/promises";
+import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -31,6 +31,18 @@ function findChrome() {
     if (result.status === 0 && result.stdout.trim()) return result.stdout.trim();
   }
   throw new Error("Headless browser smoke test requires Chrome/Chromium on the CI runner.");
+}
+
+function freePort() {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      const port = typeof address === "object" && address ? address.port : 0;
+      server.close(() => resolve(port));
+    });
+  });
 }
 
 function staticServer() {
@@ -67,42 +79,19 @@ function staticServer() {
   });
 }
 
-async function waitForChromeTarget(chrome, readOutput, readLaunchError, timeoutMs = 45_000) {
+async function waitForJson(url, timeoutMs = 10_000) {
   const deadline = Date.now() + timeoutMs;
   let lastError;
   while (Date.now() < deadline) {
-    const output = readOutput();
-    const launchError = readLaunchError();
-    if (launchError || chrome.exitCode !== null || chrome.signalCode !== null) {
-      throw new Error(`Chrome exited before DevTools became ready (exit=${chrome.exitCode}, signal=${chrome.signalCode}).\n${output.slice(-4000)}`,
-        { cause: launchError ?? lastError });
-    }
-    // Chrome binds its own ephemeral port. Use its actual advertised endpoint,
-    // rather than releasing a candidate port and assuming Chrome acquired it.
-    const match = output.match(/DevTools listening on (ws:\/\/[^\s]+)/);
-    if (match) {
-      try {
-        const endpoint = new URL(match[1]);
-        if (!["127.0.0.1", "localhost", "[::1]"].includes(endpoint.hostname)) {
-          throw new Error("Chrome advertised a non-local debugging endpoint.");
-        }
-        const response = await fetch(`http://${endpoint.host}/json/list`, {
-          signal: AbortSignal.timeout(Math.max(1, Math.min(1500, deadline - Date.now()))),
-        });
-        if (response.ok) {
-          const targets = await response.json();
-          const target = Array.isArray(targets)
-            ? targets.find((item) => item.type === "page" && item.webSocketDebuggerUrl) : null;
-          if (target) return target;
-        }
-      } catch (error) {
-        lastError = error;
-      }
+    try {
+      const response = await fetch(url);
+      if (response.ok) return await response.json();
+    } catch (error) {
+      lastError = error;
     }
     await new Promise((resolve) => setTimeout(resolve, 120));
   }
-  throw new Error(`Chrome did not expose a ready page within ${timeoutMs}ms.\n${readOutput().slice(-4000)}`,
-    { cause: lastError });
+  throw lastError instanceof Error ? lastError : new Error(`Timed out waiting for ${url}`);
 }
 
 async function run() {
@@ -113,28 +102,25 @@ async function run() {
   });
   const address = server.address();
   const sitePort = typeof address === "object" && address ? address.port : 0;
+  const debugPort = await freePort();
   const chromeBin = findChrome();
-  const profile = await mkdtemp(path.join(tmpdir(), "asympta-browser-smoke-"));
   const chrome = spawn(chromeBin, [
     "--headless=new",
     "--no-sandbox",
     "--disable-gpu",
     "--disable-dev-shm-usage",
-    "--remote-debugging-port=0",
-    `--user-data-dir=${profile}`,
+    `--remote-debugging-port=${debugPort}`,
+    `--user-data-dir=/tmp/asympta-browser-smoke-${process.pid}`,
     "about:blank",
-  ], { stdio: ["ignore", "pipe", "pipe"] });
+  ], { stdio: ["ignore", "ignore", "pipe"] });
 
-  let chromeOutput = "";
-  let chromeLaunchError;
-  const collect = (chunk) => { chromeOutput = (chromeOutput + String(chunk)).slice(-65_536); };
-  chrome.stdout.on("data", collect);
-  chrome.stderr.on("data", collect);
-  chrome.once("error", (error) => { chromeLaunchError = error; });
-  const chromeClosed = new Promise((resolve) => chrome.once("close", resolve));
+  let chromeStderr = "";
+  chrome.stderr.on("data", (chunk) => { chromeStderr += String(chunk); });
 
   try {
-    const target = await waitForChromeTarget(chrome, () => chromeOutput, () => chromeLaunchError);
+    const targets = await waitForJson(`http://127.0.0.1:${debugPort}/json/list`);
+    const target = targets.find((item) => item.type === "page") ?? targets[0];
+    if (!target?.webSocketDebuggerUrl) throw new Error("Chrome did not expose a page debugging target.");
 
     const socket = new WebSocket(target.webSocketDebuggerUrl);
     await new Promise((resolve, reject) => {
@@ -287,12 +273,9 @@ async function run() {
   } finally {
     chrome.kill("SIGTERM");
     server.close();
-    const exited = await Promise.race([
-      chromeClosed.then(() => true),
-      new Promise((resolve) => setTimeout(() => resolve(false), 2000)),
-    ]);
-    if (exited) await rm(profile, { recursive: true, force: true });
-    if (chrome.exitCode && chrome.exitCode !== 0) console.error(chromeOutput.slice(-4000));
+    if (chrome.exitCode && chrome.exitCode !== 0) {
+      console.error(chromeStderr.slice(-4000));
+    }
   }
 }
 

@@ -40,44 +40,16 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
             view.addSubview(world)
             canvas = world
 
-            let brand = UIStackView()
-            brand.axis = .vertical; brand.spacing = 1
-            brand.translatesAutoresizingMaskIntoConstraints = false
-            brand.isUserInteractionEnabled = false
-            brand.isAccessibilityElement = true
-            brand.accessibilityLabel = "Asympta World"
-            brand.accessibilityTraits = .header
-            let word = UILabel()
-            word.text = "Asympta ☼"
-            word.textColor = WorldTheme.ink
-            word.font = UIFont(name:"BradleyHandITCTT-Bold",size:32) ?? UIFont.italicSystemFont(ofSize:32)
-            let subtitle = UILabel()
-            subtitle.attributedText = NSAttributedString(string:"WORLD",attributes:[.font:UIFont.systemFont(ofSize:9,weight:.medium),.kern:3,.foregroundColor:WorldTheme.muted])
-            brand.addArrangedSubview(word); brand.addArrangedSubview(subtitle)
-            view.addSubview(brand)
-
             let paperMenu = PaperMenuView(paper: art.paper, strings: store.strings)
             paperMenu.translatesAutoresizingMaskIntoConstraints = false
             paperMenu.onSelect = { [weak self] section in self?.select(section) }
-            paperMenu.onMapAction = { [weak self] action in
-                switch action {
-                case 0: self?.canvas?.adjustZoom(1/1.3)
-                case 1: self?.canvas?.recenter()
-                case 2: self?.canvas?.adjustZoom(1.3)
-                default: self?.canvas?.overview()
-                }
-            }
-            world.onMapInteraction = { [weak paperMenu] in paperMenu?.collapse() }
             view.addSubview(paperMenu)
             menu = paperMenu
 
             NSLayoutConstraint.activate([
-                brand.topAnchor.constraint(equalTo:view.safeAreaLayoutGuide.topAnchor,constant:18),
-                brand.leadingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.leadingAnchor,constant:25),
-                brand.widthAnchor.constraint(equalToConstant:190),
-                paperMenu.trailingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.trailingAnchor,constant:-24),
-                paperMenu.bottomAnchor.constraint(equalTo:view.safeAreaLayoutGuide.bottomAnchor,constant:-23),
-                paperMenu.leadingAnchor.constraint(greaterThanOrEqualTo:view.safeAreaLayoutGuide.leadingAnchor,constant:12)
+                paperMenu.leadingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.leadingAnchor,constant:12),
+                paperMenu.trailingAnchor.constraint(equalTo:view.safeAreaLayoutGuide.trailingAnchor,constant:-12),
+                paperMenu.bottomAnchor.constraint(equalTo:view.safeAreaLayoutGuide.bottomAnchor,constant:-10)
             ])
             applyState()
             updateActivity()
@@ -96,7 +68,7 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
     private func select(_ section: WorldSection) {
         switch section {
         case .world:
-            // Returning from a panel keeps the person's camera exactly where it was.
+            canvas?.recenter()
             if presentedViewController != nil { dismiss(animated: !UIAccessibility.isReduceMotionEnabled) }
         case .meet: show(.meet)
         case .aura: show(.aura)

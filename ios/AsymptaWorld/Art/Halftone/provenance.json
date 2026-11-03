@@ -1,0 +1,14 @@
+{
+  "design_reference": "User-approved asympta-world-concept-v6.png, originating chat 01a19fe0-84fd-7471-bfdb-f2b341ce0343",
+  "latest_direction": "Whiter paper; preserve pale character/aura colors; only five characters and auras, with bottom navigation",
+  "method": "Built-in imagegen, transparent five-cell character sheet; runtime equal-cell crop; procedural paper and stipple auras",
+  "source_sha256": "866ca5eb9cbdb1b8e61257fa96d7db296efe5cab22c7ac86a50751c371ca2b5a",
+  "cell_order": [
+    "fox: hooded traveler",
+    "cat: cat",
+    "tea: rabbit",
+    "reader: hedgehog",
+    "bear: sheep"
+  ],
+  "legacy_identifiers_preserved": true
+}

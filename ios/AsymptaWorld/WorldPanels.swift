@@ -248,6 +248,16 @@ final class WorldPanelsViewController: UIViewController, UITextFieldDelegate {
             }
         })
         stack.addArrangedSubview(language)
+        let aura = WorldTheme.button(s[.aura], symbol: "sparkles")
+        aura.accessibilityIdentifier = "world.profile.aura"
+        aura.addAction(UIAction { [weak self] _ in
+            guard let self else { return }
+            let panel = WorldPanelsViewController(content:.aura,store:self.store,art:self.art,onVisit:self.onVisit)
+            panel.onClose = self.onClose
+            self.navigationController?.pushViewController(panel,animated:!UIAccessibility.isReduceMotionEnabled)
+        },for:.touchUpInside)
+        stack.addArrangedSubview(aura)
+
         let motionRow = UIStackView()
         motionRow.axis = .horizontal
         motionRow.spacing = 20
