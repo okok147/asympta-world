@@ -80,7 +80,7 @@ private final class AuraFrameTarget: NSObject {
 final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
     private let simulation = AuraWorldSimulation()
     private var dots: [CALayer] = []
-    private var shownActivities: [AuraActivity?] = []
+    private var shownActivities: [UInt32?] = []
     private var elements: [AuraAccessibleElement] = []
     private var camera = CGPoint(x:500,y:700)
     private var zoom: CGFloat = 2.4
@@ -154,10 +154,11 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
                 dot.setAffineTransform(CGAffineTransform(scaleX:diameter*fit*zoom/96,y:diameter*fit*zoom/96))
             }
             dot.isHidden = !bounds.insetBy(dx:-45,dy:-45).contains(dot.position)
-            if shownActivities[id] != a.activity {
-                dot.contents = AuraInk.image(a.activity.ink).cgImage
-                shownActivities[id] = a.activity
-                if id==0 { userRing.strokeColor = UIColor(hex:a.activity.ink).withAlphaComponent(0.55).cgColor }
+            let aura = simulation.snapshot(id)?.auraInk ?? a.activity.ink
+            if shownActivities[id] != aura {
+                dot.contents = AuraInk.image(aura).cgImage
+                shownActivities[id] = aura
+                if id==0 { userRing.strokeColor = UIColor(hex:aura).withAlphaComponent(0.55).cgColor }
             }
             let moodAlpha: Float = mood == .restful ? 0.72 : mood == .gentle ? 0.86 : 1
             dot.opacity = (a.activity == .rest ? 0.72 : 0.94)*moodAlpha

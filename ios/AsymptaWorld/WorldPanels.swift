@@ -102,11 +102,22 @@ final class WorldPanelsViewController: UIViewController, UITextFieldDelegate {
 
     private func agentDetail(_ agent: AuraAgentSnapshot) {
         let s = store.strings
-        let image = UIImageView(image:AuraInk.image(agent.activity.ink))
+        let image = UIImageView(image:AuraInk.image(agent.auraInk))
         image.contentMode = .scaleAspectFit
         image.heightAnchor.constraint(equalToConstant:96).isActive = true
         stack.addArrangedSubview(image)
-        heading(s[agent.activity.titleKey],detail:s[.activitySnapshot])
+        heading(s[.auraProfile],detail:s[.specialty]+" · "+s[agent.dominant.titleKey]+" · "+s[.abilityLevel]+" \(agent.dominantLevel)")
+        for activity in AuraActivity.allCases {
+            let count = agent.abilities[activity.rawValue]
+            let row = UIStackView(); row.axis = .horizontal; row.alignment = .center; row.spacing = 10
+            let label = WorldTheme.label(s[activity.titleKey],style:.subheadline); label.widthAnchor.constraint(equalToConstant:100).isActive = true
+            row.addArrangedSubview(label)
+            let bar = UIProgressView(progressViewStyle:.default); bar.progress = min(1,Float(count)/25); bar.progressTintColor = UIColor(hex:agent.auraInk); bar.trackTintColor = WorldTheme.line
+            row.addArrangedSubview(bar)
+            let level = WorldTheme.label("\(s[.abilityLevel]) \(min(10,1+Int(sqrt(Double(count)))))",style:.caption1,muted:true); level.widthAnchor.constraint(equalToConstant:75).isActive = true
+            row.addArrangedSubview(level); stack.addArrangedSubview(row)
+        }
+        stack.addArrangedSubview(WorldTheme.label(s[.activitySnapshot],style:.footnote,muted:true))
         let details: [AuraActivity:WorldStrings.Key] = [.explore:.exploreDetail,.learn:.learnDetail,.create:.createDetail,.connect:.connectDetail,.rest:.restDetail]
         stack.addArrangedSubview(WorldTheme.label(s[details[agent.activity]!]))
         let phase = s[agent.waitingForPartner ? .activityWaiting : agent.travelling ? .activityTravelling : .activityDoing]

@@ -1,5 +1,6 @@
 import Foundation
 import CoreGraphics
+import UIKit
 
 enum AuraActivity: Int, CaseIterable {
     case explore, learn, create, connect, rest
@@ -20,6 +21,11 @@ struct AuraAgentSnapshot {
     let completed: Int
     let ideas: Int
     let progress: Int
+    let abilities: [Int]
+    let signature: Int
+    let auraInk: UInt32
+    var dominant: AuraActivity { AuraActivity(rawValue:signature % AuraActivity.allCases.count) ?? activity }
+    var dominantLevel: Int { min(10,1 + Int(sqrt(Double(abilities[signature % abilities.count])))) }
 }
 
 /// Local, explicit simulation: no external work, messages, accounts or network effects.
@@ -36,6 +42,7 @@ final class AuraWorldSimulation {
         var duration: Double = 1
         var energy: Double
         var completed = 0
+        var abilities = [Int](repeating:0,count:AuraActivity.allCases.count)
         var ideas = 0
         var partner: Int?
     }
@@ -128,6 +135,7 @@ final class AuraWorldSimulation {
     }
     private func complete(_ id: Int) {
         let activity = agents[id].activity
+        agents[id].abilities[activity.rawValue] += 1
         if activity == .create || activity == .learn { agents[id].ideas += 1 }
         if activity == .connect, let peer = agents[id].partner {
             // Exchange only after both dots reached the actual encounter, never at a distance.
@@ -150,6 +158,13 @@ final class AuraWorldSimulation {
     func snapshot(_ id: Int) -> AuraAgentSnapshot? {
         guard agents.indices.contains(id) else { return nil }
         let a = agents[id]
-        return AuraAgentSnapshot(id:id,activity:a.activity,travelling:a.travelling,waitingForPartner:a.activity == .rest && a.partner != nil,energy:Int(a.energy*100),completed:a.completed,ideas:a.ideas,progress:Int(min(1,a.elapsed/a.duration)*100))
+        let signature = a.abilities.enumerated().max { lhs,rhs in lhs.element == rhs.element ? lhs.offset > rhs.offset : lhs.element < rhs.element }?.offset ?? a.activity.rawValue
+        let hue = CGFloat((Double(id) * 0.61803398875).truncatingRemainder(dividingBy:1))
+        let level = min(10,1 + Int(sqrt(Double(a.abilities[signature]))))
+        let color = UIColor(hue:hue,saturation:0.30+CGFloat(level)*0.025,brightness:0.88,alpha:1)
+        var red: CGFloat=0,green: CGFloat=0,blue: CGFloat=0
+        color.getRed(&red,green:&green,blue:&blue,alpha:nil)
+        let ink = (UInt32(red*255)<<16) | (UInt32(green*255)<<8) | UInt32(blue*255)
+        return AuraAgentSnapshot(id:id,activity:a.activity,travelling:a.travelling,waitingForPartner:a.activity == .rest && a.partner != nil,energy:Int(a.energy*100),completed:a.completed,ideas:a.ideas,progress:Int(min(1,a.elapsed/a.duration)*100),abilities:a.abilities,signature:signature,auraInk:ink)
     }
 }
