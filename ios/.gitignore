@@ -1,0 +1,5 @@
+/AsymptaWorld/Web/
+/build/
+/DerivedData/
+*.xcuserstate
+xcuserdata/

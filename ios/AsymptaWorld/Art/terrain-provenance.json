@@ -1,0 +1,10 @@
+{
+  "kind": "derived-clean-terrain",
+  "originalFile": "Whimsical Asympta World Map.png",
+  "originalSHA256": "944096477b24070b5fb215371a23d0ba50a80b34e64769b947dc259c48ae49e3",
+  "derivation": "Built-in imagegen precise removal of baked wordmark/menu and five character groups; original character pixels preserved separately. Terrain is a derivative, not the immutable original.",
+  "outputFile": "terrain.png",
+  "width": 941,
+  "height": 1672,
+  "sha256": "f78d9a6bd0fa3b910e78a8602c6d40c4e765414fa3ebbb2a12efa7120df08927"
+}

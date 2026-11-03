@@ -44,3 +44,11 @@ next-env.d.ts
 /output/
 /.playwright-cli/
 /work/
+
+# Generated native project and local signing/build products
+/ios/AsymptaWorld/Web/
+/ios/AsymptaWorld.xcodeproj/
+/ios/DerivedData/
+/ios/build/
+*.xcuserstate
+xcuserdata/
