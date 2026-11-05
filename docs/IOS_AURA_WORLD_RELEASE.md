@@ -1,6 +1,6 @@
 # Native aura-world release — 1.0(12) candidate, 2026-11-05
 
-Latest scope: real selected roads/important buildings around foreground permissioned device location, sparse hand-sketch drawing, broad furry approximate auras without a precise ring, Cloudflare neighborhood presence and durable own growth. Source and physical acceptance pending freeze/distribution.
+Latest scope: real selected roads/important buildings around foreground permissioned device location, sparse hand-sketch drawing, broad furry approximate auras without a precise ring, Cloudflare neighborhood presence and durable own growth. Frozen source41eee93e1e486ca3308adc0f8dbe1d85a2344a23 is on GitHubmain; archive/export succeeded (IPA SHA256c3a9cbcda896a6ebad277294f2b7d15f829d73e2c3229166f933e23ee9f10a22). Applebuilde5fa97d6-00b6-4dce-ad63-ae3f24d9bb25 independently readsVALID/Internal. Official TestFlight12 Update/Open completed on exclusively held iPadAir00008132-000528181E45401C; CoreDevice independently confirmscom.asympta.world1.0(12). Native beta notices were handled and the actual furry-world/location explanation image was inspected. Complete map/cloud physical acceptance remains pending.
 
 Cloudflare `asympta-world-aura` deployed at https://asympta-world-aura.asympta-invitation-service.workers.dev, provider versionde219972-ab55-4644-8c45-459f2e5a51cd. Actual remote checks passed:health, capability boundary, profile isolation and monotonic saves, rejected invalid writes, real roads/buildings and cache/attribution, two connected clients/unique server identities, server-rounded area/radius and departure removal. Public Clock Tower reference data was used, not assumed user location. Source timestamp2026-07-28T02:16:18Z; this is real OSM geometry, not proof of today's complete/current road data. Backend checks do not pass the native app.
 
@@ -31,3 +31,11 @@ Actual aggregate:5115callbacks/87.799active seconds, mean17.165ms,65intervals>25
 Simulation is local/transient, reseeded on cold launch; version1 personal data persists. No external activities, location permission, public App Review, Simulator acceptance or human subjective aesthetic approval implied. Historical6 and superseded partial7/8 evidence remain.
 
 Evidence: originating chat01a19fe0-84fd-7471-bfdb-f2b341ce0343, task work/build9 and deliverables outputs/build9: source/IPA identity, independent provider/installed identity, update/core/settings/language receipts and xcresults, unmodified actual images/video, scene-metrics-motion, redacted personal-preservation and device-release. Private saves/lease tokens are not committed. This records affected outcomes, not a full-system audit.
+
+## Physical checkpoint — 2026-11-05 13:26 HKT
+
+Dev was actively being tested by the Wish chat; its owner/session was read without messages or interruption. Our own waiting Dev job940cba7e-8879-a1a3-6071-099578d2cad6 was cancelled, its worker confirmed gone and its pending request removed. Air was idle, then exclusively acquired underworld12-20261105-con-air, jobafdf215d-53c3-305a-05f4-9c8c6ddd6f16.
+
+Air pre-update wasWorld10. Before launching12, the version1 personal file and its parent ApplicationSupport inventory could not be read (CoreDevice7000/StreamingAction failure); cause is not independently established. Do not claim an Air pre/post byte comparison. No personal note/favorite/delete operation was performed.
+
+The actual World location prompt is visible. The first actuator route checkedSpringBoard, found no matching prompt there and safely stopped before any consent tap. Device process evidence identifiesCoreLocationVanillaWhenInUseAuthPromptPlugin.appex; the next route resolves that observed plugin's bundle metadata and preserves exactWorld/context/foreground-only native-control guards. Its result and the actual map remain pending at this checkpoint. No coordinates or private credentials are recorded here.
