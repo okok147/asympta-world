@@ -48,6 +48,7 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
                 guard let snapshot = world?.snapshot(id) else { return }
                 self?.show(.agent(snapshot))
             }
+            world.onAuraGroupTap = { [weak self] values in self?.show(.auras(values)) }
             view.addSubview(world)
             canvas = world
             world.restoreAbilities(cloud.abilities)
@@ -97,6 +98,7 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
             }
         }
         panel.cloudConnected = connected
+        panel.growthSynced = cloud.growthSynced
         panel.onClose = { [weak self] in self?.canvas?.setCovered(false) }
         let navigation = UINavigationController(rootViewController: panel)
         let appearance = UINavigationBarAppearance()

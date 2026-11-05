@@ -1,7 +1,7 @@
 import UIKit
 
 final class WorldPanelsViewController: UIViewController, UITextFieldDelegate {
-    enum Content { case meet, aura, me, resident(WorldResident), agent(AuraAgentSnapshot) }
+    enum Content { case meet, aura, me, resident(WorldResident), agent(AuraAgentSnapshot), auras([AuraAgentSnapshot]) }
 
     let content: Content
     private let store: WorldStore
@@ -12,6 +12,7 @@ final class WorldPanelsViewController: UIViewController, UITextFieldDelegate {
     private var observer: NSObjectProtocol?
     var onClose: (() -> Void)?
     var cloudConnected = false
+    var growthSynced = false
 
     init(content: Content, store: WorldStore, art: WorldArt, onVisit: @escaping (WorldResident) -> Void) {
         self.content = content
@@ -83,6 +84,19 @@ final class WorldPanelsViewController: UIViewController, UITextFieldDelegate {
         case .me:
             title = s[.me]
             profile()
+        case .auras(let auras):
+            title = s[.chooseAura]
+            heading(s[.chooseAura],detail:s[.approximateAura])
+            for (index,aura) in auras.enumerated() {
+                let name = aura.id==0 ? s[.yourLight] : aura.isConnectedPeer ? s[.nearbyAura]+" \(index+1)" : s[.light]+" \(aura.id+1)"
+                let button = WorldTheme.button(name+" · "+s[aura.activity.titleKey],symbol:"circle.dotted")
+                var choice = button.configuration
+                choice?.image = UIImage(systemName:"circle.fill",withConfiguration:UIImage.SymbolConfiguration(pointSize:12))?.withTintColor(UIColor(hex:aura.auraInk),renderingMode:.alwaysOriginal)
+                button.configuration = choice
+                button.accessibilityIdentifier = "world.aura.choice.\(aura.id)"
+                button.addAction(UIAction { [weak self] _ in self?.openPersonal(.agent(aura)) },for:.touchUpInside)
+                stack.addArrangedSubview(button)
+            }
         case .agent(let agent):
             title = agent.id==0 ? s[.yourLight] : agent.isConnectedPeer ? s[.nearbyAura] : s[.light]+String(format:" %02d",agent.id+1)
             agentDetail(agent)
@@ -138,7 +152,7 @@ final class WorldPanelsViewController: UIViewController, UITextFieldDelegate {
         if agent.id==0 {
             let connection = WorldTheme.label(s[cloudConnected ? .cloudConnected:.cloudOffline],style:.footnote,muted:true)
             connection.accessibilityIdentifier = "world.cloud.status"; stack.addArrangedSubview(connection)
-            stack.addArrangedSubview(WorldTheme.label(s[.growthStored],style:.footnote,muted:true))
+            stack.addArrangedSubview(WorldTheme.label(s[growthSynced ? .growthCloudSaved:.growthStored],style:.footnote,muted:true))
             let personal = WorldTheme.button(s[.personalCorner],symbol:"circle")
             personal.accessibilityIdentifier = "world.agent.profile"
             personal.addAction(UIAction { [weak self] _ in self?.openPersonal(.me) },for:.touchUpInside)
@@ -262,6 +276,7 @@ final class WorldPanelsViewController: UIViewController, UITextFieldDelegate {
     private func openPersonal(_ content: Content) {
         let panel = WorldPanelsViewController(content:content,store:store,art:art,onVisit:onVisit)
         panel.onClose = onClose
+        panel.cloudConnected = cloudConnected; panel.growthSynced = growthSynced
         navigationController?.pushViewController(panel,animated:!UIAccessibility.isReduceMotionEnabled)
     }
 

@@ -120,6 +120,7 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
     private var elapsedIntervals: Double = 0, worstInterval: Double = 0, frameWork: Double = 0, cameraWork: Double = 0
     private let metricWriter = DispatchQueue(label:"com.asympta.world.scene-metrics",qos:.utility)
     var onAgentTap: ((Int)->Void)?
+    var onAuraGroupTap: (([AuraAgentSnapshot])->Void)?
     var onMapInteraction: (() -> Void)?
     var onZoomChange: ((CGFloat)->Void)?
     var isAtOverview: Bool { zoom<=0.56 }
@@ -323,7 +324,9 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
     @objc private func tapped(_ gesture: UITapGestureRecognizer) {
         let p = gesture.location(in:self)
         let ids = (locationMode ? [0] : Array(simulation.agents.indices)) + peers.indices.map { 1000+$0 }
-        guard let id = ids.min(by:{ hypot(screenPoint($0).x-p.x,screenPoint($0).y-p.y)<hypot(screenPoint($1).x-p.x,screenPoint($1).y-p.y) }), hypot(screenPoint(id).x-p.x,screenPoint(id).y-p.y)<=max(24,40*zoom) else { return }
-        selectAgent(id)
+        let targets = ids.map { id in (id,hypot(screenPoint(id).x-p.x,screenPoint(id).y-p.y)) }.filter { $0.1<=max(24,40*zoom) }.sorted { $0.1<$1.1 }
+        guard let nearest = targets.first else { return }
+        let overlapping = targets.filter { $0.1<=nearest.1+24 }.compactMap { snapshot($0.0) }
+        if overlapping.count>1 { onAuraGroupTap?(overlapping) } else { selectAgent(nearest.0) }
     }
 }

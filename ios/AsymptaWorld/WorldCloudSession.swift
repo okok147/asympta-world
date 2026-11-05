@@ -29,6 +29,7 @@ final class WorldCloudSession {
     static let endpoint = URL(string:"https://asympta-world-aura.asympta-invitation-service.workers.dev")!
     private let token: String?
     let identityInk: UInt32
+    private(set) var growthSynced = false
     private(set) var abilities = [Int](repeating:0,count:5)
     private var readable = true
     private var active = false
@@ -111,7 +112,7 @@ final class WorldCloudSession {
         guard readable,Self.valid(values) else { return }
         let merged = zip(abilities,values).map { max($0.0,$0.1) }
         guard merged != abilities else { return }
-        abilities = merged; persist()
+        abilities = merged; growthSynced = false; persist()
         if saveTask == nil {
             saveTask = Task { [weak self] in
                 try? await Task.sleep(for:.seconds(20))
@@ -134,7 +135,9 @@ final class WorldCloudSession {
             guard (response as? HTTPURLResponse)?.statusCode==200,data.count<4096 else { return }
             let growth = try JSONDecoder().decode(AuraGrowth.self,from:data)
             guard Self.valid(growth.abilities) else { return }
-            abilities = zip(abilities,growth.abilities).map { max($0.0,$0.1) }; persist(); onAbilities?(abilities)
+            abilities = zip(abilities,growth.abilities).map { max($0.0,$0.1) }
+            growthSynced = zip(growth.abilities,abilities).allSatisfy { $0.0 >= $0.1 }
+            persist(); recordCloudResponse(method:r.httpMethod ?? "GET",growth:growth,response:response); onAbilities?(abilities)
         } catch {}
     }
     private func uploadGrowth() async {
@@ -146,8 +149,15 @@ final class WorldCloudSession {
             guard (response as? HTTPURLResponse)?.statusCode==200,data.count<4096 else { return }
             let growth = try JSONDecoder().decode(AuraGrowth.self,from:data)
             guard Self.valid(growth.abilities) else { return }
-            abilities = zip(abilities,growth.abilities).map { max($0.0,$0.1) }; persist(); onAbilities?(abilities)
+            abilities = zip(abilities,growth.abilities).map { max($0.0,$0.1) }
+            growthSynced = zip(growth.abilities,abilities).allSatisfy { $0.0 >= $0.1 }
+            persist(); recordCloudResponse(method:r.httpMethod ?? "GET",growth:growth,response:response); onAbilities?(abilities)
         } catch {}
+    }
+    private func recordCloudResponse(method: String,growth: AuraGrowth,response: URLResponse) {
+        let value: [String:Any] = ["build":Bundle.main.object(forInfoDictionaryKey:"CFBundleVersion") as? String ?? "?","method":method,"status":(response as? HTTPURLResponse)?.statusCode ?? 0,"server_abilities":growth.abilities,"local_abilities":abilities,"server_updated_at":growth.updatedAt,"received_at":Date().timeIntervalSince1970*1000,"synchronized":growthSynced]
+        let url = FileManager.default.urls(for:.cachesDirectory,in:.userDomainMask)[0].appendingPathComponent("AuraCloudResponse.json")
+        if let data = try? JSONSerialization.data(withJSONObject:value,options:.sortedKeys) { try? data.write(to:url,options:.atomic) }
     }
     private func loadMap(_ target: WorldMapCell) async {
         let cache = FileManager.default.urls(for:.cachesDirectory,in:.userDomainMask)[0].appendingPathComponent("aura-map-\(target.x)-\(target.y).json")

@@ -1,4 +1,11 @@
-# Native aura-world release — 1.0(12) candidate, 2026-11-05
+# Native aura-world release — 1.0(13) corrective candidate, 2026-11-05
+
+Build13 preserves the real nearby sketch map, broad furry areas and Cloudflare service from12, and fixes a source-identified interaction gap: rounded aura centers can coincide, so every overlapping identity must be selectable through a temporary native chooser. Captured profiles keep correct identity/color; no precise marker or permanent controls are added. Own growth sync state now follows actual valid profile HTTP responses independently of neighborhood presence; bounded private aggregate response evidence excludes tokens/coordinates.
+
+Source compile succeeded. Distribution, exact Dev identity, map/peer/cloud/interaction/lifecycle physical acceptance remain pending. User explicitly reservesAir for personal use; this chat queues onlyDev underworld12-20261105-con-dev-resume. Published12 and its partial evidence are retained, not cancelled or reused as13 acceptance. Cloudflare backend unchanged: providerde219972-ab55-4644-8c45-459f2e5a51cd and its19 actual remote checks remain applicable.
+
+## Previous build12 record
+
 
 Latest scope: real selected roads/important buildings around foreground permissioned device location, sparse hand-sketch drawing, broad furry approximate auras without a precise ring, Cloudflare neighborhood presence and durable own growth. Frozen source41eee93e1e486ca3308adc0f8dbe1d85a2344a23 is on GitHubmain; archive/export succeeded (IPA SHA256c3a9cbcda896a6ebad277294f2b7d15f829d73e2c3229166f933e23ee9f10a22). Applebuilde5fa97d6-00b6-4dce-ad63-ae3f24d9bb25 independently readsVALID/Internal. Official TestFlight12 Update/Open completed on exclusively held iPadAir00008132-000528181E45401C; CoreDevice independently confirmscom.asympta.world1.0(12). Native beta notices were handled and the actual furry-world/location explanation image was inspected. Complete map/cloud physical acceptance remains pending.
 

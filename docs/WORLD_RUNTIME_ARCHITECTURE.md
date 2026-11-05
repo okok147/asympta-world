@@ -215,3 +215,7 @@ Wrangler4.127.0 and TypeScript5.9.3 are pinned in the service package. Generated
 Current physical owner choice: latest user reserves Air for personal use. No further Air operation belongs to this task. Build12 continuation is queued on Dev only; actual map/peer/cloud/lifecycle acceptance remains pending that exact installed scene.
 
 The native Worker is an isolated package: root web TypeScript/ESLint excludecloudflare/aura-world so its generated Worker globals and own compiler settings do not enter the existing DOM/Next.js program. Its own pinned package check and remote runtime checks remain responsible for that service. This changes no shipped native/Worker source after source41eee93.
+
+### Build13 corrective candidate (source-identified, physical pending)
+
+Broad rounded aura centers can coincide; the old nearest-center tap selects only one identity on ties. Preserve every visible identity by opening a temporary native chooser for overlapping touch targets, then its captured profile; no exact-position marker or permanent control is added. Growth HTTP synchronization state must also be distinct from the neighborhood socket state: before location authorization, growth can be online while nearby presence is unavailable. Track actual successful profile responses and show saved/pending truthfully, with bounded private aggregate response evidence (no tokens/location). Both changes remain physical pending until the next official build.
