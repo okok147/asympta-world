@@ -216,6 +216,10 @@ Current physical owner choice: latest user reserves Air for personal use. No fur
 
 The native Worker is an isolated package: root web TypeScript/ESLint excludecloudflare/aura-world so its generated Worker globals and own compiler settings do not enter the existing DOM/Next.js program. Its own pinned package check and remote runtime checks remain responsible for that service. This changes no shipped native/Worker source after source41eee93.
 
-### Build13 corrective candidate (source-identified, physical pending)
+### Build13 published correction (source-identified, physical pending)
 
 Broad rounded aura centers can coincide; the old nearest-center tap selects only one identity on ties. Preserve every visible identity by opening a temporary native chooser for overlapping touch targets, then its captured profile; no exact-position marker or permanent control is added. Growth HTTP synchronization state must also be distinct from the neighborhood socket state: before location authorization, growth can be online while nearby presence is unavailable. Track actual successful profile responses and show saved/pending truthfully, with bounded private aggregate response evidence (no tokens/location). Both changes remain physical pending until the next official build.
+
+Build13 publication verified: source18c7a699ff282311c19632afd0aa037610a71f56, Apple5243f4bf-fcd9-40dd-b552-a8cf35b2fdef VALID/Internal; exact Dev scenes remain unverified. See IOS_AURA_WORLD_RELEASE.md.
+
+Physical13 partial evidence: official Dev update/open/identity and own profile/five abilities observed. Actual profile PUT200 plus subsequent GET200 matched local counters[3,3,0,4,1]. Real location map and connected peer scenes still unverified; Dev connection/preparation4016 currently prevents continuation, not a demonstrated backend failure. See release record for temporary movement restoration and exact boundary.
