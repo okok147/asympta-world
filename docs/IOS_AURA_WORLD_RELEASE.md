@@ -32,10 +32,16 @@ Simulation is local/transient, reseeded on cold launch; version1 personal data p
 
 Evidence: originating chat01a19fe0-84fd-7471-bfdb-f2b341ce0343, task work/build9 and deliverables outputs/build9: source/IPA identity, independent provider/installed identity, update/core/settings/language receipts and xcresults, unmodified actual images/video, scene-metrics-motion, redacted personal-preservation and device-release. Private saves/lease tokens are not committed. This records affected outcomes, not a full-system audit.
 
-## Physical checkpoint — 2026-11-05 13:26 HKT
+## Physical checkpoint — 2026-11-05
 
 Dev was actively being tested by the Wish chat; its owner/session was read without messages or interruption. Our own waiting Dev job940cba7e-8879-a1a3-6071-099578d2cad6 was cancelled, its worker confirmed gone and its pending request removed. Air was idle, then exclusively acquired underworld12-20261105-con-air, jobafdf215d-53c3-305a-05f4-9c8c6ddd6f16.
 
 Air pre-update wasWorld10. Before launching12, the version1 personal file and its parent ApplicationSupport inventory could not be read (CoreDevice7000/StreamingAction failure); cause is not independently established. Do not claim an Air pre/post byte comparison. No personal note/favorite/delete operation was performed.
 
 The actual World location prompt is visible. The first actuator route checkedSpringBoard, found no matching prompt there and safely stopped before any consent tap. Device process evidence identifiesCoreLocationVanillaWhenInUseAuthPromptPlugin.appex; the next route resolves that observed plugin's bundle metadata and preserves exactWorld/context/foreground-only native-control guards. Its result and the actual map remain pending at this checkpoint. No coordinates or private credentials are recorded here.
+
+## Current boundary — location consent pending
+
+The observed prompt plugin resolves to com.apple.corelocation.CoreLocationVanillaWhenInUseAuthPromptPlugin, but its XCTest query exposes no controls. Both native-owner attempts stopped before consent taps. No coordinate fallback, global privacy change or location injection occurred. User was asked to select Allow While Using App on Air. Actual map/peer/cloud-reopen and full interaction scenes remain unverified; no complete12 acceptance.
+
+Post-start ApplicationSupport inventory lists only AsymptaWorld/aura-growth-v1.json. That file and WorldSceneMetrics copied successfully. No Air v1 pre/post byte claim; no note/favorite/delete action. Raw initial furry-world image inspected and hash-identically copied to outputs.
