@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2017",
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -20,10 +24,18 @@
       }
     ],
     "paths": {
-      "@/lib/asympta-adaptive-interaction": ["./lib/asympta-automatic-clarification-options.ts"],
-      "@/lib/atlas-simulation": ["./lib/atlas-animal-cooperation.ts"],
-      "@/lib/atlas-demo": ["./lib/atlas-canonical-demo.ts"],
-      "@/*": ["./*"]
+      "@/lib/asympta-adaptive-interaction": [
+        "./lib/asympta-automatic-clarification-options.ts"
+      ],
+      "@/lib/atlas-simulation": [
+        "./lib/atlas-animal-cooperation.ts"
+      ],
+      "@/lib/atlas-demo": [
+        "./lib/atlas-canonical-demo.ts"
+      ],
+      "@/*": [
+        "./*"
+      ]
     }
   },
   "include": [
@@ -34,5 +46,8 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    "cloudflare/aura-world"
+  ]
 }

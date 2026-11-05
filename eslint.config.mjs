@@ -35,6 +35,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Independent native-app Worker package uses its own generated runtime and check.
+    "cloudflare/aura-world/**",
   ]),
 ]);
 
