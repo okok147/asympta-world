@@ -28,7 +28,7 @@ enum WorldLanguage: String, Codable, CaseIterable {
 
 struct WorldStrings {
     enum Key: String {
-        case yourLight, returnToLight, personalCorner, auraProfile, specialty, abilityLevel
+        case yourLight, returnToLight, personalCorner, auraProfile, specialty, abilityLevel, developingAbility
         case light, activityExplore, activityLearn, activityCreate, activityConnect, activityRest
         case activityTravelling, activityDoing, activityWaiting, activitySnapshot, simulationDetail, energy, completedActivities, ideas, activityProgress
         case exploreDetail, learnDetail, createDetail, connectDetail, restDetail
@@ -67,6 +67,7 @@ struct WorldStrings {
         .auraProfile: ["Aura profile", "光暈能力", "オーラの力"],
         .specialty: ["Strongest ability", "最擅長", "得意な力"],
         .abilityLevel: ["Level", "等級", "レベル"],
+        .developingAbility: ["Your abilities grow as activities unfold.", "能力隨著一次次活動慢慢成長。", "活動を重ねると、少しずつ力が育ちます。"],
         .light: ["Light", "光點", "ひかり"],
         .activityExplore: ["Exploring", "探索", "探索"],
         .activityLearn: ["Learning", "學習", "学び"],

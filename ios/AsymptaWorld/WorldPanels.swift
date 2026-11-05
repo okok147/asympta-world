@@ -106,16 +106,18 @@ final class WorldPanelsViewController: UIViewController, UITextFieldDelegate {
         image.contentMode = .scaleAspectFit
         image.heightAnchor.constraint(equalToConstant:96).isActive = true
         stack.addArrangedSubview(image)
-        heading(s[.auraProfile],detail:s[.specialty]+" · "+s[agent.dominant.titleKey]+" · "+s[.abilityLevel]+" \(agent.dominantLevel)")
+        heading(s[.auraProfile],detail:agent.completed == 0 ? s[.developingAbility] : s[.specialty]+" · "+s[agent.dominant.titleKey]+" · "+s[.abilityLevel]+" \(agent.dominantLevel)")
         for activity in AuraActivity.allCases {
             let count = agent.abilities[activity.rawValue]
-            let row = UIStackView(); row.axis = .horizontal; row.alignment = .center; row.spacing = 10
-            let label = WorldTheme.label(s[activity.titleKey],style:.subheadline); label.widthAnchor.constraint(equalToConstant:100).isActive = true
+            let row = UIStackView(); row.axis = .vertical; row.alignment = .fill; row.spacing = 6
+            row.accessibilityIdentifier = "world.agent.ability.\(activity.rawValue)"
+            let label = WorldTheme.label(s[activity.titleKey]+" · \(s[.abilityLevel]) \(AuraAbility.level(count))",style:.subheadline)
             row.addArrangedSubview(label)
-            let bar = UIProgressView(progressViewStyle:.default); bar.progress = min(1,Float(count)/25); bar.progressTintColor = UIColor(hex:agent.auraInk); bar.trackTintColor = WorldTheme.line
+            let bar = UIProgressView(progressViewStyle:.default); bar.progress = AuraAbility.progress(count); bar.progressTintColor = UIColor(hex:agent.auraInk); bar.trackTintColor = WorldTheme.line
+            bar.isAccessibilityElement = false
             row.addArrangedSubview(bar)
-            let level = WorldTheme.label("\(s[.abilityLevel]) \(min(10,1+Int(sqrt(Double(count)))))",style:.caption1,muted:true); level.widthAnchor.constraint(equalToConstant:75).isActive = true
-            row.addArrangedSubview(level); stack.addArrangedSubview(row)
+            let completions = WorldTheme.label("\(s[.completedActivities]): \(count)",style:.caption1,muted:true)
+            row.addArrangedSubview(completions); stack.addArrangedSubview(row)
         }
         stack.addArrangedSubview(WorldTheme.label(s[.activitySnapshot],style:.footnote,muted:true))
         let details: [AuraActivity:WorldStrings.Key] = [.explore:.exploreDetail,.learn:.learnDetail,.create:.createDetail,.connect:.connectDetail,.rest:.restDetail]

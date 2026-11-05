@@ -25,13 +25,24 @@ struct AuraAgentSnapshot {
     let signature: Int
     let auraInk: UInt32
     var dominant: AuraActivity { AuraActivity(rawValue:signature % AuraActivity.allCases.count) ?? activity }
-    var dominantLevel: Int { min(10,1 + Int(sqrt(Double(abilities[signature % abilities.count])))) }
+    var dominantLevel: Int { AuraAbility.level(abilities[signature % abilities.count]) }
+}
+
+enum AuraAbility {
+    static let maximumLevel = 10
+    static func level(_ completions: Int) -> Int {
+        min(maximumLevel, 1 + Int(sqrt(Double(max(0, completions)))))
+    }
+    static func progress(_ completions: Int) -> Float {
+        min(1, Float(max(0, completions)) / Float((maximumLevel - 1) * (maximumLevel - 1)))
+    }
 }
 
 /// Local, explicit simulation: no external work, messages, accounts or network effects.
 final class AuraWorldSimulation {
     struct Agent {
         let id: Int
+        let auraInk: UInt32
         var point: CGPoint
         var source: CGPoint
         var target: CGPoint
@@ -51,11 +62,18 @@ final class AuraWorldSimulation {
     private(set) var completedEncounters = 0
     private var seed: UInt64 = 7919731
     static let extent = CGSize(width:1000,height:1400)
+    static func identityInk(_ id: Int) -> UInt32 {
+        let hue = CGFloat((Double(id) * 0.61803398875).truncatingRemainder(dividingBy:1))
+        let color = UIColor(hue:hue,saturation:0.35,brightness:0.88,alpha:1)
+        var red: CGFloat=0,green: CGFloat=0,blue: CGFloat=0
+        color.getRed(&red,green:&green,blue:&blue,alpha:nil)
+        return (UInt32(red*255)<<16) | (UInt32(green*255)<<8) | UInt32(blue*255)
+    }
     init(count: Int = 72) {
         let anchors = [CGPoint(x:500,y:700),CGPoint(x:660,y:520),CGPoint(x:790,y:840),CGPoint(x:280,y:450),CGPoint(x:330,y:950)]
         for id in 0..<count {
             let p = id<anchors.count ? anchors[id] : CGPoint(x:80+random()*840,y:120+random()*1160)
-            agents.append(Agent(id:id,point:p,source:p,target:p,bend:p,activity:AuraActivity(rawValue:id%5)!,energy:0.35+random()*0.6))
+            agents.append(Agent(id:id,auraInk:Self.identityInk(id),point:p,source:p,target:p,bend:p,activity:AuraActivity(rawValue:id%5)!,energy:0.35+random()*0.6))
         }
         for id in agents.indices { plan(id,activity:agents[id].activity) }
     }
@@ -147,6 +165,7 @@ final class AuraWorldSimulation {
             agents[peer].partner = nil
             // Finish the reciprocal participant as one shared encounter, without double-counting.
             agents[peer].completed += 1; completedActivities += 1
+            agents[peer].abilities[AuraActivity.connect.rawValue] += 1
             agents[peer].energy = max(0.1,agents[peer].energy-0.035)
             agents[id].partner = nil
             plan(peer)
@@ -159,12 +178,6 @@ final class AuraWorldSimulation {
         guard agents.indices.contains(id) else { return nil }
         let a = agents[id]
         let signature = a.abilities.enumerated().max { lhs,rhs in lhs.element == rhs.element ? lhs.offset > rhs.offset : lhs.element < rhs.element }?.offset ?? a.activity.rawValue
-        let hue = CGFloat((Double(id) * 0.61803398875).truncatingRemainder(dividingBy:1))
-        let level = min(10,1 + Int(sqrt(Double(a.abilities[signature]))))
-        let color = UIColor(hue:hue,saturation:0.30+CGFloat(level)*0.025,brightness:0.88,alpha:1)
-        var red: CGFloat=0,green: CGFloat=0,blue: CGFloat=0
-        color.getRed(&red,green:&green,blue:&blue,alpha:nil)
-        let ink = (UInt32(red*255)<<16) | (UInt32(green*255)<<8) | UInt32(blue*255)
-        return AuraAgentSnapshot(id:id,activity:a.activity,travelling:a.travelling,waitingForPartner:a.activity == .rest && a.partner != nil,energy:Int(a.energy*100),completed:a.completed,ideas:a.ideas,progress:Int(min(1,a.elapsed/a.duration)*100),abilities:a.abilities,signature:signature,auraInk:ink)
+        return AuraAgentSnapshot(id:id,activity:a.activity,travelling:a.travelling,waitingForPartner:a.activity == .rest && a.partner != nil,energy:Int(a.energy*100),completed:a.completed,ideas:a.ideas,progress:Int(min(1,a.elapsed/a.duration)*100),abilities:a.abilities,signature:signature,auraInk:a.auraInk)
     }
 }

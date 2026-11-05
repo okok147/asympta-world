@@ -1,8 +1,9 @@
 import UIKit
 
-/// Fixed palette textures: no procedural drawing during simulation or gestures.
+/// Cached identity textures: all world lights are prepared before the clock starts.
 enum AuraInk {
     private static var cache: [UInt32: UIImage] = [:]
+    static var cachedCount: Int { cache.count }
     static func image(_ hex: UInt32) -> UIImage {
         if let image = cache[hex] { return image }
         let format = UIGraphicsImageRendererFormat(); format.scale = 2
@@ -31,7 +32,7 @@ struct WorldArt {
     let paper: UIImage
     let portraits: [WorldResident: UIImage]
     init(bundle: Bundle = .main) throws {
-        portraits = Dictionary(uniqueKeysWithValues:WorldResident.allCases.enumerated().map { ($0.element,AuraInk.image(AuraActivity.allCases[$0.offset].ink)) })
+        portraits = Dictionary(uniqueKeysWithValues:WorldResident.allCases.enumerated().map { ($0.element,AuraInk.image(AuraWorldSimulation.identityInk($0.offset))) })
         let format = UIGraphicsImageRendererFormat(); format.scale = 1; format.opaque = true
         paper = UIGraphicsImageRenderer(size:CGSize(width:192,height:192),format:format).image { r in
             WorldTheme.paper.setFill(); r.fill(CGRect(x:0,y:0,width:192,height:192))
@@ -80,7 +81,6 @@ private final class AuraFrameTarget: NSObject {
 final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
     private let simulation = AuraWorldSimulation()
     private var dots: [CALayer] = []
-    private var shownActivities: [UInt32?] = []
     private var elements: [AuraAccessibleElement] = []
     private var camera = CGPoint(x:500,y:700)
     private var zoom: CGFloat = 2.4
@@ -110,13 +110,15 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
             let dot = CALayer(); dot.bounds = CGRect(x:0,y:0,width:96,height:96)
             dot.contentsScale = 2
             dot.actions = ["position":NSNull(),"transform":NSNull(),"contents":NSNull(),"opacity":NSNull(),"hidden":NSNull()]
-            layer.addSublayer(dot); dots.append(dot); shownActivities.append(nil)
+            let ink = simulation.agents[id].auraInk
+            dot.contents = AuraInk.image(ink).cgImage
+            layer.addSublayer(dot); dots.append(dot)
             elements.append(AuraAccessibleElement(canvas:self,id:id))
         }
         userRing.bounds = CGRect(x:0,y:0,width:16,height:16)
         userRing.path = UIBezierPath(ovalIn:userRing.bounds).cgPath
         userRing.fillColor = UIColor.clear.cgColor
-        userRing.strokeColor = WorldTheme.blue.withAlphaComponent(0.5).cgColor
+        userRing.strokeColor = UIColor(hex:simulation.agents[0].auraInk).withAlphaComponent(0.55).cgColor
         userRing.lineWidth = 0.65
         userRing.actions = ["position":NSNull(),"strokeColor":NSNull()]
         layer.addSublayer(userRing)
@@ -154,12 +156,6 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
                 dot.setAffineTransform(CGAffineTransform(scaleX:diameter*fit*zoom/96,y:diameter*fit*zoom/96))
             }
             dot.isHidden = !bounds.insetBy(dx:-45,dy:-45).contains(dot.position)
-            let aura = simulation.snapshot(id)?.auraInk ?? a.activity.ink
-            if shownActivities[id] != aura {
-                dot.contents = AuraInk.image(aura).cgImage
-                shownActivities[id] = aura
-                if id==0 { userRing.strokeColor = UIColor(hex:aura).withAlphaComponent(0.55).cgColor }
-            }
             let moodAlpha: Float = mood == .restful ? 0.72 : mood == .gentle ? 0.86 : 1
             dot.opacity = (a.activity == .rest ? 0.72 : 0.94)*moodAlpha
         }
@@ -193,7 +189,7 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
         // Do not erase a real scene sample with a fresh launch that has not drawn a frame.
         guard frameCount>0 else { return }
         let counts = Dictionary(uniqueKeysWithValues:AuraActivity.allCases.map { activity in (String(activity.rawValue),simulation.agents.filter { $0.activity == activity }.count) })
-        let snapshot: [String:Any] = ["build":Bundle.main.object(forInfoDictionaryKey:"CFBundleVersion") as? String ?? "?","agents":simulation.agents.count,"activities":counts,"completed_activities":simulation.completedActivities,"completed_encounters":simulation.completedEncounters,"travelling":simulation.agents.filter(\.travelling).count,"motion_callbacks":frameCount,"active_seconds":elapsedIntervals,"mean_callback_interval_ms":frameCount>0 ? elapsedIntervals/Double(frameCount)*1000 : 0,"intervals_over_25ms":longIntervals,"worst_interval_ms":worstInterval*1000,"mean_motion_work_ms":frameCount>0 ? frameWork/Double(frameCount)*1000 : 0,"camera_updates":cameraUpdates,"mean_camera_work_ms":cameraUpdates>0 ? cameraWork/Double(cameraUpdates)*1000 : 0,"cached_ink_textures":5,"scope":"actual simulation callback cadence and CPU work; not measured displayed FPS or matched baseline"]
+        let snapshot: [String:Any] = ["build":Bundle.main.object(forInfoDictionaryKey:"CFBundleVersion") as? String ?? "?","agents":simulation.agents.count,"activities":counts,"completed_activities":simulation.completedActivities,"completed_encounters":simulation.completedEncounters,"travelling":simulation.agents.filter(\.travelling).count,"motion_callbacks":frameCount,"active_seconds":elapsedIntervals,"mean_callback_interval_ms":frameCount>0 ? elapsedIntervals/Double(frameCount)*1000 : 0,"intervals_over_25ms":longIntervals,"worst_interval_ms":worstInterval*1000,"mean_motion_work_ms":frameCount>0 ? frameWork/Double(frameCount)*1000 : 0,"camera_updates":cameraUpdates,"mean_camera_work_ms":cameraUpdates>0 ? cameraWork/Double(cameraUpdates)*1000 : 0,"cached_ink_textures":AuraInk.cachedCount,"unique_aura_colors":Set(simulation.agents.map(\.auraInk)).count,"ability_totals":AuraActivity.allCases.map { activity in simulation.agents.reduce(0) { $0+$1.abilities[activity.rawValue] } },"ability_count_mismatches":simulation.agents.filter { $0.abilities.reduce(0,+) != $0.completed }.count,"scope":"actual simulation callback cadence and CPU work; not measured displayed FPS or matched baseline"]
         let url = FileManager.default.urls(for:.cachesDirectory,in:.userDomainMask)[0].appendingPathComponent("WorldSceneMetrics.json")
         metricWriter.async { if let data = try? JSONSerialization.data(withJSONObject:snapshot,options:.sortedKeys) { try? data.write(to:url,options:.atomic) } }
     }
