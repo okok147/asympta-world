@@ -1,0 +1,17 @@
+--- a/bin/ipad-foreground.py
++++ b/bin/ipad-foreground.py
+@@ -31,8 +31,13 @@
+         (p.get("isApplication") is True or p.get("bundleIdentifier") == "com.apple.springboard")]
+     if not foreground or any(not p.get("bundleIdentifier") for p in foreground):
+         return {"ok": False, "source": "foreground_signal_unavailable"}
++    bundles = {p["bundleIdentifier"] for p in foreground}
++    # These SpringBoard-hosted helpers are not independent user applications.
++    # Keep every other app and preserve unknown-observation handling.
++    if "com.apple.springboard" in bundles:
++        bundles -= {"com.apple.InputUI", "com.apple.DocumentManager.DockFolderViewService"}
+     return {"ok": True, "source": "apple_dvt_foreground", "device_udid": udid,
+-        "foreground_bundles": sorted({p["bundleIdentifier"] for p in foreground})}
++        "foreground_bundles": sorted(bundles)}
+ 
+ 
+ def main():
