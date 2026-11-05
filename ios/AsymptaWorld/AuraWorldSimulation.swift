@@ -24,6 +24,7 @@ struct AuraAgentSnapshot {
     let abilities: [Int]
     let signature: Int
     let auraInk: UInt32
+    var isConnectedPeer = false
     var dominant: AuraActivity { AuraActivity(rawValue:signature % AuraActivity.allCases.count) ?? activity }
     var dominantLevel: Int { AuraAbility.level(abilities[signature % abilities.count]) }
 }
@@ -69,11 +70,13 @@ final class AuraWorldSimulation {
         color.getRed(&red,green:&green,blue:&blue,alpha:nil)
         return (UInt32(red*255)<<16) | (UInt32(green*255)<<8) | UInt32(blue*255)
     }
-    init(count: Int = 72) {
+    private var userAnchor: CGPoint?
+    private(set) var restoredUserAbilities = [Int](repeating:0,count:5)
+    init(count: Int = 72,userInk: UInt32? = nil) {
         let anchors = [CGPoint(x:500,y:700),CGPoint(x:660,y:520),CGPoint(x:790,y:840),CGPoint(x:280,y:450),CGPoint(x:330,y:950)]
         for id in 0..<count {
             let p = id<anchors.count ? anchors[id] : CGPoint(x:80+random()*840,y:120+random()*1160)
-            agents.append(Agent(id:id,auraInk:Self.identityInk(id),point:p,source:p,target:p,bend:p,activity:AuraActivity(rawValue:id%5)!,energy:0.35+random()*0.6))
+            agents.append(Agent(id:id,auraInk:id == 0 ? userInk ?? Self.identityInk(0) : Self.identityInk(id),point:p,source:p,target:p,bend:p,activity:AuraActivity(rawValue:id%5)!,energy:0.35+random()*0.6))
         }
         for id in agents.indices { plan(id,activity:agents[id].activity) }
     }
@@ -85,6 +88,12 @@ final class AuraWorldSimulation {
     private func bounded(_ p: CGPoint) -> CGPoint { CGPoint(x:min(920,max(80,p.x)),y:min(1280,max(120,p.y))) }
     private func plan(_ id: Int, activity requested: AuraActivity? = nil) {
         guard agents.indices.contains(id) else { return }
+        if id==0,let anchor = userAnchor {
+            agents[0].point = anchor; agents[0].source = anchor; agents[0].target = anchor
+            agents[0].travelling = false; agents[0].elapsed = 0; agents[0].duration = 8+random()*8
+            agents[0].activity = requested ?? (agents[0].energy<0.24 ? .rest : AuraActivity(rawValue:Int(random()*3))!)
+            return
+        }
         var activity = requested ?? (agents[id].energy<0.24 ? .rest : AuraActivity(rawValue:Int(random()*5))!)
         var destination: CGPoint
         let p = agents[id].point
@@ -103,7 +112,7 @@ final class AuraWorldSimulation {
             // Rest nearby, rather than crossing the entire paper when tired.
             destination = bounded(CGPoint(x:p.x+(random()-0.5)*130,y:p.y+(random()-0.5)*130))
         case .connect:
-            let candidate = agents.filter { $0.id != id && $0.partner == nil && !$0.travelling && $0.activity == .rest }
+            let candidate = agents.filter { ($0.id != 0 || userAnchor == nil) && $0.id != id && $0.partner == nil && !$0.travelling && $0.activity == .rest }
                 .min { distance($0.point,p)<distance($1.point,p) }
             if let peer = candidate {
                 agents[id].partner = peer.id; agents[peer.id].partner = id
@@ -119,9 +128,21 @@ final class AuraWorldSimulation {
         agents[id].activity = activity; agents[id].travelling = true; agents[id].elapsed = 0
         agents[id].duration = max(3,Double(distance(p,destination))/(activity == .rest ? 40 : 55))
     }
+    func anchorUser(_ point: CGPoint) {
+        if let peer = agents[0].partner { agents[peer].partner = nil; agents[0].partner = nil; plan(peer) }
+        userAnchor = point; agents[0].point = point; plan(0)
+    }
+    func restoreUserAbilities(_ values: [Int]) {
+        guard values.count==5,values.allSatisfy({$0>=0}) else { return }
+        for index in values.indices {
+            let delta = max(0,values[index]-agents[0].abilities[index])
+            agents[0].abilities[index] += delta; agents[0].completed += delta; completedActivities += delta; restoredUserAbilities[index] += delta
+        }
+    }
     func advance(_ delta: Double) {
         let dt = min(0.05,max(0,delta))
         for id in agents.indices {
+            if userAnchor != nil && id != 0 { continue }
             // A resting recipient holds its position until its partner actually arrives.
             if let peer = agents[id].partner, !agents[id].travelling, agents[id].activity == .rest, agents[peer].travelling { continue }
             agents[id].elapsed += dt

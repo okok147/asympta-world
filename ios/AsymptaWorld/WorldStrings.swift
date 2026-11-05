@@ -28,6 +28,7 @@ enum WorldLanguage: String, Codable, CaseIterable {
 
 struct WorldStrings {
     enum Key: String {
+        case nearbyAura, approximateAura, livePresenceDetail, locationMapTitle, locationMapDetail, useLocation, locationDenied, openSettings, mapLoading, mapUnavailable, mapAttribution, cloudConnected, cloudOffline, growthStored
         case yourLight, returnToLight, personalCorner, auraProfile, specialty, abilityLevel, developingAbility
         case light, activityExplore, activityLearn, activityCreate, activityConnect, activityRest
         case activityTravelling, activityDoing, activityWaiting, activitySnapshot, simulationDetail, energy, completedActivities, ideas, activityProgress
@@ -61,6 +62,20 @@ struct WorldStrings {
     }
 
     private static let copy: [Key: [String]] = [
+        .nearbyAura: ["Nearby aura", "附近的光暈", "近くのオーラ"],
+        .approximateAura: ["A broad approximate area, not an exact location.", "這是一片約略範圍，不是精確位置。", "正確な位置ではなく、おおよその広い範囲です。"],
+        .livePresenceDetail: ["A connected device nearby. Abilities reflect its local world activities.", "附近已連線裝置的光暈；能力來自該裝置的世界活動。", "近くで接続中の端末のオーラ。力はその端末内の活動から育ちます。"],
+        .locationMapTitle: ["A sketch of where you are", "把所在地，輕輕畫下來", "今いる場所を、スケッチに"],
+        .locationMapDetail: ["Allow location to sketch real nearby roads and important buildings. Only a broad, fluffy aura area is shared with nearby devices.", "允許定位，描繪附近真實道路與重要建築。其他裝置只會看見一片寬鬆、毛絨絨的光暈範圍。", "位置情報を許可すると、近くの実際の道と主な建物を描きます。ほかの端末には、ふわふわした広い範囲だけが見えます。"],
+        .useLocation: ["Sketch my surroundings", "畫出我的周圍", "周りを描く"],
+        .locationDenied: ["Location is off. Your local light world is still here.", "定位尚未開啟；裝置上的光點世界仍可使用。", "位置情報はオフです。端末内のひかりの世界は使えます。"],
+        .openSettings: ["Location settings", "定位設定", "位置情報の設定"],
+        .mapLoading: ["Sketching nearby roads and buildings…", "正在描繪附近的道路與建築⋯", "近くの道と建物を描いています…"],
+        .mapUnavailable: ["The nearby sketch is unavailable. Try again when connected.", "暫時未能載入附近地圖，連線後可再試一次。", "周辺の地図を読み込めません。接続後にもう一度お試しください。"],
+        .mapAttribution: ["© OpenStreetMap contributors", "© OpenStreetMap 貢獻者", "© OpenStreetMap の貢献者"],
+        .cloudConnected: ["Nearby connection active", "已連接附近的世界", "近くの世界に接続中"],
+        .cloudOffline: ["Offline · your growth stays on this device", "離線中・成長仍保留在這部裝置", "オフライン・成長はこの端末に保存"],
+        .growthStored: ["Your growth is kept on this device and synchronized when connected.", "你的成長保留在裝置上，連線時同步。", "成長はこの端末に保存され、接続時に同期します。"],
         .yourLight: ["Your light", "你的光點", "あなたのひかり"],
         .returnToLight: ["Return to your light", "回到你的光點", "自分のひかりに戻る"],
         .personalCorner: ["Your space", "你的小角落", "自分の場所"],

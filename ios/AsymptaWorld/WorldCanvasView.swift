@@ -3,27 +3,40 @@ import UIKit
 /// Cached identity textures: all world lights are prepared before the clock starts.
 enum AuraInk {
     private static var cache: [UInt32: UIImage] = [:]
+    private static var order: [UInt32] = []
     static var cachedCount: Int { cache.count }
     static func image(_ hex: UInt32) -> UIImage {
         if let image = cache[hex] { return image }
         let format = UIGraphicsImageRendererFormat(); format.scale = 2
         let image = UIGraphicsImageRenderer(size:CGSize(width:96,height:96),format:format).image { renderer in
             let ctx = renderer.cgContext, ink = UIColor(hex:hex)
-            for row in 0...48 {
-                for column in 0...48 {
-                    let n = CGFloat(row*131+column*37)
-                    let x = CGFloat(column)*2+sin(n*1.7)*0.5, y = CGFloat(row)*2+cos(n*0.93)*0.5
-                    let radius = hypot((x-48)/46,(y-48)/46)
-                    guard radius<1 else { continue }
-                    let fade = pow(1-radius,0.8), dot = 0.35+fade*0.65
-                    ctx.setFillColor(ink.withAlphaComponent(0.07+fade*0.42).cgColor)
-                    ctx.fillEllipse(in:CGRect(x:x-dot/2,y:y-dot/2,width:dot,height:dot))
-                }
+            // A broad, matte, furry aura. No pinpoint center, face or character art.
+            var seed: UInt64 = UInt64(hex) &+ 9173
+            func random() -> CGFloat { seed = seed &* 6364136223846793005 &+ 1; return CGFloat((seed >> 32)%10000)/10000 }
+            let center = CGPoint(x:48,y:48)
+            for ring in stride(from:40,through:9,by:-1) {
+                let radius = CGFloat(ring), t = 1-radius/42
+                ctx.setFillColor(ink.withAlphaComponent(0.002+t*t*0.006).cgColor)
+                ctx.fillEllipse(in:CGRect(x:48-radius,y:48-radius,width:radius*2,height:radius*2))
             }
-            ctx.setFillColor(ink.withAlphaComponent(0.72).cgColor)
-            ctx.fillEllipse(in:CGRect(x:44.5,y:44.5,width:7,height:7))
+            ctx.setLineCap(.round)
+            for _ in 0..<740 {
+                let angle = random()*Double.pi*2, radius = sqrt(random())*30
+                let x = center.x+cos(angle)*radius, y = center.y+sin(angle)*radius*0.94
+                let length = 1.5+random()*7, curl = (random()-0.5)*4
+                let fade = max(0,1-radius/37)
+                let light = random()>0.72
+                ctx.setStrokeColor((light ? UIColor.white : ink).withAlphaComponent((light ? 0.25:0.13)*fade).cgColor)
+                ctx.setLineWidth(0.25+random()*0.45)
+                ctx.move(to:CGPoint(x:x,y:y))
+                ctx.addQuadCurve(to:CGPoint(x:x+cos(angle)*length,y:y+sin(angle)*length),control:CGPoint(x:x+cos(angle)*length/2-sin(angle)*curl,y:y+sin(angle)*length/2+cos(angle)*curl))
+                ctx.strokePath()
+            }
+
         }
-        cache[hex] = image; return image
+        cache[hex] = image; order.append(hex)
+        if order.count>160 { cache.removeValue(forKey:order.removeFirst()) }
+        return image
     }
 }
 
@@ -31,8 +44,8 @@ enum AuraInk {
 struct WorldArt {
     let paper: UIImage
     let portraits: [WorldResident: UIImage]
-    init(bundle: Bundle = .main) throws {
-        portraits = Dictionary(uniqueKeysWithValues:WorldResident.allCases.enumerated().map { ($0.element,AuraInk.image(AuraWorldSimulation.identityInk($0.offset))) })
+    init(bundle: Bundle = .main, userInk: UInt32? = nil) throws {
+        portraits = Dictionary(uniqueKeysWithValues:WorldResident.allCases.enumerated().map { ($0.element,AuraInk.image(($0.offset == 0 ? userInk ?? AuraWorldSimulation.identityInk(0) : AuraWorldSimulation.identityInk($0.offset)))) })
         let format = UIGraphicsImageRendererFormat(); format.scale = 1; format.opaque = true
         paper = UIGraphicsImageRenderer(size:CGSize(width:192,height:192),format:format).image { r in
             WorldTheme.paper.setFill(); r.fill(CGRect(x:0,y:0,width:192,height:192))
@@ -79,7 +92,17 @@ private final class AuraFrameTarget: NSObject {
 
 /// One small model, one clock and one cached image layer per light; no character views.
 final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
-    private let simulation = AuraWorldSimulation()
+    private let simulation: AuraWorldSimulation
+    private var mapDrawing: CALayer?
+    private var hasRealMap = false
+    private var locationMode = false
+    private var ownRadius: CGFloat = 200
+    private var auraPhase = 0.0
+    private var peerPositions: [String:CGPoint] = [:]
+    private var peerLayers: [CALayer] = []
+    private var peers: [WorldCloudPeer] = []
+    private var peerElements: [AuraAccessibleElement] = []
+    var onGrowth: (([Int])->Void)?
     private var dots: [CALayer] = []
     private var elements: [AuraAccessibleElement] = []
     private var camera = CGPoint(x:500,y:700)
@@ -102,7 +125,8 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
     var isAtOverview: Bool { zoom<=0.56 }
     private var viewport: CGRect { bounds.inset(by:UIEdgeInsets(top:safeAreaInsets.top+20,left:14,bottom:safeAreaInsets.bottom+26,right:14)) }
     private var fit: CGFloat { max(0.01,min(viewport.width/1000,viewport.height/1400)) }
-    init(art: WorldArt) {
+    init(art: WorldArt, userInk: UInt32? = nil) {
+        simulation = AuraWorldSimulation(userInk:userInk)
         super.init(frame:.zero)
         isOpaque = true; backgroundColor = UIColor(patternImage:art.paper); clipsToBounds = true
         accessibilityIdentifier = "world.canvas"
@@ -121,7 +145,8 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
         userRing.strokeColor = UIColor(hex:simulation.agents[0].auraInk).withAlphaComponent(0.55).cgColor
         userRing.lineWidth = 0.65
         userRing.actions = ["position":NSNull(),"strokeColor":NSNull()]
-        layer.addSublayer(userRing)
+        // Own aura is identified by the follow camera, without an exact-position ring.
+        userRing.isHidden = true
         accessibilityElements = elements
         frameTarget.canvas = self
         let pan = UIPanGestureRecognizer(target:self,action:#selector(panned(_:)))
@@ -140,7 +165,13 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
     deinit { displayLink?.invalidate(); NotificationCenter.default.removeObserver(self) }
     override func layoutSubviews() { super.layoutSubviews(); project(geometry:true); syncClock() }
     fileprivate func screenPoint(_ id: Int) -> CGPoint {
-        let p = simulation.agents[id].point, scale = fit*zoom
+        let p: CGPoint
+        if id>=1000 { guard peers.indices.contains(id-1000) else { return .zero }; p = peerPositions[peers[id-1000].id] ?? CGPoint(x:peers[id-1000].point[0],y:peers[id-1000].point[1]) }
+        else { p = simulation.agents[id].point }
+        return projected(p)
+    }
+    private func projected(_ p: CGPoint) -> CGPoint {
+        let scale = fit*zoom
         return CGPoint(x:viewport.midX+(p.x-camera.x)*scale,y:viewport.midY+(p.y-camera.y)*scale)
     }
     private func mapPoint(_ p: CGPoint) -> CGPoint { CGPoint(x:camera.x+(p.x-viewport.midX)/(fit*zoom),y:camera.y+(p.y-viewport.midY)/(fit*zoom)) }
@@ -152,15 +183,22 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
             let a = simulation.agents[id], dot = dots[id]
             dot.position = screenPoint(id)
             if geometry {
-                let diameter: CGFloat = 116+CGFloat(id%4)*8
+                let diameter: CGFloat = id == 0 && locationMode ? max(300,ownRadius*1.5) : 250+CGFloat(id%4)*8
                 dot.setAffineTransform(CGAffineTransform(scaleX:diameter*fit*zoom/96,y:diameter*fit*zoom/96))
             }
-            dot.isHidden = !bounds.insetBy(dx:-45,dy:-45).contains(dot.position)
+            dot.isHidden = (locationMode && id != 0) || !bounds.insetBy(dx:-140,dy:-140).contains(dot.position)
             let moodAlpha: Float = mood == .restful ? 0.72 : mood == .gentle ? 0.86 : 1
-            dot.opacity = (a.activity == .rest ? 0.72 : 0.94)*moodAlpha
+            dot.opacity = (a.activity == .rest ? 0.72 : 0.94)*moodAlpha*Float(0.94+0.06*sin(auraPhase*0.8+Double(id)*0.7))
         }
-        userRing.position = screenPoint(0)
-        userRing.isHidden = dots[0].isHidden
+        if let mapDrawing {
+            mapDrawing.position = projected(.zero)
+            mapDrawing.setAffineTransform(CGAffineTransform(scaleX:fit*zoom,y:fit*zoom))
+        }
+        for (index,peerLayer) in peerLayers.enumerated() {
+            peerLayer.position = screenPoint(1000+index)
+            peerLayer.setAffineTransform(CGAffineTransform(scaleX:CGFloat(max(300,peers[index].radiusMeters*1.5))*fit*zoom/96,y:CGFloat(max(300,peers[index].radiusMeters*1.5))*fit*zoom/96))
+            peerLayer.isHidden = !bounds.insetBy(dx:-140,dy:-140).contains(peerLayer.position)
+        }
         CATransaction.commit()
     }
     private var mayMove: Bool { movement && sceneActive && !covered && !held && !panning && !pinching && window != nil && !UIAccessibility.isReduceMotionEnabled && !UIAccessibility.isVoiceOverRunning }
@@ -182,14 +220,22 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
         guard interval>0 else { return }
         frameCount += 1; elapsedIntervals += interval; worstInterval = max(worstInterval,interval)
         if interval>0.025 { longIntervals += 1 }
+        auraPhase += min(interval,0.05)
+        let blend = CGFloat(1-exp(-min(interval,0.05)/0.6))
+        for peer in peers {
+            let target = CGPoint(x:peer.point[0],y:peer.point[1]),old = peerPositions[peer.id] ?? target
+            peerPositions[peer.id] = CGPoint(x:old.x+(target.x-old.x)*blend,y:old.y+(target.y-old.y)*blend)
+        }
+        let before = simulation.agents[0].completed
         simulation.advance(min(interval,0.05)); project()
+        if simulation.agents[0].completed != before { onGrowth?(simulation.agents[0].abilities) }
         frameWork += CACurrentMediaTime()-start
     }
     private func recordMetrics() {
         // Do not erase a real scene sample with a fresh launch that has not drawn a frame.
         guard frameCount>0 else { return }
         let counts = Dictionary(uniqueKeysWithValues:AuraActivity.allCases.map { activity in (String(activity.rawValue),simulation.agents.filter { $0.activity == activity }.count) })
-        let snapshot: [String:Any] = ["build":Bundle.main.object(forInfoDictionaryKey:"CFBundleVersion") as? String ?? "?","agents":simulation.agents.count,"activities":counts,"completed_activities":simulation.completedActivities,"completed_encounters":simulation.completedEncounters,"travelling":simulation.agents.filter(\.travelling).count,"motion_callbacks":frameCount,"active_seconds":elapsedIntervals,"mean_callback_interval_ms":frameCount>0 ? elapsedIntervals/Double(frameCount)*1000 : 0,"intervals_over_25ms":longIntervals,"worst_interval_ms":worstInterval*1000,"mean_motion_work_ms":frameCount>0 ? frameWork/Double(frameCount)*1000 : 0,"camera_updates":cameraUpdates,"mean_camera_work_ms":cameraUpdates>0 ? cameraWork/Double(cameraUpdates)*1000 : 0,"cached_ink_textures":AuraInk.cachedCount,"unique_aura_colors":Set(simulation.agents.map(\.auraInk)).count,"ability_totals":AuraActivity.allCases.map { activity in simulation.agents.reduce(0) { $0+$1.abilities[activity.rawValue] } },"ability_count_mismatches":simulation.agents.filter { $0.abilities.reduce(0,+) != $0.completed }.count,"scope":"actual simulation callback cadence and CPU work; not measured displayed FPS or matched baseline"]
+        let snapshot: [String:Any] = ["build":Bundle.main.object(forInfoDictionaryKey:"CFBundleVersion") as? String ?? "?","agents":simulation.agents.count,"activities":counts,"completed_activities":simulation.completedActivities,"completed_encounters":simulation.completedEncounters,"travelling":simulation.agents.filter(\.travelling).count,"motion_callbacks":frameCount,"active_seconds":elapsedIntervals,"mean_callback_interval_ms":frameCount>0 ? elapsedIntervals/Double(frameCount)*1000 : 0,"intervals_over_25ms":longIntervals,"worst_interval_ms":worstInterval*1000,"mean_motion_work_ms":frameCount>0 ? frameWork/Double(frameCount)*1000 : 0,"camera_updates":cameraUpdates,"mean_camera_work_ms":cameraUpdates>0 ? cameraWork/Double(cameraUpdates)*1000 : 0,"cached_ink_textures":AuraInk.cachedCount,"unique_aura_colors":Set(simulation.agents.map(\.auraInk)).count,"ability_totals":AuraActivity.allCases.map { activity in simulation.agents.reduce(0) { $0+$1.abilities[activity.rawValue] } },"real_map_loaded":hasRealMap,"connected_peers":peers.count,"restored_user_abilities":simulation.restoredUserAbilities,"ability_count_mismatches":simulation.agents.filter { $0.abilities.reduce(0,+) != $0.completed }.count,"scope":"actual simulation callback cadence and CPU work; not measured displayed FPS or matched baseline"]
         let url = FileManager.default.urls(for:.cachesDirectory,in:.userDomainMask)[0].appendingPathComponent("WorldSceneMetrics.json")
         metricWriter.async { if let data = try? JSONSerialization.data(withJSONObject:snapshot,options:.sortedKeys) { try? data.write(to:url,options:.atomic) } }
     }
@@ -205,11 +251,39 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
         camera = CGPoint(x:origin.x-(anchor.x-viewport.midX)/(fit*zoom),y:origin.y-(anchor.y-viewport.midY)/(fit*zoom)); cameraChanged()
     }
     func focus(on resident: WorldResident) { focus(agent:WorldResident.allCases.firstIndex(of:resident) ?? 0) }
-    fileprivate func focus(agent id: Int) { followsUser = id==0; camera = simulation.agents[id].point; zoom = max(2.4,zoom); cameraChanged() }
-    func snapshot(_ id: Int) -> AuraAgentSnapshot? { simulation.snapshot(id) }
-    fileprivate func agentLabel(_ id: Int) -> String { id==0 ? strings[.yourLight] : strings[.light]+String(format:" %02d",id+1) }
+    fileprivate func focus(agent id: Int) { followsUser = id==0; if id>=1000 { guard peers.indices.contains(id-1000) else { return }; camera = CGPoint(x:peers[id-1000].point[0],y:peers[id-1000].point[1]) } else { camera = simulation.agents[id].point }; zoom = max(2.4,zoom); cameraChanged() }
+    func snapshot(_ id: Int) -> AuraAgentSnapshot? {
+        if id<1000 { return simulation.snapshot(id) }
+        guard peers.indices.contains(id-1000) else { return nil }
+        let peer = peers[id-1000],signature = peer.abilities.enumerated().max { $0.element<$1.element }?.offset ?? 0
+        var snapshot = AuraAgentSnapshot(id:id,activity:AuraActivity(rawValue:peer.activity) ?? .rest,travelling:false,waitingForPartner:false,energy:0,completed:peer.abilities.reduce(0,+),ideas:0,progress:0,abilities:peer.abilities,signature:signature,auraInk:peer.ink)
+        snapshot.isConnectedPeer = true; return snapshot
+    }
+    func restoreAbilities(_ values: [Int]) { simulation.restoreUserAbilities(values) }
+    func locateUser(_ point: CGPoint,radius: Double) { locationMode = true; ownRadius = CGFloat(radius); simulation.anchorUser(point); accessibilityElements = [elements[0]]+peerElements; cameraChanged() }
+    func clearMap() { mapDrawing?.removeFromSuperlayer(); mapDrawing = nil; hasRealMap = false }
+    func setMap(_ sheet: WorldMapSheet) {
+        mapDrawing?.removeFromSuperlayer(); let drawing = WorldSketchMap.layer(sheet); mapDrawing = drawing
+        layer.insertSublayer(drawing,at:0); hasRealMap = true
+        accessibilityElements = [elements[0]] + peerElements; cameraChanged()
+    }
+    func setPeers(_ values: [WorldCloudPeer]) {
+        peers = values.sorted { $0.id<$1.id }
+        let ids = Set(peers.map(\.id)); peerPositions = peerPositions.filter { ids.contains($0.key) }
+        for peer in peers where peerPositions[peer.id] == nil || !mayMove { peerPositions[peer.id] = CGPoint(x:peer.point[0],y:peer.point[1]) }
+        for layer in peerLayers { layer.removeFromSuperlayer() }; peerLayers = []; peerElements = []
+        for (index,peer) in peers.enumerated() {
+            let light = CALayer(); light.bounds = CGRect(x:0,y:0,width:96,height:96); light.contents = AuraInk.image(peer.ink).cgImage
+            light.actions = ["position":NSNull(),"transform":NSNull(),"hidden":NSNull()]; layer.addSublayer(light); peerLayers.append(light)
+            peerElements.append(AuraAccessibleElement(canvas:self,id:1000+index))
+        }
+        accessibilityElements = locationMode ? [elements[0]]+peerElements : elements+peerElements
+        cameraChanged()
+    }
+    fileprivate func agentLabel(_ id: Int) -> String { if id>=1000 { return strings[.nearbyAura] }; return id==0 ? strings[.yourLight] : strings[.light]+String(format:" %02d",id+1) }
     fileprivate func agentValue(_ id: Int) -> String {
         guard let a = snapshot(id) else { return "" }
+        if a.isConnectedPeer { return strings[.approximateAura] }
         return strings[a.activity.titleKey]+" · "+strings[a.waitingForPartner ? .activityWaiting : a.travelling ? .activityTravelling : .activityDoing]
     }
     fileprivate func selectAgent(_ id: Int) { onAgentTap?(id) }
@@ -248,7 +322,8 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
     @objc private func doubleTapped(_ gesture: UITapGestureRecognizer) { recenter() }
     @objc private func tapped(_ gesture: UITapGestureRecognizer) {
         let p = gesture.location(in:self)
-        guard let id = simulation.agents.indices.min(by:{ hypot(screenPoint($0).x-p.x,screenPoint($0).y-p.y)<hypot(screenPoint($1).x-p.x,screenPoint($1).y-p.y) }), hypot(screenPoint(id).x-p.x,screenPoint(id).y-p.y)<=max(22,18*zoom) else { return }
+        let ids = (locationMode ? [0] : Array(simulation.agents.indices)) + peers.indices.map { 1000+$0 }
+        guard let id = ids.min(by:{ hypot(screenPoint($0).x-p.x,screenPoint($0).y-p.y)<hypot(screenPoint($1).x-p.x,screenPoint($1).y-p.y) }), hypot(screenPoint(id).x-p.x,screenPoint(id).y-p.y)<=max(24,40*zoom) else { return }
         selectAgent(id)
     }
 }

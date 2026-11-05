@@ -11,6 +11,7 @@ final class WorldPanelsViewController: UIViewController, UITextFieldDelegate {
     private let scroll = UIScrollView()
     private var observer: NSObjectProtocol?
     var onClose: (() -> Void)?
+    var cloudConnected = false
 
     init(content: Content, store: WorldStore, art: WorldArt, onVisit: @escaping (WorldResident) -> Void) {
         self.content = content
@@ -83,7 +84,7 @@ final class WorldPanelsViewController: UIViewController, UITextFieldDelegate {
             title = s[.me]
             profile()
         case .agent(let agent):
-            title = agent.id==0 ? s[.yourLight] : s[.light]+String(format:" %02d",agent.id+1)
+            title = agent.id==0 ? s[.yourLight] : agent.isConnectedPeer ? s[.nearbyAura] : s[.light]+String(format:" %02d",agent.id+1)
             agentDetail(agent)
         case .resident(let resident):
             title = s[resident.nameKey]
@@ -120,6 +121,10 @@ final class WorldPanelsViewController: UIViewController, UITextFieldDelegate {
             row.addArrangedSubview(completions); stack.addArrangedSubview(row)
         }
         stack.addArrangedSubview(WorldTheme.label(s[.activitySnapshot],style:.footnote,muted:true))
+        if agent.isConnectedPeer {
+            stack.addArrangedSubview(WorldTheme.label(s[.approximateAura],style:.subheadline,muted:true))
+            stack.addArrangedSubview(WorldTheme.label(s[.livePresenceDetail],style:.footnote,muted:true))
+        } else {
         let details: [AuraActivity:WorldStrings.Key] = [.explore:.exploreDetail,.learn:.learnDetail,.create:.createDetail,.connect:.connectDetail,.rest:.restDetail]
         stack.addArrangedSubview(WorldTheme.label(s[details[agent.activity]!]))
         let phase = s[agent.waitingForPartner ? .activityWaiting : agent.travelling ? .activityTravelling : .activityDoing]
@@ -129,7 +134,11 @@ final class WorldPanelsViewController: UIViewController, UITextFieldDelegate {
         stack.addArrangedSubview(WorldTheme.label("\(s[.energy]): \(agent.energy)%",style:.footnote,muted:true))
         stack.addArrangedSubview(WorldTheme.label("\(s[.completedActivities]): \(agent.completed) · \(s[.ideas]): \(agent.ideas)",style:.footnote,muted:true))
         stack.addArrangedSubview(WorldTheme.label(s[.simulationDetail],style:.footnote,muted:true))
+        }
         if agent.id==0 {
+            let connection = WorldTheme.label(s[cloudConnected ? .cloudConnected:.cloudOffline],style:.footnote,muted:true)
+            connection.accessibilityIdentifier = "world.cloud.status"; stack.addArrangedSubview(connection)
+            stack.addArrangedSubview(WorldTheme.label(s[.growthStored],style:.footnote,muted:true))
             let personal = WorldTheme.button(s[.personalCorner],symbol:"circle")
             personal.accessibilityIdentifier = "world.agent.profile"
             personal.addAction(UIAction { [weak self] _ in self?.openPersonal(.me) },for:.touchUpInside)

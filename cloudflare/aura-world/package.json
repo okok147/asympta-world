@@ -1,0 +1,14 @@
+{
+  "name": "asympta-world-aura",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "types": "wrangler types worker-configuration.d.ts",
+    "check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "wrangler": "4.127.0",
+    "typescript": "5.9.3"
+  }
+}

@@ -1,4 +1,26 @@
-# Native aura-world release — 1.0(9), 2026-11-03
+# Native aura-world release — 1.0(12) candidate, 2026-11-05
+
+Latest scope: real selected roads/important buildings around foreground permissioned device location, sparse hand-sketch drawing, broad furry approximate auras without a precise ring, Cloudflare neighborhood presence and durable own growth. Source and physical acceptance pending freeze/distribution.
+
+Cloudflare `asympta-world-aura` deployed at https://asympta-world-aura.asympta-invitation-service.workers.dev, provider versionde219972-ab55-4644-8c45-459f2e5a51cd. Actual remote checks passed:health, capability boundary, profile isolation and monotonic saves, rejected invalid writes, real roads/buildings and cache/attribution, two connected clients/unique server identities, server-rounded area/radius and departure removal. Public Clock Tower reference data was used, not assumed user location. Source timestamp2026-07-28T02:16:18Z; this is real OSM geometry, not proof of today's complete/current road data. Backend checks do not pass the native app.
+
+Exact physical12 scenes remain pending: official Update/Open/notices and installed identity; location consent and actual surroundings; hand-drawn source-matched map, broad fluffy auras with no pinpoint; actual nearby device/client appearance and removal; profile growth and cloud/local save after reopening; map gestures/panel interactions and languages; lifecycle and personal-data preservation. App6828764417/bundlecom.asympta.world remains iPhone-only portrait. No public App Review submission authorized.
+
+## Superseded build11 physical checkpoint
+
+Official TestFlight11/Apple3d4eb0f1-1a6e-431f-a3fc-42ed79a926c5 installed on exclusively held Dev; raw map image inspected. Actual movement/pinch/pan/double-tap/own profile executed. Aggregate72distinct colors/textures,414activities with ability totals[86,79,82,124,43],62encounters,0mismatches,4399callbacks/74.569s. Personal bytes unchanged. The phase stopped before scroll because the operator omitted a required selector; no scroll was performed. The guard is retained with an exact-one-scrollView route prepared. New map/fur/cloud scope supersedes the remaining11 list; no complete11 acceptance claim. Sessionworld11-20261105-con released revision2515/active null.
+
+## Historical release11 distribution
+
+
+Source94583dc7bffc5b98190091e86f0af66ace9d8466 reached GitHub main. Archive/export succeeded; bundle com.asympta.world1.0(11), family[1], portrait. IPA SHA256 c5cbf7338c49a0d6ebde73b25eafa9448d17a078e1764c7d37122cd3a96ad3e3. Apple3d4eb0f1-1a6e-431f-a3fc-42ed79a926c5 independently reads VALID and available through existing Internal Testers. Publication job674467fe-bffe-8a92-4359-4f5de6c31e71.
+
+Changes: immutable per-light identity hues preloaded before motion, identical map/profile/familiar-light colors, reciprocal meeting ability credit, shared level/progress thresholds, wrapping ability rows with real completion counts, localized untrained-ability text. Personal version1 contract unchanged. These are local simulated identities and histories, not live online accounts.
+
+Physical TestFlight install and scenes remain pending exclusive Dev iPad acquisition. Do not reuse build9 evidence as build11 acceptance. Exact scenes: official11 Update/Open/notices + installed identity; independent dot movement and fixed colors; map/profile matching and five completion rows; ability totals/encounter conservation; pan/pinch/double-tap; pause/resume/background/reopen; shared language labels; byte-identical personal save.
+
+## Historical build9 evidence
+
 
 Source `d75cd38937646e060fb40f5cbd69d2659864c4e8` reached GitHub main. Apple build `7c7d029c-3184-4782-8d12-f61200c706fe` independently reads VALID and available to existing Internal Testers. Exported IPA SHA256 `30c235029995541c3753fc5101dbbab614fde1ce60946338ba90d56c7272763e`, family[1], portrait. Native TestFlight exact Build9 Update/Open/observed notices installed the official product; independent CoreDevice confirms com.asympta.world1.0(9). No product sideload.
 
