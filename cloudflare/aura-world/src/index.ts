@@ -85,14 +85,22 @@ export class MapCell extends DurableObject {
     const query=`[out:json][timeout:22][maxsize:16777216];(way[highway~"^(motorway|trunk|primary|secondary|tertiary|residential|pedestrian)$"](${bbox});way[building][name](${bbox});way[building][amenity~"^(${key})$"](${bbox});way[building][tourism~"^(museum|attraction|gallery)$"](${bbox});way[historic~"^(castle|monument|memorial|building)$"](${bbox});node[amenity~"^(${key})$"][name](${bbox});node[railway=station][name](${bbox}););out geom;`;
     let raw,sourceProvider;
     for(const provider of MAP_PROVIDERS) {
+      let phase='transport';
       try {
         const body='data='+encodeURIComponent(query.replace('[timeout:22]',`[timeout:${provider.querySeconds}]`));
         const response=await fetch(provider.url,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','User-Agent':'AsymptaWorld/1.0 (https://github.com/okok147/asympta-world)'},body,signal:AbortSignal.timeout(provider.timeout)});
+        phase=`http_${response.status}`;
         if(!response.ok)throw Error('map_provider_unavailable');
+        phase='response_decode';
         const candidate=await boundedJSON(response,4*1024*1024);
+        phase='response_incomplete';
         if(candidate.remark||!Array.isArray(candidate.elements))throw Error('map_provider_incomplete');
         raw=candidate;sourceProvider=provider.name;break;
-      } catch { /* Keep the same coarse cell; never substitute invented geometry. */ }
+      } catch(error) {
+        // Operational categories only: no URLs, cells, query text or credentials.
+        const type=error instanceof Error && ['AbortError','TimeoutError','SyntaxError','TypeError'].includes(error.name)?error.name:'provider_error';
+        console.warn(JSON.stringify({event:'map_provider_failed',provider:provider.name,phase,type}));
+      }
     }
     if(!raw)throw Error('map_provider_unavailable');
     const result={schema:1,room:bounds.room,cellX:bounds.x,cellY:bounds.y,bounds,features:mapFeatures(raw,bounds),generatedAt:Date.now(),sourceTimestamp:raw.osm3s?.timestamp_osm_base||null,sourceProvider,attribution:ATTRIBUTION,attributionURL:'https://www.openstreetmap.org/copyright',stale:false};
