@@ -1,12 +1,16 @@
 import { DurableObject } from 'cloudflare:workers';
 
 type MapFeature = { id: string; kind: string; name: string; points: number[][] };
-type MapPayload = { schema: number; room: string; cellX: number; cellY: number; bounds: ReturnType<typeof cell>; features: MapFeature[]; generatedAt: number; sourceTimestamp: string | null; attribution: string; attributionURL: string; stale: boolean };
+type MapPayload = { schema: number; room: string; cellX: number; cellY: number; bounds: ReturnType<typeof cell>; features: MapFeature[]; generatedAt: number; sourceTimestamp: string | null; sourceProvider?: string; attribution: string; attributionURL: string; stale: boolean };
 type Growth = { schema: number; abilities: number[]; updatedAt: number };
 
 const R = 6378137, W = 1600, H = 2240;
 const ATTRIBUTION = '© OpenStreetMap contributors';
-const OVERPASS = 'https://overpass.private.coffee/api/interpreter';
+// Sequential, bounded failover stays below the native client's 35s request budget.
+const MAP_PROVIDERS = [
+  {name:'Private.coffee',url:'https://overpass.private.coffee/api/interpreter',timeout:8000,querySeconds:6},
+  {name:'VK Maps',url:'https://maps.mail.ru/osm/tools/overpass/api/interpreter',timeout:24000,querySeconds:20}
+];
 const MAX_MESSAGE = 4096;
 const headers = {'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'};
 const json = (body,status=200) => new Response(JSON.stringify(body),{status,headers});
@@ -79,11 +83,19 @@ export class MapCell extends DurableObject {
     const bbox=[latitude(bounds.south),bounds.west/R*180/Math.PI,latitude(bounds.north),bounds.east/R*180/Math.PI].join(',');
     const key='hospital|school|college|university|library|townhall|police|fire_station|place_of_worship|bus_station';
     const query=`[out:json][timeout:22][maxsize:16777216];(way[highway~"^(motorway|trunk|primary|secondary|tertiary|residential|pedestrian)$"](${bbox});way[building][name](${bbox});way[building][amenity~"^(${key})$"](${bbox});way[building][tourism~"^(museum|attraction|gallery)$"](${bbox});way[historic~"^(castle|monument|memorial|building)$"](${bbox});node[amenity~"^(${key})$"][name](${bbox});node[railway=station][name](${bbox}););out geom;`;
-    const response=await fetch(OVERPASS,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','User-Agent':'AsymptaWorld/1.0 (https://github.com/okok147/asympta-world)'},body:'data='+encodeURIComponent(query),signal:AbortSignal.timeout(28000)});
-    if(!response.ok)throw Error('map_provider_unavailable');
-    const raw=await boundedJSON(response,4*1024*1024);
-    if(raw.remark)throw Error('map_provider_incomplete');
-    const result={schema:1,room:bounds.room,cellX:bounds.x,cellY:bounds.y,bounds,features:mapFeatures(raw,bounds),generatedAt:Date.now(),sourceTimestamp:raw.osm3s?.timestamp_osm_base||null,attribution:ATTRIBUTION,attributionURL:'https://www.openstreetmap.org/copyright',stale:false};
+    let raw,sourceProvider;
+    for(const provider of MAP_PROVIDERS) {
+      try {
+        const body='data='+encodeURIComponent(query.replace('[timeout:22]',`[timeout:${provider.querySeconds}]`));
+        const response=await fetch(provider.url,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','User-Agent':'AsymptaWorld/1.0 (https://github.com/okok147/asympta-world)'},body,signal:AbortSignal.timeout(provider.timeout)});
+        if(!response.ok)throw Error('map_provider_unavailable');
+        const candidate=await boundedJSON(response,4*1024*1024);
+        if(candidate.remark||!Array.isArray(candidate.elements))throw Error('map_provider_incomplete');
+        raw=candidate;sourceProvider=provider.name;break;
+      } catch { /* Keep the same coarse cell; never substitute invented geometry. */ }
+    }
+    if(!raw)throw Error('map_provider_unavailable');
+    const result={schema:1,room:bounds.room,cellX:bounds.x,cellY:bounds.y,bounds,features:mapFeatures(raw,bounds),generatedAt:Date.now(),sourceTimestamp:raw.osm3s?.timestamp_osm_base||null,sourceProvider,attribution:ATTRIBUTION,attributionURL:'https://www.openstreetmap.org/copyright',stale:false};
     await this.ctx.storage.put('map',result);return result;
   }
 }
