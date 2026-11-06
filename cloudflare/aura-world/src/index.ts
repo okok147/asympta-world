@@ -1,4 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
+import { matchCircleRoute } from './circles';
+
+export { WorldCircle } from './circles';
 
 type MapFeature = { id: string; kind: string; name: string; points: number[][] };
 type MapPayload = { schema: number; room: string; cellX: number; cellY: number; bounds: ReturnType<typeof cell>; features: MapFeature[]; generatedAt: number; sourceTimestamp: string | null; sourceProvider?: string; attribution: string; attributionURL: string; stale: boolean };
@@ -34,10 +37,10 @@ async function boundedJSON(request,limit) {
   const data=new Uint8Array(size);let offset=0;for(const c of chunks){data.set(c,offset);offset+=c.length;}
   return JSON.parse(new TextDecoder().decode(data));
 }
-async function identity(request) {
+async function identity(request, scope = '') {
   const token=request.headers.get('Authorization')?.match(/^Bearer ([A-Za-z0-9_-]{43})$/)?.[1];
   if(!token)return null;
-  const hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token));
+  const hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(scope + token));
   return Array.from(new Uint8Array(hash),b=>b.toString(16).padStart(2,'0')).join('');
 }
 function point(lat,lon,bounds) {
@@ -164,10 +167,42 @@ export class AuraRoom extends DurableObject {
   webSocketError(ws){try{ws.close(1011,'connection_error');}catch{}this.broadcast(ws);}
 }
 
+async function circleRequest(request: Request, env: Env, route: NonNullable<ReturnType<typeof matchCircleRoute>>) {
+  const actor = await identity(request, `asympta-world:circle:v1:${route.circleID}:`);
+  if (!actor) return json({ error: 'authorization_required' }, 401);
+  // Keep new traffic separate from the map/presence budget. Bound creation and
+  // join attempts per network as the native capability is self-generated.
+  const key = request.headers.get('CF-Connecting-IP') || actor;
+  const budget = route.action === 'create' || route.action === 'join' ? env.CIRCLE_ENTRY_RATE : env.CIRCLE_RATE;
+  try {
+    if (!(await budget.limit({ key })).success) return json({ error: 'rate_limited' }, 429);
+    let body = null;
+    if (request.method === 'POST' && route.action !== 'leave') {
+      try {
+        body = await boundedJSON(request, route.action === 'publish' ? 224_000 : 4096);
+      } catch (error) {
+        if (error instanceof Error && error.message === 'body_too_large') {
+          return json({ error: 'body_too_large' }, 413);
+        }
+        return json({ error: 'invalid_input' }, 400);
+      }
+    }
+    const result = await env.CIRCLES.getByName(route.circleID).dispatch(
+      route.circleID, actor, route.action, route.target, body,
+    );
+    return json(result.body, result.status);
+  } catch {
+    console.error(JSON.stringify({ event: 'circle_route_failed', action: route.action, kind: 'runtime' }));
+    return json({ error: 'temporarily_unavailable' }, 503);
+  }
+}
+
 export default {
   async fetch(request,env,ctx) {
     const url=new URL(request.url);
-    if(url.pathname==='/health')return json({ok:true,service:'asympta-world-aura',schema:1,mapSource:'OpenStreetMap',locationStorage:'coarse_socket_presence_only',profileStorage:'durable_abilities_only'});
+    if(url.pathname==='/health')return json({ok:true,service:'asympta-world-aura',schema:1,mapSource:'OpenStreetMap',locationStorage:'coarse_socket_presence_only',profileStorage:'durable_abilities_only',circles:'invitation_only_v1'});
+    const social=matchCircleRoute(url.pathname,request.method);
+    if(social)return circleRequest(request,env,social);
     const auth=await identity(request);
     if(!auth)return json({error:'authorization_required'},401);
     const rate=await env.API_RATE.limit({key:request.headers.get('CF-Connecting-IP')||auth});

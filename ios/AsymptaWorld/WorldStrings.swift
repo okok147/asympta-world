@@ -28,6 +28,22 @@ enum WorldLanguage: String, Codable, CaseIterable {
 
 struct WorldStrings {
     enum Key: String {
+        case circleStyle, circleStyleDetail, circleInkClay, circleInkClayNote
+        case circleInkSaffron, circleInkSaffronNote, circleInkTide, circleInkTideNote
+        case circleInkDusk, circleInkDuskNote
+        case circleManageMembers, circleRemoveMember, circleRemoveMemberDetail, circleNoOtherMembers
+        case circleNewInvite, circleNewInviteDetail, circleDepartedMember
+        case circles, circleHomeTitle, circleHomeDetail, circleCreate, circleJoin
+        case circleTitle, circleNameHint, circleCode, circlePrivate, circleCreateDetail
+        case circleJoinDetail, circleInvite, circleInviteDetail, circleShareCode, circleShareMoment
+        case circleAllMoments, circleThisArea, circleActivity, circleActivityEmpty, circleEmptyTitle
+        case circleEmptyDetail, circleAreaEmpty, circlePhoto, circleArea, circleRefresh
+        case circleLoading, circleOptions, circleLeave, circleLeaveDetail, circleReports
+        case circleReportsEmpty, circleReportKeep, circleReportRemove, circleReportRemoveDetail, circleBlocked
+        case circleBlockedEmpty, circleUnblock, circleInvalidCode, circleUnavailable, circleSlowDown
+        case circleFull, circleFiltered, circlePhotoError, circleCheckFields, circleNetworkError
+        case circleMembersFormat, circleRepliesFormat, circleReactionsFormat, circleReportCountFormat, circleAreaCountFormat
+        case circleBeta
         case chooseAura, growthCloudSaved, nearbyAtlas, localAtlas, atlasMode, exploreLocalAtlas
         case nearbyAura, approximateAura, livePresenceDetail, locationMapTitle, locationMapDetail, useLocation, locationDenied, openSettings, mapLoading, mapUnavailable, mapAttribution, cloudConnected, cloudOffline, growthStored
         case yourLight, returnToLight, personalCorner, auraProfile, specialty, abilityLevel, developingAbility
@@ -63,6 +79,74 @@ struct WorldStrings {
     }
 
     private static let copy: [Key: [String]] = [
+        .circleStyle: ["Your circle seal", "你的圈子印記", "あなたのサークル印"],
+        .circleStyleDetail: ["Choose the ink that appears beside your moments and replies in this circle.", "選擇你在這個圈子的貼文與回應旁所用的印記。", "このサークルの投稿や返信の横に表示する印を選びます。"],
+        .circleInkClay: ["Fired Clay", "燒陶", "焼き土"],
+        .circleInkClayNote: ["Hand-cut lines in a warm earthen wash.", "暖土色暈染裡的手刻紋路。", "温かい土色に、手彫りの線。"],
+        .circleInkSaffron: ["Saffron Sun", "藏紅日", "サフランの太陽"],
+        .circleInkSaffronNote: ["Engraved sunlight on honey paper.", "蜜色紙上刻出的陽光。", "蜜色の紙に刻んだ陽の光。"],
+        .circleInkTide: ["Blue Tide", "藍潮", "青い潮"],
+        .circleInkTideNote: ["Blue ink gathering in quiet currents.", "藍墨聚成平靜的水流。", "青いインクが静かな流れを描きます。"],
+        .circleInkDusk: ["Paper Moon", "紙月", "紙の月"],
+        .circleInkDuskNote: ["Violet dusk, a crescent and two small stars.", "紫暮裡的一彎月與兩顆小星。", "紫の夕暮れ、三日月と二つの小さな星。"],
+        .circleManageMembers: ["Manage members", "管理成員", "メンバー管理"],
+        .circleRemoveMember: ["Remove member", "移除成員", "メンバーを削除"],
+        .circleRemoveMemberDetail: ["Their moments and replies will be removed from this circle, and the previous invitation will stop working.", "對方在這個圈子的時刻與回應會被移除，舊邀請碼也會失效。", "このサークルでの投稿と返信が削除され、以前の招待コードは無効になります。"],
+        .circleNoOtherMembers: ["Only you are in this circle right now.", "這個圈子目前只有你。", "現在このサークルにはあなたのみが参加しています。"],
+        .circleNewInvite: ["Replace invitation", "更新邀請碼", "招待コードを更新"],
+        .circleNewInviteDetail: ["People will need the new code to join. Existing members stay in the circle.", "新成員需要使用新的邀請碼加入。現有成員會留在圈子裡。", "新しい参加者には更新後のコードが必要です。現在のメンバーは引き続き参加できます。"],
+        .circleDepartedMember: ["Former member", "已離開的成員", "退出したメンバー"],
+        .circles: ["Circles", "圈子", "サークル"],
+        .circleHomeTitle: ["A world you share", "你們共享的世界", "分かち合う世界"],
+        .circleHomeDetail: ["Leave little moments for the people you invite. Each circle has its own quiet space.", "把生活裡的一刻留給你邀請的人。每個圈子都有自己的空間。", "招待した人に、小さなひとときを残しましょう。サークルごとに専用の場所があります。"],
+        .circleCreate: ["Start a circle", "建立圈子", "サークルを作る"],
+        .circleJoin: ["Join with a code", "用邀請碼加入", "コードで参加"],
+        .circleTitle: ["Circle name", "圈子名稱", "サークル名"],
+        .circleNameHint: ["Your name in this circle", "你在這個圈子的名字", "このサークルでの名前"],
+        .circleCode: ["Invitation code", "邀請碼", "招待コード"],
+        .circlePrivate: ["Invitation only", "僅限受邀者", "招待制"],
+        .circleCreateDetail: ["Choose a name for the place and the name people will see on your posts.", "替這個地方取名，並選擇成員會在貼文上看到的名字。", "場所の名前と、投稿に表示するあなたの名前を決めましょう。"],
+        .circleJoinDetail: ["Paste the code someone shared with you and choose your display name.", "貼上對方給你的邀請碼，並選擇你的顯示名稱。", "受け取った招待コードを貼り付け、表示名を決めましょう。"],
+        .circleInvite: ["Invite someone", "邀請成員", "メンバーを招待"],
+        .circleInviteDetail: ["Anyone with this code can join the circle. Share it with people you want to invite.", "持有此邀請碼的人可以加入圈子。請只分享給你想邀請的人。", "このコードを持つ人は参加できます。招待したい人にだけ共有してください。"],
+        .circleShareCode: ["Share invitation", "分享邀請", "招待を共有"],
+        .circleShareMoment: ["Share a moment", "分享一刻", "ひとときを共有"],
+        .circleAllMoments: ["All moments", "全部時刻", "すべて"],
+        .circleThisArea: ["This area", "這個區域", "このエリア"],
+        .circleActivity: ["Replies to you", "給你的回應", "あなたへの返信"],
+        .circleActivityEmpty: ["New replies to your moments will appear here.", "你分享的時刻收到新回應時，會在這裡出現。", "あなたの投稿への新しい返信はここに表示されます。"],
+        .circleEmptyTitle: ["The first page is yours", "第一頁，由你開始", "最初のページはあなたから"],
+        .circleEmptyDetail: ["A small thing you noticed today is enough. A few words or one photo can start a conversation.", "今天留意到的一件小事就夠了。一句話或一張照片，都可以開始一段對話。", "今日気づいた小さなことで十分です。短い言葉や写真一枚が会話のきっかけになります。"],
+        .circleAreaEmpty: ["There are no moments from this map area yet.", "這個地圖區域還沒有分享的時刻。", "この地図エリアにはまだ投稿がありません。"],
+        .circlePhoto: ["Photo", "照片", "写真"],
+        .circleArea: ["Approximate map area", "約略地圖區域", "おおよその地図エリア"],
+        .circleRefresh: ["Refresh", "重新整理", "更新"],
+        .circleLoading: ["Opening the circle…", "正在打開圈子⋯", "サークルを開いています…"],
+        .circleOptions: ["Circle options", "圈子選項", "サークルの設定"],
+        .circleLeave: ["Leave circle", "離開圈子", "サークルから退出"],
+        .circleLeaveDetail: ["Your moments and replies in this circle will be removed. You can return with a valid invitation.", "你在此圈子的時刻與回應會被移除。之後仍可用有效邀請加入。", "このサークルでの投稿と返信は削除されます。有効な招待があれば再参加できます。"],
+        .circleReports: ["Reports", "檢舉", "通報"],
+        .circleReportsEmpty: ["There are no open reports in this circle.", "這個圈子暫無待處理檢舉。", "このサークルに未対応の通報はありません。"],
+        .circleReportKeep: ["Keep contribution", "保留這則內容", "内容を残す"],
+        .circleReportRemove: ["Remove contribution", "移除這則內容", "内容を削除"],
+        .circleReportRemoveDetail: ["This will remove the contribution from the circle for everyone.", "這則內容會從所有成員的圈子中移除。", "この内容はすべてのメンバーから見えなくなります。"],
+        .circleBlocked: ["Blocked people", "已封鎖的人", "ブロックした人"],
+        .circleBlockedEmpty: ["You have not blocked anyone in this circle.", "你尚未在這個圈子封鎖任何人。", "このサークルでブロックした人はいません。"],
+        .circleUnblock: ["Unblock", "解除封鎖", "ブロックを解除"],
+        .circleInvalidCode: ["This invitation code is invalid or no longer active.", "這個邀請碼無效或已失效。", "この招待コードは無効か、期限切れです。"],
+        .circleUnavailable: ["This circle or moment is no longer available to you.", "你目前無法查看這個圈子或時刻。", "このサークルまたは投稿は表示できません。"],
+        .circleSlowDown: ["Please wait a moment and try again.", "請稍等片刻再試。", "少し待ってからもう一度お試しください。"],
+        .circleFull: ["This circle has reached its current limit.", "這個圈子已達目前上限。", "このサークルは現在の上限に達しています。"],
+        .circleFiltered: ["This text cannot be shared. Please revise it and try again.", "這段文字無法分享。請修改後再試。", "この文章は共有できません。書き直してお試しください。"],
+        .circlePhotoError: ["This photo could not be prepared. Please choose another.", "無法準備這張照片，請選擇另一張。", "この写真を準備できませんでした。別の写真を選んでください。"],
+        .circleCheckFields: ["Check your text and try again.", "請檢查輸入的文字，再試一次。", "入力した内容を確認し、もう一度お試しください。"],
+        .circleNetworkError: ["The circle could not connect. You can try again.", "暫時無法連接圈子，你可以再試一次。", "サークルに接続できませんでした。もう一度お試しください。"],
+        .circleMembersFormat: ["%d members", "%d 位成員", "メンバー %d 人"],
+        .circleRepliesFormat: ["%d replies", "%d 則回應", "返信 %d 件"],
+        .circleReactionsFormat: ["%d acknowledgements", "%d 次致意", "リアクション %d 件"],
+        .circleReportCountFormat: ["%d reports", "%d 則檢舉", "通報 %d 件"],
+        .circleAreaCountFormat: ["%d moments in this area", "這個區域有 %d 則時刻", "このエリアに %d 件"],
+        .circleBeta: ["Private beta", "私人測試版", "プライベートベータ"],
         .nearbyAtlas: ["Nearby map", "附近地圖", "近くの地図"],
         .localAtlas: ["Local world", "本機世界", "端末内の世界"],
         .atlasMode: ["Choose a world", "選擇世界", "世界を選ぶ"],

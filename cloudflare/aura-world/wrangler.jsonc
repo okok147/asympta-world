@@ -17,6 +17,10 @@
       {
         "name": "ROOMS",
         "class_name": "AuraRoom"
+      },
+      {
+        "name": "CIRCLES",
+        "class_name": "WorldCircle"
       }
     ]
   },
@@ -28,6 +32,10 @@
         "AuraProfile",
         "AuraRoom"
       ]
+    },
+    {
+      "tag": "v2-world-circles",
+      "new_sqlite_classes": ["WorldCircle"]
     }
   ],
   "ratelimits": [
@@ -38,6 +46,16 @@
         "limit": 60,
         "period": 60
       }
+    },
+    {
+      "name": "CIRCLE_RATE",
+      "namespace_id": "2026110601",
+      "simple": { "limit": 60, "period": 60 }
+    },
+    {
+      "name": "CIRCLE_ENTRY_RATE",
+      "namespace_id": "2026110602",
+      "simple": { "limit": 8, "period": 60 }
     }
   ],
   "observability": {

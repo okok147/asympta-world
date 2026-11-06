@@ -5,12 +5,21 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
     private let store = WorldStore()
     private let cloud = WorldCloudSession()
     private let location = WorldLocation()
+    private lazy var social = WorldSocialClient { [weak self] path in self?.cloud.circleRequest(path) }
     private let atlas = UIView()
     private let heading = UIStackView()
     private let headingTitle = WorldTheme.label("Asympta World", style:.title2)
     private let headingContext = WorldTheme.label("", style:.footnote, muted:true)
     private let modeButton = UIButton(type:.system)
     private let spaceButton = UIButton(type:.system)
+    private let circlesButton = UIButton(type:.system)
+    private let areaButton = UIButton(type:.system)
+    private let circleUnread = UILabel()
+    private var areaCount = 0
+    private var unreadCount = 0
+    private var areaLink: WorldCircleLink?
+    private var areaLinkRegion: String?
+    private var summaryTask: Task<Void,Never>?
     private let overviewButton = UIButton(type:.system)
     private let recenterButton = UIButton(type:.system)
     private let mapCredit = UIButton(type:.system)
@@ -63,6 +72,7 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
         super.viewDidLayoutSubviews()
         layoutInspector()
         canvas?.captionTopEdge = max(heading.frame.maxY, locationCard?.frame.maxY ?? 0)
+        canvas?.captionBottomInset = 66 + (areaButton.isHidden ? 0 : areaButton.bounds.height + 10)
     }
 
     deinit { NotificationCenter.default.removeObserver(self) }
@@ -104,6 +114,7 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
                 world?.setPeers(self.nearbyPeers)
                 self.locationMessage = nil
                 self.updateModeUI()
+                self.refreshCircleSummary()
             }
             cloud.onMapFailure = { [weak self] in self?.mapFailed() }
             location.onLocation = { [weak self, weak world] coordinate, accuracy in
@@ -141,6 +152,8 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
         canvas?.setSceneActive(active)
         location.setActive(active && nearbyEnabled)
         cloud.setActive(active)
+        if active { refreshCircleSummary() }
+        else { summaryTask?.cancel(); summaryTask = nil }
     }
 
     private func resetGeography() {
@@ -180,6 +193,7 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
         view.accessibilityLanguage = store.state.language.rawValue
         canvas?.apply(state:store.state, strings:strings)
         spaceButton.accessibilityLabel = strings[.personalCorner]
+        circlesButton.accessibilityLabel = strings[.circles]
         overviewButton.accessibilityLabel = strings[.overview]
         recenterButton.accessibilityLabel = strings[.returnToLight]
         mapCredit.setTitle(strings[.mapAttribution], for:.normal)
@@ -212,6 +226,23 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
         icon(modeButton, symbol:"map", id:"world.mode")
         modeButton.showsMenuAsPrimaryAction = true
         icon(spaceButton, symbol:"person.crop.circle", id:"world.space", action:UIAction { [weak self] _ in self?.show(.me) })
+        icon(circlesButton, symbol:"person.2", id:"world.circles", action:UIAction { [weak self] _ in self?.showCircles() })
+        circleUnread.translatesAutoresizingMaskIntoConstraints = false
+        circleUnread.backgroundColor = UIColor(hex:0x934932)
+        circleUnread.textColor = .white
+        circleUnread.font = UIFont.monospacedDigitSystemFont(ofSize:9, weight:.semibold)
+        circleUnread.textAlignment = .center
+        circleUnread.layer.cornerRadius = 7
+        circleUnread.clipsToBounds = true
+        circleUnread.isAccessibilityElement = false
+        circleUnread.isHidden = true
+        circlesButton.addSubview(circleUnread)
+        NSLayoutConstraint.activate([
+            circleUnread.topAnchor.constraint(equalTo:circlesButton.topAnchor, constant:4),
+            circleUnread.trailingAnchor.constraint(equalTo:circlesButton.trailingAnchor, constant:-2),
+            circleUnread.widthAnchor.constraint(equalToConstant:18),
+            circleUnread.heightAnchor.constraint(equalToConstant:14)
+        ])
         icon(overviewButton, symbol:"arrow.up.left.and.arrow.down.right", id:"world.camera.overview", action:UIAction { [weak self] _ in self?.canvas?.overview() })
         icon(recenterButton, symbol:"location", id:"world.camera.recenter", action:UIAction { [weak self] _ in self?.canvas?.recenter() })
 
@@ -222,7 +253,7 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
         heading.alignment = .center
         heading.spacing = 12
         heading.addArrangedSubview(titles)
-        heading.addArrangedSubview(paperCapsule([modeButton, spaceButton]))
+        heading.addArrangedSubview(paperCapsule([modeButton, circlesButton, spaceButton]))
 
         let camera = paperCapsule([overviewButton, recenterButton])
         mapCredit.titleLabel?.font = WorldTheme.font(.caption2)
@@ -234,7 +265,23 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
         mapCredit.accessibilityIdentifier = "world.map.attribution"
         mapCredit.addAction(UIAction { _ in UIApplication.shared.open(URL(string:"https://www.openstreetmap.org/copyright")!) }, for:.touchUpInside)
 
-        [heading, camera, mapCredit].forEach {
+        var areaConfiguration = UIButton.Configuration.tinted()
+        areaConfiguration.image = UIImage(systemName:"circle.hexagongrid.fill")
+        areaConfiguration.imagePadding = 7
+        areaConfiguration.baseBackgroundColor = WorldTheme.paper
+        areaConfiguration.baseForegroundColor = WorldTheme.ink
+        areaConfiguration.cornerStyle = .capsule
+        areaConfiguration.contentInsets = NSDirectionalEdgeInsets(top:7,leading:12,bottom:7,trailing:12)
+        areaButton.configuration = areaConfiguration
+        areaButton.titleLabel?.adjustsFontForContentSizeCategory = true
+        areaButton.accessibilityIdentifier = "world.atlas.area-moments"
+        areaButton.isHidden = true
+        areaButton.addAction(UIAction { [weak self] _ in
+            guard let self, let link = self.areaLink, self.areaLinkRegion == self.socialRegion else { return }
+            self.showCircles(initialLink:link)
+        }, for:.touchUpInside)
+
+        [heading, camera, mapCredit, areaButton].forEach {
             $0.translatesAutoresizingMaskIntoConstraints = false
             atlas.addSubview($0)
         }
@@ -248,7 +295,11 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
             mapCredit.centerYAnchor.constraint(equalTo:camera.centerYAnchor),
             mapCredit.leadingAnchor.constraint(equalTo:safe.leadingAnchor, constant:16),
             mapCredit.trailingAnchor.constraint(lessThanOrEqualTo:camera.leadingAnchor, constant:-10),
-            mapCredit.heightAnchor.constraint(greaterThanOrEqualToConstant:44)
+            mapCredit.heightAnchor.constraint(greaterThanOrEqualToConstant:44),
+            areaButton.leadingAnchor.constraint(equalTo:safe.leadingAnchor, constant:16),
+            areaButton.trailingAnchor.constraint(lessThanOrEqualTo:safe.trailingAnchor, constant:-16),
+            areaButton.bottomAnchor.constraint(equalTo:camera.topAnchor, constant:-10),
+            areaButton.heightAnchor.constraint(greaterThanOrEqualToConstant:44)
         ])
     }
 
@@ -263,6 +314,7 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
             UIAction(title:s[.localAtlas], image:UIImage(systemName:"sparkles"), state:nearbyEnabled ? .off : .on) { [weak self] _ in self?.selectLocalWorld() }
         ])
         mapCredit.isHidden = !mapReady
+        renderCircleSummary()
         updateLocationCard()
     }
 
@@ -324,21 +376,89 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
         view.bounds.width >= 880 && view.bounds.width > view.bounds.height
     }
 
-    private func show(_ content: WorldPanelsViewController.Content) {
-        guard let art, presentedViewController == nil, !isClosingPanel else { return }
-        if let inspector {
-            // Keep a pushed journal editor and its draft in place while the map is still usable.
-            guard let panel = inspector.topViewController as? WorldPanelsViewController,
-                  panel.presentedViewController == nil, inspector.presentedViewController == nil else { return }
-            panel.view.endEditing(true)
+    private var socialRegion: String? {
+        guard mapReady, let cell = mapCell else { return nil }
+        return "\(cell.x):\(cell.y)"
+    }
+
+    private func refreshCircleSummary() {
+        guard canvas != nil, let link = social.selectedCircle else {
+            updateCircleSummary(link:nil, area:0, replies:0)
+            return
         }
+        summaryTask?.cancel()
+        let region = socialRegion
+        summaryTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let snapshot = try await social.snapshot(circleID:link.id)
+                guard !Task.isCancelled, social.selectedCircle?.id == link.id, region == socialRegion else { return }
+                let nearby = region.map { current in snapshot.moments.filter { $0.region == current }.count } ?? 0
+                updateCircleSummary(link:link, area:nearby, replies:snapshot.activity.count)
+            } catch {
+                guard !Task.isCancelled, social.isDefinitiveFailure(error) else { return }
+                updateCircleSummary(link:nil, area:0, replies:0)
+            }
+        }
+    }
+
+    private func updateCircleSummary(link: WorldCircleLink?, area: Int, replies: Int) {
+        areaLink = link
+        areaLinkRegion = socialRegion
+        areaCount = area
+        unreadCount = replies
+        renderCircleSummary()
+    }
+
+    private func renderCircleSummary() {
+        let s = store.strings
+        circleUnread.isHidden = unreadCount == 0
+        circleUnread.text = unreadCount < 10 ? String(unreadCount) : "9+"
+        circlesButton.accessibilityValue = unreadCount == 0 ? nil : String(format:s[.circleRepliesFormat], locale:s.language.locale, unreadCount)
+        areaButton.isHidden = areaCount == 0 || socialRegion == nil || areaLinkRegion != socialRegion
+        let label = String(format:s[.circleAreaCountFormat], locale:s.language.locale, areaCount)
+        areaButton.configuration?.title = label
+        areaButton.accessibilityLabel = label
+        view.setNeedsLayout()
+    }
+
+    private func canOpenPanel() -> Bool {
+        guard presentedViewController == nil, !isClosingPanel else { return false }
+        guard let inspector else { return true }
+        guard let current = inspector.topViewController, current.presentedViewController == nil,
+              inspector.presentedViewController == nil else { return false }
+        // Preserve drafts and nested social navigation while the atlas remains interactive.
+        guard current is WorldPanelsViewController ||
+            (inspector.viewControllers.count == 1 && current is WorldCirclesViewController) else { return false }
+        current.view.endEditing(true)
+        return true
+    }
+
+    private func showCircles(initialLink: WorldCircleLink? = nil) {
+        guard canOpenPanel() else { return }
+        let panel = WorldCirclesViewController(client:social, strings:store.strings, region:{ [weak self] in self?.socialRegion },
+                                               initialLink:initialLink, onArea:{ [weak self] link, count, replies in
+            guard let self else { return }
+            self.summaryTask?.cancel()
+            self.social.select(link)
+            self.updateCircleSummary(link:link, area:count, replies:replies)
+        }, onClose:{ [weak self] in self?.closePanel() })
+        showPanel(panel, large:true)
+    }
+
+    private func show(_ content: WorldPanelsViewController.Content) {
+        guard let art, canOpenPanel() else { return }
         let panel = WorldPanelsViewController(content:content, store:store, art:art) { [weak self] resident in
             self?.closePanel { [weak self] in self?.canvas?.focus(on:resident) }
         }
         panel.cloudConnected = connected
         panel.growthSynced = cloud.growthSynced
         panel.onClose = { [weak self] in self?.closePanel() }
+        if case .me = content { showPanel(panel, large:true) }
+        else { showPanel(panel, large:false) }
+    }
 
+    private func showPanel(_ panel: UIViewController, large: Bool) {
         if let inspector {
             inspector.setViewControllers([panel], animated:false)
             UIAccessibility.post(notification:.screenChanged, argument:inspector.navigationBar)
@@ -371,7 +491,7 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
             nav.preferredContentSize = CGSize(width:500, height:700)
             if let sheet = nav.sheetPresentationController {
                 sheet.detents = [.custom(identifier:.init("paper")) { $0.maximumDetentValue * 0.78 }, .large()]
-                if case .me = content { sheet.selectedDetentIdentifier = .large }
+                if large { sheet.selectedDetentIdentifier = .large }
                 else { sheet.selectedDetentIdentifier = .init("paper") }
                 sheet.prefersGrabberVisible = true
                 sheet.preferredCornerRadius = 24

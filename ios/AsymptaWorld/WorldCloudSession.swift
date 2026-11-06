@@ -87,6 +87,10 @@ final class WorldCloudSession {
         var r = URLRequest(url:url); r.setValue("Bearer "+token,forHTTPHeaderField:"Authorization"); r.timeoutInterval = 35
         return r
     }
+    func circleRequest(_ path: String) -> URLRequest? {
+        guard path.hasPrefix("/v1/circles/") else { return nil }
+        return request(path)
+    }
     func setActive(_ value: Bool) {
         guard value != active else { return }
         active = value

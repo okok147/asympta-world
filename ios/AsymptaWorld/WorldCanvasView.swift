@@ -105,6 +105,9 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
     var captionTopEdge: CGFloat = 0 {
         didSet { if captionTopEdge != oldValue { setNeedsLayout() } }
     }
+    var captionBottomInset: CGFloat = 66 {
+        didSet { if captionBottomInset != oldValue { setNeedsLayout() } }
+    }
     private var dots: [CALayer] = []
     private var elements: [AuraAccessibleElement] = []
     private var camera = CGPoint(x:500,y:700)
@@ -177,7 +180,7 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
         CATransaction.begin(); CATransaction.setDisableActions(true)
         if geometry || previousCamera != camera {
             let captionArea = bounds.inset(by:UIEdgeInsets(top:max(safeAreaInsets.top,captionTopEdge)+16,left:18,
-                                                          bottom:safeAreaInsets.bottom+66,right:18))
+                                                          bottom:safeAreaInsets.bottom+captionBottomInset,right:18))
             if places.project(in:captionArea, project:projected) {
                 accessiblePlaces = places.labels.filter { !$0.isHidden }
                 updateAccessibility()
