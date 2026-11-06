@@ -15,7 +15,7 @@ const REPORT_REASON_COLUMN = `reason TEXT NOT NULL DEFAULT 'other'
 
 type Kind = 'moment' | 'reply';
 type ReportReason = typeof REPORT_REASONS[number];
-type Action = 'create' | 'join' | 'snapshot' | 'invite' | 'publish' | 'detail' | 'reply' |
+type Action = 'create' | 'join' | 'snapshot' | 'inbox' | 'invite' | 'publish' | 'detail' | 'reply' |
   'reaction' | 'read' | 'moderate' | 'reports' | 'resolve' | 'blocks' | 'unblock' | 'leave' |
   'members' | 'removeMember' | 'rotateInvite' | 'appearance' | 'momentReport' | 'replyReport';
 type Input = Record<string, unknown>;
@@ -176,6 +176,10 @@ export class WorldCircle extends DurableObject {
 
     switch (action) {
       case 'snapshot': return this.snapshot(circleID, member, circle);
+      case 'inbox': {
+        const unread = this.unread(member.id, 33);
+        return { circle: this.summary(circleID, member, circle), activity: unread.slice(0, 32), hasMore: unread.length > 32 };
+      }
       case 'invite':
         this.requireHost(circle, actor);
         return { code: `${circleID}.${circle.secret}` };
@@ -320,19 +324,21 @@ export class WorldCircle extends DurableObject {
     const moments = this.sql.exec<SummaryRow>(
       `${momentSummary} ORDER BY m.createdAt DESC, m.id DESC LIMIT 64`, me.id,
     ).toArray().map(row => this.momentJSON(row, me.id));
-    const unread = this.sql.exec<FullReplyRow>(
+    return { circle: this.summary(circleID, me, circle), moments, activity: this.unread(me.id, 32) };
+  }
+
+  private unread(actor: string, limit: number) {
+    return this.sql.exec<FullReplyRow>(
       `SELECT r.id, r.momentID, r.author, r.text, r.createdAt, a.name AS authorName, a.style AS authorStyle
        FROM moments m JOIN replies r ON r.momentID=m.id JOIN members a ON a.id=r.author
        LEFT JOIN reads seen ON seen.momentID=m.id AND seen.reader=?1
        WHERE m.author=?1 AND r.author<>?1 AND r.createdAt>coalesce(seen.through, 0)
          AND ${visible('m', 'moment')} AND ${visible('r', 'reply')}
-       ORDER BY r.createdAt DESC, r.id DESC LIMIT 32`, me.id,
-    ).toArray();
-    const activity = unread.map(row => ({
+       ORDER BY r.createdAt DESC, r.id DESC LIMIT ?2`, actor, limit,
+    ).toArray().map(row => ({
       momentID: row.momentID, replyID: row.id, author: authorJSON(row),
       text: row.text, createdAt: row.createdAt,
     }));
-    return { circle: this.summary(circleID, me, circle), moments, activity };
   }
 
   private detail(actor: string, target: string) {

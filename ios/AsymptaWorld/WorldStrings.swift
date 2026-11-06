@@ -39,6 +39,8 @@ struct WorldStrings {
         case circleTitle, circleNameHint, circleCode, circlePrivate, circleCreateDetail
         case circleJoinDetail, circleInvite, circleInviteDetail, circleShareCode, circleShareMoment
         case circleAllMoments, circleThisArea, circleActivity, circleActivityEmpty, circleEmptyTitle
+        case circleInbox, circleInboxDetail, circleInboxLoading, circleInboxPartial, circleInboxEmpty, circleInboxRecent
+        case circleInboxUnreadFormat, circleInboxUnreadMoreFormat
         case circleEmptyDetail, circleAreaEmpty, circlePhoto, circleArea, circleRefresh
         case circleLoading, circleOptions, circleLeave, circleLeaveDetail, circleReports
         case circleReportsEmpty, circleReportKeep, circleReportRemove, circleReportRemoveDetail, circleBlocked
@@ -124,6 +126,14 @@ struct WorldStrings {
         .circleThisArea: ["This area", "這個區域", "このエリア"],
         .circleActivity: ["Replies to you", "給你的回應", "あなたへの返信"],
         .circleActivityEmpty: ["New replies to your moments will appear here.", "你分享的時刻收到新回應時，會在這裡出現。", "あなたの投稿への新しい返信はここに表示されます。"],
+        .circleInbox: ["Reply inbox", "回應收件匣", "返信ボックス"],
+        .circleInboxDetail: ["New replies to your moments, from all your circles. Tap one to open the conversation.", "各個圈子給你的新回應都在這裡。點一下就能回到原貼文。", "参加しているサークルからの新着返信です。タップすると元の投稿を開けます。"],
+        .circleInboxLoading: ["Looking for new replies…", "正在查看新回應⋯", "新着返信を確認しています…"],
+        .circleInboxPartial: ["Some circles could not be checked. Try again to see their latest replies.", "暫時無法查看部分圈子。再試一次即可重新載入。", "一部のサークルを確認できませんでした。もう一度お試しください。"],
+        .circleInboxEmpty: ["You’re caught up. New replies will appear here.", "你已看完目前的回應。有新回應時，這裡會更新。", "未読の返信はありません。新しい返信はここに表示されます。"],
+        .circleInboxRecent: ["Showing recent unread replies. Older replies appear as you read.", "目前顯示較新的未讀回應。讀過之後，較早的回應會接著出現。", "新しい未読返信を表示しています。読むと古い返信が順に表示されます。"],
+        .circleInboxUnreadFormat: ["Unread replies: %d", "未讀回應 %d 則", "未読の返信 %d 件"],
+        .circleInboxUnreadMoreFormat: ["Unread replies: %d or more", "未讀回應至少 %d 則", "未読の返信 %d 件以上"],
         .circleEmptyTitle: ["The first page is yours", "第一頁，由你開始", "最初のページはあなたから"],
         .circleEmptyDetail: ["A small thing you noticed today is enough. A few words or one photo can start a conversation.", "今天留意到的一件小事就夠了。一句話或一張照片，都可以開始一段對話。", "今日気づいた小さなことで十分です。短い言葉や写真一枚が会話のきっかけになります。"],
         .circleAreaEmpty: ["There are no moments from this map area yet.", "這個地圖區域還沒有分享的時刻。", "この地図エリアにはまだ投稿がありません。"],

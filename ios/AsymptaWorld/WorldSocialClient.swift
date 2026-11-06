@@ -2,6 +2,7 @@ import Foundation
 
 extension Notification.Name {
     static let worldSocialRegionDidChange = Notification.Name("com.asympta.world.social-region.changed")
+    static let worldSocialInboxDidChange = Notification.Name("com.asympta.world.social-inbox.changed")
 }
 
 struct WorldCircleMember: Codable {
@@ -58,6 +59,20 @@ struct WorldCircleSnapshot: Decodable {
     let circle: WorldCircle
     let moments: [WorldMoment]
     let activity: [WorldCircleActivity]
+}
+
+struct WorldCircleInbox: Decodable {
+    struct Group: Decodable {
+        let circle: WorldCircle
+        let activity: [WorldCircleActivity]
+        let hasMore: Bool
+    }
+
+    var groups: [Group]
+    var partial: Bool
+
+    var count: Int { groups.reduce(0) { $0 + $1.activity.count } }
+    var hasMore: Bool { groups.contains { $0.hasMore } }
 }
 
 struct WorldCircleLink: Codable {
@@ -139,7 +154,12 @@ final class WorldSocialClient {
 
     private func call<Result: Decodable>(_ circleID: String, _ path: String = "",
                                          body: [String:Any]? = nil) async throws -> Result {
-        guard Self.validID(circleID), var request = makeRequest("/v1/circles/" + circleID + path) else {
+        guard Self.validID(circleID) else { throw Failure(error:"authorization_required") }
+        return try await request("/v1/circles/" + circleID + path, body:body)
+    }
+
+    private func request<Result: Decodable>(_ path: String, body: [String:Any]?) async throws -> Result {
+        guard var request = makeRequest(path) else {
             throw Failure(error:"authorization_required")
         }
         request.timeoutInterval = 18
@@ -189,6 +209,29 @@ final class WorldSocialClient {
         try await call(circleID)
     }
 
+    func inbox() async throws -> WorldCircleInbox {
+        let ids = links.map(\.id)
+        var inbox = WorldCircleInbox(groups:[],partial:false)
+        for start in stride(from:0,to:ids.count,by:8) {
+            try Task.checkCancellation()
+            do {
+                let batch: WorldCircleInbox = try await request(
+                    "/v1/circles/inbox", body:["circleIDs":Array(ids[start..<min(start + 8, ids.count)])]
+                )
+                inbox.groups += batch.groups
+                inbox.partial = inbox.partial || batch.partial
+            } catch {
+                try Task.checkCancellation()
+                inbox.partial = true
+            }
+        }
+        try Task.checkCancellation()
+        // A circle may have been left while a batch was in flight.
+        let currentIDs = Set(links.map(\.id))
+        inbox.groups.removeAll { !currentIDs.contains($0.circle.id) }
+        return inbox
+    }
+
     func invite(circleID: String) async throws -> String {
         let result: Invite = try await call(circleID, "/invite")
         return result.code
@@ -210,6 +253,7 @@ final class WorldSocialClient {
 
     func removeMember(circleID: String, memberID: String) async throws {
         let _: ResultOK = try await call(circleID, "/members/remove", body:["id":memberID])
+        inboxChanged()
     }
 
     func detail(circleID: String, momentID: String) async throws -> WorldMomentDetail {
@@ -234,12 +278,14 @@ final class WorldSocialClient {
 
     func markRead(circleID: String, momentID: String, through: Double) async throws {
         let _: ResultOK = try await call(circleID, "/read", body:["momentID":momentID,"through":through])
+        inboxChanged()
     }
 
     func moderate(circleID: String, kind: String, target: String, action: String, reason: WorldCircleReportReason? = nil) async throws {
         var body = ["kind":kind,"target":target,"action":action]
         body["reason"] = reason?.rawValue
         let _: ResultOK = try await call(circleID, "/moderate", body:body)
+        inboxChanged()
     }
 
     func reports(circleID: String) async throws -> [WorldCircleReport] {
@@ -254,6 +300,7 @@ final class WorldSocialClient {
 
     func resolve(circleID: String, kind: String, target: String) async throws {
         let _: ResultOK = try await call(circleID, "/resolve", body:["kind":kind,"target":target])
+        inboxChanged()
     }
 
     func blocked(circleID: String) async throws -> [WorldCircleMember] {
@@ -263,6 +310,7 @@ final class WorldSocialClient {
 
     func unblock(circleID: String, memberID: String) async throws {
         let _: ResultOK = try await call(circleID, "/unblock", body:["id":memberID])
+        inboxChanged()
     }
 
     func leave(circleID: String) async throws {
@@ -290,6 +338,11 @@ final class WorldSocialClient {
         if let data = try? JSONEncoder().encode(links) {
             UserDefaults.standard.set(data, forKey:Self.defaultsKey)
         }
+        inboxChanged()
+    }
+
+    private func inboxChanged() {
+        NotificationCenter.default.post(name:.worldSocialInboxDidChange, object:self)
     }
 
     func isMissing(_ error: Error) -> Bool {

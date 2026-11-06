@@ -197,10 +197,46 @@ async function circleRequest(request: Request, env: Env, route: NonNullable<Retu
   }
 }
 
+async function circleInbox(request: Request, env: Env) {
+  const auth = await identity(request, 'asympta-world:circle-inbox:v1:');
+  if (!auth) return json({ error: 'authorization_required' }, 401);
+  try {
+    const key = request.headers.get('CF-Connecting-IP') || auth;
+    if (!(await env.CIRCLE_RATE.limit({ key })).success) return json({ error: 'rate_limited' }, 429);
+    let circleIDs: unknown;
+    try {
+      circleIDs = (await boundedJSON(request, 512))?.circleIDs;
+    } catch (error) {
+      if (error instanceof Error && error.message === 'body_too_large') return json({ error: 'body_too_large' }, 413);
+    }
+    if (!Array.isArray(circleIDs) || circleIDs.length < 1 || circleIDs.length > 8 ||
+        !circleIDs.every(id => typeof id === 'string' && /^[0-9a-f]{32}$/.test(id))) {
+      return json({ error: 'invalid_input' }, 400);
+    }
+    const results = await Promise.allSettled([...new Set<string>(circleIDs)].map(async circleID => {
+      const actor = await identity(request, `asympta-world:circle:v1:${circleID}:`);
+      return env.CIRCLES.getByName(circleID).dispatch(circleID, actor!, 'inbox', null, null);
+    }));
+    const groups: object[] = [];
+    let partial = false;
+    for (const result of results) {
+      if (result.status === 'rejected') partial = true;
+      else if (result.value.status === 200) groups.push(result.value.body);
+      // Give the same response for circles that are missing, closed, or inaccessible.
+      else if (result.value.status !== 403 && result.value.status !== 404) partial = true;
+    }
+    return json({ groups, partial });
+  } catch {
+    console.error(JSON.stringify({ event: 'circle_route_failed', action: 'inbox', kind: 'runtime' }));
+    return json({ error: 'temporarily_unavailable' }, 503);
+  }
+}
+
 export default {
   async fetch(request,env,ctx) {
     const url=new URL(request.url);
     if(url.pathname==='/health')return json({ok:true,service:'asympta-world-aura',schema:1,mapSource:'OpenStreetMap',locationStorage:'coarse_socket_presence_only',profileStorage:'durable_abilities_only',circles:'invitation_only_v1'});
+    if(url.pathname==='/v1/circles/inbox' && request.method==='POST')return circleInbox(request,env);
     const social=matchCircleRoute(url.pathname,request.method);
     if(social)return circleRequest(request,env,social);
     const auth=await identity(request);

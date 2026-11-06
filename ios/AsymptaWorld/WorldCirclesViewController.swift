@@ -148,17 +148,20 @@ final class WorldCirclesViewController: WorldCirclePaperViewController {
     private let client: WorldSocialClient
     private let region: () -> String?
     private let onClose: () -> Void
-    private let onArea: (WorldCircleLink, Int, Int) -> Void
+    private let onArea: (WorldCircleLink, Int) -> Void
+    private let onInbox: (WorldCircleInbox) -> Void
     private let initialLink: WorldCircleLink?
     private var openedInitial = false
 
     init(client: WorldSocialClient, strings: WorldStrings, region: @escaping () -> String?,
-         initialLink: WorldCircleLink? = nil, onArea: @escaping (WorldCircleLink,Int,Int) -> Void,
+         initialLink: WorldCircleLink? = nil, onArea: @escaping (WorldCircleLink,Int) -> Void,
+         onInbox: @escaping (WorldCircleInbox) -> Void,
          onClose: @escaping () -> Void) {
         self.client = client
         self.region = region
         self.initialLink = initialLink
         self.onArea = onArea
+        self.onInbox = onInbox
         self.onClose = onClose
         super.init(strings:strings)
     }
@@ -191,6 +194,13 @@ final class WorldCirclesViewController: WorldCirclePaperViewController {
         seal.heightAnchor.constraint(equalToConstant:78).isActive = true
         stack.addArrangedSubview(seal)
         titleBlock(strings[.circleHomeTitle], detail:strings[.circleHomeDetail])
+        if !client.links.isEmpty {
+            stack.addArrangedSubview(action(.circleInbox, "tray", id:"world.circle.inbox") { [weak self] in
+                guard let self else { return }
+                let inbox = WorldCircleInboxViewController(client:client, strings:strings, onInbox:onInbox)
+                navigationController?.pushViewController(inbox, animated:!UIAccessibility.isReduceMotionEnabled)
+            })
+        }
         for link in client.links {
             stack.addArrangedSubview(WorldCircleSlip(title:link.title, detail:strings[.circlePrivate], footer:nil,
                                                      ink:0x678b99, id:"world.circle.link") { [weak self] in self?.open(link) })
@@ -220,6 +230,104 @@ final class WorldCirclesViewController: WorldCirclePaperViewController {
     }
 
     @objc private func close() { onClose() }
+}
+
+private final class WorldCircleInboxViewController: WorldCirclePaperViewController {
+    private let client: WorldSocialClient
+    private let onInbox: (WorldCircleInbox) -> Void
+    private let refresh = UIRefreshControl()
+    private var loadTask: Task<Void,Never>?
+
+    init(client: WorldSocialClient, strings: WorldStrings, onInbox: @escaping (WorldCircleInbox) -> Void) {
+        self.client = client
+        self.onInbox = onInbox
+        super.init(strings:strings)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = strings[.circleInbox]
+        titleBlock(strings[.circleInbox], detail:strings[.circleInboxDetail])
+        message(strings[.circleInboxLoading])
+        scroll.refreshControl = refresh
+        refresh.addAction(UIAction { [weak self] _ in self?.reload() }, for:.valueChanged)
+        let item = UIBarButtonItem(image:UIImage(systemName:"arrow.clockwise"), style:.plain,
+                                   target:self, action:#selector(reload))
+        item.accessibilityLabel = strings[.retry]
+        item.accessibilityIdentifier = "world.circle.inbox.refresh"
+        navigationItem.rightBarButtonItem = item
+        NotificationCenter.default.addObserver(self, selector:#selector(activated(_:)),
+                                                name:UIScene.didActivateNotification, object:nil)
+        NotificationCenter.default.addObserver(self, selector:#selector(inboxChanged),
+                                                name:.worldSocialInboxDidChange, object:client)
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        reload()
+    }
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        loadTask?.cancel()
+        refresh.endRefreshing()
+    }
+
+    @objc private func activated(_ notification: Notification) {
+        guard navigationController?.topViewController === self,
+              let scene = viewIfLoaded?.window?.windowScene,
+              (notification.object as? UIScene) === scene else { return }
+        reload()
+    }
+
+    @objc private func inboxChanged() {
+        if navigationController?.topViewController === self { reload() }
+    }
+
+    @objc private func reload() {
+        loadTask?.cancel()
+        let client = client
+        loadTask = Task { [weak self] in
+            guard let inbox = try? await client.inbox(), !Task.isCancelled, let self else { return }
+            refresh.endRefreshing()
+            onInbox(inbox)
+            render(inbox)
+        }
+    }
+
+    private func render(_ inbox: WorldCircleInbox) {
+        clearPage()
+        titleBlock(strings[.circleInbox], detail:strings[.circleInboxDetail])
+        let entries = inbox.groups.flatMap { group in group.activity.map { (circle:group.circle, reply:$0) } }
+            .sorted { lhs, rhs in
+                if lhs.reply.createdAt != rhs.reply.createdAt { return lhs.reply.createdAt > rhs.reply.createdAt }
+                if lhs.circle.id != rhs.circle.id { return lhs.circle.id < rhs.circle.id }
+                return lhs.reply.replyID > rhs.reply.replyID
+            }
+        if inbox.partial {
+            message(strings[.circleInboxPartial])
+            stack.addArrangedSubview(action(.retry,"arrow.clockwise",id:"world.circle.inbox.retry") { [weak self] in self?.reload() })
+        } else if entries.isEmpty {
+            message(strings[.circleInboxEmpty])
+        }
+        for (index, entry) in entries.prefix(40).enumerated() {
+            let reply = entry.reply
+            let source = [entry.circle.title, date(reply.createdAt)].joined(separator:" · ")
+            stack.addArrangedSubview(WorldCircleSlip(
+                title:reply.author.name, detail:reply.text, footer:source, ink:0xc27d55,
+                style:reply.author.style.flatMap(WorldCircleInkStyle.init(rawValue:)),
+                id:"world.circle.inbox.reply.\(index)"
+            ) { [weak self] in
+                guard let self else { return }
+                let detail = WorldMomentViewController(circle:entry.circle, momentID:reply.momentID,
+                                                       client:client, strings:strings, onChanged:{})
+                navigationController?.pushViewController(detail, animated:!UIAccessibility.isReduceMotionEnabled)
+            })
+        }
+        if inbox.hasMore || entries.count > 40 { message(strings[.circleInboxRecent]) }
+    }
 }
 
 private final class WorldCircleEntryViewController: WorldCirclePaperViewController {
@@ -322,7 +430,7 @@ private final class WorldCircleFeedViewController: WorldCirclePaperViewControlle
     private let link: WorldCircleLink
     private let client: WorldSocialClient
     private let region: () -> String?
-    private let onArea: (WorldCircleLink,Int,Int) -> Void
+    private let onArea: (WorldCircleLink,Int) -> Void
     private let refresh = UIRefreshControl()
     private var areaOnly: Bool
     private var result: WorldCircleSnapshot?
@@ -332,7 +440,7 @@ private final class WorldCircleFeedViewController: WorldCirclePaperViewControlle
     private var visibleMomentLimit = 18
 
     init(link: WorldCircleLink, client: WorldSocialClient, strings: WorldStrings, region: @escaping () -> String?,
-         areaOnly: Bool, onArea: @escaping (WorldCircleLink,Int,Int) -> Void) {
+         areaOnly: Bool, onArea: @escaping (WorldCircleLink,Int) -> Void) {
         self.link = link
         self.client = client
         self.region = region
@@ -410,7 +518,7 @@ private final class WorldCircleFeedViewController: WorldCirclePaperViewControlle
         let currentRegion = region()
         let areaMoments = currentRegion.map { area in result.moments.filter { $0.region == area } } ?? []
         if currentRegion == nil { areaOnly = false }
-        onArea(link,areaMoments.count,result.activity.count)
+        onArea(link,areaMoments.count)
         navigationItem.rightBarButtonItems = [makeOptions(),makeRefresh()]
         titleBlock(circle.title, detail:strings[.circlePrivate] + "  ·  " + count(circle.memberCount,.circleMembersFormat))
         let composeTitle: WorldStrings.Key = WorldSocialClient.hasDraft(for:circle.id) ? .circleResumeDraft : .circleShareMoment
@@ -558,7 +666,7 @@ private final class WorldCircleFeedViewController: WorldCirclePaperViewControlle
                 }
                 do {
                     try await self.client.leave(circleID:self.link.id)
-                    self.onArea(self.link,0,0)
+                    self.onArea(self.link,0)
                     self.navigationController?.popViewController(animated:!UIAccessibility.isReduceMotionEnabled)
                 } catch {
                     self.render()

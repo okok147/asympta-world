@@ -17,6 +17,8 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
     private let circleUnread = UILabel()
     private var areaCount = 0
     private var unreadCount = 0
+    private var unreadIncomplete = false
+    private var inboxTask: Task<Void,Never>?
     private var areaLink: WorldCircleLink?
     private var areaLinkRegion: String?
     private var lastAvailableRegion: String?
@@ -50,6 +52,7 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
         notifications.addObserver(self, selector:#selector(stateChanged), name:.watercolorWorldDidChange, object:store)
         notifications.addObserver(self, selector:#selector(sceneActivated(_:)), name:UIScene.didActivateNotification, object:nil)
         notifications.addObserver(self, selector:#selector(sceneDeactivated(_:)), name:UIScene.willDeactivateNotification, object:nil)
+        notifications.addObserver(self, selector:#selector(inboxChanged), name:.worldSocialInboxDidChange, object:social)
         notifications.addObserver(self, selector:#selector(stateChanged), name:UIAccessibility.reduceMotionStatusDidChangeNotification, object:nil)
         notifications.addObserver(self, selector:#selector(stateChanged), name:UIContentSizeCategory.didChangeNotification, object:nil)
 
@@ -153,8 +156,13 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
         canvas?.setSceneActive(active)
         location.setActive(active && nearbyEnabled)
         cloud.setActive(active)
-        if active { refreshCircleSummary() }
-        else { summaryTask?.cancel(); summaryTask = nil }
+        if active {
+            refreshCircleSummary()
+            refreshInboxBadge()
+        } else {
+            summaryTask?.cancel()
+            inboxTask?.cancel()
+        }
     }
 
     private func resetGeography() {
@@ -388,39 +396,57 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
     }
 
     private func refreshCircleSummary() {
-        guard canvas != nil, let link = social.selectedCircle else {
-            updateCircleSummary(link:nil, area:0, replies:0)
+        summaryTask?.cancel()
+        guard canvas != nil, let link = social.selectedCircle, let region = socialRegion else {
+            updateCircleSummary(link:nil, area:0)
             return
         }
-        summaryTask?.cancel()
-        let region = socialRegion
         summaryTask = Task { [weak self] in
             guard let self else { return }
             do {
                 let snapshot = try await social.snapshot(circleID:link.id)
                 guard !Task.isCancelled, social.selectedCircle?.id == link.id, region == socialRegion else { return }
-                let nearby = region.map { current in snapshot.moments.filter { $0.region == current }.count } ?? 0
-                updateCircleSummary(link:link, area:nearby, replies:snapshot.activity.count)
+                let nearby = snapshot.moments.filter { $0.region == region }.count
+                updateCircleSummary(link:link, area:nearby)
             } catch {
                 guard !Task.isCancelled, social.isDefinitiveFailure(error) else { return }
-                updateCircleSummary(link:nil, area:0, replies:0)
+                updateCircleSummary(link:nil, area:0)
             }
         }
     }
 
-    private func updateCircleSummary(link: WorldCircleLink?, area: Int, replies: Int) {
+    @objc private func inboxChanged() {
+        if view.window?.windowScene?.activationState == .foregroundActive { refreshInboxBadge() }
+    }
+
+    private func refreshInboxBadge() {
+        inboxTask?.cancel()
+        let social = social
+        inboxTask = Task { [weak self] in
+            guard let inbox = try? await social.inbox(), !Task.isCancelled, let self else { return }
+            updateInboxBadge(inbox)
+        }
+    }
+
+    private func updateInboxBadge(_ inbox: WorldCircleInbox) {
+        unreadCount = inbox.count
+        unreadIncomplete = inbox.hasMore || inbox.partial
+        renderCircleSummary()
+    }
+
+    private func updateCircleSummary(link: WorldCircleLink?, area: Int) {
         areaLink = link
         areaLinkRegion = socialRegion
         areaCount = area
-        unreadCount = replies
         renderCircleSummary()
     }
 
     private func renderCircleSummary() {
         let s = store.strings
         circleUnread.isHidden = unreadCount == 0
-        circleUnread.text = unreadCount < 10 ? String(unreadCount) : "9+"
-        circlesButton.accessibilityValue = unreadCount == 0 ? nil : String(format:s[.circleRepliesFormat], locale:s.language.locale, unreadCount)
+        circleUnread.text = unreadCount > 9 ? "9+" : "\(unreadCount)\(unreadIncomplete ? "+" : "")"
+        let unreadLabel: WorldStrings.Key = unreadIncomplete ? .circleInboxUnreadMoreFormat : .circleInboxUnreadFormat
+        circlesButton.accessibilityValue = unreadCount == 0 ? nil : String(format:s[unreadLabel], locale:s.language.locale, unreadCount)
         areaButton.isHidden = areaCount == 0 || socialRegion == nil || areaLinkRegion != socialRegion
         let label = String(format:s[.circleAreaCountFormat], locale:s.language.locale, areaCount)
         areaButton.configuration?.title = label
@@ -443,11 +469,14 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
     private func showCircles(initialLink: WorldCircleLink? = nil) {
         guard canOpenPanel() else { return }
         let panel = WorldCirclesViewController(client:social, strings:store.strings, region:{ [weak self] in self?.socialRegion },
-                                               initialLink:initialLink, onArea:{ [weak self] link, count, replies in
+                                               initialLink:initialLink, onArea:{ [weak self] link, count in
             guard let self else { return }
             self.summaryTask?.cancel()
             self.social.select(link)
-            self.updateCircleSummary(link:link, area:count, replies:replies)
+            self.updateCircleSummary(link:link, area:count)
+        }, onInbox:{ [weak self] inbox in
+            self?.inboxTask?.cancel()
+            self?.updateInboxBadge(inbox)
         }, onClose:{ [weak self] in self?.closePanel() })
         showPanel(panel, large:true)
     }
