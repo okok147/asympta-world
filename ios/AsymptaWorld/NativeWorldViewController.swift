@@ -31,6 +31,11 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
         openWorld()
     }
 
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        canvas?.captionTopEdge = locationCard?.frame.maxY ?? 0
+    }
+
     deinit { NotificationCenter.default.removeObserver(self) }
 
     override var preferredStatusBarStyle: UIStatusBarStyle { .darkContent }
@@ -59,7 +64,10 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
             cloud.onConnection = { [weak self] value in self?.connected = value }
             cloud.onMap = { [weak self,weak world] sheet in
                 guard let self else { return }; world?.setMap(sheet); self.mapReady = true
-                self.locationCard?.removeFromSuperview(); self.locationCard = nil; self.mapCredit.isHidden = false
+                self.locationCard?.removeFromSuperview()
+                self.locationCard = nil
+                world?.captionTopEdge = 0
+                self.mapCredit.isHidden = false
             }
             cloud.onMapFailure = { [weak self] in guard let self,!self.mapReady else { return }; self.locationMessage = .mapUnavailable; self.updateLocationCard() }
             location.onLocation = { [weak self,weak world] coordinate,accuracy in

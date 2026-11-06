@@ -14,11 +14,7 @@ enum AuraInk {
             var seed: UInt64 = UInt64(hex) &+ 9173
             func random() -> CGFloat { seed = seed &* 6364136223846793005 &+ 1; return CGFloat((seed >> 32)%10000)/10000 }
             let center = CGPoint(x:48,y:48)
-            for ring in stride(from:40,through:9,by:-1) {
-                let radius = CGFloat(ring), t = 1-radius/42
-                ctx.setFillColor(ink.withAlphaComponent(0.002+t*t*0.006).cgColor)
-                ctx.fillEllipse(in:CGRect(x:48-radius,y:48-radius,width:radius*2,height:radius*2))
-            }
+            WorldPigment.wash(in:ctx, ink:ink, center:center, radius:44, strength:0.65)
             ctx.setLineCap(.round)
             for _ in 0..<740 {
                 let angle = random()*Double.pi*2, radius = sqrt(random())*30
@@ -48,7 +44,7 @@ struct WorldArt {
         portraits = Dictionary(uniqueKeysWithValues:WorldResident.allCases.enumerated().map { ($0.element,AuraInk.image(($0.offset == 0 ? userInk ?? AuraWorldSimulation.identityInk(0) : AuraWorldSimulation.identityInk($0.offset)))) })
         let format = UIGraphicsImageRendererFormat(); format.scale = 1; format.opaque = true
         paper = UIGraphicsImageRenderer(size:CGSize(width:192,height:192),format:format).image { r in
-            WorldTheme.paper.setFill(); r.fill(CGRect(x:0,y:0,width:192,height:192))
+            WorldTheme.mapPaper.setFill(); r.fill(CGRect(x:0,y:0,width:192,height:192))
             var seed: UInt64 = 731
             for _ in 0..<1600 {
                 seed = seed &* 6364136223846793005 &+ 1; let x = CGFloat((seed >> 32)%1920)/10
@@ -94,6 +90,9 @@ private final class AuraFrameTarget: NSObject {
 final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
     private let simulation: AuraWorldSimulation
     private var mapDrawing: CALayer?
+    private let lightLayer = CALayer()
+    private let places = WorldPlaceOverlay()
+    private var accessiblePlaces: [UILabel] = []
     private var hasRealMap = false
     private var locationMode = false
     private var ownRadius: CGFloat = 200
@@ -103,12 +102,14 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
     private var peers: [WorldCloudPeer] = []
     private var peerElements: [AuraAccessibleElement] = []
     var onGrowth: (([Int])->Void)?
+    var captionTopEdge: CGFloat = 0 {
+        didSet { if captionTopEdge != oldValue { setNeedsLayout() } }
+    }
     private var dots: [CALayer] = []
     private var elements: [AuraAccessibleElement] = []
     private var camera = CGPoint(x:500,y:700)
     private var zoom: CGFloat = 2.4
     private var followsUser = true
-    private let userRing = CAShapeLayer()
     private var movement = true, sceneActive = false, covered = false, held = false
     private var panning = false, pinching = false
     private var strings = WorldStrings(language:.deviceDefault)
@@ -131,24 +132,20 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
         super.init(frame:.zero)
         isOpaque = true; backgroundColor = UIColor(patternImage:art.paper); clipsToBounds = true
         accessibilityIdentifier = "world.canvas"
+        layer.addSublayer(places.pigments)
+        layer.addSublayer(lightLayer)
+        for label in places.labels { addSubview(label) }
+        places.setPlaces(AuraWorldSimulation.localPlaces(strings), traits:traitCollection)
         for id in simulation.agents.indices {
             let dot = CALayer(); dot.bounds = CGRect(x:0,y:0,width:96,height:96)
             dot.contentsScale = 2
             dot.actions = ["position":NSNull(),"transform":NSNull(),"contents":NSNull(),"opacity":NSNull(),"hidden":NSNull()]
             let ink = simulation.agents[id].auraInk
             dot.contents = AuraInk.image(ink).cgImage
-            layer.addSublayer(dot); dots.append(dot)
+            lightLayer.addSublayer(dot); dots.append(dot)
             elements.append(AuraAccessibleElement(canvas:self,id:id))
         }
-        userRing.bounds = CGRect(x:0,y:0,width:16,height:16)
-        userRing.path = UIBezierPath(ovalIn:userRing.bounds).cgPath
-        userRing.fillColor = UIColor.clear.cgColor
-        userRing.strokeColor = UIColor(hex:simulation.agents[0].auraInk).withAlphaComponent(0.55).cgColor
-        userRing.lineWidth = 0.65
-        userRing.actions = ["position":NSNull(),"strokeColor":NSNull()]
-        // Own aura is identified by the follow camera, without an exact-position ring.
-        userRing.isHidden = true
-        accessibilityElements = elements
+        updateAccessibility()
         frameTarget.canvas = self
         let pan = UIPanGestureRecognizer(target:self,action:#selector(panned(_:)))
         pan.maximumNumberOfTouches = 1; pan.delegate = self; addGestureRecognizer(pan)
@@ -178,8 +175,17 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
     private func mapPoint(_ p: CGPoint) -> CGPoint { CGPoint(x:camera.x+(p.x-viewport.midX)/(fit*zoom),y:camera.y+(p.y-viewport.midY)/(fit*zoom)) }
     private func project(geometry: Bool = false) {
         guard bounds.width>0 else { return }
+        let previousCamera = camera
         if followsUser { camera = simulation.agents[0].point }
         CATransaction.begin(); CATransaction.setDisableActions(true)
+        if geometry || previousCamera != camera {
+            let captionArea = bounds.inset(by:UIEdgeInsets(top:max(safeAreaInsets.top,captionTopEdge)+16,left:18,
+                                                          bottom:safeAreaInsets.bottom+38,right:18))
+            if places.project(in:captionArea, project:projected) {
+                accessiblePlaces = places.labels.filter { !$0.isHidden }
+                updateAccessibility()
+            }
+        }
         for id in dots.indices {
             let a = simulation.agents[id], dot = dots[id]
             dot.position = screenPoint(id)
@@ -189,7 +195,8 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
             }
             dot.isHidden = (locationMode && id != 0) || !bounds.insetBy(dx:-140,dy:-140).contains(dot.position)
             let moodAlpha: Float = mood == .restful ? 0.72 : mood == .gentle ? 0.86 : 1
-            dot.opacity = (a.activity == .rest ? 0.72 : 0.94)*moodAlpha*Float(0.94+0.06*sin(auraPhase*0.8+Double(id)*0.7))
+            let emphasis: Float = id == 0 ? 1 : 0.48
+            dot.opacity = emphasis*(a.activity == .rest ? 0.8 : 0.98)*moodAlpha*Float(0.94+0.06*sin(auraPhase*0.8+Double(id)*0.7))
         }
         if let mapDrawing {
             mapDrawing.position = projected(.zero)
@@ -261,12 +268,33 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
         snapshot.isConnectedPeer = true; return snapshot
     }
     func restoreAbilities(_ values: [Int]) { simulation.restoreUserAbilities(values) }
-    func locateUser(_ point: CGPoint,radius: Double) { locationMode = true; ownRadius = CGFloat(radius); simulation.anchorUser(point); accessibilityElements = [elements[0]]+peerElements; cameraChanged() }
-    func clearMap() { mapDrawing?.removeFromSuperlayer(); mapDrawing = nil; hasRealMap = false }
+    func locateUser(_ point: CGPoint,radius: Double) {
+        if !locationMode {
+            locationMode = true
+            if !hasRealMap { places.setPlaces([], traits:traitCollection) }
+            updateAccessibility()
+        }
+        ownRadius = CGFloat(radius)
+        simulation.anchorUser(point)
+        cameraChanged()
+    }
+    func clearMap() {
+        mapDrawing?.removeFromSuperlayer()
+        mapDrawing = nil
+        hasRealMap = false
+        if locationMode { places.setPlaces([], traits:traitCollection); cameraChanged() }
+    }
     func setMap(_ sheet: WorldMapSheet) {
-        mapDrawing?.removeFromSuperlayer(); let drawing = WorldSketchMap.layer(sheet); mapDrawing = drawing
-        layer.insertSublayer(drawing,at:0); hasRealMap = true
-        accessibilityElements = [elements[0]] + peerElements; cameraChanged()
+        mapDrawing?.removeFromSuperlayer()
+        let map = WorldSketchMap.make(sheet)
+        mapDrawing = map.drawing
+        layer.insertSublayer(map.drawing,below:places.pigments)
+        hasRealMap = true
+        places.setPlaces(map.places, traits:traitCollection)
+        cameraChanged()
+    }
+    private func updateAccessibility() {
+        accessibilityElements = (locationMode ? [elements[0]] : elements) + peerElements + accessiblePlaces
     }
     func setPeers(_ values: [WorldCloudPeer]) {
         peers = values.sorted { $0.id<$1.id }
@@ -275,10 +303,11 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
         for layer in peerLayers { layer.removeFromSuperlayer() }; peerLayers = []; peerElements = []
         for (index,peer) in peers.enumerated() {
             let light = CALayer(); light.bounds = CGRect(x:0,y:0,width:96,height:96); light.contents = AuraInk.image(peer.ink).cgImage
-            light.actions = ["position":NSNull(),"transform":NSNull(),"hidden":NSNull()]; layer.addSublayer(light); peerLayers.append(light)
+            light.actions = ["position":NSNull(),"transform":NSNull(),"hidden":NSNull()]; lightLayer.addSublayer(light); peerLayers.append(light)
             peerElements.append(AuraAccessibleElement(canvas:self,id:1000+index))
         }
-        accessibilityElements = locationMode ? [elements[0]]+peerElements : elements+peerElements
+        for element in peerElements { element.accessibilityCustomActions = accessibilityCustomActions }
+        updateAccessibility()
         cameraChanged()
     }
     fileprivate func agentLabel(_ id: Int) -> String { if id>=1000 { return strings[.nearbyAura] }; return id==0 ? strings[.yourLight] : strings[.light]+String(format:" %02d",id+1) }
@@ -290,9 +319,11 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
     fileprivate func selectAgent(_ id: Int) { onAgentTap?(id) }
     func apply(state: WorldState, strings: WorldStrings) {
         self.strings = strings; movement = state.movement; mood = state.aura
+        if locationMode { places.updateTypography(traits:traitCollection) }
+        else { places.setPlaces(AuraWorldSimulation.localPlaces(strings), traits:traitCollection) }
         accessibilityLabel = strings[.world]; accessibilityValue = String(format:"%.0f%%",zoom*100)
         accessibilityCustomActions = [UIAccessibilityCustomAction(name:strings[.zoomIn],target:self,selector:#selector(accessibleZoomIn)),UIAccessibilityCustomAction(name:strings[.zoomOut],target:self,selector:#selector(accessibleZoomOut)),UIAccessibilityCustomAction(name:strings[.overview],target:self,selector:#selector(accessibleOverview)),UIAccessibilityCustomAction(name:strings[.returnToLight],target:self,selector:#selector(accessibleRecenter))]
-        for element in elements { element.accessibilityCustomActions = accessibilityCustomActions }
+        for element in elements + peerElements { element.accessibilityCustomActions = accessibilityCustomActions }
         cameraChanged(); syncClock()
     }
     func setSceneActive(_ active: Bool) { sceneActive = active; if !active { recordMetrics() }; syncClock() }

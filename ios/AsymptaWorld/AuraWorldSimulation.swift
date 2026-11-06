@@ -63,6 +63,23 @@ final class AuraWorldSimulation {
     private(set) var completedEncounters = 0
     private var seed: UInt64 = 7919731
     static let extent = CGSize(width:1000,height:1400)
+    private static let learningHubs: [(CGPoint, WorldStrings.Key, UInt32)] = [
+        (CGPoint(x:240,y:360), .glimmerField, 0xc87550),
+        (CGPoint(x:740,y:660), .paperRiver, 0x4f90a5),
+        (CGPoint(x:400,y:1060), .slowHill, 0x9c8bb6)
+    ]
+    private static let makingHubs: [(CGPoint, WorldStrings.Key, UInt32)] = [
+        (CGPoint(x:650,y:390), .eveningWay, 0xdd9c48),
+        (CGPoint(x:300,y:800), .inkBank, 0x6d8eaa),
+        (CGPoint(x:730,y:1110), .littlePath, 0xc38265)
+    ]
+
+    static func localPlaces(_ strings: WorldStrings) -> [WorldPlace] {
+        (learningHubs + makingHubs).map { point, key, ink in
+            WorldPlace(name:strings[key], point:point, rank:0, ink:ink)
+        }
+    }
+
     static func identityInk(_ id: Int) -> UInt32 {
         let hue = CGFloat((Double(id) * 0.61803398875).truncatingRemainder(dividingBy:1))
         let color = UIColor(hue:hue,saturation:0.35,brightness:0.88,alpha:1)
@@ -101,12 +118,10 @@ final class AuraWorldSimulation {
         case .explore:
             destination = bounded(CGPoint(x:p.x+(random()-0.5)*650,y:p.y+(random()-0.5)*650))
         case .learn:
-            let centers = [CGPoint(x:240,y:360),CGPoint(x:740,y:660),CGPoint(x:400,y:1060)]
-            let hub = centers[id%centers.count]
+            let hub = Self.learningHubs[id % Self.learningHubs.count].0
             destination = bounded(CGPoint(x:hub.x+(random()-0.5)*140,y:hub.y+(random()-0.5)*140))
         case .create:
-            let centers = [CGPoint(x:650,y:390),CGPoint(x:300,y:800),CGPoint(x:730,y:1110)]
-            let hub = centers[id%centers.count]
+            let hub = Self.makingHubs[id % Self.makingHubs.count].0
             destination = bounded(CGPoint(x:hub.x+(random()-0.5)*160,y:hub.y+(random()-0.5)*160))
         case .rest:
             // Rest nearby, rather than crossing the entire paper when tired.

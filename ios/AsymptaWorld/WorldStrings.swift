@@ -188,11 +188,12 @@ enum WorldTheme {
     static let blue = UIColor(hex: 0x7296aa)
     static let coral = UIColor(hex: 0xdca37b)
     static let straw = UIColor(hex: 0xe5bd79)
-    static let paper = UIColor(hex: 0xfdfcf9)
-    static let ink = UIColor(hex: 0x596f7e)
-    static let muted = UIColor(hex: 0x7e8789)
+    static let paper = UIColor(hex: 0xf7efdf)
+    static let mapPaper = UIColor(hex: 0xefe2cb)
+    static let ink = UIColor(hex: 0x312923)
+    static let muted = UIColor(hex: 0x65574b)
     static let leaf = UIColor(hex: 0xb5a57c)
-    static let line = UIColor(hex: 0xe8e6df)
+    static let line = UIColor(hex: 0xd9c9b1)
 
     static func font(_ style: UIFont.TextStyle = .body, handwritten: Bool = false) -> UIFont {
         let sizes: [UIFont.TextStyle: CGFloat] = [.largeTitle:30,.title1:27,.title2:23,.title3:20,.headline:14,.body:14,.callout:13,.subheadline:12,.footnote:11,.caption1:10,.caption2:9]

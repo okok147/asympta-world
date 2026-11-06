@@ -119,7 +119,8 @@ final class WorldPanelsViewController: UIViewController, UITextFieldDelegate {
         let s = store.strings
         let image = UIImageView(image:AuraInk.image(agent.auraInk))
         image.contentMode = .scaleAspectFit
-        image.heightAnchor.constraint(equalToConstant:96).isActive = true
+        image.heightAnchor.constraint(equalToConstant:112).isActive = true
+        image.isAccessibilityElement = false
         stack.addArrangedSubview(image)
         heading(s[.auraProfile],detail:agent.completed == 0 ? s[.developingAbility] : s[.specialty]+" · "+s[agent.dominant.titleKey]+" · "+s[.abilityLevel]+" \(agent.dominantLevel)")
         for activity in AuraActivity.allCases {
@@ -128,9 +129,7 @@ final class WorldPanelsViewController: UIViewController, UITextFieldDelegate {
             row.accessibilityIdentifier = "world.agent.ability.\(activity.rawValue)"
             let label = WorldTheme.label(s[activity.titleKey]+" · \(s[.abilityLevel]) \(AuraAbility.level(count))",style:.subheadline)
             row.addArrangedSubview(label)
-            let bar = UIProgressView(progressViewStyle:.default); bar.progress = AuraAbility.progress(count); bar.progressTintColor = UIColor(hex:agent.auraInk); bar.trackTintColor = WorldTheme.line
-            bar.isAccessibilityElement = false
-            row.addArrangedSubview(bar)
+            row.addArrangedSubview(AbilityImpressions(progress:AuraAbility.progress(count)))
             let completions = WorldTheme.label("\(s[.completedActivities]): \(count)",style:.caption1,muted:true)
             row.addArrangedSubview(completions); stack.addArrangedSubview(row)
         }
@@ -432,6 +431,37 @@ final class WorldPanelsViewController: UIViewController, UITextFieldDelegate {
     @objc private func close() {
         view.endEditing(true)
         dismiss(animated: !UIAccessibility.isReduceMotionEnabled) { [weak self] in self?.onClose?() }
+    }
+}
+
+/// A short impression scale for the existing progress value; the row provides the spoken count.
+private final class AbilityImpressions: UIView {
+    private let progress: CGFloat
+
+    init(progress: Float) {
+        self.progress = CGFloat(progress)
+        super.init(frame:.zero)
+        isOpaque = false
+        isAccessibilityElement = false
+        contentMode = .redraw
+        heightAnchor.constraint(equalToConstant:10).isActive = true
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func draw(_ rect: CGRect) {
+        let count = 24
+        let spacing = min(7,bounds.width/CGFloat(count))
+        for index in 0..<count {
+            let x = CGFloat(index)*spacing
+            let fill = max(0,min(1,progress*CGFloat(count)-CGFloat(index)))
+            WorldTheme.line.setFill()
+            UIRectFill(CGRect(x:x,y:0,width:1,height:bounds.height))
+            if fill > 0 {
+                WorldTheme.ink.setFill()
+                UIRectFill(CGRect(x:x,y:bounds.height*(1-fill),width:1,height:bounds.height*fill))
+            }
+        }
     }
 }
 
