@@ -88,6 +88,7 @@ final class AuraWorldSimulation {
         return (UInt32(red*255)<<16) | (UInt32(green*255)<<8) | UInt32(blue*255)
     }
     private var userAnchor: CGPoint?
+    private var localUserPoint: CGPoint?
     private(set) var restoredUserAbilities = [Int](repeating:0,count:5)
     init(count: Int = 72,userInk: UInt32? = nil) {
         let anchors = [CGPoint(x:500,y:700),CGPoint(x:660,y:520),CGPoint(x:790,y:840),CGPoint(x:280,y:450),CGPoint(x:330,y:950)]
@@ -144,9 +145,19 @@ final class AuraWorldSimulation {
         agents[id].duration = max(3,Double(distance(p,destination))/(activity == .rest ? 40 : 55))
     }
     func anchorUser(_ point: CGPoint) {
+        guard userAnchor != point else { return }
+        if userAnchor == nil { localUserPoint = agents[0].point }
         if let peer = agents[0].partner { agents[peer].partner = nil; agents[0].partner = nil; plan(peer) }
         userAnchor = point; agents[0].point = point; plan(0)
     }
+    func releaseUserAnchor() {
+        guard let localUserPoint else { return }
+        userAnchor = nil
+        self.localUserPoint = nil
+        agents[0].point = localUserPoint
+        plan(0)
+    }
+
     func restoreUserAbilities(_ values: [Int]) {
         guard values.count==5,values.allSatisfy({$0>=0}) else { return }
         for index in values.indices {

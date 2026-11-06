@@ -28,7 +28,7 @@ enum WorldLanguage: String, Codable, CaseIterable {
 
 struct WorldStrings {
     enum Key: String {
-        case chooseAura, growthCloudSaved
+        case chooseAura, growthCloudSaved, nearbyAtlas, localAtlas, atlasMode, exploreLocalAtlas
         case nearbyAura, approximateAura, livePresenceDetail, locationMapTitle, locationMapDetail, useLocation, locationDenied, openSettings, mapLoading, mapUnavailable, mapAttribution, cloudConnected, cloudOffline, growthStored
         case yourLight, returnToLight, personalCorner, auraProfile, specialty, abilityLevel, developingAbility
         case light, activityExplore, activityLearn, activityCreate, activityConnect, activityRest
@@ -63,6 +63,10 @@ struct WorldStrings {
     }
 
     private static let copy: [Key: [String]] = [
+        .nearbyAtlas: ["Nearby map", "附近地圖", "近くの地図"],
+        .localAtlas: ["Local world", "本機世界", "端末内の世界"],
+        .atlasMode: ["Choose a world", "選擇世界", "世界を選ぶ"],
+        .exploreLocalAtlas: ["Explore the local world", "探索本機世界", "端末内の世界を探索"],
         .chooseAura: ["Choose an aura", "選擇一個光暈", "オーラを選ぶ"],
         .growthCloudSaved: ["Your growth is synchronized.", "你的成長已同步。", "成長を同期しました。"],
         .nearbyAura: ["Nearby aura", "附近的光暈", "近くのオーラ"],

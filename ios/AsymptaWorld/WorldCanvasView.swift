@@ -122,9 +122,6 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
     private let metricWriter = DispatchQueue(label:"com.asympta.world.scene-metrics",qos:.utility)
     var onAgentTap: ((Int)->Void)?
     var onAuraGroupTap: (([AuraAgentSnapshot])->Void)?
-    var onMapInteraction: (() -> Void)?
-    var onZoomChange: ((CGFloat)->Void)?
-    var isAtOverview: Bool { zoom<=0.56 }
     private var viewport: CGRect { bounds.inset(by:UIEdgeInsets(top:safeAreaInsets.top+20,left:14,bottom:safeAreaInsets.bottom+26,right:14)) }
     private var fit: CGFloat { max(0.01,min(viewport.width/1000,viewport.height/1400)) }
     init(art: WorldArt, userInk: UInt32? = nil) {
@@ -180,7 +177,7 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
         CATransaction.begin(); CATransaction.setDisableActions(true)
         if geometry || previousCamera != camera {
             let captionArea = bounds.inset(by:UIEdgeInsets(top:max(safeAreaInsets.top,captionTopEdge)+16,left:18,
-                                                          bottom:safeAreaInsets.bottom+38,right:18))
+                                                          bottom:safeAreaInsets.bottom+66,right:18))
             if places.project(in:captionArea, project:projected) {
                 accessiblePlaces = places.labels.filter { !$0.isHidden }
                 updateAccessibility()
@@ -249,11 +246,11 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
     }
     private func cameraChanged() {
         let start = CACurrentMediaTime(); project(geometry:true); cameraWork += CACurrentMediaTime()-start; cameraUpdates += 1
-        accessibilityValue = String(format:"%.0f%%",zoom*100); onZoomChange?(zoom)
+        accessibilityValue = String(format:"%.0f%%",zoom*100)
     }
-    func overview(animated: Bool = true) { onMapInteraction?(); followsUser = false; zoom = 0.55; camera = CGPoint(x:500,y:700); cameraChanged() }
-    func recenter() { onMapInteraction?(); followsUser = true; camera = simulation.agents[0].point; zoom = 2.4; cameraChanged() }
-    func adjustZoom(_ factor: CGFloat) { onMapInteraction?(); zoomAt(factor,anchor:CGPoint(x:viewport.midX,y:viewport.midY)) }
+    func overview() { followsUser = false; zoom = 1; camera = CGPoint(x:500,y:700); cameraChanged() }
+    func recenter() { followsUser = true; camera = simulation.agents[0].point; zoom = 2.4; cameraChanged() }
+    func adjustZoom(_ factor: CGFloat) { followsUser = false; zoomAt(factor,anchor:CGPoint(x:viewport.midX,y:viewport.midY)) }
     private func zoomAt(_ factor: CGFloat, anchor: CGPoint) {
         let origin = mapPoint(anchor); zoom = min(3.5,max(0.45,zoom*factor))
         camera = CGPoint(x:origin.x-(anchor.x-viewport.midX)/(fit*zoom),y:origin.y-(anchor.y-viewport.midY)/(fit*zoom)); cameraChanged()
@@ -269,20 +266,27 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
     }
     func restoreAbilities(_ values: [Int]) { simulation.restoreUserAbilities(values) }
     func locateUser(_ point: CGPoint,radius: Double) {
-        if !locationMode {
-            locationMode = true
-            if !hasRealMap { places.setPlaces([], traits:traitCollection) }
-            updateAccessibility()
-        }
+        let entering = !locationMode
+        locationMode = true
         ownRadius = CGFloat(radius)
         simulation.anchorUser(point)
-        cameraChanged()
+        if entering {
+            updateAccessibility()
+            recenter()
+        } else {
+            cameraChanged()
+        }
     }
-    func clearMap() {
+    func showLocalWorld() {
+        guard locationMode else { return }
+        locationMode = false
         mapDrawing?.removeFromSuperlayer()
         mapDrawing = nil
         hasRealMap = false
-        if locationMode { places.setPlaces([], traits:traitCollection); cameraChanged() }
+        simulation.releaseUserAnchor()
+        places.setPlaces(AuraWorldSimulation.localPlaces(strings), traits:traitCollection)
+        setPeers([])
+        recenter()
     }
     func setMap(_ sheet: WorldMapSheet) {
         mapDrawing?.removeFromSuperlayer()
@@ -341,7 +345,7 @@ final class WorldCanvasView: UIView, UIGestureRecognizerDelegate {
     private func gestureState(_ gesture: UIGestureRecognizer,pinch: Bool) {
         let active = gesture.state == .began || gesture.state == .changed
         if pinch { pinching = active } else { panning = active }
-        if gesture.state == .began { followsUser = false; onMapInteraction?() }
+        if gesture.state == .began { followsUser = false }
         syncClock(); if !active { recordMetrics() }
     }
     @objc private func panned(_ gesture: UIPanGestureRecognizer) {

@@ -36,6 +36,7 @@ final class WorldCloudSession {
     private var socket: URLSessionWebSocketTask?
     private var heartbeat: Timer?
     private var saveTask: Task<Void,Never>?
+    private var mapTask: Task<Void,Never>?
     private var lastUpload = Date.distantPast
     private var accuracy = 200.0
     private var coordinate: CLLocationCoordinate2D?
@@ -87,6 +88,7 @@ final class WorldCloudSession {
         return r
     }
     func setActive(_ value: Bool) {
+        guard value != active else { return }
         active = value
         if value {
             Task { await restoreGrowth() }
@@ -103,11 +105,22 @@ final class WorldCloudSession {
         cell = next; coordinate = approximate
         if changed {
             disconnect()
-            Task { await loadMap(next) }
+            requestMap(next)
             if active { connect() }
         } else { sendPresence() }
     }
-    func retryMap() { if let cell { Task { await loadMap(cell) } } }
+    func retryMap() { if let cell { requestMap(cell) } }
+    func clearLocation() {
+        mapTask?.cancel()
+        mapTask = nil
+        cell = nil
+        coordinate = nil
+        disconnect()
+    }
+    private func requestMap(_ cell: WorldMapCell) {
+        mapTask?.cancel()
+        mapTask = Task { await loadMap(cell) }
+    }
     func record(_ values: [Int]) {
         guard readable,Self.valid(values) else { return }
         let merged = zip(abilities,values).map { max($0.0,$0.1) }
@@ -160,6 +173,7 @@ final class WorldCloudSession {
         if let data = try? JSONSerialization.data(withJSONObject:value,options:.sortedKeys) { try? data.write(to:url,options:.atomic) }
     }
     private func loadMap(_ target: WorldMapCell) async {
+        guard cell == target, !Task.isCancelled else { return }
         let cache = FileManager.default.urls(for:.cachesDirectory,in:.userDomainMask)[0].appendingPathComponent("aura-map-\(target.x)-\(target.y).json")
         if let data = try? Data(contentsOf:cache),data.count<1024*1024,let sheet = try? JSONDecoder().decode(WorldMapSheet.self,from:data),cell==target { onMap?(sheet) }
         guard let r = request("/v1/map?x=\(target.x)&y=\(target.y)") else { onMapFailure?(); return }
@@ -169,8 +183,8 @@ final class WorldCloudSession {
             let sheet = try JSONDecoder().decode(WorldMapSheet.self,from:data)
             guard sheet.schema==1,sheet.cellX==target.x,sheet.cellY==target.y,sheet.features.count<=249 else { throw URLError(.cannotParseResponse) }
             try? data.write(to:cache,options:.atomic)
-            if cell==target { onMap?(sheet) }
-        } catch { if cell==target { onMapFailure?() } }
+            if cell==target, !Task.isCancelled { onMap?(sheet) }
+        } catch { if cell==target, !Task.isCancelled { onMapFailure?() } }
     }
     private func connect() {
         guard active,socket==nil,let cell,coordinate != nil,var r = request("/v1/world?x=\(cell.x)&y=\(cell.y)") else { return }

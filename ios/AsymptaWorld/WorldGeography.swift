@@ -44,6 +44,7 @@ struct WorldMapCell: Equatable {
 @MainActor
 final class WorldLocation: NSObject, CLLocationManagerDelegate {
     private let manager = CLLocationManager()
+    private var active = false
     var onLocation: ((CLLocationCoordinate2D,Double)->Void)?
     var onStatus: ((CLAuthorizationStatus)->Void)?
     var onFailure: (() -> Void)?
@@ -61,6 +62,7 @@ final class WorldLocation: NSObject, CLLocationManagerDelegate {
         }
     }
     func setActive(_ active: Bool) {
+        self.active = active
         if active && [.authorizedWhenInUse,.authorizedAlways].contains(manager.authorizationStatus) { manager.startUpdatingLocation() }
         else { manager.stopUpdatingLocation() }
     }
@@ -69,10 +71,10 @@ final class WorldLocation: NSObject, CLLocationManagerDelegate {
         if [.authorizedWhenInUse,.authorizedAlways].contains(manager.authorizationStatus) { manager.startUpdatingLocation() }
     }
     func locationManager(_ manager: CLLocationManager,didUpdateLocations locations: [CLLocation]) {
-        guard let value = locations.last,value.horizontalAccuracy>=0,abs(value.timestamp.timeIntervalSinceNow)<120 else { return }
+        guard active, let value = locations.last,value.horizontalAccuracy>=0,abs(value.timestamp.timeIntervalSinceNow)<120 else { return }
         onLocation?(value.coordinate,value.horizontalAccuracy)
     }
-    func locationManager(_ manager: CLLocationManager,didFailWithError error: Error) { onFailure?() }
+    func locationManager(_ manager: CLLocationManager,didFailWithError error: Error) { if active { onFailure?() } }
 }
 
 /// An analog wash shared by the static place pigments and the fibrous aura textures.

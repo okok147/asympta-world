@@ -430,7 +430,7 @@ final class WorldPanelsViewController: UIViewController, UITextFieldDelegate {
 
     @objc private func close() {
         view.endEditing(true)
-        dismiss(animated: !UIAccessibility.isReduceMotionEnabled) { [weak self] in self?.onClose?() }
+        onClose?()
     }
 }
 

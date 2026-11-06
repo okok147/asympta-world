@@ -148,7 +148,7 @@ A seed plus serialized world, event queue and causal history are sufficient to r
 
 The product UI remains calm and map-first; canonical state is available through snapshots/WebMCP and tests without turning the customer surface into a debug dashboard.
 
-## Native iPhone app (independent of web runtime)
+## Native iPhone and iPad app (independent of web runtime)
 
 `ios/AsymptaWorld/AppDelegate.swift` → `NativeWorldViewController` owns `WorldCanvasView`, gesture-based camera control and native `WorldPanels`. The iOS app does not load the web runtime. `WorldStore` retains the version1 atomic personal file at `Application Support/AsymptaWorld/personal-world-v1.json`; nickname, favorites, journal, language, Aura and movement contracts do not change.
 
@@ -265,3 +265,12 @@ The November 6 user reference informs a native visual language: cream paper, bro
 - `WorldPlaceOverlay` projects at most four screen-sized captions through `WorldCanvasView`'s camera, clearing room for existing interface elements and rejecting collisions. Pigment sits under the lights and type over them. Captions are readable by VoiceOver and allow normal map touch interaction. Typography updates with Dynamic Type. `AuraWorldSimulation` supplies names and coordinates from its existing learning and making hubs only in the local world. Loading a geographic cell clears local names; changing cells removes the old geometry and captions together.
 - `WorldPanels` keeps the existing profile and progress contract, with printed ticks showing the same `AuraAbility.progress` fraction. No schema, device setting, geographic precision, network payload, activity rule, zoom range or gesture changes are required by this presentation.
 - When extending this direction, give each new surface one focal action or reading order. Reuse the ink and paper system, reserve large washes for spatial context, and verify caption hierarchy, contrast, gestures and state truth in the actual TestFlight scene. See [native release evidence](IOS_AURA_WORLD_RELEASE.md) for what is installed and physically verified.
+
+
+### Native atlas workspace — build15
+
+The same app and bundle now target iPhone and iPad. The iPad supports all four orientations and uses the current window geometry; iPhone remains portrait. `NativeWorldViewController` owns the atlas host, native map-mode menu, personal-space entry and two camera actions. The same UIKit navigation stack appears as an inspector beside the atlas in wide windows and as a system sheet when opened from a narrow window. If a wide window narrows while the inspector is open, its existing stack reflows below the atlas. Map interaction leaves an active journal editor in place.
+
+The atlas keeps one world camera as its available space changes. Caption placement reserves the header, location explanation and camera controls. The actual geographic view and OSM credit appear together when an active cell has usable geometry. Local exploration and nearby mode are explicit choices, stored independently from the personal journal file. The local world is available while waiting for location or map geometry. Leaving nearby mode stops location updates, cancels the active map task, clears its cell and disconnects presence. `AuraWorldSimulation` restores the preceding local position and keeps earned abilities. A return to nearby starts a fresh location flow and accepts map and peers only for the current geographic state. Existing ability sync remains independent of geographic mode.
+
+Scene activation gates the simulation clock, location updates and socket. The installed release and physically observed layouts are tracked in [native release evidence](IOS_AURA_WORLD_RELEASE.md).
