@@ -119,3 +119,5 @@ Private task work/build13: air17-installed-before.json, air17-flight-loaded-sele
 ### Build17 one-hour progress checkpoint
 
 At 13:29 HKT the compiled designated operator and build17 TestFlight receipts were ready. The first native acquisition timed out on a foreign coordination lock. Readback showed no World lease, waiter or local grant. After the lock released, the exact same request was restored through the normal queue. Readback then showed the World waiter and no lease. No device installation or action had occurred.
+
+At 13:46 HKT the bounded normal wait ended. A fresh pool read showed both connected iPads under human-use protection, with no World reservation, waiter or grant. Build17 was never installed or exercised in this task. The draft restoration, opt-in transition, photo picker and complete native social scene remain pending. Source, signed export, live-service migration and internal TestFlight distribution are verified independently.
