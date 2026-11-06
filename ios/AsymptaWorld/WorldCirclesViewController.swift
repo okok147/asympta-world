@@ -329,6 +329,7 @@ private final class WorldCircleFeedViewController: WorldCirclePaperViewControlle
     private var error: Error?
     private var reading = false
     private var leaving = false
+    private var visibleMomentLimit = 18
 
     init(link: WorldCircleLink, client: WorldSocialClient, strings: WorldStrings, region: @escaping () -> String?,
          areaOnly: Bool, onArea: @escaping (WorldCircleLink,Int,Int) -> Void) {
@@ -348,6 +349,7 @@ private final class WorldCircleFeedViewController: WorldCirclePaperViewControlle
         refresh.addAction(UIAction { [weak self] _ in self?.reload() }, for:.valueChanged)
         scroll.refreshControl = refresh
         NotificationCenter.default.addObserver(self, selector:#selector(activated(_:)), name:UIScene.didActivateNotification, object:nil)
+        NotificationCenter.default.addObserver(self, selector:#selector(regionChanged), name:.worldSocialRegionDidChange, object:nil)
         render()
     }
 
@@ -363,6 +365,10 @@ private final class WorldCircleFeedViewController: WorldCirclePaperViewControlle
               let scene = viewIfLoaded?.window?.windowScene,
               (notification.object as? UIScene) === scene else { return }
         reload()
+    }
+
+    @objc private func regionChanged() {
+        if navigationController?.topViewController === self { render() }
     }
 
     private func reload() {
@@ -407,7 +413,8 @@ private final class WorldCircleFeedViewController: WorldCirclePaperViewControlle
         onArea(link,areaMoments.count,result.activity.count)
         navigationItem.rightBarButtonItems = [makeOptions(),makeRefresh()]
         titleBlock(circle.title, detail:strings[.circlePrivate] + "  ·  " + count(circle.memberCount,.circleMembersFormat))
-        stack.addArrangedSubview(action(.circleShareMoment,"square.and.pencil",id:"world.circle.compose",filled:true) { [weak self] in self?.compose(circle) })
+        let composeTitle: WorldStrings.Key = WorldSocialClient.hasDraft(for:circle.id) ? .circleResumeDraft : .circleShareMoment
+        stack.addArrangedSubview(action(composeTitle,"square.and.pencil",id:"world.circle.compose",filled:true) { [weak self] in self?.compose(circle) })
         if circle.canInvite && circle.memberCount == 1 {
             stack.addArrangedSubview(action(.circleInvite,"person.badge.plus",id:"world.circle.invite") { [weak self] in self?.invite() })
         }
@@ -425,6 +432,7 @@ private final class WorldCircleFeedViewController: WorldCirclePaperViewControlle
             segments.addAction(UIAction { [weak self, weak segments] _ in
                 guard let self, let segments else { return }
                 self.areaOnly = segments.selectedSegmentIndex == 1
+                self.visibleMomentLimit = 18
                 self.render()
             }, for:.valueChanged)
             stack.addArrangedSubview(segments)
@@ -440,7 +448,7 @@ private final class WorldCircleFeedViewController: WorldCirclePaperViewControlle
                 titleBlock(strings[.circleEmptyTitle],detail:strings[.circleEmptyDetail])
             }
         }
-        for (index,moment) in moments.enumerated() {
+        for (index,moment) in moments.prefix(visibleMomentLimit).enumerated() {
             let colors = WorldPigment.placeColors
             let pigment = colors[Int(moment.id.utf8.first ?? 0) % colors.count]
             let title = moment.text.isEmpty ? (moment.photoDescription ?? strings[.circlePhoto]) : moment.text
@@ -453,6 +461,13 @@ private final class WorldCircleFeedViewController: WorldCirclePaperViewControlle
             let card = WorldCircleSlip(title:title,detail:meta,footer:signs.isEmpty ? nil : signs.joined(separator:"  ·  "),
                                        ink:pigment,style:moment.author.style.flatMap(WorldCircleInkStyle.init(rawValue:)),id:"world.circle.moment.\(index)") { [weak self] in self?.openMoment(circle,id:moment.id) }
             stack.addArrangedSubview(card)
+        }
+        if moments.count > visibleMomentLimit {
+            stack.addArrangedSubview(action(.circleEarlierMoments,"arrow.down",id:"world.circle.earlier") { [weak self] in
+                guard let self else { return }
+                self.visibleMomentLimit += 18
+                self.render()
+            })
         }
         view.layoutIfNeeded()
         let maxOffset = max(-scroll.adjustedContentInset.top, scroll.contentSize.height - scroll.bounds.height + scroll.adjustedContentInset.bottom)
@@ -493,7 +508,7 @@ private final class WorldCircleFeedViewController: WorldCirclePaperViewControlle
     }
 
     private func compose(_ circle: WorldCircle) {
-        let editor = WorldMomentComposerViewController(circle:circle, region:region(), client:client, strings:strings) { [weak self] id in
+        let editor = WorldMomentComposerViewController(circle:circle, region:region, client:client, strings:strings) { [weak self] id in
             guard let self, let nav = self.navigationController,
                   let index = nav.viewControllers.firstIndex(where: { $0 === self }) else { return }
             self.areaOnly = false
@@ -763,17 +778,14 @@ private final class WorldCircleSafetyViewController: WorldCirclePaperViewControl
     }
 
     private func show(_ report: WorldCircleReport) {
-        stack.addArrangedSubview(WorldTheme.label(report.author.name + "  ·  " + count(report.reportCount,.circleReportCountFormat),style:.headline))
-        stack.addArrangedSubview(WorldTheme.label(report.text.isEmpty ? strings[.circlePhoto] : report.text,style:.body))
-        stack.addArrangedSubview(action(.circleReportKeep,"checkmark",id:"world.circle.report.keep") { [weak self] in
+        let detail = report.text.isEmpty ? strings[.circlePhoto] : report.text
+        stack.addArrangedSubview(WorldCircleSlip(title:report.author.name,detail:detail,
+                                                  footer:count(report.reportCount,.circleReportCountFormat),ink:0xbb6346,
+                                                  id:"world.circle.report.link") { [weak self] in
             guard let self else { return }
-            self.apply { try await self.client.resolve(circleID:self.circleID,kind:report.kind,target:report.target) }
-        })
-        stack.addArrangedSubview(action(.circleReportRemove,"trash",id:"world.circle.report.remove") { [weak self] in
-            guard let self else { return }
-            self.confirm(.circleReportRemove,detail:.circleReportRemoveDetail) {
-                self.apply { try await self.client.moderate(circleID:self.circleID,kind:report.kind,target:report.target,action:"remove") }
-            }
+            let review = WorldCircleReviewViewController(report:report,circleID:self.circleID,
+                                                        client:self.client,strings:self.strings) { [weak self] in self?.load() }
+            self.navigationController?.pushViewController(review, animated:!UIAccessibility.isReduceMotionEnabled)
         })
     }
 
@@ -862,6 +874,103 @@ private final class WorldCircleStyleViewController: WorldCirclePaperViewControll
             do {
                 try await client.setStyle(circleID:circle.id, style:chosen)
                 onSave()
+                navigationController?.popViewController(animated:!UIAccessibility.isReduceMotionEnabled)
+            } catch { notify(client.errorText(error,strings)) }
+        }
+    }
+}
+
+
+private final class WorldCircleReviewViewController: WorldCirclePaperViewController {
+    private let report: WorldCircleReport
+    private let circleID: String
+    private let client: WorldSocialClient
+    private let onDecision: () -> Void
+    private var changing = false
+
+    init(report: WorldCircleReport, circleID: String, client: WorldSocialClient, strings: WorldStrings, onDecision: @escaping () -> Void) {
+        self.report = report
+        self.circleID = circleID
+        self.client = client
+        self.onDecision = onDecision
+        super.init(strings:strings)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = strings[.circleReportDetail]
+        load()
+    }
+
+    private func load() {
+        guard !changing else { return }
+        changing = true
+        clearPage()
+        titleBlock(strings[.circleReportDetail])
+        let indicator = UIActivityIndicatorView(style:.medium)
+        indicator.startAnimating()
+        stack.addArrangedSubview(indicator)
+        Task { [self] in
+            defer {
+                changing = false
+                stack.removeArrangedSubview(indicator)
+                indicator.removeFromSuperview()
+            }
+            do {
+                let detail = try await client.reportDetail(circleID:circleID, kind:report.kind, target:report.target)
+                render(detail)
+            } catch {
+                message(client.errorText(error,strings))
+                stack.addArrangedSubview(action(.retry,"arrow.clockwise",id:"world.circle.report.retry") { [weak self] in self?.load() })
+            }
+        }
+    }
+
+    private func render(_ detail: WorldCircleReportDetail) {
+        let current = detail.report
+        let meta = current.author.name + "  ·  " + date(current.createdAt)
+        stack.addArrangedSubview(WorldTheme.label(meta,style:.headline))
+        message(count(current.reportCount,.circleReportCountFormat))
+        for reason in WorldCircleReportReason.allCases {
+            if let count = current.reasons?[reason.rawValue], count > 0 {
+                message(strings[reason.label] + "  ·  " + count.formatted(.number.locale(strings.language.locale)))
+            }
+        }
+        if !current.text.isEmpty {
+            stack.addArrangedSubview(WorldTheme.label(current.text,style:.body))
+        }
+        if let data = detail.photo, let photo = UIImage(data:data) {
+            let picture = UIImageView(image:photo)
+            picture.contentMode = .scaleAspectFit
+            picture.clipsToBounds = true
+            picture.backgroundColor = WorldTheme.mapPaper
+            picture.layer.cornerRadius = 14
+            picture.isAccessibilityElement = true
+            picture.accessibilityLabel = detail.photoDescription ?? strings[.circlePhoto]
+            picture.heightAnchor.constraint(equalToConstant:250).isActive = true
+            stack.addArrangedSubview(picture)
+        }
+        stack.addArrangedSubview(action(.circleReportKeep,"checkmark",id:"world.circle.report.keep") { [weak self] in self?.decide(remove:false) })
+        stack.addArrangedSubview(action(.circleReportRemove,"trash",id:"world.circle.report.remove") { [weak self] in
+            self?.confirm(.circleReportRemove, detail:.circleReportRemoveDetail) { [weak self] in self?.decide(remove:true) }
+        })
+    }
+
+    private func decide(remove: Bool) {
+        guard !changing else { return }
+        changing = true
+        stack.isUserInteractionEnabled = false
+        Task { [self] in
+            defer {
+                changing = false
+                stack.isUserInteractionEnabled = true
+            }
+            do {
+                if remove { try await client.moderate(circleID:circleID,kind:report.kind,target:report.target,action:"remove") }
+                else { try await client.resolve(circleID:circleID,kind:report.kind,target:report.target) }
+                onDecision()
                 navigationController?.popViewController(animated:!UIAccessibility.isReduceMotionEnabled)
             } catch { notify(client.errorText(error,strings)) }
         }

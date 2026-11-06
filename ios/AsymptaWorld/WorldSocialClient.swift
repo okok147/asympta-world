@@ -1,5 +1,9 @@
 import Foundation
 
+extension Notification.Name {
+    static let worldSocialRegionDidChange = Notification.Name("com.asympta.world.social-region.changed")
+}
+
 struct WorldCircleMember: Codable {
     let id: String
     let name: String
@@ -61,6 +65,19 @@ struct WorldCircleLink: Codable {
     let title: String
 }
 
+enum WorldCircleReportReason: String, CaseIterable {
+    case harassment, spam, privacy, other
+
+    var label: WorldStrings.Key {
+        switch self {
+        case .harassment: return .circleReportHarassment
+        case .spam: return .circleReportSpam
+        case .privacy: return .circleReportPrivacy
+        case .other: return .circleReportOther
+        }
+    }
+}
+
 struct WorldCircleReport: Decodable {
     let kind: String
     let target: String
@@ -68,6 +85,13 @@ struct WorldCircleReport: Decodable {
     let text: String
     let createdAt: Double
     let reportCount: Int
+    let reasons: [String:Int]?
+}
+
+struct WorldCircleReportDetail: Decodable {
+    let report: WorldCircleReport
+    let photo: Data?
+    let photoDescription: String?
 }
 
 @MainActor
@@ -109,7 +133,7 @@ final class WorldSocialClient {
         UUID().uuidString.replacingOccurrences(of:"-", with:"").lowercased()
     }
 
-    private nonisolated static func validID(_ id: String) -> Bool {
+    nonisolated static func validID(_ id: String) -> Bool {
         id.utf8.count == 32 && id.utf8.allSatisfy { (48...57).contains($0) || (97...102).contains($0) }
     }
 
@@ -132,6 +156,17 @@ final class WorldSocialClient {
         }
         guard data.count <= 480_000 else { throw URLError(.dataLengthExceedsMaximum) }
         return try JSONDecoder().decode(Result.self, from:data)
+    }
+
+    static func draftFile(for circleID: String) -> URL? {
+        guard validID(circleID) else { return nil }
+        return FileManager.default.urls(for:.applicationSupportDirectory, in:.userDomainMask)[0]
+            .appendingPathComponent("AsymptaWorld/CircleDrafts-v1", isDirectory:true)
+            .appendingPathComponent(circleID + ".json")
+    }
+
+    static func hasDraft(for circleID: String) -> Bool {
+        draftFile(for:circleID).map { FileManager.default.fileExists(atPath:$0.path) } ?? false
     }
 
     func create(circleID: String, title: String, name: String) async throws -> WorldCircle {
@@ -201,13 +236,20 @@ final class WorldSocialClient {
         let _: ResultOK = try await call(circleID, "/read", body:["momentID":momentID,"through":through])
     }
 
-    func moderate(circleID: String, kind: String, target: String, action: String) async throws {
-        let _: ResultOK = try await call(circleID, "/moderate", body:["kind":kind,"target":target,"action":action])
+    func moderate(circleID: String, kind: String, target: String, action: String, reason: WorldCircleReportReason? = nil) async throws {
+        var body = ["kind":kind,"target":target,"action":action]
+        body["reason"] = reason?.rawValue
+        let _: ResultOK = try await call(circleID, "/moderate", body:body)
     }
 
     func reports(circleID: String) async throws -> [WorldCircleReport] {
         let result: Reports = try await call(circleID, "/reports")
         return result.reports
+    }
+
+    func reportDetail(circleID: String, kind: String, target: String) async throws -> WorldCircleReportDetail {
+        guard Self.validID(target), ["moment","reply"].contains(kind) else { throw Failure(error:"not_found") }
+        return try await call(circleID, "/reports/" + kind + "/" + target)
     }
 
     func resolve(circleID: String, kind: String, target: String) async throws {

@@ -4,9 +4,9 @@ import ImageIO
 import UniformTypeIdentifiers
 
 private enum MomentCopy {
-    case compose, writing, composerHint, audience, area, areaHint, areaUnavailable, areaPrivate, areaShared
+    case compose, writing, composerHint, audience, area, areaHint, areaUnavailable, areaPrivate, areaShared, areaChanged, earlierSendAreaChanged
     case addPhoto, replacePhoto, removePhoto, photoLabel, photoDescription, photoDescriptionHint, photoLoading, photoFailed
-    case share, sharing, retryShare, retryReply, retryHint, discard, discardPrompt, discardPending
+    case share, sharing, retryShare, retryReply, retryHint, discard, discardPrompt, discardPending, draftRestored, draftUnreadable, draftSaveFailed, keepDraft, closeDraft
     case moment, loading, replySection, noReplies, replyHint, reply, replying, acknowledge, acknowledged
     case options, report, reportDetail, reported, block, blockDetail, blocked, remove, removeDetail, removed, photoUnavailable
 
@@ -17,7 +17,9 @@ private enum MomentCopy {
         case .composerHint: return ("A small thing worth passing along.", "把想傳給朋友的小事留下來。", "誰かに届けたい、小さな出来事。")
         case .audience: return ("Only members of %@ can see this.", "只有「%@」的成員能看見這則貼文。", "「%@」のメンバーだけが見られます。")
         case .area: return ("Include this map area", "附上此地圖區域", "この地図エリアを添える")
-        case .areaHint: return ("Adds the broad map area shown when you opened this draft. Your exact position stays on this device.", "只附上打開草稿時地圖上的大致區域。你的精確位置保留在裝置上。", "下書きを開いたときの地図のおおよその範囲を添えます。正確な位置はこの端末に残ります。")
+        case .areaHint: return ("Adds the broad area currently on your map. Your exact position stays on this device.", "附上目前地圖的大致區域。你的精確位置保留在裝置上。", "現在の地図のおおよその範囲を添えます。正確な位置はこの端末に残ります。")
+        case .areaChanged: return ("The map area changed. Turn on the switch again to include the new area.", "地圖區域已變更。若要附上新的區域，請重新開啟開關。", "地図エリアが変わりました。新しいエリアを添える場合は再度スイッチをオンにしてください。")
+        case .earlierSendAreaChanged: return ("This draft’s earlier send is unconfirmed and the map area has changed. Check your circle before sharing another copy.", "這則草稿上次的傳送尚未確認，而地圖區域已變更。再次分享之前，請先到圈子確認。", "前回の送信結果が未確認のまま地図エリアが変わりました。再度投稿する前にサークルをご確認ください。")
         case .areaUnavailable: return ("No map area is available for this moment.", "這則貼文目前沒有可附上的地圖區域。", "この投稿に添えられる地図エリアはありません。")
         case .areaPrivate: return ("No map area shared", "未分享地圖區域", "地図エリアの共有なし")
         case .areaShared: return ("Approximate map area shared", "已分享大致地圖區域", "おおよその地図エリアを共有")
@@ -34,8 +36,13 @@ private enum MomentCopy {
         case .retryShare: return ("Retry sharing", "重試分享", "共有を再試行")
         case .retryReply: return ("Retry reply", "重試回覆", "返信を再試行")
         case .retryHint: return ("The last attempt is unconfirmed. Retrying sends the same version.", "上次傳送的結果尚未確認。重試會送出同一版本。", "前回の送信結果を確認できていません。再試行では同じ内容を送ります。")
+        case .keepDraft: return ("Keep draft", "保留草稿", "下書きを残す")
+        case .closeDraft: return ("Close this draft?", "要關閉這份草稿嗎？", "この下書きを閉じますか？")
+        case .draftRestored: return ("Your draft is here.", "草稿還在這裡。", "下書きが残っています。")
+        case .draftUnreadable: return ("This draft could not be read. You can discard it to start again.", "無法讀取這份草稿。你可以捨棄它，再重新開始。", "下書きを読み込めませんでした。破棄して書き直すことができます。")
+        case .draftSaveFailed: return ("Couldn’t save this draft on your device. Try again before sharing.", "無法在裝置上保存草稿。請在分享前再試一次。", "端末に下書きを保存できませんでした。共有する前に再度お試しください。")
         case .discard: return ("Discard draft", "捨棄草稿", "下書きを破棄")
-        case .discardPrompt: return ("Discard the draft on this device?", "要捨棄裝置上的草稿嗎？", "この端末の下書きを破棄しますか？")
+        case .discardPrompt: return ("You can keep this draft on this device or discard it.", "可以保留草稿在這台裝置，或捨棄它。", "下書きはこの端末に残すか、破棄できます。")
         case .discardPending: return ("The last send may have reached your circle. Check the circle before sending another copy.", "上一則內容可能已送達圈子。再次送出之前，請先到圈子確認。", "前回の内容がサークルに届いている可能性があります。再送信する前にサークルを確認してください。")
         case .moment: return ("Moment", "一刻", "ひととき")
         case .loading: return ("Opening the moment…", "正在打開這一刻…", "ひとときを開いています…")
@@ -223,21 +230,32 @@ private final class MomentTextInput: UIView {
 }
 
 final class WorldMomentComposerViewController: WorldCirclePaperViewController, UITextViewDelegate, PHPickerViewControllerDelegate {
-    private struct Submission {
+    private struct Submission: Codable {
         let text: String
         let region: String?
         let photo: Data?
         let description: String?
     }
+    private struct SavedDraft: Codable {
+        let id: String
+        let submission: Submission
+        let mayHaveBeenSent: Bool
+    }
 
     private let circle: WorldCircle
-    private let region: String?
+    private let currentRegion: () -> String?
     private let client: WorldSocialClient
     private let onPublished: (String) -> Void
-    private let submissionID = WorldSocialClient.identifier()
+    private var submissionID = WorldSocialClient.identifier()
+    private var draftSaveTask: Task<Void,Never>?
+    private var draftUnreadable = false
+    private var discarded = false
     private lazy var writing = MomentTextInput(label:strings.moment(.writing), limit:480, minimumHeight:106, locale:strings.language.locale, id:"world.moment.text")
     private lazy var descriptionInput = MomentTextInput(label:strings.moment(.photoDescription), limit:140, minimumHeight:50, locale:strings.language.locale, id:"world.moment.photoDescription")
     private let locationSwitch = UISwitch()
+    private var regionControls: UIStackView?
+    private var regionUnavailable: UILabel?
+    private var attachedRegion: String?
     private let photoPreview = MomentPage.photoView()
     private let status = WorldTheme.label("", style:.footnote)
     private lazy var photoButton = WorldTheme.button(strings.moment(.addPhoto), symbol:"photo")
@@ -250,9 +268,9 @@ final class WorldMomentComposerViewController: WorldCirclePaperViewController, U
     private var sending = false
     private var committed = false
 
-    init(circle: WorldCircle, region: String?, client: WorldSocialClient, strings: WorldStrings, onPublished: @escaping (String) -> Void) {
+    init(circle: WorldCircle, region: @escaping () -> String?, client: WorldSocialClient, strings: WorldStrings, onPublished: @escaping (String) -> Void) {
         self.circle = circle
-        self.region = region
+        currentRegion = region
         self.client = client
         self.onPublished = onPublished
         super.init(strings:strings)
@@ -295,52 +313,75 @@ final class WorldMomentComposerViewController: WorldCirclePaperViewController, U
         let audienceLabel = WorldTheme.label(audience, style:.headline)
         audienceLabel.accessibilityIdentifier = "world.moment.audience"
         let visibility = MomentPage.column([audienceLabel], spacing:10)
-        if region == nil {
-            visibility.addArrangedSubview(WorldTheme.label(strings.moment(.areaUnavailable), style:.footnote, muted:true))
-        } else {
-            let areaLabel = WorldTheme.label(strings.moment(.area), style:.body)
-            areaLabel.isAccessibilityElement = false
-            let toggle = UIStackView(arrangedSubviews:[areaLabel,locationSwitch])
-            toggle.alignment = .center
-            toggle.spacing = 8
-            locationSwitch.isOn = false
-            locationSwitch.onTintColor = WorldTheme.ink
-            locationSwitch.setContentHuggingPriority(.required, for:.horizontal)
-            locationSwitch.setContentCompressionResistancePriority(.required, for:.horizontal)
-            locationSwitch.accessibilityLabel = strings.moment(.area)
-            locationSwitch.accessibilityHint = strings.moment(.areaHint)
-            locationSwitch.accessibilityIdentifier = "world.moment.area"
-            locationSwitch.addTarget(self, action:#selector(locationChanged), for:.valueChanged)
-            visibility.addArrangedSubview(toggle)
-            visibility.addArrangedSubview(WorldTheme.label(strings.moment(.areaHint), style:.footnote, muted:true))
-        }
+        let areaLabel = WorldTheme.label(strings.moment(.area), style:.body)
+        areaLabel.isAccessibilityElement = false
+        let toggle = UIStackView(arrangedSubviews:[areaLabel,locationSwitch])
+        toggle.alignment = .center
+        toggle.spacing = 8
+        locationSwitch.onTintColor = WorldTheme.ink
+        locationSwitch.setContentHuggingPriority(.required, for:.horizontal)
+        locationSwitch.setContentCompressionResistancePriority(.required, for:.horizontal)
+        locationSwitch.accessibilityLabel = strings.moment(.area)
+        locationSwitch.accessibilityHint = strings.moment(.areaHint)
+        locationSwitch.accessibilityIdentifier = "world.moment.area"
+        locationSwitch.addTarget(self, action:#selector(locationChanged), for:.valueChanged)
+        let regionStack = MomentPage.column([toggle,WorldTheme.label(strings.moment(.areaHint), style:.footnote, muted:true)])
+        regionControls = regionStack
+        visibility.addArrangedSubview(regionStack)
+        let unavailable = WorldTheme.label(strings.moment(.areaUnavailable), style:.footnote, muted:true)
+        regionUnavailable = unavailable
+        visibility.addArrangedSubview(unavailable)
+        NotificationCenter.default.addObserver(self, selector:#selector(regionChanged), name:.worldSocialRegionDidChange, object:nil)
         stack.addArrangedSubview(MomentPage.panel(visibility))
         status.accessibilityIdentifier = "world.moment.status"
         stack.addArrangedSubview(status)
         publishButton.accessibilityIdentifier = "world.moment.publish"
         publishButton.addTarget(self, action:#selector(publish), for:.touchUpInside)
         stack.addArrangedSubview(publishButton)
-        updateControls()
+        restoreDraft()
+        regionChanged()
+        NotificationCenter.default.addObserver(self, selector:#selector(flushDraft), name:UIScene.willDeactivateNotification, object:nil)
+    }
+
+    deinit {
+        draftSaveTask?.cancel()
+        NotificationCenter.default.removeObserver(self)
     }
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        updateControls()
+        regionChanged()
     }
 
     func textViewDidChange(_ textView: UITextView) {
         writing.update()
         descriptionInput.update()
+        scheduleDraftSave()
         updateControls()
     }
 
-    @objc private func locationChanged() { updateControls() }
+    @objc private func locationChanged() {
+        attachedRegion = locationSwitch.isOn ? currentRegion() : nil
+        locationSwitch.setOn(attachedRegion != nil, animated:false)
+        updateControls()
+    }
 
-    private var hasDraft: Bool { writing.rawDraftExists || photo != nil || locationSwitch.isOn || pending != nil }
+    @objc private func regionChanged() {
+        let available = currentRegion()
+        regionControls?.isHidden = available == nil
+        regionUnavailable?.isHidden = available != nil
+        if !sending && pending == nil, let attachedRegion, attachedRegion != available {
+            self.attachedRegion = nil
+            locationSwitch.setOn(false, animated:false)
+            setStatus(strings.moment(.areaChanged))
+        } else { updateControls() }
+    }
+
+    private var hasDraft: Bool { writing.rawDraftExists || photo != nil || locationSwitch.isOn || pending != nil || draftUnreadable }
 
     private func updateControls() {
         let photoInProgress = photoRequest != nil
-        let editable = !sending && !committed && pending == nil
+        let editable = !sending && !committed && pending == nil && !draftUnreadable
         let hasPhotoDescription = !descriptionInput.text.isEmpty && descriptionInput.isWithinLimit
         let valid = writing.isWithinLimit && (photo == nil ? !writing.text.isEmpty : hasPhotoDescription)
         photoSection?.isHidden = photo == nil
@@ -349,7 +390,7 @@ final class WorldMomentComposerViewController: WorldCirclePaperViewController, U
         photoButton.isEnabled = editable && !photoInProgress
         removePhotoButton.isEnabled = editable && !photoInProgress
         locationSwitch.isEnabled = editable
-        publishButton.isEnabled = !sending && !committed && !photoInProgress && (valid || pending != nil)
+        publishButton.isEnabled = !sending && !committed && !draftUnreadable && !photoInProgress && (valid || pending != nil)
         navigationItem.leftBarButtonItem?.isEnabled = !sending && !committed
         isModalInPresentation = !committed && (sending || hasDraft || photoInProgress)
         navigationController?.isModalInPresentation = isModalInPresentation
@@ -394,6 +435,7 @@ final class WorldMomentComposerViewController: WorldCirclePaperViewController, U
             photo = data
             photoPreview.image = image
             descriptionInput.clear()
+            scheduleDraftSave()
             setStatus(nil)
         } else {
             setStatus(strings.moment(.photoFailed))
@@ -404,6 +446,7 @@ final class WorldMomentComposerViewController: WorldCirclePaperViewController, U
         photo = nil
         photoPreview.image = nil
         descriptionInput.clear()
+        scheduleDraftSave()
         setStatus(nil)
     }
 
@@ -411,25 +454,47 @@ final class WorldMomentComposerViewController: WorldCirclePaperViewController, U
         guard publishButton.isEnabled else { return }
         view.endEditing(true)
         let prior = pending
+        let available = currentRegion()
+        if prior == nil, let attachedRegion, attachedRegion != available {
+            regionChanged()
+            return
+        }
         let submission = prior ?? Submission(
-            text:writing.text, region:locationSwitch.isOn ? region : nil, photo:photo,
+            text:writing.text, region:attachedRegion, photo:photo,
             description:photo == nil ? nil : descriptionInput.text
         )
+        draftSaveTask?.cancel()
+        do { try storeDraft(submission, mayHaveBeenSent:true) }
+        catch {
+            setStatus(strings.moment(.draftSaveFailed))
+            return
+        }
         sending = true
         setStatus(nil)
         Task { [weak self] in
             guard let self else { return }
             do {
-                try await client.post(circleID:circle.id, id:submissionID, text:submission.text,
-                                      region:submission.region, photo:submission.photo, photoDescription:submission.description)
+                if let priorRegion = prior?.region, priorRegion != available {
+                    do { _ = try await client.detail(circleID:circle.id,momentID:submissionID) }
+                    catch {
+                        sending = false
+                        setStatus(strings.moment(.earlierSendAreaChanged))
+                        return
+                    }
+                } else {
+                    try await client.post(circleID:circle.id, id:submissionID, text:submission.text,
+                                          region:submission.region, photo:submission.photo, photoDescription:submission.description)
+                }
                 sending = false
                 committed = true
+                try? removeDraft()
                 updateControls()
                 onPublished(submissionID)
             } catch {
                 sending = false
                 // If an earlier attempt is unconfirmed, every retry must carry its exact payload.
                 if prior != nil || !client.isDefinitiveFailure(error) { pending = submission }
+                else { flushDraft() }
                 let message = client.errorText(error, strings)
                 setStatus(pending == nil ? message : message + "\n" + strings.moment(.retryHint))
             }
@@ -440,17 +505,94 @@ final class WorldMomentComposerViewController: WorldCirclePaperViewController, U
         guard !sending, !committed else { return }
         if !hasDraft { closeComposer(); return }
         let detail = strings.moment(pending == nil ? .discardPrompt : .discardPending)
-        let alert = UIAlertController(title:strings.moment(.discard), message:detail, preferredStyle:.alert)
+        let alert = UIAlertController(title:strings.moment(.closeDraft), message:detail, preferredStyle:.alert)
         alert.addAction(UIAlertAction(title:strings[.cancel], style:.cancel))
+        if !draftUnreadable {
+            alert.addAction(UIAlertAction(title:strings.moment(.keepDraft), style:.default) { [weak self] _ in self?.closeComposer(keep:true) })
+        }
         alert.addAction(UIAlertAction(title:strings.moment(.discard), style:.destructive) { [weak self] _ in self?.closeComposer() })
         present(alert, animated:!UIAccessibility.isReduceMotionEnabled)
     }
 
-    private func closeComposer() {
+    private func closeComposer(keep: Bool = false) {
+        draftSaveTask?.cancel()
+        do {
+            if keep {
+                if pending == nil { try saveEditableDraft() }
+            } else { try removeDraft() }
+        } catch {
+            setStatus(strings.moment(.draftSaveFailed))
+            return
+        }
+        discarded = true
         photoRequest = nil
         isModalInPresentation = false
         navigationController?.isModalInPresentation = false
         MomentPage.pop(self)
+    }
+
+    private var draftURL: URL? { WorldSocialClient.draftFile(for:circle.id) }
+
+    private func restoreDraft() {
+        guard let file = draftURL, FileManager.default.fileExists(atPath:file.path) else { return }
+        do {
+            let size = try file.resourceValues(forKeys:[.fileSizeKey]).fileSize ?? 0
+            guard size <= 400_000 else { throw CocoaError(.fileReadCorruptFile) }
+            let draft = try JSONDecoder().decode(SavedDraft.self, from:Data(contentsOf:file))
+            guard WorldSocialClient.validID(draft.id),
+                  (draft.submission.photo?.count ?? 0) <= 156_000 else { throw CocoaError(.fileReadCorruptFile) }
+            submissionID = draft.id
+            writing.editor.text = draft.submission.text
+            descriptionInput.editor.text = draft.submission.description ?? ""
+            writing.update()
+            descriptionInput.update()
+            photo = draft.submission.photo
+            if let photo { photoPreview.image = UIImage(data:photo) }
+            if draft.mayHaveBeenSent {
+                pending = draft.submission
+                let area = draft.submission.region == nil ? "" : "\n" + strings.moment(.areaShared)
+                setStatus(strings.moment(.retryHint) + area)
+            } else {
+                setStatus(strings.moment(.draftRestored))
+            }
+        } catch {
+            draftUnreadable = true
+            setStatus(strings.moment(.draftUnreadable))
+        }
+    }
+
+    private func scheduleDraftSave() {
+        draftSaveTask?.cancel()
+        draftSaveTask = Task { [weak self] in
+            try? await Task.sleep(for:.milliseconds(500))
+            if !Task.isCancelled { self?.flushDraft() }
+        }
+    }
+
+    @objc private func flushDraft() {
+        guard !discarded, !committed, !sending, !draftUnreadable, pending == nil, isViewLoaded else { return }
+        do { try saveEditableDraft() }
+        catch { setStatus(strings.moment(.draftSaveFailed)) }
+    }
+
+    private func saveEditableDraft() throws {
+        if writing.rawDraftExists || photo != nil {
+            let local = Submission(text:writing.editor.text ?? "", region:nil, photo:photo,
+                                   description:descriptionInput.editor.text)
+            try storeDraft(local, mayHaveBeenSent:false)
+        } else { try removeDraft() }
+    }
+
+    private func storeDraft(_ submission: Submission, mayHaveBeenSent: Bool) throws {
+        guard let file = draftURL else { throw CocoaError(.fileWriteInvalidFileName) }
+        let data = try JSONEncoder().encode(SavedDraft(id:submissionID,submission:submission,mayHaveBeenSent:mayHaveBeenSent))
+        guard data.count <= 400_000 else { throw CocoaError(.fileWriteOutOfSpace) }
+        try FileManager.default.createDirectory(at:file.deletingLastPathComponent(), withIntermediateDirectories:true)
+        try data.write(to:file, options:[.atomic,.completeFileProtectionUntilFirstUserAuthentication])
+    }
+
+    private func removeDraft() throws {
+        if let file = draftURL, FileManager.default.fileExists(atPath:file.path) { try FileManager.default.removeItem(at:file) }
     }
 
     private func setStatus(_ text: String?) {
@@ -838,19 +980,30 @@ final class WorldMomentViewController: WorldCirclePaperViewController, UITextVie
         }
         let alert = UIAlertController(title:strings.moment(action.title), message:prompt, preferredStyle:.alert)
         alert.addAction(UIAlertAction(title:strings[.cancel], style:.cancel))
-        alert.addAction(UIAlertAction(title:strings.moment(action.title), style:action == .report ? .default : .destructive) { [weak self] _ in
-            guard let self else { return }
-            self.runMutation(exits:exits) {
-                try await self.client.moderate(circleID:self.circle.id, kind:kind, target:target, action:action.rawValue)
-            } onSuccess: {
-                MomentPage.announce(self.strings.moment(action.receipt))
-                if !exits {
-                    // Remove stale reply content from the screen while refreshing access.
-                    self.reset(self.repliesStack)
-                }
+        if action == .report {
+            for reason in WorldCircleReportReason.allCases {
+                alert.addAction(UIAlertAction(title:strings[reason.label], style:.default) { [weak self] _ in
+                    self?.applyModeration(action,kind:kind,target:target,reason:reason,exits:exits)
+                })
             }
-        })
+        } else {
+            alert.addAction(UIAlertAction(title:strings.moment(action.title), style:.destructive) { [weak self] _ in
+                self?.applyModeration(action,kind:kind,target:target,reason:nil,exits:exits)
+            })
+        }
         present(alert, animated:!UIAccessibility.isReduceMotionEnabled)
+    }
+
+    private func applyModeration(_ action: Moderation, kind: String, target: String, reason: WorldCircleReportReason?, exits: Bool) {
+        runMutation(exits:exits) {
+            try await self.client.moderate(circleID:self.circle.id, kind:kind, target:target, action:action.rawValue, reason:reason)
+        } onSuccess: {
+            MomentPage.announce(self.strings.moment(action.receipt))
+            if !exits {
+                // Remove stale reply content from the screen while refreshing access.
+                self.reset(self.repliesStack)
+            }
+        }
     }
 
     private func runMutation(

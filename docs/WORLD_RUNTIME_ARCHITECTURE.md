@@ -288,3 +288,10 @@ Scene activation gates the simulation clock, location updates and socket. The in
 - The Worker validates route, request size, coarse cell, JPEG structure and rate before dispatching to `WorldCircle`. Each SQLite Durable Object isolates one circle. Member IDs are scoped to a circle. Visibility and writes enforce membership and block state. Only the host can manage invitations, the roster and the report queue. Deletion/leave affect only the circle's contributions. Media stays behind the same authorized detail route.
 - `WorldCircleInkStyle` renders four original engraved marks above cached pigment. A selection changes only the caller's display mark in one circle. This internal expression study carries no product, price, paid entitlement or social advantage.
 - Initial moderation is a direct-threat text filter plus member reporting/blocking and host action. This is an invite-only beta with no staffed platform-level moderation, public discovery, image analysis or outbound push. Product receipts must distinguish actual service interactions from physical native acceptance.
+
+
+### Circles draft and host review follow-up — native build17
+
+`WorldMomentViewController` invalidates an unsent area opt-in when the displayed map cell changes, while keeping the words and photo. A frozen send keeps the original idempotency identity and does not re-send an old area's payload from a different map state. An atomic, file-protected per-circle draft stores the user's prepared photo and text on this installation. A pre-send snapshot permits exact reconciliation after a cold return. Unsent drafts restore with location attachment off. The feed renders a bounded initial set and can reveal earlier moments without creating more cards than needed.
+
+Report reasons and a host-only pending review route are additive to build16. Hosts can see the reported content and its own attached photo on a dedicated reading page. The service aggregates reason counts, excludes reporter identity, and keeps photo access tied to the exact pending report. Existing circle databases acquire the optional reason field with a bounded additive SQL migration.

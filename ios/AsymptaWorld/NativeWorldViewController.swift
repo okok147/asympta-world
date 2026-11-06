@@ -19,6 +19,7 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
     private var unreadCount = 0
     private var areaLink: WorldCircleLink?
     private var areaLinkRegion: String?
+    private var lastAvailableRegion: String?
     private var summaryTask: Task<Void,Never>?
     private let overviewButton = UIButton(type:.system)
     private let recenterButton = UIButton(type:.system)
@@ -314,6 +315,11 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
             UIAction(title:s[.localAtlas], image:UIImage(systemName:"sparkles"), state:nearbyEnabled ? .off : .on) { [weak self] _ in self?.selectLocalWorld() }
         ])
         mapCredit.isHidden = !mapReady
+        let current = socialRegion
+        if lastAvailableRegion != current {
+            lastAvailableRegion = current
+            NotificationCenter.default.post(name:.worldSocialRegionDidChange, object:self)
+        }
         renderCircleSummary()
         updateLocationCard()
     }

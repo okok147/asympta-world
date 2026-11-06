@@ -9,11 +9,15 @@ const REPLY_LIMIT = 100;
 const HISTORY_LIMIT = 20_000;
 const WRITE_WINDOW_MS = 60_000;
 const WRITE_LIMIT = 18;
+const REPORT_REASONS = ['harassment', 'spam', 'privacy', 'other'] as const;
+const REPORT_REASON_COLUMN = `reason TEXT NOT NULL DEFAULT 'other'
+  CHECK(reason IN (${REPORT_REASONS.map(reason => `'${reason}'`).join(', ')}))`;
 
 type Kind = 'moment' | 'reply';
+type ReportReason = typeof REPORT_REASONS[number];
 type Action = 'create' | 'join' | 'snapshot' | 'invite' | 'publish' | 'detail' | 'reply' |
   'reaction' | 'read' | 'moderate' | 'reports' | 'resolve' | 'blocks' | 'unblock' | 'leave' |
-  'members' | 'removeMember' | 'rotateInvite' | 'appearance';
+  'members' | 'removeMember' | 'rotateInvite' | 'appearance' | 'momentReport' | 'replyReport';
 type Input = Record<string, unknown>;
 type MemberStyle = 'clay' | 'saffron' | 'tide' | 'dusk';
 type Member = { id: string; name: string; style?: MemberStyle | null };
@@ -24,7 +28,7 @@ type MomentRow = ContributionRow & { region: string | null; photo: string | null
 type ReplyRow = ContributionRow & { momentID: string };
 type SummaryRow = Omit<MomentRow, 'photo'> & AuthorColumns & { hasPhoto: number; replyCount: number; reactionCount: number; reacted: number };
 type FullReplyRow = ReplyRow & AuthorColumns;
-type ReportRow = ContributionRow & AuthorColumns & { reportCount: number };
+type ReportRow = ContributionRow & AuthorColumns & Record<ReportReason, number> & { reportCount: number };
 type Result = { status: number; body: object };
 
 const routes = new Map<string, Action>([
@@ -42,6 +46,13 @@ export function matchCircleRoute(path: string, method: string) {
   const [, circleID, suffix] = match;
   const action = routes.get(`${method} ${suffix}`);
   if (action) return { circleID, action, target: null };
+  const report = /^\/reports\/(moment|reply)\/([0-9a-f]{32})$/.exec(suffix);
+  if (method === 'GET' && report) {
+    return {
+      circleID, action: report[1] === 'moment' ? 'momentReport' as const : 'replyReport' as const,
+      target: report[2],
+    };
+  }
   const moment = /^\/moments\/([0-9a-f]{32})(?:\/(replies|reaction))?$/.exec(suffix);
   if (!moment) return null;
   const [, target, subresource] = moment;
@@ -96,6 +107,11 @@ function region(value: unknown): string | null {
 function kind(value: unknown): Kind {
   if (value === 'moment' || value === 'reply') return value;
   return fail(400, 'invalid_input');
+}
+function reportReason(value: unknown): ReportReason {
+  if (value === undefined || value === null) return 'other';
+  const reason = REPORT_REASONS.find(reason => reason === value);
+  return reason ?? fail(400, 'invalid_input');
 }
 function sameSecret(expected: string, supplied: string): boolean {
   let difference = 0;
@@ -165,8 +181,12 @@ export class WorldCircle extends DurableObject {
         return { code: `${circleID}.${circle.secret}` };
       case 'detail': return this.detail(actor, target);
       case 'reports':
+      case 'momentReport':
+      case 'replyReport':
         this.requireHost(circle, actor);
-        return this.reports(actor);
+        this.ensureReportReasons();
+        if (action === 'reports') return this.reports(actor);
+        return this.reportDetail(actor, action === 'momentReport' ? 'moment' : 'reply', target);
       case 'blocks': return this.blocks(actor);
       case 'members':
         this.requireHost(circle, actor);
@@ -174,6 +194,7 @@ export class WorldCircle extends DurableObject {
         return { members: this.sql.exec<Member>('SELECT id, name, style FROM members ORDER BY joinedAt, id').toArray() };
     }
 
+    if (action === 'moderate' && input.action === 'report') this.ensureReportReasons();
     return this.ctx.storage.transactionSync(() => {
       switch (action) {
         case 'publish': return this.publish(actor, input);
@@ -240,13 +261,14 @@ export class WorldCircle extends DurableObject {
           PRIMARY KEY (momentID, reader));
         CREATE TABLE blocks (blocker TEXT NOT NULL, blocked TEXT NOT NULL, PRIMARY KEY (blocker, blocked));
         CREATE TABLE reports (kind TEXT NOT NULL, target TEXT NOT NULL, reporter TEXT NOT NULL,
-          resolved INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (kind, target, reporter));
+          resolved INTEGER NOT NULL DEFAULT 0, ${REPORT_REASON_COLUMN}, PRIMARY KEY (kind, target, reporter));
         CREATE TABLE removed (kind TEXT NOT NULL, id TEXT NOT NULL, PRIMARY KEY (kind, id));
         CREATE TABLE limits (actor TEXT PRIMARY KEY, started INTEGER NOT NULL, count INTEGER NOT NULL);
       `);
       this.sql.exec('INSERT INTO circle (title, owner, secret) VALUES (?, ?, ?)', title, actor, secret);
       this.sql.exec('INSERT INTO members (id, name, joinedAt) VALUES (?, ?, ?)', actor, name, Date.now());
       this.ctx.storage.kv.put('initialized', true);
+      this.ctx.storage.kv.put('report-reasons', true);
       return this.summary(circleID, { id: actor, name }, { title, owner: actor, secret, closed: 0, lastEventAt: 0 });
     });
   }
@@ -268,6 +290,15 @@ export class WorldCircle extends DurableObject {
   private circle() {
     if (this.ctx.storage.kv.get('initialized') !== true) return undefined;
     return this.sql.exec<CircleRow>('SELECT title, owner, secret, closed, lastEventAt FROM circle').one();
+  }
+  private ensureReportReasons() {
+    if (this.ctx.storage.kv.get('report-reasons') === true) return;
+    // Build 16 circles already have a reports table. Add a default in place,
+    // then commit the marker together with the schema change.
+    this.ctx.storage.transactionSync(() => {
+      this.sql.exec(`ALTER TABLE reports ADD COLUMN ${REPORT_REASON_COLUMN}`);
+      this.ctx.storage.kv.put('report-reasons', true);
+    });
   }
   private member(actor: string) {
     return this.sql.exec<Member>('SELECT id, name, style FROM members WHERE id=?', actor).toArray()[0];
@@ -467,6 +498,7 @@ export class WorldCircle extends DurableObject {
     const target = id(input.target);
     const action = input.action;
     if (action !== 'report' && action !== 'block' && action !== 'remove') return fail(400, 'invalid_input');
+    const reason = action === 'report' ? reportReason(input.reason) : null;
     if (action === 'report' && this.sql.exec(
       'SELECT 1 FROM reports WHERE kind=? AND target=? AND reporter=?', type, target, actor,
     ).toArray().length) return done;
@@ -481,36 +513,49 @@ export class WorldCircle extends DurableObject {
     if (row.author === actor) return fail(403, 'forbidden');
     this.takeWrite(actor);
     if (action === 'report') {
-      this.sql.exec('INSERT INTO reports (kind, target, reporter) VALUES (?, ?, ?)', type, target, actor);
+      this.sql.exec('INSERT INTO reports (kind, target, reporter, reason) VALUES (?, ?, ?, ?)', type, target, actor, reason);
     } else {
       this.sql.exec('INSERT OR IGNORE INTO blocks (blocker, blocked) VALUES (?, ?)', actor, row.author);
     }
     return done;
   }
 
+  private reportRows(actor: string, type: Kind, target?: string) {
+    const table = type === 'moment' ? 'moments' : 'replies';
+    const parent = type === 'reply' ? 'JOIN moments m ON m.id=p.momentID' : '';
+    const parentVisible = type === 'reply' ? `AND ${unblocked('m.author')}` : '';
+    const targetFilter = target ? 'AND p.id=?3' : '';
+    const values = target ? [actor, type, target] : [actor, type];
+    const reasons = REPORT_REASONS.map(reason => `sum(f.reason='${reason}') AS ${reason}`).join(', ');
+    return this.sql.exec<ReportRow>(
+      `SELECT p.id, p.author, p.text, p.createdAt, a.name AS authorName, a.style AS authorStyle,
+         count(*) AS reportCount, ${reasons}
+       FROM reports f JOIN ${table} p ON p.id=f.target JOIN members a ON a.id=p.author
+       ${parent}
+       WHERE f.kind=?2 AND f.resolved=0 AND ${unblocked('p.author')} AND ${unblocked('f.reporter')}
+         ${parentVisible} ${targetFilter}
+       GROUP BY p.id ORDER BY p.createdAt DESC LIMIT 64`, ...values,
+    ).toArray().map(row => ({
+      kind: type, target: row.id, author: authorJSON(row), text: row.text, createdAt: row.createdAt,
+      reportCount: row.reportCount, reasons: {
+        harassment: row.harassment, spam: row.spam, privacy: row.privacy, other: row.other,
+      },
+    }));
+  }
   private reports(actor: string) {
-    const moments = this.sql.exec<ReportRow>(
-      `SELECT m.id, m.author, m.text, m.createdAt, a.name AS authorName, a.style AS authorStyle, count(*) AS reportCount
-       FROM reports f JOIN moments m ON m.id=f.target JOIN members a ON a.id=m.author
-       WHERE f.kind='moment' AND f.resolved=0 AND ${unblocked('m.author')} AND ${unblocked('f.reporter')}
-       GROUP BY m.id ORDER BY m.createdAt DESC LIMIT 64`, actor,
-    ).toArray();
-    const replies = this.sql.exec<ReportRow>(
-      `SELECT r.id, r.author, r.text, r.createdAt, a.name AS authorName, a.style AS authorStyle, count(*) AS reportCount
-       FROM reports f JOIN replies r ON r.id=f.target JOIN members a ON a.id=r.author
-       JOIN moments m ON m.id=r.momentID
-       WHERE f.kind='reply' AND f.resolved=0 AND ${unblocked('r.author')} AND ${unblocked('m.author')}
-         AND ${unblocked('f.reporter')}
-       GROUP BY r.id ORDER BY r.createdAt DESC LIMIT 64`, actor,
-    ).toArray();
-    const toReport = (type: Kind, row: ReportRow) => ({
-      kind: type, target: row.id, author: authorJSON(row),
-      text: row.text, createdAt: row.createdAt, reportCount: row.reportCount,
-    });
     return {
-      reports: [...moments.map(row => toReport('moment', row)), ...replies.map(row => toReport('reply', row))]
+      reports: [...this.reportRows(actor, 'moment'), ...this.reportRows(actor, 'reply')]
         .sort((left, right) => right.createdAt - left.createdAt).slice(0, 64),
     };
+  }
+  private reportDetail(actor: string, type: Kind, target: string) {
+    const report = this.reportRows(actor, type, target)[0];
+    if (!report) return fail(404, 'not_found');
+    if (type === 'reply') return { report };
+    const { photo, photoDescription } = this.sql.exec<{ photo: string | null; photoDescription: string | null }>(
+      'SELECT photo, photoDescription FROM moments WHERE id=?', target,
+    ).one();
+    return photo ? { report, photo, photoDescription } : { report };
   }
   private resolve(actor: string, input: Input) {
     const type = kind(input.kind);

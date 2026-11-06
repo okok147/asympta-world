@@ -28,6 +28,8 @@ enum WorldLanguage: String, Codable, CaseIterable {
 
 struct WorldStrings {
     enum Key: String {
+        case circleReportDetail, circleReportHarassment, circleReportSpam, circleReportPrivacy, circleReportOther
+        case circleEarlierMoments, circleResumeDraft
         case circleStyle, circleStyleDetail, circleInkClay, circleInkClayNote
         case circleInkSaffron, circleInkSaffronNote, circleInkTide, circleInkTideNote
         case circleInkDusk, circleInkDuskNote
@@ -79,6 +81,13 @@ struct WorldStrings {
     }
 
     private static let copy: [Key: [String]] = [
+        .circleReportDetail: ["Review report", "審閱檢舉", "通報を確認"],
+        .circleReportHarassment: ["Harassment", "騷擾", "嫌がらせ"],
+        .circleReportSpam: ["Spam", "垃圾訊息", "スパム"],
+        .circleReportPrivacy: ["Privacy", "隱私問題", "プライバシー"],
+        .circleReportOther: ["Other reason", "其他原因", "その他の理由"],
+        .circleResumeDraft: ["Resume draft", "繼續編寫草稿", "下書きを続ける"],
+        .circleEarlierMoments: ["Show earlier moments", "顯示較早的時刻", "以前の投稿を表示"],
         .circleStyle: ["Your circle seal", "你的圈子印記", "あなたのサークル印"],
         .circleStyleDetail: ["Choose the ink that appears beside your moments and replies in this circle.", "選擇你在這個圈子的貼文與回應旁所用的印記。", "このサークルの投稿や返信の横に表示する印を選びます。"],
         .circleInkClay: ["Fired Clay", "燒陶", "焼き土"],
