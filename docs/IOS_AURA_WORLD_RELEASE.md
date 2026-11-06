@@ -121,3 +121,9 @@ Private task work/build13: air17-installed-before.json, air17-flight-loaded-sele
 At 13:29 HKT the compiled designated operator and build17 TestFlight receipts were ready. The first native acquisition timed out on a foreign coordination lock. Readback showed no World lease, waiter or local grant. After the lock released, the exact same request was restored through the normal queue. Readback then showed the World waiter and no lease. No device installation or action had occurred.
 
 At 13:46 HKT the bounded normal wait ended. A fresh pool read showed both connected iPads under human-use protection, with no World reservation, waiter or grant. Build17 was never installed or exercised in this task. The draft restoration, opt-in transition, photo picker and complete native social scene remain pending. Source, signed export, live-service migration and internal TestFlight distribution are verified independently.
+
+## Cross-circle reply inbox — 2026-11-06, build18
+
+- Source `f8989ccca713c5c4efe178536f6960f1573c4aaf` reached GitHub main. Signed `com.asympta.world` 1.0 (18) supports iPhone and iPad. Apple build `66096773-58b4-470a-96e4-bb08897f3799` is VALID / IN_BETA_TESTING in the existing Internal Testers group. The signed IPA was read back from encrypted WD Exchange and matched the retained internal export.
+- Worker `526452b7-051d-4c32-a09a-b83534e6d198` is live. Two dedicated service circles returned the correct unread previews and original moment IDs. Outsiders received no circle data. Marking one moment read preserved the other circle’s unread reply. Blocking and unblocking matched existing visibility rules. Both test circles were closed after verification.
+- The native inbox, atlas badge, return to the original moment and subsequent read state require an exact-build iPad scene. Cloud and Apple receipts verify service behavior and beta availability separately.
