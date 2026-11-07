@@ -44,6 +44,7 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
     private var inspectorConstraints: [NSLayoutConstraint] = []
     private var inspectorAtSide: Bool?
     private var isClosingPanel = false
+    private var retiredForRecovery = false
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -154,6 +155,7 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
     }
 
     private func setActivity(_ active: Bool) {
+        guard !retiredForRecovery else { return }
         canvas?.setSceneActive(active)
         location.setActive(active && nearbyEnabled)
         cloud.setActive(active)
@@ -487,11 +489,43 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
         let panel = WorldPanelsViewController(content:content, store:store, art:art) { [weak self] resident in
             self?.closePanel { [weak self] in self?.canvas?.focus(on:resident) }
         }
+        panel.onRecovery = { [weak self, weak panel] in
+            guard let self, let nav = panel?.navigationController else { return }
+            let recovery = WorldRecoveryViewController(strings:self.store.strings, makeSnapshot:{ [weak self] in
+                guard let self, !self.retiredForRecovery else { throw WorldRecoveryError.unavailable }
+                return try self.cloud.recoverySnapshot(directory:self.social.recoveryDirectory())
+            }, apply:{ [weak self] payload in
+                guard let self else { throw WorldRecoveryError.unavailable }
+                try self.applyRecovery(payload)
+            })
+            nav.pushViewController(recovery,animated:!UIAccessibility.isReduceMotionEnabled)
+        }
         panel.cloudConnected = connected
         panel.growthSynced = cloud.growthSynced
         panel.onClose = { [weak self] in self?.closePanel() }
         if case .me = content { showPanel(panel, large:true) }
         else { showPanel(panel, large:false) }
+    }
+
+    private func applyRecovery(_ payload: WorldRecoveryPayload) throws {
+        guard !retiredForRecovery, let window = view.window,
+              window.windowScene?.activationState == .foregroundActive else { throw WorldRecoveryError.unavailable }
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.filter { $0.activationState != .unattached }
+        guard scenes.count == 1 else { throw WorldRecoveryError.multipleScenes }
+        try WorldRecoveryCommit.stage(payload)
+        retiredForRecovery = true
+        NotificationCenter.default.removeObserver(self)
+        summaryTask?.cancel(); inboxTask?.cancel()
+        location.onLocation = nil; location.onStatus = nil; location.onFailure = nil
+        location.setActive(false)
+        canvas?.onGrowth = nil
+        canvas?.setSceneActive(false)
+        cloud.stopForRecovery()
+        social.stopForRecovery()
+        // Rebuild only this scene. Failed replay presents the protected retry
+        // surface; it never revives the old controller or creates an identity.
+        dismiss(animated:false)
+        SceneDelegate.installWorld(in:window)
     }
 
     private func showPanel(_ panel: UIViewController, large: Bool) {

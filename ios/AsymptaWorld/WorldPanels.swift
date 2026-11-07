@@ -11,6 +11,7 @@ final class WorldPanelsViewController: UIViewController, UITextFieldDelegate {
     private let scroll = UIScrollView()
     private var observer: NSObjectProtocol?
     var onClose: (() -> Void)?
+    var onRecovery: (() -> Void)?
     var cloudConnected = false
     var growthSynced = false
 
@@ -275,6 +276,7 @@ final class WorldPanelsViewController: UIViewController, UITextFieldDelegate {
     private func openPersonal(_ content: Content) {
         let panel = WorldPanelsViewController(content:content,store:store,art:art,onVisit:onVisit)
         panel.onClose = onClose
+        panel.onRecovery = onRecovery
         panel.cloudConnected = cloudConnected; panel.growthSynced = growthSynced
         navigationController?.pushViewController(panel,animated:!UIAccessibility.isReduceMotionEnabled)
     }
@@ -318,6 +320,12 @@ final class WorldPanelsViewController: UIViewController, UITextFieldDelegate {
             }
         })
         stack.addArrangedSubview(language)
+        if onRecovery != nil {
+            let recovery = WorldTheme.button(s.recovery(.title),symbol:"lock.doc")
+            recovery.accessibilityIdentifier = "world.recovery.open"
+            recovery.addAction(UIAction { [weak self] _ in self?.onRecovery?() },for:.touchUpInside)
+            stack.addArrangedSubview(recovery)
+        }
         let familiar = WorldTheme.button(s[.meetTitle],symbol:"circle.grid.2x2")
         familiar.accessibilityIdentifier = "world.profile.familiar"
         familiar.addAction(UIAction { [weak self] _ in self?.openPersonal(.meet) },for:.touchUpInside)

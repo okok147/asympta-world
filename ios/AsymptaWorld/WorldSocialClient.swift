@@ -147,30 +147,46 @@ final class WorldSocialClient {
     private struct CollectionResult: Decodable { let collection: WorldCollection }
     private struct Failure: Decodable, Error { let error: String }
 
-    private static let defaultsKey = "world.social.circle-links-v1"
-    private static let selectionKey = "world.social.selected-circle-v1"
     private let makeRequest: (String) -> URLRequest?
     private let session = URLSession(configuration:.ephemeral)
+    private var stopped = false
+    private var storageFailed = false
+    private var selectedID: String?
     private(set) var links: [WorldCircleLink]
 
     init(makeRequest: @escaping (String) -> URLRequest?) {
         self.makeRequest = makeRequest
-        if let bytes = UserDefaults.standard.data(forKey:Self.defaultsKey),
-           let existing = try? JSONDecoder().decode([WorldCircleLink].self, from:bytes) {
-            links = existing.filter { Self.validID($0.id) }
-        } else {
+        do {
+            let directory = try WorldCircleDirectory.read()
+            try WorldCircleDirectory.write(directory)
+            links = directory.links
+            selectedID = directory.selected
+        } catch {
             links = []
+            storageFailed = true
         }
     }
 
     var selectedCircle: WorldCircleLink? {
-        if let id = UserDefaults.standard.string(forKey:Self.selectionKey),
-           let selected = links.first(where: { $0.id == id }) { return selected }
-        return links.first
+        links.first(where: { $0.id == selectedID }) ?? links.first
     }
 
     func select(_ link: WorldCircleLink) {
-        if links.contains(where: { $0.id == link.id }) { UserDefaults.standard.set(link.id, forKey:Self.selectionKey) }
+        guard !stopped, !storageFailed, links.contains(where: { $0.id == link.id }) else { return }
+        do {
+            try WorldCircleDirectory.write(.init(links:links, selected:link.id))
+            selectedID = link.id
+        } catch { storageFailed = true }
+    }
+
+    func recoveryDirectory() throws -> WorldCircleDirectoryState {
+        guard !stopped, !storageFailed else { throw WorldRecoveryError.unavailable }
+        return try WorldCircleDirectory.read()
+    }
+
+    func stopForRecovery() {
+        stopped = true
+        session.invalidateAndCancel()
     }
 
     nonisolated static func identifier() -> String {
@@ -188,7 +204,7 @@ final class WorldSocialClient {
     }
 
     private func request<Result: Decodable>(_ path: String, body: [String:Any]?) async throws -> Result {
-        guard var request = makeRequest(path) else {
+        guard !stopped, !storageFailed, var request = makeRequest(path) else {
             throw Failure(error:"authorization_required")
         }
         request.timeoutInterval = 18
@@ -198,6 +214,7 @@ final class WorldSocialClient {
             request.httpBody = try JSONSerialization.data(withJSONObject:body)
         }
         let (data, response) = try await session.data(for:request)
+        guard !stopped else { throw CancellationError() }
         guard let status = (response as? HTTPURLResponse)?.statusCode else { throw URLError(.badServerResponse) }
         if !(200..<300).contains(status) {
             if let problem = try? JSONDecoder().decode(Failure.self, from:data) { throw problem }
@@ -221,7 +238,7 @@ final class WorldSocialClient {
 
     func create(circleID: String, title: String, name: String) async throws -> WorldCircle {
         let circle: WorldCircle = try await call(circleID, "/create", body:["title":title,"name":name])
-        remember(circle)
+        try remember(circle)
         return circle
     }
 
@@ -231,7 +248,7 @@ final class WorldSocialClient {
             throw Failure(error:"invalid_invite")
         }
         let circle: WorldCircle = try await call(String(parts[0]), "/join", body:["secret":String(parts[1]),"name":name])
-        remember(circle)
+        try remember(circle)
         return circle
     }
 
@@ -390,9 +407,13 @@ final class WorldSocialClient {
         } catch let failure as Failure where ["not_member","circle_not_found","not_found","forbidden"].contains(failure.error) {
             // A previous leave may have reached the service even if its reply was interrupted.
         }
-        links.removeAll { $0.id == circleID }
+        let remaining = links.filter { $0.id != circleID }
+        let selection = selectedID.flatMap { selected in remaining.contains { $0.id == selected } ? selected : nil }
+        try WorldCircleDirectory.write(.init(links:remaining, selected:selection))
+        links = remaining
+        selectedID = selection
         UserDefaults.standard.removeObject(forKey:"world.social.collection-create-v1." + circleID)
-        saveLinks()
+        inboxChanged()
     }
 
     private func momentPath(_ momentID: String) throws -> String {
@@ -400,16 +421,10 @@ final class WorldSocialClient {
         return "/moments/" + momentID
     }
 
-    private func remember(_ circle: WorldCircle) {
-        links.removeAll { $0.id == circle.id }
-        links.insert(WorldCircleLink(id:circle.id,title:circle.title), at:0)
-        saveLinks()
-    }
-
-    private func saveLinks() {
-        if let data = try? JSONEncoder().encode(links) {
-            UserDefaults.standard.set(data, forKey:Self.defaultsKey)
-        }
+    private func remember(_ circle: WorldCircle) throws {
+        let next = [WorldCircleLink(id:circle.id, title:circle.title)] + links.filter { $0.id != circle.id }
+        try WorldCircleDirectory.write(.init(links:next, selected:selectedID))
+        links = next
         inboxChanged()
     }
 

@@ -33,7 +33,7 @@ The counterargument is that a beautiful map may earn a first visit without earni
 
 ## Product economics
 
-Core posting, joining, replying and privacy controls are free. The first optional purchase should make a profile and its shared content feel more like its owner. Explore a coordinated Founders' style collection after the social loop works. A future recurring Circle Studio offer serves organizers who already need schedules, shared curation and recurring activity tools. Make pricing and renewal transparent and restore purchases. Establish repeat organizer use before selling a subscription. A local preview or a TestFlight transaction demonstrates UX, not willingness to pay.
+Core posting, joining, replying, shared collections, search and privacy controls are free. World Keepsakes offers original photo-and-text PDF composition, paper palettes and keepsake sharing. The native paywall uses Apple-returned monthly/yearly prices, transparent renewal terms, restore and management. The initial base-price hypothesis is US$3.99 monthly or US$29.99 yearly. Actual customer demand and willingness to pay remain unknown; a TestFlight transaction demonstrates purchase behavior only.
 
 ## Delivery and acceptance
 
@@ -44,7 +44,7 @@ Core posting, joining, replying and privacy controls are free. The first optiona
 
 References: [Apple Design Awards](https://developer.apple.com/design/awards/), [Apple design principles](https://developer.apple.com/design/human-interface-guidelines/design-principles/), [App Review Guidelines](https://developer.apple.com/app-store/review/guidelines/), [Discord Shop](https://support.discord.com/hc/en-us/articles/17162747936663-Shop-FAQ).
 
-## Stage 4 reference-led specification · revision 2026-11-07.1
+## Stage 4 reference-led specification · revision 2026-11-07.3
 
 Canonical project card is [Asympta World](https://app.notion.com/p/41025c63c3ea815b9940e4c46b64fc7e). The Notion prompt page mirrors this specification and carries current evidence. The user selected Bump, Retro and Are.na and authorized continued implementation. Build18 is the verified starting product. Stage4 remains open until every requirement below has actual product evidence. A release batch does not close Stage4.
 
@@ -79,15 +79,21 @@ The proposed subscription is World Keepsakes. Initial price hypothesis is US$3.9
 | S4-01 | An invitee can understand the audience, join privately, share and return to a real reply. Outsiders cannot read the circle. | Build18 native and deployed-service evidence covers two test circles and independent Mac participants. Second native participant pending. |
 | S4-02 | Atlas offers clear people/context navigation, optional broad presence and a route back to relevant social content. | Existing aura/map and selected-circle area context implemented. Reference-led navigation completion pending. |
 | S4-03 | Moment text and a selected described photo can be prepared, kept as a protected draft, reviewed with audience/area disclosure and shared once across uncertain retries. | Build18 draft/text/area-off physical pass. Real photo-picker and interrupted-send scenes pending. |
-| S4-04 | Full history can be searched by words, author and photo description, with no duplicates across pages. A local week can be selected and its actual stored moments read. | Implementing. |
-| S4-05 | Members create named collections, save and remove existing moments collaboratively, inspect saved state and open the original. Owner/host can remove a collection. Hidden content never leaks through collection details or counts. | Implementing. |
+| S4-04 | Full history can be searched by words, author and photo description, with no duplicates across pages. A local week can be selected and its actual stored moments read. | Build19 implemented. Deployed service verified Unicode/author search, week bounds and deterministic pagination. Exact-build native flow pending. |
+| S4-05 | Members create named collections, save and remove existing moments collaboratively, inspect saved state and open the original. Owner/host can remove a collection. Hidden content never leaks through collection details or counts. | Build19 implemented. Live independent members verified desired-state writes, private access, visibility, ownership, tombstones and leave cleanup. Native creation/picker reading pending. |
 | S4-06 | Cross-circle reply inbox opens each original post and marks only that post's displayed replies read. | Build18 physical two-circle pass and badge 2 to 1 to clear. |
-| S4-07 | Report, block, unblock, host review, member removal, invitation replacement and leave apply consistently across feed, search, inbox and collections. | Existing moderation implemented. New-surface evidence pending. |
-| S4-08 | Identity continuity/recovery and complete social-data removal have explicit, usable flows and verified authorization. A person can export their own accessible data. | Current device-bound identity and per-circle leave implemented. Recovery and complete deletion pending. |
-| S4-09 | World Keepsakes provides real recurring value with native products, localized terms/prices, purchase, pending/cancel/failure, restore, manage and verified expiry/revocation behavior. | Paid offering designed. Apple configuration and actual entitlement flow pending. |
-| S4-10 | Keepsake tools create a readable original artifact from permitted content, preserve attribution and support the native share sheet with protected temporary files. | Pending. |
+| S4-07 | Report, block, unblock, host review, member removal, invitation replacement and leave apply consistently across feed, search, inbox and collections. | Existing moderation implemented. Build19 deployed-service report/block visibility and collection counts verified. Same-build native surfaces pending. |
+| S4-08 | Identity continuity/recovery and complete social-data removal have explicit, usable flows and verified authorization. A person can export their own accessible data. | Build20 implements encrypted identity backup/import, candidate-membership verification, protected directory migration and interrupted-commit replay. Physical acceptance and complete all-data deletion remain pending. |
+| S4-09 | World Keepsakes provides real recurring value with native products, localized terms/prices, purchase, pending/cancel/failure, restore, manage and verified expiry/revocation behavior. | Build19 StoreKit flow implemented; Apple products configured at USD3.99/month and USD29.99/year base prices for USA/HKG/JPN. Apple currently reports MISSING_METADATA. Actual offers, sandbox purchase and entitlement scenarios pending. |
+| S4-10 | Keepsake tools create a readable original artifact from permitted content, preserve attribution and support the native share sheet with protected temporary files. | Build19 implements original photo/text PDF preview, three paper palettes, protected temporary artifacts, permission recheck, free text archive and native sharing. Physical preview/share and paid unlock pending. |
 | S4-11 | New surfaces match the cream/color-field/seal system, support iPhone/iPad geometry, Dynamic Type, VoiceOver, reduced motion and all three selected languages. | Existing native system reused. New surface exact-build verification pending. |
-| S4-12 | Server migration, bounded queries, concurrency, cancellation and retries preserve correct state. Offline/partial results communicate their limits and provide recovery. | Build18 production baseline. New-surface verification pending. |
+| S4-12 | Server migration, bounded queries, concurrency, cancellation and retries preserve correct state. Offline/partial results communicate their limits and provide recovery. | Build19 live service verified additive migration, bounded pagination, idempotent writes, conflicting retries and collection cleanup. Native offline/cancellation outcomes remain pending. |
+
+### Build19 distribution and remaining native acceptance
+
+Build19 exact source is `8a31ce126a7bfaceebf07ee2f1efc4036b8db9fc`, exported IPA SHA-256 `277f54ed429e6ae0e3f4d0a39d028087ab3b98bae69b733adaa1f18a5ea74fd4`. Apple build `e2dae772-bd1b-47b2-917a-b97b69bc7f6b` is VALID and available to Internal Testers. The deployed Worker is `5e0b001e-3f77-4627-944e-7dd67b8caf1f`. Private operational evidence remains outside Git; live acceptance receipt is `work/build19/library-live-receipt.json` in the owning workspace.
+
+The Air lease allowed one native TestFlight observation. Before selecting World, the passive foreground probe became unavailable and the human-use guard stopped the next scene with zero executed steps. The lease was released and read back as no longer owned. No claim is made that Build19 was installed or its new native features tested. Home closeout could not be verified after the protection changed. Stage4 remains open.
 
 ### Simulated perspectives and decisions
 

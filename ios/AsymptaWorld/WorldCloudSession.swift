@@ -31,6 +31,7 @@ final class WorldCloudSession {
     let identityInk: UInt32
     private(set) var growthSynced = false
     private(set) var abilities = [Int](repeating:0,count:5)
+    private var stopped = false
     private var readable = true
     private var active = false
     private var socket: URLSessionWebSocketTask?
@@ -83,16 +84,33 @@ final class WorldCloudSession {
     }
     private static func valid(_ counts: [Int]) -> Bool { counts.count==5 && counts.allSatisfy { $0>=0 && $0<=10000000 } }
     private func request(_ path: String) -> URLRequest? {
-        guard let token,let url = URL(string:path,relativeTo:Self.endpoint) else { return nil }
+        guard !stopped,let token,let url = URL(string:path,relativeTo:Self.endpoint) else { return nil }
         var r = URLRequest(url:url); r.setValue("Bearer "+token,forHTTPHeaderField:"Authorization"); r.timeoutInterval = 35
         return r
+    }
+    func recoverySnapshot(directory: WorldCircleDirectoryState) throws -> WorldRecoveryPayload {
+        guard !stopped, readable, let token else { throw WorldRecoveryError.unavailable }
+        let payload = WorldRecoveryPayload(version:1, capabilityValue:token,
+            links:directory.links.map { .init(id:$0.id, title:$0.title) }, selected:directory.selected,
+            abilities:abilities, createdAt:Date().timeIntervalSince1970)
+        try WorldRecoveryCodec.validate(payload)
+        return payload
+    }
+    func stopForRecovery() {
+        stopped = true
+        active = false
+        saveTask?.cancel(); mapTask?.cancel()
+        disconnect()
+        onAbilities = nil; onMap = nil; onPeers = nil; onConnection = nil
+        onMapFailure = nil; currentActivity = nil
+        session.invalidateAndCancel()
     }
     func circleRequest(_ path: String) -> URLRequest? {
         guard path.hasPrefix("/v1/circles/") else { return nil }
         return request(path)
     }
     func setActive(_ value: Bool) {
-        guard value != active else { return }
+        guard !stopped, value != active else { return }
         active = value
         if value {
             Task { await restoreGrowth() }
@@ -126,7 +144,7 @@ final class WorldCloudSession {
         mapTask = Task { await loadMap(cell) }
     }
     func record(_ values: [Int]) {
-        guard readable,Self.valid(values) else { return }
+        guard !stopped,readable,Self.valid(values) else { return }
         let merged = zip(abilities,values).map { max($0.0,$0.1) }
         guard merged != abilities else { return }
         abilities = merged; growthSynced = false; persist()
@@ -138,7 +156,7 @@ final class WorldCloudSession {
         }
     }
     private func persist() {
-        guard readable else { return }
+        guard !stopped,readable else { return }
         do {
             try FileManager.default.createDirectory(at:growthURL.deletingLastPathComponent(),withIntermediateDirectories:true)
             let value = AuraGrowth(abilities:abilities,updatedAt:Date().timeIntervalSince1970*1000)
@@ -149,6 +167,7 @@ final class WorldCloudSession {
         guard readable,let r = request("/v1/profile") else { return }
         do {
             let (data,response) = try await session.data(for:r)
+            guard !stopped else { return }
             guard (response as? HTTPURLResponse)?.statusCode==200,data.count<4096 else { return }
             let growth = try JSONDecoder().decode(AuraGrowth.self,from:data)
             guard Self.valid(growth.abilities) else { return }
@@ -163,6 +182,7 @@ final class WorldCloudSession {
         r.httpBody = try? JSONSerialization.data(withJSONObject:["abilities":abilities])
         do {
             let (data,response) = try await session.data(for:r)
+            guard !stopped else { return }
             guard (response as? HTTPURLResponse)?.statusCode==200,data.count<4096 else { return }
             let growth = try JSONDecoder().decode(AuraGrowth.self,from:data)
             guard Self.valid(growth.abilities) else { return }
@@ -183,6 +203,7 @@ final class WorldCloudSession {
         guard let r = request("/v1/map?x=\(target.x)&y=\(target.y)") else { onMapFailure?(); return }
         do {
             let (data,response) = try await session.data(for:r)
+            guard !stopped else { return }
             guard (response as? HTTPURLResponse)?.statusCode==200,data.count<1024*1024 else { throw URLError(.badServerResponse) }
             let sheet = try JSONDecoder().decode(WorldMapSheet.self,from:data)
             guard sheet.schema==1,sheet.cellX==target.x,sheet.cellY==target.y,sheet.features.count<=249 else { throw URLError(.cannotParseResponse) }
@@ -191,7 +212,7 @@ final class WorldCloudSession {
         } catch { if cell==target, !Task.isCancelled { onMapFailure?() } }
     }
     private func connect() {
-        guard active,socket==nil,let cell,coordinate != nil,var r = request("/v1/world?x=\(cell.x)&y=\(cell.y)") else { return }
+        guard !stopped,active,socket==nil,let cell,coordinate != nil,var r = request("/v1/world?x=\(cell.x)&y=\(cell.y)") else { return }
         var parts = URLComponents(url:r.url!,resolvingAgainstBaseURL:true)!; parts.scheme = "wss"; r.url = parts.url
         let ws = session.webSocketTask(with:r); socket = ws; ws.resume(); receive(ws)
         heartbeat = Timer.scheduledTimer(withTimeInterval:15,repeats:true) { [weak self] _ in Task { @MainActor in self?.sendPresence(); self?.expirePeers() } }
@@ -203,7 +224,7 @@ final class WorldCloudSession {
     private func receive(_ ws: URLSessionWebSocketTask) {
         ws.receive { [weak self,weak ws] result in
             Task { @MainActor in
-                guard let self,let ws,self.socket===ws else { return }
+                guard let self,!self.stopped,let ws,self.socket===ws else { return }
                 switch result {
                 case .success(let message):
                     if case .string(let text) = message,text.utf8.count<65536,let packet = try? JSONDecoder().decode(PresencePacket.self,from:Data(text.utf8)) {
@@ -218,7 +239,7 @@ final class WorldCloudSession {
                 case .failure:
                     self.disconnect()
                     // One finite backoff, cancelled naturally by inactive state; no busy reconnect loop.
-                    Task { [weak self] in try? await Task.sleep(for:.seconds(15)); guard let self,self.active else { return }; self.connect() }
+                    Task { [weak self] in try? await Task.sleep(for:.seconds(15)); guard let self,!self.stopped,self.active else { return }; self.connect() }
                 }
             }
         }
@@ -229,7 +250,7 @@ final class WorldCloudSession {
         onPeers?(latestPeers)
     }
     private func sendPresence() {
-        guard active,cloudID != nil,let socket,let coordinate,Date().timeIntervalSince(lastPresence)>1.2 else { return }
+        guard !stopped,active,cloudID != nil,let socket,let coordinate,Date().timeIntervalSince(lastPresence)>1.2 else { return }
         lastPresence = Date()
         let packet: [String:Any] = ["type":"presence","latitude":coordinate.latitude,"longitude":coordinate.longitude,"ink":identityInk,"abilities":abilities,"activity":currentActivity?() ?? 0,"radiusMeters":accuracy]
         guard let data = try? JSONSerialization.data(withJSONObject:packet),let text = String(data:data,encoding:.utf8) else { return }
