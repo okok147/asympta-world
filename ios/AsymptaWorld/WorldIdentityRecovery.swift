@@ -5,7 +5,7 @@ import Security
 
 // All identity-switch state is private. Neither a recovery capability nor its
 // plaintext payload is written to logs, preferences, or exported unencrypted.
-enum WorldRecoveryError: Error { case invalidFile, unavailable, existingCircles, network, multipleScenes }
+enum WorldRecoveryError: Error { case invalidFile, unavailable, existingCircles, network, multipleScenes, revokedIdentity }
 
 struct WorldCircleDirectoryState: Codable {
     var links: [WorldCircleLink]
@@ -154,6 +154,7 @@ enum WorldRecoveryCommit {
         guard status == errSecSuccess else { throw WorldRecoveryError.unavailable }
     }
     static func canReplace() throws {
+        try WorldRemovalJournal.requireAbsent()
         guard try WorldCircleDirectory.read().links.isEmpty else { throw WorldRecoveryError.existingCircles }
         let directory = WorldCircleDirectory.root.appendingPathComponent("CircleDrafts-v1", isDirectory:true)
         if FileManager.default.fileExists(atPath:directory.path) {
@@ -174,6 +175,7 @@ enum WorldRecoveryCommit {
         try put(try JSONEncoder().encode(payload), account:"recovery-commit-v1")
     }
     static func replay() throws {
+        try WorldRemovalJournal.requireAbsent()
         guard let data = try read("recovery-commit-v1") else { return }
         guard data.count <= WorldRecoveryCodec.maximumBytes else { throw WorldRecoveryError.unavailable }
         let payload = try JSONDecoder().decode(WorldRecoveryPayload.self, from:data)

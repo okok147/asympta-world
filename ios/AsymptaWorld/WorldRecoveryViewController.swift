@@ -55,6 +55,11 @@ final class WorldRecoveryViewController: UIViewController, UIDocumentPickerDeleg
         status.text = value ? strings.recovery(copy) : nil
     }
     private func message(_ error: Error) {
+        if case .revokedIdentity? = error as? WorldRecoveryError {
+            status.text = strings.removal(.revoked)
+            UIAccessibility.post(notification:.announcement, argument:status.text)
+            return
+        }
         let copy: WorldRecoveryCopy
         switch error as? WorldRecoveryError {
         case .invalidFile: copy = .invalid
@@ -148,7 +153,19 @@ final class WorldRecoveryViewController: UIViewController, UIDocumentPickerDeleg
     }
     private func verify(_ payload: WorldRecoveryPayload) async throws -> (payload:WorldRecoveryPayload,skipped:Int) {
         try WorldRecoveryCommit.canReplace()
-        let session = URLSession(configuration:.ephemeral)
+        try WorldRecoveryCodec.validate(payload)
+        // Authenticate the candidate itself, including archives with no links.
+        // The current installation is never replaced to perform this check.
+        let removal: WorldRemovalStatus
+        do {
+            removal = try await WorldRemovalService.status(capability:payload.capabilityValue)
+        } catch {
+            if Task.isCancelled { throw CancellationError() }
+            throw WorldRecoveryError.network
+        }
+        guard removal.status == .active else { throw WorldRecoveryError.revokedIdentity }
+        try Task.checkCancellation()
+        let session = URLSession(configuration:.ephemeral, delegate:WorldRemovalRedirectGuard(), delegateQueue:nil)
         defer { session.invalidateAndCancel() }
         var links: [WorldRecoveryPayload.Link] = []
         for (index,link) in payload.links.enumerated() {
@@ -183,6 +200,7 @@ final class WorldRecoveryViewController: UIViewController, UIDocumentPickerDeleg
         present(alert,animated:true)
     }
     private func share(_ encrypted: Data) throws {
+        try WorldRemovalJournal.requireAbsent()
         let fm = FileManager.default
         let folder = fm.temporaryDirectory.appendingPathComponent("WorldRecovery-" + UUID().uuidString,isDirectory:true)
         do {

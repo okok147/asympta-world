@@ -121,3 +121,10 @@ Build21 exact app source19293c5fbe6754b34894a463419a3787875aec29 reached VALID/I
 The new device slot closed World and verified iPadOS Home, stopped the exact designated operator and released successfully; fresh pool readback showed no World owner/waiter and the next Writing owner. No audio/view/rotation setting was changed. The private QA circle remains for subsequent scenes.
 
 S4-08 backend source now implements durable explicit identity removal for indexed and supplied circles, revocation, original-contribution cleanup, safe late-write tombstones and progress. Required TypeScript compilation passed, deployment/live acceptance and native journal/UI remain in progress. Unknown historical circles, independent local data, external exports and Apple subscriptions must be clearly separated. This is not a completed global/all-data deletion feature. Stage4 stays open.
+
+
+### Removal implementation evidence · build22
+
+The service deployed90c637b9-bd12-4c32-9576-7cf7b583788c from9aec857645f9cb92768ba32af5d2216598605144. Real disposable Mac participants verified confirmation/auth, revocation, one concurrent request ordering, preservation of another member's original content and independently decoded photo pixels, membership/collection ownership, socket revocation, desired-state retries/additional supplied legacy links and fixture cleanup. No native identity was erased. Original failure/continuation evidence remains in the owning taskwork/build22.
+
+The native22 source now includes a two-action confirmation, protected resumable journal, startup gate, scoped local finalization after service confirmation, explicit fresh-start choice and revoked-recovery protection. It preserves the private journal/settings and independent data. The final required archive compiled, including the copy/privacy link and startup retry correction. Distribution and native read/cancel acceptance are pending. Destructive native replay/cleanup and unknown historical/global data remain unverified/open.

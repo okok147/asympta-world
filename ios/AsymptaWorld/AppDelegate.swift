@@ -13,6 +13,17 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     var window: UIWindow?
 
     static func installWorld(in window: UIWindow) {
+        // Removal takes precedence even when its protected journal cannot be read.
+        // Do not construct a cloud session, replay recovery, or generate an identity.
+        do {
+            if try WorldRemovalJournal.load() != nil {
+                window.rootViewController = WorldRemovalProgressViewController()
+                return
+            }
+        } catch {
+            window.rootViewController = WorldRemovalProgressViewController(recheckStartupIfAbsent:true)
+            return
+        }
         do {
             try WorldRecoveryCommit.replay()
             window.rootViewController = NativeWorldViewController()

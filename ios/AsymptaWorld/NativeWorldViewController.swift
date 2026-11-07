@@ -400,6 +400,7 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
     }
 
     private func refreshCircleSummary() {
+        guard !retiredForRecovery else { return }
         summaryTask?.cancel()
         guard canvas != nil, let link = social.selectedCircle, let region = socialRegion else {
             updateCircleSummary(link:nil, area:0)
@@ -424,6 +425,7 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
     }
 
     private func refreshInboxBadge() {
+        guard !retiredForRecovery else { return }
         inboxTask?.cancel()
         let social = social
         inboxTask = Task { [weak self] in
@@ -501,6 +503,18 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
             })
             nav.pushViewController(recovery,animated:!UIAccessibility.isReduceMotionEnabled)
         }
+        panel.onRemoval = { [weak self, weak panel] in
+            guard let self, !self.retiredForRecovery, let nav = panel?.navigationController else { return }
+            let removal = WorldRemovalViewController(strings:self.store.strings, makeIntent:{ [weak self] in
+                guard let self, !self.retiredForRecovery else { throw WorldRemovalError.unavailable }
+                let snapshot = try self.cloud.recoverySnapshot(directory:self.social.recoveryDirectory())
+                return try WorldRemovalIntent.make(snapshot:snapshot, language:self.store.state.language)
+            }, begin:{ [weak self] intent in
+                guard let self else { throw WorldRemovalError.unavailable }
+                try self.applyRemoval(intent)
+            })
+            nav.pushViewController(removal, animated:!UIAccessibility.isReduceMotionEnabled)
+        }
         panel.cloudConnected = connected
         panel.growthSynced = cloud.growthSynced
         panel.onClose = { [weak self] in self?.closePanel() }
@@ -514,19 +528,41 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.filter { $0.activationState != .unattached }
         guard scenes.count == 1 else { throw WorldRecoveryError.multipleScenes }
         try WorldRecoveryCommit.stage(payload)
+        retireForIdentityChange()
+        // Rebuild only this scene. Failed replay presents the protected retry
+        // surface; it never revives the old controller or creates an identity.
+        dismiss(animated:false)
+        SceneDelegate.installWorld(in:window)
+    }
+
+    private func applyRemoval(_ intent: WorldRemovalIntent) throws {
+        guard !retiredForRecovery, let window = view.window else { throw WorldRemovalError.unavailable }
+        try WorldRemovalPresentation.requireForeground(in:window)
+        // No shutdown or request is permitted before this protected write succeeds.
+        try WorldRemovalJournal.stage(intent)
+        retireForIdentityChange()
+        let install: () -> Void = { [weak window] in
+            guard let window else { return }
+            SceneDelegate.installWorld(in:window)
+        }
+        // Let existing presentation/disappearance saves finish before the standalone
+        // removal surface can start its foreground work.
+        if presentedViewController != nil { dismiss(animated:false, completion:install) }
+        else { install() }
+    }
+
+    private func retireForIdentityChange() {
         retiredForRecovery = true
+        view.endEditing(true)
         NotificationCenter.default.removeObserver(self)
         summaryTask?.cancel(); inboxTask?.cancel()
+        summaryTask = nil; inboxTask = nil
         location.onLocation = nil; location.onStatus = nil; location.onFailure = nil
         location.setActive(false)
         canvas?.onGrowth = nil
         canvas?.setSceneActive(false)
         cloud.stopForRecovery()
         social.stopForRecovery()
-        // Rebuild only this scene. Failed replay presents the protected retry
-        // surface; it never revives the old controller or creates an identity.
-        dismiss(animated:false)
-        SceneDelegate.installWorld(in:window)
     }
 
     private func showPanel(_ panel: UIViewController, large: Bool) {

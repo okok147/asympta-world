@@ -150,6 +150,7 @@ final class WorldSocialClient {
     private let makeRequest: (String) -> URLRequest?
     private let session = URLSession(configuration:.ephemeral)
     private var stopped = false
+    var isRetired: Bool { stopped }
     private var storageFailed = false
     private var selectedID: String?
     private(set) var links: [WorldCircleLink]

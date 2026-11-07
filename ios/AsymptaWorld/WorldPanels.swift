@@ -12,6 +12,7 @@ final class WorldPanelsViewController: UIViewController, UITextFieldDelegate {
     private var observer: NSObjectProtocol?
     var onClose: (() -> Void)?
     var onRecovery: (() -> Void)?
+    var onRemoval: (() -> Void)?
     var cloudConnected = false
     var growthSynced = false
 
@@ -277,6 +278,7 @@ final class WorldPanelsViewController: UIViewController, UITextFieldDelegate {
         let panel = WorldPanelsViewController(content:content,store:store,art:art,onVisit:onVisit)
         panel.onClose = onClose
         panel.onRecovery = onRecovery
+        panel.onRemoval = onRemoval
         panel.cloudConnected = cloudConnected; panel.growthSynced = growthSynced
         navigationController?.pushViewController(panel,animated:!UIAccessibility.isReduceMotionEnabled)
     }
@@ -325,6 +327,12 @@ final class WorldPanelsViewController: UIViewController, UITextFieldDelegate {
             recovery.accessibilityIdentifier = "world.recovery.open"
             recovery.addAction(UIAction { [weak self] _ in self?.onRecovery?() },for:.touchUpInside)
             stack.addArrangedSubview(recovery)
+        }
+        if onRemoval != nil {
+            let removal = WorldTheme.button(s.removal(.title), symbol:"person.crop.circle.badge.minus")
+            removal.accessibilityIdentifier = "world.removal.open"
+            removal.addAction(UIAction { [weak self] _ in self?.onRemoval?() }, for:.touchUpInside)
+            stack.addArrangedSubview(removal)
         }
         let familiar = WorldTheme.button(s[.meetTitle],symbol:"circle.grid.2x2")
         familiar.accessibilityIdentifier = "world.profile.familiar"

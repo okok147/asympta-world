@@ -429,7 +429,7 @@ final class WorldMomentComposerViewController: WorldCirclePaperViewController, U
     }
 
     private func finishPhoto(_ data: Data?, request: UUID) {
-        guard request == photoRequest else { return }
+        guard !client.isRetired, request == photoRequest else { return }
         photoRequest = nil
         if let data, let image = UIImage(data:data) {
             photo = data
@@ -534,6 +534,7 @@ final class WorldMomentComposerViewController: WorldCirclePaperViewController, U
     private var draftURL: URL? { WorldSocialClient.draftFile(for:circle.id) }
 
     private func restoreDraft() {
+        guard !client.isRetired else { return }
         guard let file = draftURL, FileManager.default.fileExists(atPath:file.path) else { return }
         do {
             let size = try file.resourceValues(forKeys:[.fileSizeKey]).fileSize ?? 0
@@ -563,6 +564,7 @@ final class WorldMomentComposerViewController: WorldCirclePaperViewController, U
 
     private func scheduleDraftSave() {
         draftSaveTask?.cancel()
+        guard !client.isRetired else { return }
         draftSaveTask = Task { [weak self] in
             try? await Task.sleep(for:.milliseconds(500))
             if !Task.isCancelled { self?.flushDraft() }
@@ -570,7 +572,7 @@ final class WorldMomentComposerViewController: WorldCirclePaperViewController, U
     }
 
     @objc private func flushDraft() {
-        guard !discarded, !committed, !sending, !draftUnreadable, pending == nil, isViewLoaded else { return }
+        guard !client.isRetired, !discarded, !committed, !sending, !draftUnreadable, pending == nil, isViewLoaded else { return }
         do { try saveEditableDraft() }
         catch { setStatus(strings.moment(.draftSaveFailed)) }
     }
@@ -584,6 +586,7 @@ final class WorldMomentComposerViewController: WorldCirclePaperViewController, U
     }
 
     private func storeDraft(_ submission: Submission, mayHaveBeenSent: Bool) throws {
+        guard !client.isRetired else { throw CancellationError() }
         guard let file = draftURL else { throw CocoaError(.fileWriteInvalidFileName) }
         let data = try JSONEncoder().encode(SavedDraft(id:submissionID,submission:submission,mayHaveBeenSent:mayHaveBeenSent))
         guard data.count <= 400_000 else { throw CocoaError(.fileWriteOutOfSpace) }
@@ -592,6 +595,7 @@ final class WorldMomentComposerViewController: WorldCirclePaperViewController, U
     }
 
     private func removeDraft() throws {
+        guard !client.isRetired else { throw CancellationError() }
         if let file = draftURL, FileManager.default.fileExists(atPath:file.path) { try FileManager.default.removeItem(at:file) }
     }
 
