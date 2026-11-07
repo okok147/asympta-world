@@ -92,7 +92,7 @@ class WorldCirclePaperViewController: UIViewController {
     }
 
     func count(_ count: Int, _ key: WorldStrings.Key) -> String {
-        String(format:strings[key], locale:strings.language.locale, count)
+        strings.count(count, key)
     }
 }
 

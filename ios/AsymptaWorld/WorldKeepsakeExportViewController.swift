@@ -279,8 +279,18 @@ private enum WorldKeepsakePDF {
             }
             page()
             let context = renderer.cgContext
-            let colors = [pigment.withAlphaComponent(0.4).cgColor,pigment.withAlphaComponent(0).cgColor] as CFArray
-            if let gradient = CGGradient(colorsSpace:CGColorSpaceCreateDeviceRGB(),colors:colors,locations:[0,1]) {
+            var paperRed: CGFloat = 0, paperGreen: CGFloat = 0, paperBlue: CGFloat = 0
+            var pigmentRed: CGFloat = 0, pigmentGreen: CGFloat = 0, pigmentBlue: CGFloat = 0
+            _ = WorldTheme.paper.getRed(&paperRed, green:&paperGreen, blue:&paperBlue, alpha:nil)
+            _ = pigment.getRed(&pigmentRed, green:&pigmentGreen, blue:&pigmentBlue, alpha:nil)
+            // Bake the pigment into paper-colored RGB stops; every stop is fully opaque.
+            let colors = [CGFloat(0.26),0.15,0.04,0].map { amount in
+                UIColor(red:paperRed + (pigmentRed - paperRed) * amount,
+                        green:paperGreen + (pigmentGreen - paperGreen) * amount,
+                        blue:paperBlue + (pigmentBlue - paperBlue) * amount,
+                        alpha:1).cgColor
+            } as CFArray
+            if let gradient = CGGradient(colorsSpace:CGColorSpaceCreateDeviceRGB(),colors:colors,locations:[0,0.45,0.75,1]) {
                 context.drawRadialGradient(gradient,startCenter:CGPoint(x:390,y:230),startRadius:0,
                     endCenter:CGPoint(x:390,y:230),endRadius:220,options:[])
             }

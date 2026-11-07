@@ -42,6 +42,7 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
     private var errorStack: UIStackView?
     private var inspector: UINavigationController?
     private var inspectorConstraints: [NSLayoutConstraint] = []
+    private var inspectorWidthConstraint: NSLayoutConstraint?
     private var inspectorAtSide: Bool?
     private var isClosingPanel = false
     private var retiredForRecovery = false
@@ -451,7 +452,7 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
         let unreadLabel: WorldStrings.Key = unreadIncomplete ? .circleInboxUnreadMoreFormat : .circleInboxUnreadFormat
         circlesButton.accessibilityValue = unreadCount == 0 ? nil : String(format:s[unreadLabel], locale:s.language.locale, unreadCount)
         areaButton.isHidden = areaCount == 0 || socialRegion == nil || areaLinkRegion != socialRegion
-        let label = String(format:s[.circleAreaCountFormat], locale:s.language.locale, areaCount)
+        let label = s.count(areaCount, .circleAreaCountFormat)
         areaButton.configuration?.title = label
         areaButton.accessibilityLabel = label
         view.setNeedsLayout()
@@ -575,9 +576,16 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
     private func layoutInspector() {
         guard let inspector else { return }
         let side = hasRoomForInspector
-        guard inspectorAtSide != side else { return }
+        let width = min(min(max(view.bounds.width * 0.36, 360), 520), view.bounds.width - 480)
+        guard inspectorAtSide != side else {
+            if side, let inspectorWidthConstraint, inspectorWidthConstraint.constant != width {
+                inspectorWidthConstraint.constant = width
+            }
+            return
+        }
         inspectorAtSide = side
         NSLayoutConstraint.deactivate(inspectorConstraints)
+        inspectorWidthConstraint = nil
         atlasTrailing.isActive = !side
         atlasBottom.isActive = side
         let panel = inspector.view!
@@ -585,15 +593,21 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
             panel.trailingAnchor.constraint(equalTo:view.trailingAnchor),
             panel.bottomAnchor.constraint(equalTo:view.bottomAnchor)
         ]
-        inspectorConstraints = edge + (side ? [
-            panel.topAnchor.constraint(equalTo:view.topAnchor),
-            panel.widthAnchor.constraint(equalToConstant:350),
-            atlas.trailingAnchor.constraint(equalTo:panel.leadingAnchor)
-        ] : [
-            panel.leadingAnchor.constraint(equalTo:view.leadingAnchor),
-            panel.heightAnchor.constraint(equalTo:view.heightAnchor, multiplier:0.60),
-            atlas.bottomAnchor.constraint(equalTo:panel.topAnchor)
-        ])
+        if side {
+            let widthConstraint = panel.widthAnchor.constraint(equalToConstant:width)
+            inspectorWidthConstraint = widthConstraint
+            inspectorConstraints = edge + [
+                panel.topAnchor.constraint(equalTo:view.topAnchor),
+                widthConstraint,
+                atlas.trailingAnchor.constraint(equalTo:panel.leadingAnchor)
+            ]
+        } else {
+            inspectorConstraints = edge + [
+                panel.leadingAnchor.constraint(equalTo:view.leadingAnchor),
+                panel.heightAnchor.constraint(equalTo:view.heightAnchor, multiplier:0.60),
+                atlas.bottomAnchor.constraint(equalTo:panel.topAnchor)
+            ]
+        }
         NSLayoutConstraint.activate(inspectorConstraints)
     }
 
@@ -602,6 +616,7 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
             inspector.willMove(toParent:nil)
             NSLayoutConstraint.deactivate(inspectorConstraints)
             inspectorConstraints = []
+            inspectorWidthConstraint = nil
             inspector.view.removeFromSuperview()
             inspector.removeFromParent()
             self.inspector = nil

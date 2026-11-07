@@ -74,6 +74,23 @@ struct WorldStrings {
         Self.copy[key]?[language.index] ?? key.rawValue
     }
 
+    func count(_ count: Int, _ key: Key) -> String {
+        let format: String
+        if language == .english && count == 1 {
+            switch key {
+            case .circleMembersFormat: format = "%d member"
+            case .circleRepliesFormat: format = "%d reply"
+            case .circleReactionsFormat: format = "%d acknowledgement"
+            case .circleReportCountFormat: format = "%d report"
+            case .circleAreaCountFormat: format = "%d moment in this area"
+            default: format = self[key]
+            }
+        } else {
+            format = self[key]
+        }
+        return String(format:format, locale:language.locale, count)
+    }
+
     func date(_ value: Date) -> String {
         let formatter = DateFormatter()
         formatter.locale = language.locale
