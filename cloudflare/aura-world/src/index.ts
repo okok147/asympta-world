@@ -1,5 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 import { matchCircleRoute } from './circles';
+import { worldPrivacy } from './privacy';
 
 export { WorldCircle } from './circles';
 
@@ -235,6 +236,7 @@ async function circleInbox(request: Request, env: Env) {
 export default {
   async fetch(request,env,ctx) {
     const url=new URL(request.url);
+    if(url.pathname==='/privacy' && request.method==='GET')return worldPrivacy();
     if(url.pathname==='/health')return json({ok:true,service:'asympta-world-aura',schema:1,mapSource:'OpenStreetMap',locationStorage:'coarse_socket_presence_only',profileStorage:'durable_abilities_only',circles:'invitation_only_v1'});
     if(url.pathname==='/v1/circles/inbox' && request.method==='POST')return circleInbox(request,env);
     const social=matchCircleRoute(url.pathname,request.method);

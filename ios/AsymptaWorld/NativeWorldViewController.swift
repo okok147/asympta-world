@@ -48,6 +48,7 @@ final class NativeWorldViewController: UIViewController, UIAdaptivePresentationC
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = WorldTheme.mapPaper
+        Task { await WorldKeepsakesStore.shared.refresh() }
         let notifications = NotificationCenter.default
         notifications.addObserver(self, selector:#selector(stateChanged), name:.watercolorWorldDidChange, object:store)
         notifications.addObserver(self, selector:#selector(sceneActivated(_:)), name:UIScene.didActivateNotification, object:nil)

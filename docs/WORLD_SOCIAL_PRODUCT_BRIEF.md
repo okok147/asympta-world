@@ -43,3 +43,59 @@ Core posting, joining, replying and privacy controls are free. The first optiona
 - Keep the architecture map and release record current. An Apple upload, tool acknowledgement, mockup or attractive still is insufficient functional acceptance. Any product that opens broader UGC discovery requires a demonstrated moderation operation and a review of the then-current Apple requirements.
 
 References: [Apple Design Awards](https://developer.apple.com/design/awards/), [Apple design principles](https://developer.apple.com/design/human-interface-guidelines/design-principles/), [App Review Guidelines](https://developer.apple.com/app-store/review/guidelines/), [Discord Shop](https://support.discord.com/hc/en-us/articles/17162747936663-Shop-FAQ).
+
+## Stage 4 reference-led specification · revision 2026-11-07.1
+
+Canonical project card is [Asympta World](https://app.notion.com/p/41025c63c3ea815b9940e4c46b64fc7e). The Notion prompt page mirrors this specification and carries current evidence. The user selected Bump, Retro and Are.na and authorized continued implementation. Build18 is the verified starting product. Stage4 remains open until every requirement below has actual product evidence. A release batch does not close Stage4.
+
+### Final experience and reference transfer
+
+World is a private social atlas for existing friends. A person can arrive without granting location, start a circle, invite friends, share a moment, receive a reply and return directly to it. Members collect meaningful moments into named shared collections and revisit their lives by local-calendar week. Search finds existing words, authors and photo descriptions. A subscription pays for original keepsake and presentation tools with complete native purchase, restore and management flows. Identity continuity, data control and safety have explicit requirements.
+
+- [Bump official product guide](https://help.bumpmaps.com/en/articles/11420926-how-bump-works) provides the map-to-person-to-conversation relationship, people/place search and consent controls. World uses its own broad aura presence and invitation audiences. Precise background tracking, automatic home/work detection and public rankings require separate product decisions.
+- [Retro official app listing](https://apps.apple.com/us/app/retro-photos-with-friends/id6443709020) provides friends-only sharing, weekly life records, private collaborative albums and recap value. World adapts this through shared moments, local-calendar weekly reading and collections. Source content is never silently imported or shared.
+- [Are.na official plans](https://www.are.na/about) provides editable shared collections, search and member-supported advanced tools. World collections retain the source post, author and original access rules. Fundamental safety and access to existing content remain available across paid states.
+
+### Visual references actually inspected on Pinterest
+
+- [Gradient data visualisation in app](https://www.pinterest.com/pin/1045679607242674243/) is the same image supplied by the user. Use cream ground, diffuse rust/yellow/blue/violet fields and deliberate spacing. Keep body text sharp and controls identifiable.
+- [Klad friends map](https://www.pinterest.com/pin/421790321371212948/) demonstrates readable subdued cartography with a consistent marker system and compact search/navigation. World retains its original aura and geographic renderer.
+- [Travel Photo Album as a Stamp Collection](https://www.pinterest.com/pin/827255025346358608/) shows small album covers, meaningful whitespace and tactile collected-photo framing. Transfer the collection hierarchy and sense of keeping a memory, with original renderings.
+
+These are visual observations and official-description research. They are not firsthand tests of the reference apps or user research.
+
+### Product rules and delivery scope
+
+All social content stays behind current membership. Collections reference existing moments instead of copying their private media into a new audience. A removed, reported or blocked contribution disappears from collection reads and counts under the same rules as the feed. Collection writes carry stable IDs or desired states. A member leaving or being removed also clears their authored collection content and additions as defined by the service.
+
+Weekly ranges use the current local calendar, including daylight-saving changes. Search covers the circle's stored history with deterministic pagination. Empty, loading, retry, missing-membership and partial-network states must be usable. Older clients and already-created circle databases must continue working through additive migration.
+
+The proposed subscription is World Keepsakes. Initial price hypothesis is US$3.99 monthly or US$29.99 yearly, localized by the App Store. The proposed paid value is composed keepsake export and additional presentation tools. Purchase UI displays only Apple-returned prices and actual available products. Verification uses StoreKit signed transactions, revocation/upgrades, subscription state and restore. Existing content and free social functions stay accessible after expiry. Product setup, sandbox purchase, cancellation/restore and entitlement verification remain separate evidence. No paid state is inferred from a preference or a mocked receipt.
+
+### Requirements and completion criteria
+
+| ID | Required final behavior | Current state and evidence |
+| --- | --- | --- |
+| S4-01 | An invitee can understand the audience, join privately, share and return to a real reply. Outsiders cannot read the circle. | Build18 native and deployed-service evidence covers two test circles and independent Mac participants. Second native participant pending. |
+| S4-02 | Atlas offers clear people/context navigation, optional broad presence and a route back to relevant social content. | Existing aura/map and selected-circle area context implemented. Reference-led navigation completion pending. |
+| S4-03 | Moment text and a selected described photo can be prepared, kept as a protected draft, reviewed with audience/area disclosure and shared once across uncertain retries. | Build18 draft/text/area-off physical pass. Real photo-picker and interrupted-send scenes pending. |
+| S4-04 | Full history can be searched by words, author and photo description, with no duplicates across pages. A local week can be selected and its actual stored moments read. | Implementing. |
+| S4-05 | Members create named collections, save and remove existing moments collaboratively, inspect saved state and open the original. Owner/host can remove a collection. Hidden content never leaks through collection details or counts. | Implementing. |
+| S4-06 | Cross-circle reply inbox opens each original post and marks only that post's displayed replies read. | Build18 physical two-circle pass and badge 2 to 1 to clear. |
+| S4-07 | Report, block, unblock, host review, member removal, invitation replacement and leave apply consistently across feed, search, inbox and collections. | Existing moderation implemented. New-surface evidence pending. |
+| S4-08 | Identity continuity/recovery and complete social-data removal have explicit, usable flows and verified authorization. A person can export their own accessible data. | Current device-bound identity and per-circle leave implemented. Recovery and complete deletion pending. |
+| S4-09 | World Keepsakes provides real recurring value with native products, localized terms/prices, purchase, pending/cancel/failure, restore, manage and verified expiry/revocation behavior. | Paid offering designed. Apple configuration and actual entitlement flow pending. |
+| S4-10 | Keepsake tools create a readable original artifact from permitted content, preserve attribution and support the native share sheet with protected temporary files. | Pending. |
+| S4-11 | New surfaces match the cream/color-field/seal system, support iPhone/iPad geometry, Dynamic Type, VoiceOver, reduced motion and all three selected languages. | Existing native system reused. New surface exact-build verification pending. |
+| S4-12 | Server migration, bounded queries, concurrency, cancellation and retries preserve correct state. Offline/partial results communicate their limits and provide recovery. | Build18 production baseline. New-surface verification pending. |
+
+### Simulated perspectives and decisions
+
+The following are simulated design critiques, not human participation or completed product trials. The next actual TestFlight scene must attach version, actions and observations to the affected requirements.
+
+- A time-limited friend wants to find a past moment quickly. Success is search to the right original in a few deliberate actions. Prioritize author/text search and weekly history.
+- A circle organizer wants a shared album to retain stories without widening access. Success is two members adding to the same collection with moderation still effective. Keep collections inside each circle.
+- An artist wants gentle atmosphere with readable text and original forms. Keep color fields behind seals/covers and a strong text hierarchy. Avoid blur beneath long reading content.
+- A platform designer prioritizes one native navigation stack, accessible rows, local calendar dates and clear failure states. Favor reusable system controls and source-preserving original-post routes.
+
+The main tension is expressive collected memories versus rapid scanning. Resolve it with restrained covers and compact text metadata, then verify actual reading and saving on the same TestFlight build. Demand, retention, conversion, human artistic approval and 10x comparisons are unknown.

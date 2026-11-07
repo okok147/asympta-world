@@ -80,6 +80,33 @@ struct WorldCircleLink: Codable {
     let title: String
 }
 
+struct WorldLibraryCursor: Codable {
+    let createdAt: Double
+    let id: String
+}
+
+struct WorldLibraryPage: Decodable {
+    let circle: WorldCircle
+    let moments: [WorldMoment]
+    let hasMore: Bool
+    let nextBefore: WorldLibraryCursor?
+}
+
+struct WorldCollection: Decodable {
+    let id: String
+    let title: String
+    let createdAt: Double
+    let createdBy: String
+    let itemCount: Int
+    let owned: Bool
+    let containsMoment: Bool?
+}
+
+struct WorldCollectionDetail: Decodable {
+    let collection: WorldCollection
+    let moments: [WorldMoment]
+}
+
 enum WorldCircleReportReason: String, CaseIterable {
     case harassment, spam, privacy, other
 
@@ -116,6 +143,8 @@ final class WorldSocialClient {
     private struct Invite: Decodable { let code: String }
     private struct Reports: Decodable { let reports: [WorldCircleReport] }
     private struct Members: Decodable { let members: [WorldCircleMember] }
+    private struct Collections: Decodable { let collections: [WorldCollection] }
+    private struct CollectionResult: Decodable { let collection: WorldCollection }
     private struct Failure: Decodable, Error { let error: String }
 
     private static let defaultsKey = "world.social.circle-links-v1"
@@ -174,7 +203,8 @@ final class WorldSocialClient {
             if let problem = try? JSONDecoder().decode(Failure.self, from:data) { throw problem }
             throw Failure(error:status == 429 ? "rate_limited" : "temporarily_unavailable")
         }
-        guard data.count <= 480_000 else { throw URLError(.dataLengthExceedsMaximum) }
+        let maximumBytes = path.contains("/collections/") ? 1_500_000 : 480_000
+        guard data.count <= maximumBytes else { throw URLError(.dataLengthExceedsMaximum) }
         return try JSONDecoder().decode(Result.self, from:data)
     }
 
@@ -207,6 +237,47 @@ final class WorldSocialClient {
 
     func snapshot(circleID: String) async throws -> WorldCircleSnapshot {
         try await call(circleID)
+    }
+
+    func browse(circleID: String, query: String = "", weekStart: Double? = nil,
+                weekEnd: Double? = nil, before: WorldLibraryCursor? = nil) async throws -> WorldLibraryPage {
+        var body: [String:Any] = ["query":query]
+        body["weekStart"] = weekStart
+        body["weekEnd"] = weekEnd
+        if let before { body["before"] = ["createdAt":before.createdAt,"id":before.id] }
+        return try await call(circleID, "/browse", body:body)
+    }
+
+    func collections(circleID: String, momentID: String? = nil) async throws -> [WorldCollection] {
+        let result: Collections
+        if let momentID {
+            guard Self.validID(momentID) else { throw Failure(error:"not_found") }
+            result = try await call(circleID, "/collections/status", body:["momentID":momentID])
+        } else {
+            result = try await call(circleID, "/collections")
+        }
+        return result.collections
+    }
+
+    func collection(circleID: String, id: String) async throws -> WorldCollectionDetail {
+        guard Self.validID(id) else { throw Failure(error:"not_found") }
+        return try await call(circleID, "/collections/" + id)
+    }
+
+    func createCollection(circleID: String, id: String, title: String) async throws -> WorldCollection {
+        let result: CollectionResult = try await call(circleID, "/collections", body:["id":id,"title":title])
+        return result.collection
+    }
+
+    func setCollected(circleID: String, collectionID: String, momentID: String, active: Bool) async throws {
+        guard Self.validID(collectionID), Self.validID(momentID) else { throw Failure(error:"not_found") }
+        let _: ResultOK = try await call(circleID, "/collections/" + collectionID + "/items",
+                                        body:["momentID":momentID,"active":active])
+    }
+
+    func removeCollection(circleID: String, id: String) async throws {
+        guard Self.validID(id) else { throw Failure(error:"not_found") }
+        let _: ResultOK = try await call(circleID, "/collections/" + id + "/remove", body:[:])
     }
 
     func inbox() async throws -> WorldCircleInbox {
@@ -320,6 +391,7 @@ final class WorldSocialClient {
             // A previous leave may have reached the service even if its reply was interrupted.
         }
         links.removeAll { $0.id == circleID }
+        UserDefaults.standard.removeObject(forKey:"world.social.collection-create-v1." + circleID)
         saveLinks()
     }
 

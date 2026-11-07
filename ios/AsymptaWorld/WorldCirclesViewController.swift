@@ -97,7 +97,7 @@ class WorldCirclePaperViewController: UIViewController {
 }
 
 /// A paper surface that reads as one accessible action, even when its labels wrap.
-private final class WorldCircleSlip: UIButton {
+final class WorldCircleSlip: UIButton {
     init(title: String, detail: String?, footer: String?, ink: UInt32, style: WorldCircleInkStyle? = nil, id: String, onOpen: @escaping () -> Void) {
         super.init(frame:.zero)
         accessibilityIdentifier = id
@@ -207,6 +207,14 @@ final class WorldCirclesViewController: WorldCirclePaperViewController {
         }
         stack.addArrangedSubview(action(.circleCreate, "plus", id:"world.circle.create", filled:true) { [weak self] in self?.enter(.create) })
         stack.addArrangedSubview(action(.circleJoin, "key", id:"world.circle.join") { [weak self] in self?.enter(.join) })
+        let keepsakes = WorldTheme.button("World Keepsakes", symbol:"book.closed")
+        keepsakes.accessibilityIdentifier = "world.keepsakes.open"
+        keepsakes.addAction(UIAction { [weak self] _ in
+            guard let self else { return }
+            let page = WorldKeepsakesViewController(strings:strings)
+            navigationController?.pushViewController(page, animated:!UIAccessibility.isReduceMotionEnabled)
+        }, for:.touchUpInside)
+        stack.addArrangedSubview(keepsakes)
         message(strings[.circleBeta])
     }
 
@@ -523,6 +531,14 @@ private final class WorldCircleFeedViewController: WorldCirclePaperViewControlle
         titleBlock(circle.title, detail:strings[.circlePrivate] + "  ·  " + count(circle.memberCount,.circleMembersFormat))
         let composeTitle: WorldStrings.Key = WorldSocialClient.hasDraft(for:circle.id) ? .circleResumeDraft : .circleShareMoment
         stack.addArrangedSubview(action(composeTitle,"square.and.pencil",id:"world.circle.compose",filled:true) { [weak self] in self?.compose(circle) })
+        let library = WorldTheme.button(strings.library(.library), symbol:"books.vertical")
+        library.accessibilityIdentifier = "world.circle.library"
+        library.addAction(UIAction { [weak self] _ in
+            guard let self else { return }
+            let page = WorldLibraryViewController(circle:circle, client:client, strings:strings)
+            navigationController?.pushViewController(page, animated:!UIAccessibility.isReduceMotionEnabled)
+        }, for:.touchUpInside)
+        stack.addArrangedSubview(library)
         if circle.canInvite && circle.memberCount == 1 {
             stack.addArrangedSubview(action(.circleInvite,"person.badge.plus",id:"world.circle.invite") { [weak self] in self?.invite() })
         }

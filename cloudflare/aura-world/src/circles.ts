@@ -9,6 +9,10 @@ const REPLY_LIMIT = 100;
 const HISTORY_LIMIT = 20_000;
 const WRITE_WINDOW_MS = 60_000;
 const WRITE_LIMIT = 18;
+const COLLECTION_LIMIT = 32;
+const COLLECTION_ITEM_LIMIT = 256;
+const BROWSE_PAGE_SIZE = 32;
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 const REPORT_REASONS = ['harassment', 'spam', 'privacy', 'other'] as const;
 const REPORT_REASON_COLUMN = `reason TEXT NOT NULL DEFAULT 'other'
   CHECK(reason IN (${REPORT_REASONS.map(reason => `'${reason}'`).join(', ')}))`;
@@ -17,7 +21,8 @@ type Kind = 'moment' | 'reply';
 type ReportReason = typeof REPORT_REASONS[number];
 type Action = 'create' | 'join' | 'snapshot' | 'inbox' | 'invite' | 'publish' | 'detail' | 'reply' |
   'reaction' | 'read' | 'moderate' | 'reports' | 'resolve' | 'blocks' | 'unblock' | 'leave' |
-  'members' | 'removeMember' | 'rotateInvite' | 'appearance' | 'momentReport' | 'replyReport';
+  'members' | 'removeMember' | 'rotateInvite' | 'appearance' | 'momentReport' | 'replyReport' |
+  'collections' | 'collectionStatus' | 'createCollection' | 'collectionDetail' | 'collectionItem' | 'removeCollection' | 'browse';
 type Input = Record<string, unknown>;
 type MemberStyle = 'clay' | 'saffron' | 'tide' | 'dusk';
 type Member = { id: string; name: string; style?: MemberStyle | null };
@@ -29,6 +34,8 @@ type ReplyRow = ContributionRow & { momentID: string };
 type SummaryRow = Omit<MomentRow, 'photo'> & AuthorColumns & { hasPhoto: number; replyCount: number; reactionCount: number; reacted: number };
 type FullReplyRow = ReplyRow & AuthorColumns;
 type ReportRow = ContributionRow & AuthorColumns & Record<ReportReason, number> & { reportCount: number };
+type CollectionRow = { id: string; title: string; author: string; createdAt: number };
+type BrowseCursor = { createdAt: number; id: string };
 type Result = { status: number; body: object };
 
 const routes = new Map<string, Action>([
@@ -38,6 +45,8 @@ const routes = new Map<string, Action>([
   ['GET /blocks', 'blocks'], ['POST /unblock', 'unblock'], ['POST /leave', 'leave'],
   ['GET /members', 'members'], ['POST /members/remove', 'removeMember'], ['POST /invite/rotate', 'rotateInvite'],
   ['POST /appearance', 'appearance'],
+  ['GET /collections', 'collections'], ['POST /collections', 'createCollection'],
+  ['POST /collections/status', 'collectionStatus'], ['POST /browse', 'browse'],
 ]);
 
 export function matchCircleRoute(path: string, method: string) {
@@ -46,6 +55,15 @@ export function matchCircleRoute(path: string, method: string) {
   const [, circleID, suffix] = match;
   const action = routes.get(`${method} ${suffix}`);
   if (action) return { circleID, action, target: null };
+  const collection = /^\/collections\/([0-9a-f]{32})(?:\/(items|remove))?$/.exec(suffix);
+  if (collection) {
+    const [, target, subresource] = collection;
+    if (method === 'GET' && !subresource) return { circleID, action: 'collectionDetail' as const, target };
+    if (method === 'POST' && subresource) {
+      return { circleID, action: subresource === 'items' ? 'collectionItem' as const : 'removeCollection' as const, target };
+    }
+    return null;
+  }
   const report = /^\/reports\/(moment|reply)\/([0-9a-f]{32})$/.exec(suffix);
   if (method === 'GET' && report) {
     return {
@@ -174,8 +192,16 @@ export class WorldCircle extends DurableObject {
     const member = this.member(actor);
     if (!member) return fail(403, 'not_member');
 
+    if (['collections', 'collectionStatus', 'createCollection', 'collectionDetail', 'collectionItem', 'removeCollection'].includes(action)) {
+      this.ensureCollections();
+    }
+
     switch (action) {
       case 'snapshot': return this.snapshot(circleID, member, circle);
+      case 'browse': return this.browse(circleID, member, circle, input);
+      case 'collections': return this.collections(actor);
+      case 'collectionStatus': return this.collectionStatus(actor, input);
+      case 'collectionDetail': return this.collectionDetail(actor, target);
       case 'inbox': {
         const unread = this.unread(member.id, 33);
         return { circle: this.summary(circleID, member, circle), activity: unread.slice(0, 32), hasMore: unread.length > 32 };
@@ -202,6 +228,9 @@ export class WorldCircle extends DurableObject {
     return this.ctx.storage.transactionSync(() => {
       switch (action) {
         case 'publish': return this.publish(actor, input);
+        case 'createCollection': return this.createCollection(actor, input);
+        case 'collectionItem': return this.collectionItem(actor, target, input);
+        case 'removeCollection': return this.removeCollection(actor, circle, target);
         case 'reply': return this.reply(actor, target, input);
         case 'reaction': return this.reaction(actor, target, input);
         case 'read': return this.markRead(actor, input);
@@ -304,6 +333,21 @@ export class WorldCircle extends DurableObject {
       this.ctx.storage.kv.put('report-reasons', true);
     });
   }
+  private ensureCollections() {
+    if (this.ctx.storage.kv.get('collections-v1') === true) return;
+    this.ctx.storage.transactionSync(() => {
+      this.sql.exec(`
+        CREATE TABLE collections (id TEXT PRIMARY KEY, title TEXT NOT NULL, author TEXT NOT NULL, createdAt INTEGER NOT NULL);
+        CREATE INDEX collections_by_author ON collections (author);
+        CREATE TABLE collection_items (collectionID TEXT NOT NULL, momentID TEXT NOT NULL,
+          addedBy TEXT NOT NULL, PRIMARY KEY (collectionID, momentID));
+        CREATE INDEX collection_items_by_moment ON collection_items (momentID);
+        CREATE INDEX collection_items_by_author ON collection_items (addedBy);
+        CREATE TABLE removed_collections (id TEXT PRIMARY KEY, author TEXT NOT NULL);
+      `);
+      this.ctx.storage.kv.put('collections-v1', true);
+    });
+  }
   private member(actor: string) {
     return this.sql.exec<Member>('SELECT id, name, style FROM members WHERE id=?', actor).toArray()[0];
   }
@@ -325,6 +369,148 @@ export class WorldCircle extends DurableObject {
       `${momentSummary} ORDER BY m.createdAt DESC, m.id DESC LIMIT 64`, me.id,
     ).toArray().map(row => this.momentJSON(row, me.id));
     return { circle: this.summary(circleID, me, circle), moments, activity: this.unread(me.id, 32) };
+  }
+
+  private browse(circleID: string, me: Member, circle: CircleRow, input: Input) {
+    const rawQuery = input.query ?? '';
+    if (typeof rawQuery !== 'string' || [...rawQuery].length > 100 ||
+        /[\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/u.test(rawQuery)) {
+      return fail(400, 'invalid_input');
+    }
+    const query = rawQuery.trim().normalize('NFKC').toLowerCase();
+    const start = input.weekStart;
+    const end = input.weekEnd ?? (typeof start === 'number' ? start + WEEK_MS : undefined);
+    if (start !== undefined || end !== undefined) {
+      if (typeof start !== 'number' || !Number.isSafeInteger(start) || start < 0 ||
+          typeof end !== 'number' || !Number.isSafeInteger(end) || end <= start ||
+          end > 8_640_000_000_000_000 || end - start > 8 * 24 * 60 * 60 * 1000) {
+        return fail(400, 'invalid_input');
+      }
+    }
+    let before: BrowseCursor | undefined;
+    if (input.before !== undefined && input.before !== null) {
+      if (typeof input.before !== 'object' || Array.isArray(input.before)) return fail(400, 'invalid_input');
+      const cursor = input.before as Record<string, unknown>;
+      if (typeof cursor.createdAt !== 'number' || !Number.isSafeInteger(cursor.createdAt) || cursor.createdAt < 0) {
+        return fail(400, 'invalid_input');
+      }
+      before = { createdAt: cursor.createdAt, id: id(cursor.id) };
+    }
+    // The circle's existing 256-moment bound makes Unicode-aware search affordable
+    // without a second copy of private text or a separate indexing service.
+    const matching = this.sql.exec<SummaryRow>(
+      `${momentSummary} ORDER BY m.createdAt DESC, m.id DESC LIMIT ${MOMENT_LIMIT}`, me.id,
+    ).toArray().filter(row => {
+      if (start !== undefined && (row.createdAt < (start as number) || row.createdAt >= (end as number))) return false;
+      if (before && (row.createdAt > before.createdAt || (row.createdAt === before.createdAt && row.id >= before.id))) return false;
+      return !query || [row.text, row.photoDescription ?? '', row.authorName]
+        .some(value => value.normalize('NFKC').toLowerCase().includes(query));
+    });
+    const page = matching.slice(0, BROWSE_PAGE_SIZE);
+    const hasMore = matching.length > BROWSE_PAGE_SIZE;
+    const last = page.at(-1);
+    return {
+      circle: this.summary(circleID, me, circle),
+      moments: page.map(row => this.momentJSON(row, me.id)), hasMore,
+      ...(hasMore && last ? { nextBefore: { createdAt: last.createdAt, id: last.id } } : {}),
+    };
+  }
+
+  private collection(actor: string, collectionID: string) {
+    return this.sql.exec<CollectionRow>(
+      `SELECT c.id, c.title, c.author, c.createdAt FROM collections c
+       JOIN members a ON a.id=c.author WHERE c.id=?2 AND ${unblocked('c.author')}`, actor, collectionID,
+    ).toArray()[0] ?? fail(404, 'not_found');
+  }
+  private collectionJSON(row: CollectionRow, actor: string) {
+    const itemCount = this.sql.exec<{ count: number }>(
+      `SELECT count(*) AS count FROM collection_items i JOIN moments m ON m.id=i.momentID
+       JOIN members a ON a.id=m.author WHERE i.collectionID=?2 AND ${visible('m', 'moment')}`, actor, row.id,
+    ).one().count;
+    return { id: row.id, title: row.title, createdAt: row.createdAt, createdBy: row.author, itemCount, owned: row.author === actor };
+  }
+  private collections(actor: string, momentID?: string) {
+    const collections = this.sql.exec<CollectionRow>(
+      `SELECT c.id, c.title, c.author, c.createdAt FROM collections c
+       JOIN members a ON a.id=c.author WHERE ${unblocked('c.author')}
+       ORDER BY c.createdAt DESC, c.id DESC LIMIT ${COLLECTION_LIMIT}`, actor,
+    ).toArray().map(row => ({
+      ...this.collectionJSON(row, actor),
+      ...(momentID ? {
+        containsMoment: this.sql.exec(
+          'SELECT 1 FROM collection_items WHERE collectionID=? AND momentID=?', row.id, momentID,
+        ).toArray().length > 0,
+      } : {}),
+    }));
+    return { collections };
+  }
+  private collectionStatus(actor: string, input: Input) {
+    const momentID = id(input.momentID);
+    this.requireMoment(actor, momentID);
+    return this.collections(actor, momentID);
+  }
+  private createCollection(actor: string, input: Input) {
+    const collectionID = id(input.id);
+    const title = text(input.title, 60);
+    const existing = this.sql.exec<CollectionRow>(
+      'SELECT id, title, author, createdAt FROM collections WHERE id=?', collectionID,
+    ).toArray()[0];
+    if (existing) {
+      if (existing.author !== actor || existing.title !== title) return fail(409, 'id_conflict');
+      return { collection: this.collectionJSON(existing, actor) };
+    }
+    if (this.sql.exec('SELECT 1 FROM removed_collections WHERE id=?', collectionID).toArray().length) {
+      return fail(409, 'id_conflict');
+    }
+    const counts = this.sql.exec<{ current: number; removed: number }>(
+      'SELECT (SELECT count(*) FROM collections) AS current, (SELECT count(*) FROM removed_collections) AS removed',
+    ).one();
+    if (counts.current >= COLLECTION_LIMIT || counts.current + counts.removed >= HISTORY_LIMIT) return fail(409, 'limit_reached');
+    this.takeWrite(actor);
+    const row = { id: collectionID, title, author: actor, createdAt: this.nextTimestamp() };
+    this.sql.exec('INSERT INTO collections (id, title, author, createdAt) VALUES (?, ?, ?, ?)',
+      row.id, row.title, row.author, row.createdAt);
+    return { collection: this.collectionJSON(row, actor) };
+  }
+  private collectionDetail(actor: string, collectionID: string) {
+    const collection = this.collection(actor, collectionID);
+    const moments = this.sql.exec<SummaryRow>(
+      `${momentSummary} AND EXISTS (
+        SELECT 1 FROM collection_items i WHERE i.collectionID=?2 AND i.momentID=m.id
+       ) ORDER BY m.createdAt DESC, m.id DESC LIMIT ${COLLECTION_ITEM_LIMIT}`, actor, collectionID,
+    ).toArray().map(row => this.momentJSON(row, actor));
+    return { collection: this.collectionJSON(collection, actor), moments };
+  }
+  private collectionItem(actor: string, collectionID: string, input: Input) {
+    this.collection(actor, collectionID);
+    const momentID = id(input.momentID);
+    if (typeof input.active !== 'boolean') return fail(400, 'invalid_input');
+    this.requireMoment(actor, momentID);
+    const exists = this.sql.exec(
+      'SELECT 1 FROM collection_items WHERE collectionID=? AND momentID=?', collectionID, momentID,
+    ).toArray().length > 0;
+    if (exists === input.active) return done;
+    if (input.active && this.sql.exec<{ count: number }>(
+      'SELECT count(*) AS count FROM collection_items WHERE collectionID=?', collectionID,
+    ).one().count >= COLLECTION_ITEM_LIMIT) return fail(409, 'limit_reached');
+    this.takeWrite(actor);
+    if (input.active) {
+      this.sql.exec('INSERT INTO collection_items (collectionID, momentID, addedBy) VALUES (?, ?, ?)', collectionID, momentID, actor);
+    } else {
+      this.sql.exec('DELETE FROM collection_items WHERE collectionID=? AND momentID=?', collectionID, momentID);
+    }
+    return done;
+  }
+  private removeCollection(actor: string, circle: CircleRow, collectionID: string) {
+    const removed = this.sql.exec<{ author: string }>('SELECT author FROM removed_collections WHERE id=?', collectionID).toArray()[0];
+    if (removed && (removed.author === actor || circle.owner === actor)) return done;
+    const collection = this.collection(actor, collectionID);
+    if (collection.author !== actor && circle.owner !== actor) return fail(403, 'forbidden');
+    this.takeWrite(actor);
+    this.sql.exec('INSERT INTO removed_collections (id, author) VALUES (?, ?)', collectionID, collection.author);
+    this.sql.exec('DELETE FROM collection_items WHERE collectionID=?', collectionID);
+    this.sql.exec('DELETE FROM collections WHERE id=?', collectionID);
+    return done;
   }
 
   private unread(actor: string, limit: number) {
@@ -586,6 +772,9 @@ export class WorldCircle extends DurableObject {
   }
   private removeMoments(column: 'id' | 'author', value: string) {
     const selected = `SELECT id FROM moments WHERE ${column}=?`;
+    if (this.ctx.storage.kv.get('collections-v1') === true) {
+      this.sql.exec(`DELETE FROM collection_items WHERE momentID IN (${selected})`, value);
+    }
     this.sql.exec(`INSERT INTO removed (kind, id) SELECT 'moment', id FROM moments WHERE ${column}=?`, value);
     this.sql.exec(
       `INSERT INTO removed (kind, id) SELECT 'reply', id FROM replies WHERE momentID IN (${selected})`, value,
@@ -602,6 +791,11 @@ export class WorldCircle extends DurableObject {
     this.sql.exec(`DELETE FROM moments WHERE ${column}=?`, value);
   }
   private deleteMemberRecords(memberID: string) {
+    if (this.ctx.storage.kv.get('collections-v1') === true) {
+      this.sql.exec('INSERT INTO removed_collections (id, author) SELECT id, author FROM collections WHERE author=?', memberID);
+      this.sql.exec('DELETE FROM collection_items WHERE collectionID IN (SELECT id FROM collections WHERE author=?) OR addedBy=?', memberID, memberID);
+      this.sql.exec('DELETE FROM collections WHERE author=?', memberID);
+    }
     this.removeMoments('author', memberID);
     this.removeReplies('author', memberID);
     this.sql.exec('DELETE FROM reactions WHERE author=?', memberID);
@@ -634,6 +828,7 @@ export class WorldCircle extends DurableObject {
       } else {
         this.sql.exec("UPDATE circle SET owner='', secret='', title='', closed=1, lastEventAt=0");
         this.sql.exec('DELETE FROM removed');
+        if (this.ctx.storage.kv.get('collections-v1') === true) this.sql.exec('DELETE FROM removed_collections');
       }
     }
     return done;

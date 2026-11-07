@@ -963,12 +963,20 @@ final class WorldMomentViewController: WorldCirclePaperViewController, UITextVie
 
     private func menu(kind: String, target: String, owned: Bool, authorID: String) -> UIMenu {
         let permissions: [Moderation] = owned ? [.remove] : circle.canInvite ? [.report,.block,.remove] : [.report,.block]
-        return UIMenu(children:permissions.map { action in
+        var actions: [UIMenuElement] = permissions.map { action in
             UIAction(title:strings.moment(action.title), image:UIImage(systemName:action.icon),
                      attributes:action == .report ? [] : [.destructive]) { [weak self] _ in
                 self?.confirm(action, kind:kind, target:target, authorID:authorID)
             }
-        })
+        }
+        if kind == "moment" {
+            actions.insert(UIAction(title:strings.library(.saveToCollection), image:UIImage(systemName:"bookmark")) { [weak self] _ in
+                guard let self, !busy else { return }
+                let picker = WorldCollectionPickerViewController(circle:circle, momentID:target, client:client, strings:strings)
+                navigationController?.pushViewController(picker, animated:!UIAccessibility.isReduceMotionEnabled)
+            }, at:0)
+        }
+        return UIMenu(children:actions)
     }
 
     private func confirm(_ action: Moderation, kind: String, target: String, authorID: String) {
