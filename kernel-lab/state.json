@@ -1,7 +1,7 @@
 {
   "version": "asympta.kernel-recursive-state/0.1",
-  "generation": 438,
-  "totalCases": 140160,
+  "generation": 439,
+  "totalCases": 140480,
   "attackWeights": {
     "baseline_success": 0.25,
     "controlled_no_capability": 8,
@@ -23,5 +23,5 @@
     "verification": 0.25
   },
   "uncontrolledFingerprints": [],
-  "lastRunAt": "2026-11-07T12:13:47.077Z"
+  "lastRunAt": "2026-11-07T16:39:22.968Z"
 }
