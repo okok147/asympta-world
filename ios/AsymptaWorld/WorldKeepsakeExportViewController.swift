@@ -269,7 +269,7 @@ private enum WorldKeepsakePDF {
         }
         return UIGraphicsPDFRenderer(bounds:bounds).pdfData { renderer in
             var pageNumber = 0
-            func page() {
+            @MainActor func page() {
                 pageNumber += 1
                 renderer.beginPage()
                 WorldTheme.paper.setFill()
