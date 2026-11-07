@@ -297,7 +297,8 @@ private enum WorldKeepsakePDF {
                     context.strokeEllipse(in:CGRect(x:78-radius,y:81-radius,width:radius*2,height:radius*2))
                 }
                 var y = paragraph(moment.author.name,at:125,size:24)
-                y = paragraph(strings.momentDate(moment.createdAt),at:y+12,size:12,color:ink.withAlphaComponent(0.65))
+                let date = strings.date(Date(timeIntervalSince1970:moment.createdAt / 1000))
+                y = paragraph(date,at:y+12,size:12,color:ink.withAlphaComponent(0.65))
                 if !moment.text.isEmpty { y = paragraph(moment.text,at:y+28,size:18) }
                 let descriptionHeight = moment.photoDescription.map { paragraph($0,at:0,size:12,draw:false) + 16 } ?? 0
                 if let bytes = detail.photo, let picture = UIImage(data:bytes) {
