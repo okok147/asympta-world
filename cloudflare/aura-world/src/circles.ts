@@ -165,8 +165,46 @@ const momentSummary = `
 export class WorldCircle extends DurableObject {
   private get sql() { return this.ctx.storage.sql; }
 
+  private ensureIdentityErasures() {
+    if (this.ctx.storage.kv.get('identity-erasures-v1') === true) return;
+    // Independent of initialized: an actor can be erased before circle.create arrives.
+    this.ctx.storage.transactionSync(() => {
+      this.sql.exec(`CREATE TABLE IF NOT EXISTS identity_erasures (
+        actor TEXT PRIMARY KEY NOT NULL
+          CHECK(length(actor)=64 AND actor NOT GLOB '*[^0-9a-f]*')
+      )`);
+      this.ctx.storage.kv.put('identity-erasures-v1', true);
+    });
+  }
+
+  /** Trusted Worker RPC only; there is deliberately no public erasure route here. */
+  eraseIdentity(actor: string) {
+    id(actor, MEMBER_ID);
+    this.ensureIdentityErasures();
+    return this.ctx.storage.transactionSync(() => {
+      this.sql.exec('INSERT OR IGNORE INTO identity_erasures (actor) VALUES (?)', actor);
+      const circle = this.circle();
+      if (circle) {
+        // Reuse contribution cleanup, last-owner closure, and ownership transfer.
+        // This also cleans residual records when membership has already ended.
+        this.leave(actor, circle);
+        this.sql.exec('DELETE FROM blocks WHERE blocked=?', actor);
+      }
+      return done;
+    });
+  }
+
   dispatch(circleID: string, actor: string, action: Action, target: string | null, raw: unknown): Result {
     try {
+      id(circleID);
+      id(actor, MEMBER_ID);
+      this.ensureIdentityErasures();
+      if (this.sql.exec('SELECT 1 FROM identity_erasures WHERE actor=?', actor).toArray().length) {
+        // The check and all dispatch work are synchronous in this object. A request
+        // admitted by the root before revocation cannot write after this tombstone.
+        if (action === 'leave') return { status: 200, body: done };
+        return { status: 410, body: { error: 'identity_removed' } };
+      }
       const input = raw === null ? {} : raw;
       if (typeof input !== 'object' || Array.isArray(input)) return fail(400, 'invalid_input');
       const body = this.run(circleID, actor, action, target, input as Input);

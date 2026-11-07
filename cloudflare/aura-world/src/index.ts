@@ -6,7 +6,6 @@ export { WorldCircle } from './circles';
 
 type MapFeature = { id: string; kind: string; name: string; points: number[][] };
 type MapPayload = { schema: number; room: string; cellX: number; cellY: number; bounds: ReturnType<typeof cell>; features: MapFeature[]; generatedAt: number; sourceTimestamp: string | null; sourceProvider?: string; attribution: string; attributionURL: string; stale: boolean };
-type Growth = { schema: number; abilities: number[]; updatedAt: number };
 
 const R = 6378137, W = 1600, H = 2240;
 const ATTRIBUTION = '© OpenStreetMap contributors';
@@ -112,51 +111,80 @@ export class MapCell extends DurableObject {
   }
 }
 
-/** Capability-token scoped growth; personal notes/names/location never enter this object. */
-export class AuraProfile extends DurableObject {
-  async read(): Promise<Growth> {return await this.ctx.storage.get<Growth>('growth')||{schema:1,abilities:[0,0,0,0,0],updatedAt:0};}
-  async merge(abilities: number[]): Promise<Growth> {
-    counts(abilities);
-    return this.ctx.storage.transaction(async txn=>{
-      const old=await txn.get<Growth>('growth')||{schema:1,abilities:[0,0,0,0,0],updatedAt:0};
-      const result={schema:1,abilities:abilities.map((n,i)=>Math.max(n,old.abilities[i])),updatedAt:Date.now()};
-      await txn.put('growth',result);return result;
-    });
-  }
-}
+export { AuraProfile } from './profile';
 
 /** One neighborhood, hibernating sockets, coarse presence only; no location database. */
-export class AuraRoom extends DurableObject {
+export class AuraRoom extends DurableObject<Env> {
   async fetch(request) {
     if(request.headers.get('Upgrade')?.toLowerCase()!=='websocket')return json({error:'websocket_required'},426);
     const id=request.headers.get('X-Aura-Identity'),room=request.headers.get('X-Aura-Room');
-    if(!id||!room)return json({error:'unauthorized'},401);
+    if(!id||!/^[0-9a-f]{64}$/.test(id)||!room)return json({error:'unauthorized'},401);
+    try {
+      if(await this.env.PROFILES.getByName(id).isRevoked())return json({error:'identity_removed'},410);
+    } catch {
+      return json({error:'temporarily_unavailable'},503);
+    }
     const existing=this.ctx.getWebSockets();
     for(const ws of existing){const a=ws.deserializeAttachment();if(a?.id===id){try{ws.close(1000,'replaced');}catch{}}}
     if(existing.filter(ws=>ws.readyState===1).length>=80)return json({error:'room_full'},503);
     const pair=new WebSocketPair();const [client,server]=Object.values(pair);
     this.ctx.acceptWebSocket(server);
-    server.serializeAttachment({id,room,seen:0,lastMessage:0,visible:false});
+    server.serializeAttachment({id,rootID:id,room,seen:0,lastMessage:0,visible:false});
     server.send(JSON.stringify({type:'welcome',id,room,positionPrecisionMeters:200}));
     return new Response(null,{status:101,webSocket:client});
   }
-  webSocketMessage(ws,message) {
-    const state=ws.deserializeAttachment();
-    if(!state||typeof message!=='string'||message.length>MAX_MESSAGE){ws.close(1008,'invalid_message');return;}
-    const now=Date.now();if(now-state.lastMessage<900){ws.close(1008,'too_fast');return;}
+  private disconnect(ws: WebSocket,code: number,reason: string) {
+    try{ws.close(code,reason);}catch{}
+    try{this.broadcast(ws);}catch{}
+  }
+  async webSocketMessage(ws,message) {
     try {
-      const v=JSON.parse(message);
-      if(v.type!=='presence'||!finite(v.latitude,-85,85)||!finite(v.longitude,-180,180)||!Number.isInteger(v.ink)||v.ink<0||v.ink>0xffffff)throw Error('invalid_presence');
-      const abilities=counts(v.abilities);
-      const radiusMeters=finite(v.radiusMeters,200,10000)?Math.ceil(v.radiusMeters/100)*100:200;
-      const [rawX,rawY]=mercator(v.latitude,v.longitude);
-      const x=Math.round(rawX/200)*200,y=Math.round(rawY/200)*200;
-      const [cx,cy]=state.room.split(':').map(Number),bounds=cell(cx,cy);
-      if(x<bounds.west-200||x>bounds.east+200||y<bounds.south-200||y>bounds.north+200)throw Error('outside_room');
-      const p=[(x-bounds.west)/W*1000,(bounds.north-y)/H*1400];
-      ws.serializeAttachment({...state,lastMessage:now,seen:now,visible:true,point:p,ink:v.ink,abilities,radiusMeters,activity:Number.isInteger(v.activity)&&v.activity>=0&&v.activity<5?v.activity:0});
-      this.broadcast();
-    }catch{ws.close(1008,'invalid_presence');}
+      const attachment=ws.deserializeAttachment();
+      // Reject oversized/flooded packets before paying for a profile RPC. Claim
+      // the receive time synchronously so interleaved messages cannot fan out.
+      if(!attachment||typeof message!=='string'||message.length>MAX_MESSAGE) {
+        this.disconnect(ws,1008,'invalid_message');return;
+      }
+      const received=Date.now();
+      if(received-(attachment.lastAuthorization??attachment.lastMessage??0)<900) {
+        this.disconnect(ws,1008,'too_fast');return;
+      }
+      ws.serializeAttachment({...attachment,lastAuthorization:received});
+      // Existing sockets already store the opaque root identity as id.
+      const rootID=attachment?.rootID??attachment?.id;
+      if(typeof rootID!=='string'||!/^[0-9a-f]{64}$/.test(rootID)) {
+        this.disconnect(ws,1008,'invalid_message');return;
+      }
+      if(await this.env.PROFILES.getByName(rootID).isRevoked()) {
+        this.disconnect(ws,1008,'identity_removed');return;
+      }
+      if(ws.readyState!==1)return;
+      // Another message can have updated the attachment while authorization awaited.
+      const state=ws.deserializeAttachment();
+      if(!state||typeof message!=='string'||message.length>MAX_MESSAGE) {
+        this.disconnect(ws,1008,'invalid_message');return;
+      }
+      const now=Date.now();
+      if(now-state.lastMessage<900){this.disconnect(ws,1008,'too_fast');return;}
+      try {
+        const v=JSON.parse(message);
+        if(v.type!=='presence'||!finite(v.latitude,-85,85)||!finite(v.longitude,-180,180)||!Number.isInteger(v.ink)||v.ink<0||v.ink>0xffffff)throw Error('invalid_presence');
+        const abilities=counts(v.abilities);
+        const radiusMeters=finite(v.radiusMeters,200,10000)?Math.ceil(v.radiusMeters/100)*100:200;
+        const [rawX,rawY]=mercator(v.latitude,v.longitude);
+        const x=Math.round(rawX/200)*200,y=Math.round(rawY/200)*200;
+        const [cx,cy]=state.room.split(':').map(Number),bounds=cell(cx,cy);
+        if(x<bounds.west-200||x>bounds.east+200||y<bounds.south-200||y>bounds.north+200)throw Error('outside_room');
+        const p=[(x-bounds.west)/W*1000,(bounds.north-y)/H*1400];
+        ws.serializeAttachment({...state,rootID,lastMessage:now,seen:now,visible:true,point:p,ink:v.ink,abilities,radiusMeters,activity:Number.isInteger(v.activity)&&v.activity>=0&&v.activity<5?v.activity:0});
+        this.broadcast();
+      } catch {
+        this.disconnect(ws,1008,'invalid_presence');
+      }
+    } catch {
+      // Authorization/runtime failures fail closed for this socket only.
+      this.disconnect(ws,1011,'connection_error');
+    }
   }
   broadcast(excluded=null) {
     const now=Date.now(),sockets=this.ctx.getWebSockets();
@@ -164,18 +192,21 @@ export class AuraRoom extends DurableObject {
     const packet=JSON.stringify({type:'presence',peers,serverTime:now});
     for(const ws of sockets){if(ws===excluded)continue;try{ws.send(packet);}catch{}}
   }
-  webSocketClose(ws,code,reason,wasClean){try{ws.close(code,reason);}catch{}this.broadcast(ws);}
-  webSocketError(ws){try{ws.close(1011,'connection_error');}catch{}this.broadcast(ws);}
+  webSocketClose(ws,code,reason,wasClean){try{ws.close(code,reason);}catch{}try{this.broadcast(ws);}catch{}}
+  webSocketError(ws){this.disconnect(ws,1011,'connection_error');}
 }
 
 async function circleRequest(request: Request, env: Env, route: NonNullable<ReturnType<typeof matchCircleRoute>>) {
-  const actor = await identity(request, `asympta-world:circle:v1:${route.circleID}:`);
-  if (!actor) return json({ error: 'authorization_required' }, 401);
-  // Keep new traffic separate from the map/presence budget. Bound creation and
-  // join attempts per network as the native capability is self-generated.
-  const key = request.headers.get('CF-Connecting-IP') || actor;
-  const budget = route.action === 'create' || route.action === 'join' ? env.CIRCLE_ENTRY_RATE : env.CIRCLE_RATE;
   try {
+    const rootID = await identity(request);
+    if (!rootID) return json({ error: 'authorization_required' }, 401);
+    const profile = env.PROFILES.getByName(rootID);
+    if (await profile.isRevoked()) return json({ error: 'identity_removed' }, 410);
+    const actor = await identity(request, `asympta-world:circle:v1:${route.circleID}:`);
+    if (!actor) return json({ error: 'authorization_required' }, 401);
+    // Preserve separate map/presence, circle, and circle-entry budgets.
+    const key = request.headers.get('CF-Connecting-IP') || actor;
+    const budget = route.action === 'create' || route.action === 'join' ? env.CIRCLE_ENTRY_RATE : env.CIRCLE_RATE;
     if (!(await budget.limit({ key })).success) return json({ error: 'rate_limited' }, 429);
     let body = null;
     if (request.method === 'POST' && route.action !== 'leave') {
@@ -188,9 +219,13 @@ async function circleRequest(request: Request, env: Env, route: NonNullable<Retu
         return json({ error: 'invalid_input' }, 400);
       }
     }
+    // This commit must precede every dispatch, including failed create/join attempts.
+    const reservation = await profile.reserveCircles([{ circleID: route.circleID, actor }]);
+    if ('error' in reservation) return json({ error: reservation.error }, reservation.status);
     const result = await env.CIRCLES.getByName(route.circleID).dispatch(
       route.circleID, actor, route.action, route.target, body,
     );
+    if (await profile.isRevoked()) return json({ error: 'identity_removed' }, 410);
     return json(result.body, result.status);
   } catch {
     console.error(JSON.stringify({ event: 'circle_route_failed', action: route.action, kind: 'runtime' }));
@@ -199,9 +234,13 @@ async function circleRequest(request: Request, env: Env, route: NonNullable<Retu
 }
 
 async function circleInbox(request: Request, env: Env) {
-  const auth = await identity(request, 'asympta-world:circle-inbox:v1:');
-  if (!auth) return json({ error: 'authorization_required' }, 401);
   try {
+    const rootID = await identity(request);
+    if (!rootID) return json({ error: 'authorization_required' }, 401);
+    const profile = env.PROFILES.getByName(rootID);
+    if (await profile.isRevoked()) return json({ error: 'identity_removed' }, 410);
+    const auth = await identity(request, 'asympta-world:circle-inbox:v1:');
+    if (!auth) return json({ error: 'authorization_required' }, 401);
     const key = request.headers.get('CF-Connecting-IP') || auth;
     if (!(await env.CIRCLE_RATE.limit({ key })).success) return json({ error: 'rate_limited' }, 429);
     let circleIDs: unknown;
@@ -214,10 +253,17 @@ async function circleInbox(request: Request, env: Env) {
         !circleIDs.every(id => typeof id === 'string' && /^[0-9a-f]{32}$/.test(id))) {
       return json({ error: 'invalid_input' }, 400);
     }
-    const results = await Promise.allSettled([...new Set<string>(circleIDs)].map(async circleID => {
-      const actor = await identity(request, `asympta-world:circle:v1:${circleID}:`);
-      return env.CIRCLES.getByName(circleID).dispatch(circleID, actor!, 'inbox', null, null);
-    }));
+    const pairs = await Promise.all([...new Set<string>(circleIDs)].map(async circleID => ({
+      circleID,
+      actor: (await identity(request, `asympta-world:circle:v1:${circleID}:`))!,
+    })));
+    // Reserve the entire inbox request atomically before dispatching any item.
+    const reservation = await profile.reserveCircles(pairs);
+    if ('error' in reservation) return json({ error: reservation.error }, reservation.status);
+    const results = await Promise.allSettled(pairs.map(({ circleID, actor }) =>
+      env.CIRCLES.getByName(circleID).dispatch(circleID, actor, 'inbox', null, null),
+    ));
+    if (await profile.isRevoked()) return json({ error: 'identity_removed' }, 410);
     const groups: object[] = [];
     let partial = false;
     for (const result of results) {
@@ -233,40 +279,95 @@ async function circleInbox(request: Request, env: Env) {
   }
 }
 
+async function removalRequest(request: Request, env: Env) {
+  try {
+    const rootID = await identity(request);
+    if (!rootID) return json({ error: 'authorization_required' }, 401);
+    if (!(await env.API_RATE.limit({ key: request.headers.get('CF-Connecting-IP') || rootID })).success) {
+      return json({ error: 'rate_limited' }, 429);
+    }
+    const profile = env.PROFILES.getByName(rootID);
+    if (request.method === 'GET') return json(await profile.removalStatus());
+    if (request.method !== 'POST') {
+      return new Response(JSON.stringify({ error: 'method_not_allowed' }), {
+        status: 405, headers: { ...headers, Allow: 'GET, POST' },
+      });
+    }
+    let body;
+    try {
+      body = await boundedJSON(request, 20_000);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'body_too_large') return json({ error: 'body_too_large' }, 413);
+      return json({ error: 'invalid_input' }, 400);
+    }
+    if (!body || typeof body !== 'object' || Array.isArray(body) ||
+        Object.keys(body).some(key => key !== 'confirmation' && key !== 'circleIDs') ||
+        body.confirmation !== 'remove-my-world' || !Array.isArray(body.circleIDs) ||
+        body.circleIDs.length > 512 ||
+        !body.circleIDs.every(id => typeof id === 'string' && /^[0-9a-f]{32}$/.test(id)) ||
+        new Set(body.circleIDs).size !== body.circleIDs.length) {
+      return json({ error: 'invalid_input' }, 400);
+    }
+    // Neither root IDs nor actors are accepted from the external caller.
+    const pairs = await Promise.all((body.circleIDs as string[]).map(async circleID => ({
+      circleID,
+      actor: (await identity(request, `asympta-world:circle:v1:${circleID}:`))!,
+    })));
+    const result = await profile.beginRemoval(pairs);
+    if ('error' in result) return json({ error: result.error }, result.status);
+    // beginRemoval commits revocation, growth removal, pending work, and its alarm.
+    return json(result, result.status === 'removing' ? 202 : 200);
+  } catch {
+    console.error(JSON.stringify({ event: 'identity_removal_route_failed', kind: 'runtime' }));
+    return json({ error: 'temporarily_unavailable' }, 503);
+  }
+}
+
 export default {
   async fetch(request,env,ctx) {
     const url=new URL(request.url);
     if(url.pathname==='/privacy' && request.method==='GET')return worldPrivacy();
-    if(url.pathname==='/health')return json({ok:true,service:'asympta-world-aura',schema:1,mapSource:'OpenStreetMap',locationStorage:'coarse_socket_presence_only',profileStorage:'durable_abilities_only',circles:'invitation_only_v1'});
+    if(url.pathname==='/health')return json({ok:true,service:'asympta-world-aura',schema:1,mapSource:'OpenStreetMap',locationStorage:'coarse_socket_presence_only',profileStorage:'durable_abilities_and_opaque_circle_index',circles:'invitation_only_v1',identityRemoval:'backend_indexed_and_supplied_circles'});
+    if(url.pathname==='/v1/removal')return removalRequest(request,env);
     if(url.pathname==='/v1/circles/inbox' && request.method==='POST')return circleInbox(request,env);
     const social=matchCircleRoute(url.pathname,request.method);
     if(social)return circleRequest(request,env,social);
-    const auth=await identity(request);
-    if(!auth)return json({error:'authorization_required'},401);
-    const rate=await env.API_RATE.limit({key:request.headers.get('CF-Connecting-IP')||auth});
-    if(!rate.success)return json({error:'rate_limited'},429);
     try {
+      const auth=await identity(request);
+      if(!auth)return json({error:'authorization_required'},401);
+      const profile=env.PROFILES.getByName(auth);
+      if(await profile.isRevoked())return json({error:'identity_removed'},410);
+      const rate=await env.API_RATE.limit({key:request.headers.get('CF-Connecting-IP')||auth});
+      if(!rate.success)return json({error:'rate_limited'},429);
       if(url.pathname==='/v1/map' && request.method==='GET') {
         if(!url.searchParams.has('x')||!url.searchParams.has('y'))throw Error('invalid_cell');
         const x=Number(url.searchParams.get('x')),y=Number(url.searchParams.get('y'));cell(x,y);
-        const result=await env.MAPS.getByName(`${x}:${y}`).read(x,y);return json(result);
+        const result=await env.MAPS.getByName(`${x}:${y}`).read(x,y);
+        if(await profile.isRevoked())return json({error:'identity_removed'},410);
+        return json(result);
       }
       if(url.pathname==='/v1/profile') {
-        const profile=env.PROFILES.getByName(auth);
-        if(request.method==='GET')return json(await profile.read());
-        if(request.method==='PUT'){const body=await boundedJSON(request,1024);return json(await profile.merge(counts(body.abilities)));}
+        if(request.method==='GET') {
+          const result=await profile.read();
+          return 'error' in result?json({error:result.error},result.status):json(result);
+        }
+        if(request.method==='PUT') {
+          const body=await boundedJSON(request,1024);
+          const result=await profile.merge(counts(body.abilities));
+          return 'error' in result?json({error:result.error},result.status):json(result);
+        }
       }
       if(url.pathname==='/v1/world' && request.method==='GET') {
         if(!url.searchParams.has('x')||!url.searchParams.has('y'))throw Error('invalid_cell');
         const x=Number(url.searchParams.get('x')),y=Number(url.searchParams.get('y')),bounds=cell(x,y);
         const forward=new Request(request);forward.headers.set('X-Aura-Identity',auth);forward.headers.set('X-Aura-Room',bounds.room);
-        return env.ROOMS.getByName(bounds.room).fetch(forward);
+        return await env.ROOMS.getByName(bounds.room).fetch(forward);
       }
       return json({error:'not_found'},404);
     }catch(error){
       const known=['invalid_cell','invalid_abilities','body_too_large','missing_body'];
       const message=error instanceof Error?error.message:'unavailable';
-      // Do not log bearer tokens, geographic cells, map requests or peer data.
+      // Do not log credentials, geographic cells, map requests or peer data.
       console.error(JSON.stringify({event:'aura_request_failed',kind:known.includes(message)?message:'upstream_or_runtime'}));
       return json({error:known.includes(message)?message:'temporarily_unavailable'},known.includes(message)?400:503);
     }
